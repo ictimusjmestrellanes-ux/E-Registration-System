@@ -1,6 +1,5 @@
-@extends('layouts.app')
-@section('title', 'Login')
-@section('content')
+<?php $__env->startSection('title', 'Login'); ?>
+<?php $__env->startSection('content'); ?>
     <div class="container">
         <div class="row">
             <div class="col-lg-12">
@@ -24,20 +23,34 @@
                             <p class="text-muted">Sign in to continue.</p>
                         </div>
                         <div class="p-2 mt-4">
-                            <form action="{{ route('login') }}" method="POST">
-                                @csrf
+                            <form action="<?php echo e(route('login')); ?>" method="POST">
+                                <?php echo csrf_field(); ?>
                                 <div class="mb-3">
                                     <label for="email" class="form-label">Email</label>
-                                    <input type="text" class="form-control @error('email') is-invalid @enderror" id="email" name="email" placeholder="Enter email">
+                                    <input type="text" class="form-control <?php $__errorArgs = ['email'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?> is-invalid <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>" id="email" name="email" placeholder="Enter email">
                                 </div>
 
                                 <div class="mb-3">
                                     <div class="float-end">
-                                        <a href="{{ route('forget-password') }}" class="text-muted">Forgot password?</a>
+                                        <a href="<?php echo e(route('forget-password')); ?>" class="text-muted">Forgot password?</a>
                                     </div>
                                     <label class="form-label" for="password-input">Password</label>
                                     <div class="position-relative auth-pass-inputgroup mb-3">
-                                        <input type="password" class="form-control pe-5 password-input @error('password') is-invalid @enderror" id="password-input" name="password" placeholder="Enter password">
+                                        <input type="password" class="form-control pe-5 password-input <?php $__errorArgs = ['password'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?> is-invalid <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>" id="password-input" name="password" placeholder="Enter password">
                                         <button class="btn btn-link position-absolute end-0 top-0 text-decoration-none text-muted password-addon material-shadow-none" type="button" id="password-addon"><i class="ri-eye-fill align-middle"></i></button>
                                     </div>
                                 </div>
@@ -67,7 +80,7 @@
                 <!-- end card -->
 
                 <div class="mt-4 text-center">
-                    <p class="mb-0">Don't have an account ? <a href="{{ route('register') }}" class="fw-semibold text-primary text-decoration-underline"> Signup </a> </p>
+                    <p class="mb-0">Don't have an account ? <a href="<?php echo e(route('register')); ?>" class="fw-semibold text-primary text-decoration-underline"> Signup </a> </p>
                 </div>
 
             </div>
@@ -75,4 +88,6 @@
         <!-- end row -->
     </div>
     <!-- end container -->
-@endsection
+<?php $__env->stopSection(); ?>
+
+<?php echo $__env->make('layouts.app', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH C:\xampp\htdocs\E-Reg-System\resources\views/auth/login.blade.php ENDPATH**/ ?>

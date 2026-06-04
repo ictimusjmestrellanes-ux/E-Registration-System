@@ -7,7 +7,7 @@
                 <div class="text-center mt-sm-5 mb-4 text-white-50">
                     <div>
                         <a href="{{ route('profile') }}" class="d-inline-block auth-logo">
-                            <img src="{{ asset('assets/images/logo-light.png') }}" alt="" height="20">
+                            <span class="fw-bold fs-3 text-white">E-Registration System</span>
                         </a>
                     </div>
                     <p class="mt-3 fs-15 fw-medium">Premium Admin & Dashboard Template</p>
@@ -25,8 +25,11 @@
                             <p class="text-muted">Enter your password to unlock the screen!</p>
                         </div>
                         <div class="user-thumb text-center">
-                            <img src="{{ asset('assets/images/avatar-1.jpg') }}" class="rounded-circle img-thumbnail avatar-lg material-shadow" alt="thumbnail">
-                            <h5 class="font-size-15 mt-3">StarCode Kh</h5>
+                            @php
+                                $lockScreenAvatar = auth()->user()?->avatar ? asset('storage/' . auth()->user()->avatar) : asset('assets/images/avatar-1.jpg');
+                            @endphp
+                            <img src="{{ $lockScreenAvatar }}" class="rounded-circle img-thumbnail avatar-lg material-shadow" alt="thumbnail">
+                            <h5 class="font-size-15 mt-3">E-Registration System</h5>
                         </div>
                         <div class="p-2 mt-4">
                             <form action="{{ route('unlock-screen') }}" method="POST">

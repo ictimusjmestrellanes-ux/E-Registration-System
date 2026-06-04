@@ -1,34 +1,9 @@
-@extends('layouts.master')
-@section('title', 'FAQs')
-@section('content')
+<?php $__env->startSection('title', 'FAQs'); ?>
+<?php $__env->startSection('content'); ?>
     <!-- Page-content -->
     <div class="container-fluid">
         <div class="row">
             <div class="col-lg-12">
-                <div class="card rounded-0 bg-success-subtle mx-n4 mt-n4 border-top">
-                    <div class="px-4">
-                        <div class="row">
-                            <div class="col-xxl-5 align-self-center">
-                                <div class="py-4">
-                                    <h4 class="display-6 coming-soon-text">Frequently asked questions</h4>
-                                    <p class="text-success fs-15 mt-3">If you can not find answer to your question in our FAQ, you can always contact us or email us. We will answer you shortly!</p>
-                                    <div class="hstack flex-wrap gap-2">
-                                        <button type="button" class="btn btn-primary btn-label rounded-pill"><i class="ri-mail-line label-icon align-middle rounded-pill fs-16 me-2"></i> Email Us</button>
-                                        <button type="button" class="btn btn-info btn-label rounded-pill"><i class="ri-twitter-line label-icon align-middle rounded-pill fs-16 me-2"></i> Send Us Tweet</button>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-xxl-3 ms-auto">
-                                <div class="mb-n5 pb-1 faq-img d-none d-xxl-block">
-                                    <img src="{{ asset('assets/images/faq-img.png') }}" alt="" class="img-fluid">
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <!-- end card body -->
-                </div>
-                <!-- end card -->
-
                 <div class="row justify-content-evenly mb-4">
                     <div class="col-lg-4">
                         <div class="mt-3">
@@ -233,7 +208,9 @@
     </div>
     <!-- End Page-content -->
     
-    @section('script')
+    <?php $__env->startSection('script'); ?>
 
-    @endsection
-@endsection
+    <?php $__env->stopSection(); ?>
+<?php $__env->stopSection(); ?>
+
+<?php echo $__env->make('layouts.master', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH C:\xampp\htdocs\E-Reg-System\resources\views/pages/faqs.blade.php ENDPATH**/ ?>

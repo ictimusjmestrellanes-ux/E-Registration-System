@@ -1,28 +1,24 @@
-@extends('layouts.master')
-@section('title', 'Profile')
-@section('content')
+<?php $__env->startSection('title', 'Profile'); ?>
+<?php $__env->startSection('content'); ?>
     <!-- Page-content -->
     <div class="container-fluid">
         <div class="profile-foreground position-relative mx-n4 mt-n4">
             <div class="profile-wid-bg">
-                <img src="{{ asset('assets/images/profile-bg.jpg') }}" alt="" class="profile-wid-img">
+                <img src="<?php echo e(asset('assets/images/profile-bg.jpg')); ?>" alt="" class="profile-wid-img">
             </div>
         </div>
         <div class="pt-4 mb-4 mb-lg-3 pb-lg-4 profile-wrapper">
             <div class="row g-4">
                 <div class="col-auto">
                     <div class="avatar-lg">
-                        @php
-                            $profileAvatar = auth()->user()?->avatar ? asset('storage/' . auth()->user()->avatar) : asset('assets/images/avatar-1.jpg');
-                        @endphp
-                        <img src="{{ $profileAvatar }}" alt="user-img"
+                        <img src="<?php echo e(asset('assets/images/avatar-1.jpg')); ?>" alt="user-img"
                             class="img-thumbnail rounded-circle">
                     </div>
                 </div>
                 <!--end col-->
                 <div class="col">
                     <div class="p-2">
-                        <h3 class="text-white mb-1">{{ auth()->user()?->name ?? 'User' }}</h3>
+                        <h3 class="text-white mb-1"><?php echo e(auth()->user()?->name ?? 'User'); ?></h3>
                     </div>
                 </div>
 
@@ -67,7 +63,8 @@
                                                     <tbody>
                                                         <tr>
                                                             <th class="ps-0" scope="row">Full Name :</th>
-                                                            <td class="text-muted">{{ auth()->user()?->name ?? 'User' }}
+                                                            <td class="text-muted"><?php echo e(auth()->user()?->name ?? 'User'); ?>
+
                                                             </td>
                                                         </tr>
                                                         <tr>
@@ -178,8 +175,9 @@
     </div><!-- container-fluid -->
     <!-- End Page-content -->
 
-    @section('script')
+    <?php $__env->startSection('script'); ?>
         <!-- profile init js -->
         <script src="js/profile.init.js"></script>
-    @endsection
-@endsection
+    <?php $__env->stopSection(); ?>
+<?php $__env->stopSection(); ?>
+<?php echo $__env->make('layouts.master', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH C:\xampp\htdocs\E-Reg-System\resources\views/pages/profile.blade.php ENDPATH**/ ?>

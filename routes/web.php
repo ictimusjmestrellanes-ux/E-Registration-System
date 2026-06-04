@@ -56,15 +56,28 @@ Route::group(['namespace' => 'App\Http\Controllers\Auth'],function()
 
 });
 
-Route::group(['namespace' => 'App\Http\Controllers'],function()
-{
+Route::group(['namespace' => 'App\Http\Controllers'], function () {
     Route::middleware('auth')->group(function () {
-        Route::get('dashboard', [ProfileController::class, 'profile'])->name('dashboard');
+        Route::get('dashboard', [ProfileController::class, 'dashboard'])->name('dashboard');
+        Route::get('clients', [ProfileController::class, 'clients'])->name('clients');
+        Route::get('client-list', [ProfileController::class, 'clientList'])->name('client.list');
+        Route::get('archive', [ProfileController::class, 'archiveList'])->name('archive.list');
+        Route::post('archive/{archivedClient}/restore', [ProfileController::class, 'restoreArchivedClient'])->name('archive.restore');
+        Route::get('psgc/provinces', [ProfileController::class, 'psgcProvinces'])->name('psgc.provinces');
+        Route::get('psgc/provinces/{provinceCode}/cities', [ProfileController::class, 'psgcCities'])->name('psgc.cities');
+        Route::get('psgc/cities/{cityCode}/barangays', [ProfileController::class, 'psgcBarangays'])->name('psgc.barangays');
+        Route::get('clients/{client}', [ProfileController::class, 'viewClient'])->name('clients.show');
+        Route::get('clients/{client}/edit', [ProfileController::class, 'editClient'])->name('clients.edit');
+        Route::put('clients/{client}', [ProfileController::class, 'updateClient'])->name('clients.update');
+        Route::post('clients/{client}/archive', [ProfileController::class, 'archiveClient'])->name('clients.archive');
+        Route::delete('clients/{client}', [ProfileController::class, 'destroyClient'])->name('clients.destroy');
+        Route::post('clients', [ProfileController::class, 'storeClient'])->name('clients.store');
 
         // --------------------- Profile ------------------//
         Route::controller(ProfileController::class)->group(function () {
             Route::get('profile', 'profile')->name('profile');
             Route::get('settings', 'profileSettings')->name('settings');
+            Route::put('profile/update', 'updateProfile')->name('profile.update');
             Route::get('faqs', 'faqs')->name('faqs');
         });
     });

@@ -3,32 +3,32 @@
     <head>
 
     <meta charset="utf-8">
-    <title>@yield('title')</title>
+    <title><?php echo $__env->yieldContent('title'); ?></title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta content="Premium Multipurpose Admin & Dashboard Template" name="description">
     <meta content="E-Registration System" name="author">
     <!-- App favicon -->
-    <link rel="shortcut icon" href="{{ asset('assets/images/favicon.ico') }}">
+    <link rel="shortcut icon" href="<?php echo e(asset('assets/images/favicon.ico')); ?>">
     <!-- jsvectormap css -->
-    <link href="{{ asset('assets/css/jsvectormap.min.css') }}" rel="stylesheet" type="text/css">
+    <link href="<?php echo e(asset('assets/css/jsvectormap.min.css')); ?>" rel="stylesheet" type="text/css">
     <!-- Include Grid.js CSS and JS -->
     <link href="https://unpkg.com/gridjs/dist/theme/mermaid.min.css" rel="stylesheet" />
     <script src="https://unpkg.com/gridjs/dist/gridjs.umd.js"></script>
 
     <!--Swiper slider css-->
-    <link href="{{ asset('assets/css/swiper-bundle.min.css') }}" rel="stylesheet" type="text/css">
+    <link href="<?php echo e(asset('assets/css/swiper-bundle.min.css')); ?>" rel="stylesheet" type="text/css">
     <!-- Layout config Js -->
-    <script src="{{ asset('assets/js/layout.js') }}"></script>
+    <script src="<?php echo e(asset('assets/js/layout.js')); ?>"></script>
     <!-- Bootstrap Css -->
-    <link href="{{ asset('assets/css/bootstrap.min.css') }}" rel="stylesheet" type="text/css">
+    <link href="<?php echo e(asset('assets/css/bootstrap.min.css')); ?>" rel="stylesheet" type="text/css">
     <!-- Icons Css -->
-    <link href="{{ asset('assets/css/icons.min.css') }}" rel="stylesheet" type="text/css">
+    <link href="<?php echo e(asset('assets/css/icons.min.css')); ?>" rel="stylesheet" type="text/css">
     <!-- Bootstrap Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <!-- App Css-->
-    <link href="{{ asset('assets/css/app.min.css') }}" rel="stylesheet" type="text/css">
+    <link href="<?php echo e(asset('assets/css/app.min.css')); ?>" rel="stylesheet" type="text/css">
     <!-- custom Css-->
-    <link href="{{ asset('assets/css/custom.min.css') }}" rel="stylesheet" type="text/css">
+    <link href="<?php echo e(asset('assets/css/custom.min.css')); ?>" rel="stylesheet" type="text/css">
 </head>
 
 <body>
@@ -122,7 +122,7 @@
                                         <!-- item -->
                                         <a href="javascript:void(0);" class="dropdown-item notify-item py-2">
                                             <div class="d-flex">
-                                                <img src="{{ asset('assets/images/avatar-3.jpg') }}" class="me-3 rounded-circle avatar-xs" alt="user-pic">
+                                                <img src="<?php echo e(asset('assets/images/avatar-3.jpg')); ?>" class="me-3 rounded-circle avatar-xs" alt="user-pic">
                                                 <div class="flex-grow-1">
                                                     <h6 class="m-0">David Grasso</h6>
                                                     <span class="fs-11 mb-0 text-muted">Web Designer</span>
@@ -132,7 +132,7 @@
                                         <!-- item -->
                                         <a href="javascript:void(0);" class="dropdown-item notify-item py-2">
                                             <div class="d-flex">
-                                                <img src="{{ asset('assets/images/avatar-5.jpg') }}" class="me-3 rounded-circle avatar-xs" alt="user-pic">
+                                                <img src="<?php echo e(asset('assets/images/avatar-5.jpg')); ?>" class="me-3 rounded-circle avatar-xs" alt="user-pic">
                                                 <div class="flex-grow-1">
                                                     <h6 class="m-0">Mike Bunch</h6>
                                                     <span class="fs-11 mb-0 text-muted">React Developer</span>
@@ -242,23 +242,23 @@
                         <div class="dropdown ms-sm-3 header-item topbar-user">
                             <button type="button" class="btn material-shadow-none" id="page-header-user-dropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                                 <span class="d-flex align-items-center">
-                                    @php
+                                    <?php
                                         $headerAvatar = auth()->user()?->avatar ? asset('storage/' . auth()->user()->avatar) : asset('assets/images/avatar-1.jpg');
-                                    @endphp
-                                    <img class="rounded-circle header-profile-user" src="{{ $headerAvatar }}" alt="Header Avatar">
+                                    ?>
+                                    <img class="rounded-circle header-profile-user" src="<?php echo e($headerAvatar); ?>" alt="Header Avatar">
                                     <span class="text-start ms-xl-2">
-                                        <span class="d-none d-xl-inline-block ms-1 fw-medium user-name-text">{{ auth()->user()->name ?? 'User' }}</span>
+                                        <span class="d-none d-xl-inline-block ms-1 fw-medium user-name-text"><?php echo e(auth()->user()->name ?? 'User'); ?></span>
                                     </span>
                                 </span>
                             </button>
                             <div class="dropdown-menu dropdown-menu-end">
                                 <!-- item-->
-                                <h6 class="dropdown-header">Welcome {{ auth()->user()->name ?? 'User' }}!</h6>
-                                <a class="dropdown-item" href="{{ route('profile') }}"><i class="mdi mdi-account-circle text-muted fs-16 align-middle me-1"></i> <span class="align-middle">Profile</span></a>
+                                <h6 class="dropdown-header">Welcome <?php echo e(auth()->user()->name ?? 'User'); ?>!</h6>
+                                <a class="dropdown-item" href="<?php echo e(route('profile')); ?>"><i class="mdi mdi-account-circle text-muted fs-16 align-middle me-1"></i> <span class="align-middle">Profile</span></a>
                                 <div class="dropdown-divider"></div>
-                                <a class="dropdown-item" href="{{ route('settings') }}"><i class="mdi mdi-cog-outline text-muted fs-16 align-middle me-1"></i> <span class="align-middle">Settings</span></a>
-                                <a class="dropdown-item" href="{{ route('lock-activate') }}"><i class="mdi mdi-lock text-muted fs-16 align-middle me-1"></i> <span class="align-middle">Lock screen</span></a>
-                                <a class="dropdown-item" href="{{ route('logout') }}"><i class="mdi mdi-logout text-muted fs-16 align-middle me-1"></i> <span class="align-middle" data-key="t-logout">Logout</span></a>
+                                <a class="dropdown-item" href="<?php echo e(route('settings')); ?>"><i class="mdi mdi-cog-outline text-muted fs-16 align-middle me-1"></i> <span class="align-middle">Settings</span></a>
+                                <a class="dropdown-item" href="<?php echo e(route('lock-activate')); ?>"><i class="mdi mdi-lock text-muted fs-16 align-middle me-1"></i> <span class="align-middle">Lock screen</span></a>
+                                <a class="dropdown-item" href="<?php echo e(route('logout')); ?>"><i class="mdi mdi-logout text-muted fs-16 align-middle me-1"></i> <span class="align-middle" data-key="t-logout">Logout</span></a>
                             </div>
                         </div>
                     </div>
@@ -292,7 +292,7 @@
         </div><!-- /.modal -->
 
         <!-- ========== App Menu ========== -->
-        @include('layouts.sidebar')
+        <?php echo $__env->make('layouts.sidebar', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
         <!-- Left Sidebar End -->
         <!-- Vertical Overlay-->
         <div class="vertical-overlay"></div>
@@ -302,7 +302,7 @@
         <!-- ============================================================== -->
         <div class="main-content">
             <div class="page-content">
-                @yield('content')
+                <?php echo $__env->yieldContent('content'); ?>
                 <!-- container-fluid -->
             </div>
             <!-- End Page-content -->
@@ -477,7 +477,7 @@
                             <div class="form-check card-radio">
                                 <input id="customizer-theme01" name="data-theme" type="radio" value="default" class="form-check-input">
                                 <label class="form-check-label p-0" for="customizer-theme01">
-                                    <img src="{{ asset('assets/images/default.png') }}" alt="" class="img-fluid">
+                                    <img src="<?php echo e(asset('assets/images/default.png')); ?>" alt="" class="img-fluid">
                                 </label>
                             </div>
                             <h5 class="fs-13 text-center fw-medium mt-2">Default</h5>
@@ -486,7 +486,7 @@
                             <div class="form-check card-radio">
                                 <input id="customizer-theme02" name="data-theme" type="radio" value="saas" class="form-check-input">
                                 <label class="form-check-label p-0" for="customizer-theme02">
-                                    <img src="{{ asset('assets/images/saas.png') }}" alt="" class="img-fluid">
+                                    <img src="<?php echo e(asset('assets/images/saas.png')); ?>" alt="" class="img-fluid">
                                 </label>
                             </div>
                             <h5 class="fs-13 text-center fw-medium mt-2">Sass</h5>
@@ -495,7 +495,7 @@
                             <div class="form-check card-radio">
                                 <input id="customizer-theme03" name="data-theme" type="radio" value="corporate" class="form-check-input">
                                 <label class="form-check-label p-0" for="customizer-theme03">
-                                    <img src="{{ asset('assets/images/corporate.png') }}" alt="" class="img-fluid">
+                                    <img src="<?php echo e(asset('assets/images/corporate.png')); ?>" alt="" class="img-fluid">
                                 </label>
                             </div>
                             <h5 class="fs-13 text-center fw-medium mt-2">Corporate</h5>
@@ -504,7 +504,7 @@
                             <div class="form-check card-radio">
                                 <input id="customizer-theme04" name="data-theme" type="radio" value="galaxy" class="form-check-input">
                                 <label class="form-check-label p-0" for="customizer-theme04">
-                                    <img src="{{ asset('assets/images/galaxy.png') }}" alt="" class="img-fluid">
+                                    <img src="<?php echo e(asset('assets/images/galaxy.png')); ?>" alt="" class="img-fluid">
                                 </label>
                             </div>
                             <h5 class="fs-13 text-center fw-medium mt-2">Galaxy</h5>
@@ -513,7 +513,7 @@
                             <div class="form-check card-radio">
                                 <input id="customizer-theme05" name="data-theme" type="radio" value="material" class="form-check-input">
                                 <label class="form-check-label p-0" for="customizer-theme05">
-                                    <img src="{{ asset('assets/images/material.png') }}" alt="" class="img-fluid">
+                                    <img src="<?php echo e(asset('assets/images/material.png')); ?>" alt="" class="img-fluid">
                                 </label>
                             </div>
                             <h5 class="fs-13 text-center fw-medium mt-2">Material</h5>
@@ -522,7 +522,7 @@
                             <div class="form-check card-radio">
                                 <input id="customizer-theme06" name="data-theme" type="radio" value="creative" class="form-check-input">
                                 <label class="form-check-label p-0" for="customizer-theme06">
-                                    <img src="{{ asset('assets/images/creative.png') }}" alt="" class="img-fluid">
+                                    <img src="<?php echo e(asset('assets/images/creative.png')); ?>" alt="" class="img-fluid">
                                 </label>
                             </div>
                             <h5 class="fs-13 text-center fw-medium mt-2">Creative</h5>
@@ -531,7 +531,7 @@
                             <div class="form-check card-radio">
                                 <input id="customizer-theme07" name="data-theme" type="radio" value="minimal" class="form-check-input">
                                 <label class="form-check-label p-0" for="customizer-theme07">
-                                    <img src="{{ asset('assets/images/minimal.png') }}" alt="" class="img-fluid">
+                                    <img src="<?php echo e(asset('assets/images/minimal.png')); ?>" alt="" class="img-fluid">
                                 </label>
                             </div>
                             <h5 class="fs-13 text-center fw-medium mt-2">Minimal</h5>
@@ -540,7 +540,7 @@
                             <div class="form-check card-radio">
                                 <input id="customizer-theme08" name="data-theme" type="radio" value="modern" class="form-check-input">
                                 <label class="form-check-label p-0" for="customizer-theme08">
-                                    <img src="{{ asset('assets/images/modern.png') }}" alt="" class="img-fluid">
+                                    <img src="<?php echo e(asset('assets/images/modern.png')); ?>" alt="" class="img-fluid">
                                 </label>
                             </div>
                             <h5 class="fs-13 text-center fw-medium mt-2">Modern</h5>
@@ -550,7 +550,7 @@
                             <div class="form-check card-radio">
                                 <input id="customizer-theme09" name="data-theme" type="radio" value="interactive" class="form-check-input">
                                 <label class="form-check-label p-0" for="customizer-theme09">
-                                    <img src="{{ asset('assets/images/interactive.png') }}" alt="" class="img-fluid">
+                                    <img src="<?php echo e(asset('assets/images/interactive.png')); ?>" alt="" class="img-fluid">
                                 </label>
                             </div>
                             <h5 class="fs-13 text-center fw-medium mt-2">Interactive</h5>
@@ -560,7 +560,7 @@
                             <div class="form-check card-radio">
                                 <input id="customizer-theme10" name="data-theme" type="radio" value="classic" class="form-check-input">
                                 <label class="form-check-label p-0" for="customizer-theme10">
-                                    <img src="{{ asset('assets/images/classic.png') }}" alt="" class="img-fluid">
+                                    <img src="<?php echo e(asset('assets/images/classic.png')); ?>" alt="" class="img-fluid">
                                 </label>
                             </div>
                             <h5 class="fs-13 text-center fw-medium mt-2">Classic</h5>
@@ -570,7 +570,7 @@
                             <div class="form-check card-radio">
                                 <input id="customizer-theme11" name="data-theme" type="radio" value="vintage" class="form-check-input">
                                 <label class="form-check-label p-0" for="customizer-theme11">
-                                    <img src="{{ asset('assets/images/vintage.png') }}" alt="" class="img-fluid">
+                                    <img src="<?php echo e(asset('assets/images/vintage.png')); ?>" alt="" class="img-fluid">
                                 </label>
                             </div>
                             <h5 class="fs-13 text-center fw-medium mt-2">Vintage</h5>
@@ -1092,26 +1092,26 @@
                             <div class="form-check sidebar-setting card-radio">
                                 <input class="form-check-input" type="radio" name="data-sidebar-image" id="sidebarimg-01" value="img-1">
                                 <label class="form-check-label p-0 avatar-sm h-auto" for="sidebarimg-01">
-                                    <img src="{{ asset('assets/images/img-1.jpg') }}" alt="" class="avatar-md w-auto object-fit-cover">
+                                    <img src="<?php echo e(asset('assets/images/img-1.jpg')); ?>" alt="" class="avatar-md w-auto object-fit-cover">
                                 </label>
                             </div>	
 
                             <div class="form-check sidebar-setting card-radio">
                                 <input class="form-check-input" type="radio" name="data-sidebar-image" id="sidebarimg-02" value="img-2">
                                 <label class="form-check-label p-0 avatar-sm h-auto" for="sidebarimg-02">
-                                    <img src="{{ asset('assets/images/img-2.jpg') }}" alt="" class="avatar-md w-auto object-fit-cover">
+                                    <img src="<?php echo e(asset('assets/images/img-2.jpg')); ?>" alt="" class="avatar-md w-auto object-fit-cover">
                                 </label>
                             </div>
                             <div class="form-check sidebar-setting card-radio">
                                 <input class="form-check-input" type="radio" name="data-sidebar-image" id="sidebarimg-03" value="img-3">
                                 <label class="form-check-label p-0 avatar-sm h-auto" for="sidebarimg-03">
-                                    <img src="{{ asset('assets/images/img-3.jpg') }}" alt="" class="avatar-md w-auto object-fit-cover">
+                                    <img src="<?php echo e(asset('assets/images/img-3.jpg')); ?>" alt="" class="avatar-md w-auto object-fit-cover">
                                 </label>
                             </div>
                             <div class="form-check sidebar-setting card-radio">
                                 <input class="form-check-input" type="radio" name="data-sidebar-image" id="sidebarimg-04" value="img-4">
                                 <label class="form-check-label p-0 avatar-sm h-auto" for="sidebarimg-04">
-                                    <img src="{{ asset('assets/images/img-4.jpg') }}" alt="" class="avatar-md w-auto object-fit-cover">
+                                    <img src="<?php echo e(asset('assets/images/img-4.jpg')); ?>" alt="" class="avatar-md w-auto object-fit-cover">
                                 </label>
                             </div>
                         </div>
@@ -1283,31 +1283,31 @@
     </div>
 
     <!-- JAVASCRIPT -->
-    <script src="{{ asset('assets/js/bootstrap.bundle.min.js') }}"></script>
-    <script src="{{ asset('assets/js/simplebar.min.js') }}"></script>
-    <script src="{{ asset('assets/js/waves.min.js') }}"></script>
-    <script src="{{ asset('assets/js/feather.min.js') }}"></script>
-    <script src="{{ asset('assets/js/lord-icon-2.1.0.js') }}"></script>
-    <script src="{{ asset('assets/js/plugins.js') }}"></script>
+    <script src="<?php echo e(asset('assets/js/bootstrap.bundle.min.js')); ?>"></script>
+    <script src="<?php echo e(asset('assets/js/simplebar.min.js')); ?>"></script>
+    <script src="<?php echo e(asset('assets/js/waves.min.js')); ?>"></script>
+    <script src="<?php echo e(asset('assets/js/feather.min.js')); ?>"></script>
+    <script src="<?php echo e(asset('assets/js/lord-icon-2.1.0.js')); ?>"></script>
+    <script src="<?php echo e(asset('assets/js/plugins.js')); ?>"></script>
     <!-- apexcharts -->
-    <script src="{{ asset('assets/js/apexcharts.min.js') }}"></script>
+    <script src="<?php echo e(asset('assets/js/apexcharts.min.js')); ?>"></script>
     <!-- Vector map-->
-    <script src="{{ asset('assets/js/jsvectormap.min.js') }}"></script>
-    <script src="{{ asset('assets/js/world-merc.js') }}"></script>
+    <script src="<?php echo e(asset('assets/js/jsvectormap.min.js')); ?>"></script>
+    <script src="<?php echo e(asset('assets/js/world-merc.js')); ?>"></script>
     <!--Swiper slider js-->
-    <script src="{{ asset('assets/js/swiper-bundle.min.js') }}"></script>
+    <script src="<?php echo e(asset('assets/js/swiper-bundle.min.js')); ?>"></script>
     <!-- App js -->
-    <script src="{{ asset('assets/js/app.js') }}"></script>
+    <script src="<?php echo e(asset('assets/js/app.js')); ?>"></script>
     <!-- imessage -->
-    <script src="{{ asset('assets/js/imessage.js') }}"></script>
+    <script src="<?php echo e(asset('assets/js/imessage.js')); ?>"></script>
 
     <script>
         document.addEventListener("DOMContentLoaded", function () {
             let messages = {
-                success: "{{ session('success') }}",
-                error: "{{ session('error') }}",
-                warning: "{{ session('warning') }}",
-                info: "{{ session('info') }}"
+                success: "<?php echo e(session('success')); ?>",
+                error: "<?php echo e(session('error')); ?>",
+                warning: "<?php echo e(session('warning')); ?>",
+                info: "<?php echo e(session('info')); ?>"
             };
 
             Object.keys(messages).forEach(type => {
@@ -1318,7 +1318,8 @@
         });
     </script>
 
-    @yield('script')
+    <?php echo $__env->yieldContent('script'); ?>
 
 </body>
 </html>
+<?php /**PATH C:\xampp\htdocs\E-Reg-System\resources\views/layouts/master.blade.php ENDPATH**/ ?>

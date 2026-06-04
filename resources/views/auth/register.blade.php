@@ -8,10 +8,10 @@
                 <div class="text-center mt-sm-5 mb-4 text-white-50">
                     <div>
                         <a href="index.html" class="d-inline-block auth-logo">
-                            <img src="{{ asset('assets/images/logo-light.png') }}" alt="" height="20">
+                            <span class="fw-bold fs-3 text-white">E-Registration System</span>
                         </a>
                     </div>
-                    <p class="mt-3 fs-15 fw-medium">StarCode Kh & Dashboard Template</p>
+                    <p class="mt-3 fs-15 fw-medium">E-Registration System</p>
                 </div>
             </div>
         </div>
