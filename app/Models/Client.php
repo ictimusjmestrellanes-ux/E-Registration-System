@@ -23,5 +23,6 @@ class Client extends Model
         'city',
         'barangay',
         'photo_path',
+        'fingerprint_path',
     ];
 }

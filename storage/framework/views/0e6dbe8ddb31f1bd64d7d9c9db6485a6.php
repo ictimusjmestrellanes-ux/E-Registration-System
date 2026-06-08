@@ -2,6 +2,7 @@
 <?php $__env->startSection('content'); ?>
     <?php
         $clientPhoto = $client->photo_path ? asset('storage/' . $client->photo_path) : asset('assets/images/avatar-1.jpg');
+        $clientFingerprint = $client->fingerprint_path ? asset('storage/' . $client->fingerprint_path) : null;
     ?>
 
     <div class="container-fluid">
@@ -78,6 +79,18 @@
                                             <tr>
                                                 <th>Barangay</th>
                                                 <td><?php echo e($client->barangay ?? '-'); ?></td>
+                                            </tr>
+                                            <tr>
+                                                <th>Fingerprint</th>
+                                                <td>
+                                                    <?php if($clientFingerprint): ?>
+                                                        <a href="<?php echo e($clientFingerprint); ?>" target="_blank" rel="noopener">
+                                                            <img src="<?php echo e($clientFingerprint); ?>" alt="Fingerprint" class="rounded-3 border object-fit-cover" style="width: 120px; height: 120px;">
+                                                        </a>
+                                                    <?php else: ?>
+                                                        -
+                                                    <?php endif; ?>
+                                                </td>
                                             </tr>
                                         </tbody>
                                     </table>

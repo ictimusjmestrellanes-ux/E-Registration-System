@@ -62,6 +62,7 @@ class ProfileController extends Controller
             'city' => $archivedClient->city,
             'barangay' => $archivedClient->barangay,
             'photo_path' => $archivedClient->photo_path,
+            'fingerprint_path' => $archivedClient->fingerprint_path,
         ]);
 
         $archivedClient->delete();
@@ -99,6 +100,7 @@ class ProfileController extends Controller
         $validated = $this->validateClientPayload($request);
 
         $photoPath = $this->storeClientPhoto($validated['photo_data'] ?? null);
+        $fingerprintPath = $this->storeClientFingerprint($validated['fingerprint_data'] ?? null);
 
         Client::create([
             'first_name' => $validated['first_name'],
@@ -114,6 +116,7 @@ class ProfileController extends Controller
             'city' => $validated['city'] ?? null,
             'barangay' => $validated['barangay'] ?? null,
             'photo_path' => $photoPath,
+            'fingerprint_path' => $fingerprintPath,
         ]);
 
         return redirect()->route('clients')->with('success', 'Client saved successfully.');
@@ -132,6 +135,15 @@ class ProfileController extends Controller
             $photoPath = $this->storeClientPhoto($validated['photo_data']);
         }
 
+        $fingerprintPath = $client->fingerprint_path;
+        if (!empty($validated['fingerprint_data'])) {
+            if ($client->fingerprint_path) {
+                Storage::disk('public')->delete($client->fingerprint_path);
+            }
+
+            $fingerprintPath = $this->storeClientFingerprint($validated['fingerprint_data']);
+        }
+
         $client->update([
             'first_name' => $validated['first_name'],
             'middle_name' => $validated['middle_name'] ?? null,
@@ -146,6 +158,7 @@ class ProfileController extends Controller
             'city' => $validated['city'] ?? null,
             'barangay' => $validated['barangay'] ?? null,
             'photo_path' => $photoPath,
+            'fingerprint_path' => $fingerprintPath,
         ]);
 
         return redirect()->route('client.list')->with('success', 'Client updated successfully.');
@@ -179,6 +192,7 @@ class ProfileController extends Controller
             'city' => $client->city,
             'barangay' => $client->barangay,
             'photo_path' => $client->photo_path,
+            'fingerprint_path' => $client->fingerprint_path,
             'archived_at' => now(),
         ]);
 
@@ -203,31 +217,42 @@ class ProfileController extends Controller
             'city' => ['nullable', 'string', 'max:255'],
             'barangay' => ['nullable', 'string', 'max:255'],
             'photo_data' => ['nullable', 'string'],
+            'fingerprint_data' => ['nullable', 'string'],
         ]);
     }
 
     private function storeClientPhoto(?string $photoData): ?string
     {
-        if (empty($photoData)) {
+        return $this->storeBase64Image($photoData, 'clients', 'client_');
+    }
+
+    private function storeClientFingerprint(?string $fingerprintData): ?string
+    {
+        return $this->storeBase64Image($fingerprintData, 'fingerprints', 'fingerprint_');
+    }
+
+    private function storeBase64Image(?string $imageData, string $directory, string $prefix): ?string
+    {
+        if (empty($imageData)) {
             return null;
         }
 
-        if (!preg_match('/^data:image\/(\w+);base64,/', $photoData, $matches)) {
+        if (!preg_match('/^data:image\/(\w+);base64,/', $imageData, $matches)) {
             return null;
         }
 
         $extension = strtolower($matches[1]);
-        $photoData = substr($photoData, strpos($photoData, ',') + 1);
-        $decoded = base64_decode($photoData);
+        $imageData = substr($imageData, strpos($imageData, ',') + 1);
+        $decoded = base64_decode($imageData);
 
         if ($decoded === false) {
             return null;
         }
 
-        $photoPath = 'clients/' . uniqid('client_', true) . '.' . $extension;
-        Storage::disk('public')->put($photoPath, $decoded);
+        $path = $directory . '/' . uniqid($prefix, true) . '.' . $extension;
+        Storage::disk('public')->put($path, $decoded);
 
-        return $photoPath;
+        return $path;
     }
 
     private function fetchPsgcJson(string $url)

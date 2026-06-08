@@ -1,6 +1,8 @@
 <!DOCTYPE html>
-<html lang="en" data-layout="vertical" data-topbar="light" data-sidebar="dark" data-sidebar-size="lg" data-sidebar-image="none" data-preloader="disable" data-theme="default" data-theme-colors="default">
-    <head>
+<html lang="en" data-layout="vertical" data-topbar="light" data-sidebar="dark" data-sidebar-size="lg"
+    data-sidebar-image="none" data-preloader="disable" data-theme="default" data-theme-colors="default">
+
+<head>
 
     <meta charset="utf-8">
     <title><?php echo $__env->yieldContent('title', 'Error'); ?></title>
@@ -21,8 +23,9 @@
     <link href="<?php echo e(asset('assets/css/app.min.css')); ?>" rel="stylesheet" type="text/css">
     <!-- custom Css-->
     <link href="<?php echo e(asset('assets/css/custom.min.css')); ?>" rel="stylesheet" type="text/css">
-
+    <?php echo app('Illuminate\Foundation\Vite')(['resources/js/app.js']); ?>
 </head>
+
 <body>
 
     <div class="auth-page-wrapper pt-5">
@@ -30,7 +33,8 @@
         <div class="auth-one-bg-position auth-one-bg" id="auth-particles">
             <div class="bg-overlay"></div>
             <div class="shape">
-                <svg xmlns="http://www.w3.org/2000/svg" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1440 120">
+                <svg xmlns="http://www.w3.org/2000/svg" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink"
+                    viewBox="0 0 1440 120">
                     <path d="M 0,36 C 144,53.6 432,123.2 720,124 C 1008,124.8 1296,56.8 1440,40L1440 140L0 140z"></path>
                 </svg>
             </div>
@@ -49,7 +53,8 @@
                     <div class="col-lg-12">
                         <div class="text-center">
                             <p class="mb-0 text-muted">©
-                                <script>document.write(new Date().getFullYear())</script> City Government of Imus. All rights reserved. Developed by IT Team.
+                                <script>document.write(new Date().getFullYear())</script> City Government of Imus. All
+                                rights reserved. Developed by IT Team.
                             </p>
                         </div>
                     </div>
@@ -93,8 +98,5 @@
     </script>
 
     <?php echo $__env->yieldContent('script'); ?>
-
-
 </body>
-</html>
-<?php /**PATH C:\xampp\htdocs\E-Reg-System\resources\views/layouts/app.blade.php ENDPATH**/ ?>
+</html><?php /**PATH C:\xampp\htdocs\E-Reg-System\resources\views/layouts/app.blade.php ENDPATH**/ ?>

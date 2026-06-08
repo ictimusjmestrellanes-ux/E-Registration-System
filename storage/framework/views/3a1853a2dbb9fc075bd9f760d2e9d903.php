@@ -11,7 +11,10 @@
             <div class="row g-4">
                 <div class="col-auto">
                     <div class="avatar-lg">
-                        <img src="<?php echo e(asset('assets/images/avatar-1.jpg')); ?>" alt="user-img"
+                        <?php
+                            $profileAvatar = auth()->user()?->avatar ? asset('storage/' . auth()->user()->avatar) : asset('assets/images/avatar-1.jpg');
+                        ?>
+                        <img src="<?php echo e($profileAvatar); ?>" alt="user-img"
                             class="img-thumbnail rounded-circle">
                     </div>
                 </div>
@@ -180,4 +183,5 @@
         <script src="js/profile.init.js"></script>
     <?php $__env->stopSection(); ?>
 <?php $__env->stopSection(); ?>
+
 <?php echo $__env->make('layouts.master', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH C:\xampp\htdocs\E-Reg-System\resources\views/pages/profile.blade.php ENDPATH**/ ?>
