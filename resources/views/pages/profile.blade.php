@@ -72,20 +72,15 @@
                                                         </tr>
                                                         <tr>
                                                             <th class="ps-0" scope="row">Mobile :</th>
-                                                            <td class="text-muted">+(1) 987 6543</td>
+                                                            <td class="text-muted">{{ auth()->user()->phone_number ?? '' }}</td>
                                                         </tr>
                                                         <tr>
                                                             <th class="ps-0" scope="row">E-mail :</th>
-                                                            <td class="text-muted">daveadame@Template.com</td>
-                                                        </tr>
-                                                        <tr>
-                                                            <th class="ps-0" scope="row">Location :</th>
-                                                            <td class="text-muted">California, United States
-                                                            </td>
+                                                            <td class="text-muted">{{ auth()->user()->email ?? '' }}</td>
                                                         </tr>
                                                         <tr>
                                                             <th class="ps-0" scope="row">Joining Date</th>
-                                                            <td class="text-muted">24 Nov 2021</td>
+                                                            <td class="text-muted">{{ auth()->user()->created_at->format('d M Y') ?? '' }}</td>
                                                         </tr>
                                                     </tbody>
                                                 </table>

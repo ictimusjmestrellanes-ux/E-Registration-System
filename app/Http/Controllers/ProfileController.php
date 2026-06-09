@@ -100,7 +100,6 @@ class ProfileController extends Controller
         $validated = $this->validateClientPayload($request);
 
         $photoPath = $this->storeClientPhoto($validated['photo_data'] ?? null);
-        $fingerprintPath = $this->storeClientFingerprint($validated['fingerprint_data'] ?? null);
 
         Client::create([
             'first_name' => $validated['first_name'],
@@ -116,7 +115,7 @@ class ProfileController extends Controller
             'city' => $validated['city'] ?? null,
             'barangay' => $validated['barangay'] ?? null,
             'photo_path' => $photoPath,
-            'fingerprint_path' => $fingerprintPath,
+            'fingerprint_path' => null,
         ]);
 
         return redirect()->route('clients')->with('success', 'Client saved successfully.');
@@ -135,15 +134,6 @@ class ProfileController extends Controller
             $photoPath = $this->storeClientPhoto($validated['photo_data']);
         }
 
-        $fingerprintPath = $client->fingerprint_path;
-        if (!empty($validated['fingerprint_data'])) {
-            if ($client->fingerprint_path) {
-                Storage::disk('public')->delete($client->fingerprint_path);
-            }
-
-            $fingerprintPath = $this->storeClientFingerprint($validated['fingerprint_data']);
-        }
-
         $client->update([
             'first_name' => $validated['first_name'],
             'middle_name' => $validated['middle_name'] ?? null,
@@ -158,7 +148,6 @@ class ProfileController extends Controller
             'city' => $validated['city'] ?? null,
             'barangay' => $validated['barangay'] ?? null,
             'photo_path' => $photoPath,
-            'fingerprint_path' => $fingerprintPath,
         ]);
 
         return redirect()->route('client.list')->with('success', 'Client updated successfully.');
@@ -217,18 +206,12 @@ class ProfileController extends Controller
             'city' => ['nullable', 'string', 'max:255'],
             'barangay' => ['nullable', 'string', 'max:255'],
             'photo_data' => ['nullable', 'string'],
-            'fingerprint_data' => ['nullable', 'string'],
         ]);
     }
 
     private function storeClientPhoto(?string $photoData): ?string
     {
         return $this->storeBase64Image($photoData, 'clients', 'client_');
-    }
-
-    private function storeClientFingerprint(?string $fingerprintData): ?string
-    {
-        return $this->storeBase64Image($fingerprintData, 'fingerprints', 'fingerprint_');
     }
 
     private function storeBase64Image(?string $imageData, string $directory, string $prefix): ?string

@@ -97,7 +97,7 @@
                                         <li class="nav-item">
                                             <a href="{{ route('profile') }}"
                                                 class="nav-link {{ set_active(['profile']) }}"
-                                                data-key="t-simple-page">Update Profile</a>
+                                                data-key="t-simple-page">Activity Logs</a>
                                         </li>
                                         <li class="nav-item">
                                             <a href="{{ route('settings') }}"
@@ -113,6 +113,7 @@
                 </li>
 
             </ul>
+            
         </div>
         <!-- Sidebar -->
     </div>

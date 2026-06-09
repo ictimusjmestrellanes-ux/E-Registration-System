@@ -29,6 +29,7 @@
     <link href="{{ asset('assets/css/app.min.css') }}" rel="stylesheet" type="text/css">
     <!-- custom Css-->
     <link href="{{ asset('assets/css/custom.min.css') }}" rel="stylesheet" type="text/css">
+    
 </head>
 
 <body>
@@ -1319,6 +1320,6 @@
     </script>
 
     @yield('script')
-
+    @vite(['resources/js/app.js'])
 </body>
 </html>

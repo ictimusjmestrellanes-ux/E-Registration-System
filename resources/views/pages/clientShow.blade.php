@@ -3,7 +3,6 @@
 @section('content')
     @php
         $clientPhoto = $client->photo_path ? asset('storage/' . $client->photo_path) : asset('assets/images/avatar-1.jpg');
-        $clientFingerprint = $client->fingerprint_path ? asset('storage/' . $client->fingerprint_path) : null;
     @endphp
 
     <div class="container-fluid">
@@ -80,18 +79,6 @@
                                             <tr>
                                                 <th>Barangay</th>
                                                 <td>{{ $client->barangay ?? '-' }}</td>
-                                            </tr>
-                                            <tr>
-                                                <th>Fingerprint</th>
-                                                <td>
-                                                    @if($clientFingerprint)
-                                                        <a href="{{ $clientFingerprint }}" target="_blank" rel="noopener">
-                                                            <img src="{{ $clientFingerprint }}" alt="Fingerprint" class="rounded-3 border object-fit-cover" style="width: 120px; height: 120px;">
-                                                        </a>
-                                                    @else
-                                                        -
-                                                    @endif
-                                                </td>
                                             </tr>
                                         </tbody>
                                     </table>

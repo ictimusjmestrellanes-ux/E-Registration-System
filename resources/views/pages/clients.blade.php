@@ -9,9 +9,6 @@
         $previewImage = $editingClient && $editingClient->photo_path
             ? asset('storage/' . $editingClient->photo_path)
             : 'data:image/svg+xml;utf8,' . rawurlencode('<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 240 240"><rect width="240" height="240" rx="24" fill="#f1f5f9"/><path d="M85 80l10-16h50l10 16h15c8.3 0 15 6.7 15 15v70c0 8.3-6.7 15-15 15H80c-8.3 0-15-6.7-15-15V95c0-8.3 6.7-15 15-15h5zm35 30c-16.6 0-30 13.4-30 30s13.4 30 30 30 30-13.4 30-30-13.4-30-30-30zm0 15c8.3 0 15 6.7 15 15s-6.7 15-15 15-15-6.7-15-15 6.7-15 15-15z" fill="#6b7280"/><circle cx="170" cy="98" r="8" fill="#6b7280"/></svg>');
-        $fingerprintPreview = $editingClient && $editingClient->fingerprint_path
-            ? asset('storage/' . $editingClient->fingerprint_path)
-            : 'data:image/svg+xml;utf8,' . rawurlencode('<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 240 240"><rect width="240" height="240" rx="24" fill="#f8fafc"/><g fill="none" stroke="#475569" stroke-linecap="round" stroke-linejoin="round"><path d="M120 52c-29.8 0-54 24.2-54 54 0 39 18 54 18 54"/><path d="M120 70c-20 0-36 16-36 36 0 24 10 36 10 36"/><path d="M120 88c-10 0-18 8-18 18 0 10 3 18 3 18"/><path d="M120 52c29.8 0 54 24.2 54 54 0 39-18 54-18 54"/><path d="M120 70c20 0 36 16 36 36 0 24-10 36-10 36"/><path d="M120 88c10 0 18 8 18 18 0 10-3 18-3 18"/><path d="M83 168c6 10 20 18 37 18s31-8 37-18"/></g></svg>');
     @endphp
 
     <div class="container-fluid">
@@ -59,30 +56,6 @@
                                             </div>
                                         </div>
 
-                                        <div class="col-lg-6">
-                                            <label for="fingerprintInput" class="form-label">Fingerprint</label>
-                                            <div class="row g-3 align-items-start">
-                                                <div class="col-md-auto">
-                                                    <img id="fingerprintPreview" src="{{ $fingerprintPreview }}"
-                                                        alt="Fingerprint Preview"
-                                                        class="rounded-3 img-thumbnail material-shadow object-fit-cover"
-                                                        style="width: 250px; height: 250px;">
-                                                </div>
-                                                <div class="col-md d-flex flex-column justify-content-center">
-                                                    <div class="mb-2">
-                                                        <input type="file" class="form-control" id="fingerprintInput"
-                                                            accept="image/*">
-                                                        <div class="form-text">Upload a fingerprint image from your scanner
-                                                            or device.</div>
-                                                    </div>
-                                                    <div class="d-flex flex-wrap gap-2">
-                                                        <button type="button" class="btn btn-soft-secondary"
-                                                            id="clearFingerprintBtn">Clear Fingerprint</button>
-                                                    </div>
-                                                    <input type="hidden" id="fingerprintData" name="fingerprint_data">
-                                                </div>
-                                            </div>
-                                        </div>
                                     </div>
                                 </div>
 
@@ -223,6 +196,7 @@
             </div>
         </div>
     </div>
+
 @endsection
 
 @section('script')
@@ -244,10 +218,6 @@
             const cameraCanvas = document.getElementById('cameraCanvas');
             const clientPhotoData = document.getElementById('clientPhotoData');
             const preview = document.getElementById('clientPhotoPreview');
-            const fingerprintPreview = document.getElementById('fingerprintPreview');
-            const fingerprintInput = document.getElementById('fingerprintInput');
-            const fingerprintData = document.getElementById('fingerprintData');
-            const clearFingerprintBtn = document.getElementById('clearFingerprintBtn');
             const form = document.querySelector('form');
             const contactInput = document.getElementById('contact');
             const contactError = document.getElementById('contactError');
@@ -265,14 +235,13 @@
             const apiBase = 'https://psgc.gitlab.io/api';
             const calabarzonProvinces = ['Batangas', 'Cavite', 'Laguna', 'Quezon', 'Rizal'];
 
-            if (!openCameraBtn || !capturePhotoBtn || !retakePhotoBtn || !cameraWrapper || !cameraView || !cameraCanvas || !clientPhotoData || !preview || !fingerprintPreview || !fingerprintInput || !fingerprintData || !clearFingerprintBtn || !form || !contactInput || !contactError || !cameraModalEl || !provinceSelect || !citySelect || !barangaySelect || !provinceManual || !cityManual || !barangayManual) {
+            if (!openCameraBtn || !capturePhotoBtn || !retakePhotoBtn || !cameraWrapper || !cameraView || !cameraCanvas || !clientPhotoData || !preview || !form || !contactInput || !contactError || !cameraModalEl || !provinceSelect || !citySelect || !barangaySelect || !provinceManual || !cityManual || !barangayManual) {
                 return;
             }
 
             let stream = null;
             const cameraModal = bootstrap.Modal.getOrCreateInstance(cameraModalEl);
             const defaultPreview = preview.src;
-            const defaultFingerprintPreview = fingerprintPreview.src;
 
             const fillSelect = (select, placeholder, items, selectedValue = '') => {
                 select.innerHTML = '';
@@ -488,39 +457,11 @@
                 cameraModal.show();
             });
 
-            fingerprintInput.addEventListener('change', function () {
-                const file = this.files && this.files[0];
-
-                if (!file) {
-                    return;
-                }
-
-                const reader = new FileReader();
-                reader.onload = function (event) {
-                    const result = event.target?.result;
-
-                    if (typeof result === 'string') {
-                        fingerprintPreview.src = result;
-                        fingerprintData.value = result;
-                    }
-                };
-                reader.readAsDataURL(file);
-            });
-
-            clearFingerprintBtn.addEventListener('click', function () {
-                fingerprintInput.value = '';
-                fingerprintData.value = '';
-                fingerprintPreview.src = defaultFingerprintPreview;
-            });
-
             form.addEventListener('reset', function () {
                 setTimeout(() => {
                     clientPhotoData.value = '';
                     preview.src = defaultPreview;
                     retakePhotoBtn.disabled = true;
-                    fingerprintInput.value = '';
-                    fingerprintData.value = '';
-                    fingerprintPreview.src = defaultFingerprintPreview;
                     restoreLocations().catch(() => alert('Unable to restore location data.'));
                     stopCamera();
                 }, 0);
