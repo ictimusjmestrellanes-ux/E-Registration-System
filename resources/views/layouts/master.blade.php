@@ -8,7 +8,7 @@
     <meta content="Premium Multipurpose Admin & Dashboard Template" name="description">
     <meta content="E-Registration System" name="author">
     <!-- App favicon -->
-    <link rel="shortcut icon" href="{{ asset('assets/images/favicon.ico') }}">
+    {{-- <link rel="shortcut icon" href="{{ asset('assets/images/favicon.ico') }}"> --}}
     <!-- jsvectormap css -->
     <link href="{{ asset('assets/css/jsvectormap.min.css') }}" rel="stylesheet" type="text/css">
     <!-- Include Grid.js CSS and JS -->

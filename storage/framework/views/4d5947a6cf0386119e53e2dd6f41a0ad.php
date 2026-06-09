@@ -10,7 +10,6 @@
                                 <h4 class="mb-1">Dashboard</h4>
                                 <p class="text-muted mb-0">Welcome back, <?php echo e(auth()->user()?->name ?? 'User'); ?>.</p>
                             </div>
-                            <a href="<?php echo e(route('profile')); ?>" class="btn btn-primary">View Profile</a>
                         </div>
                     </div>
                 </div>
