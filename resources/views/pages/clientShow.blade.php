@@ -3,6 +3,7 @@
 @section('content')
     @php
         $clientPhoto = $client->photo_path ? asset('storage/' . $client->photo_path) : asset('assets/images/avatar-1.jpg');
+        $clientFingerprint = $client->fingerprint_path ? asset('storage/' . $client->fingerprint_path) : asset('assets/images/avatar-1.jpg');
     @endphp
 
     <div class="container-fluid">
@@ -29,6 +30,10 @@
                             </div>
 
                             <div class="col-lg-9">
+                                <div class="mb-3">
+                                    <div class="fw-semibold mb-2">Fingerprint Record</div>
+                                    <img src="{{ $clientFingerprint }}" alt="Client Fingerprint" class="img-thumbnail rounded-3 object-fit-cover" style="width: 180px; height: 180px;">
+                                </div>
                                 <div class="table-responsive">
                                     <table class="table table-bordered align-middle mb-0">
                                         <tbody>

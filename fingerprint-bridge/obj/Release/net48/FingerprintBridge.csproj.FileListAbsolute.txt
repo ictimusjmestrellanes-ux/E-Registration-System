@@ -1,0 +1,11 @@
+C:\xampp\htdocs\E-Reg-System\fingerprint-bridge\obj\Release\net48\FingerprintBridge.csproj.AssemblyReference.cache
+C:\xampp\htdocs\E-Reg-System\fingerprint-bridge\obj\Release\net48\FingerprintBridge.GeneratedMSBuildEditorConfig.editorconfig
+C:\xampp\htdocs\E-Reg-System\fingerprint-bridge\obj\Release\net48\FingerprintBridge.AssemblyInfoInputs.cache
+C:\xampp\htdocs\E-Reg-System\fingerprint-bridge\obj\Release\net48\FingerprintBridge.AssemblyInfo.cs
+C:\xampp\htdocs\E-Reg-System\fingerprint-bridge\obj\Release\net48\FingerprintBridge.csproj.CoreCompileInputs.cache
+C:\xampp\htdocs\E-Reg-System\fingerprint-bridge\obj\Release\net48\FingerprintBridge.sourcelink.json
+C:\xampp\htdocs\E-Reg-System\fingerprint-bridge\bin\Release\net48\FingerprintBridge.exe.config
+C:\xampp\htdocs\E-Reg-System\fingerprint-bridge\bin\Release\net48\FingerprintBridge.exe
+C:\xampp\htdocs\E-Reg-System\fingerprint-bridge\bin\Release\net48\FingerprintBridge.pdb
+C:\xampp\htdocs\E-Reg-System\fingerprint-bridge\obj\Release\net48\FingerprintBridge.exe
+C:\xampp\htdocs\E-Reg-System\fingerprint-bridge\obj\Release\net48\FingerprintBridge.pdb

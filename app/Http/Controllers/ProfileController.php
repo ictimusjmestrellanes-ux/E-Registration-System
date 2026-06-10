@@ -6,12 +6,17 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Models\Client;
 use App\Models\ArchivedClient;
+use App\Models\ActivityLog;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Http;
+use App\Services\ActivityLogger;
 
 class ProfileController extends Controller
 {
+    private const FINGERPRINT_BRIDGE_BASE = 'http://127.0.0.1:38654';
+
     public function __construct()
     {
         $this->middleware('auth');
@@ -20,6 +25,32 @@ class ProfileController extends Controller
     public function profile()
     {
         return view('pages.profile');
+    }
+
+    public function activityLogs()
+    {
+        $activityQuery = ActivityLog::with('user')->latest();
+
+        $activities = (clone $activityQuery)->paginate(12);
+        $todayActivities = (clone $activityQuery)
+            ->whereDate('created_at', now()->toDateString())
+            ->take(8)
+            ->get();
+        $weeklyActivities = (clone $activityQuery)
+            ->whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()])
+            ->take(8)
+            ->get();
+        $monthlyActivities = (clone $activityQuery)
+            ->whereBetween('created_at', [now()->startOfMonth(), now()->endOfMonth()])
+            ->take(8)
+            ->get();
+
+        return view('pages.activityLogs', compact(
+            'activities',
+            'todayActivities',
+            'weeklyActivities',
+            'monthlyActivities'
+        ));
     }
 
     public function dashboard()
@@ -32,11 +63,17 @@ class ProfileController extends Controller
         return view('pages.clients');
     }
 
-    public function clientList()
+    public function clientList(Request $request)
     {
-        $clients = Client::latest()->get();
+        $matchedClientId = $request->query('matched_client');
 
-        return view('pages.clientList', compact('clients'));
+        $clients = Client::latest()
+            ->when($matchedClientId, function ($query, $matchedClientId) {
+                $query->where('id', $matchedClientId);
+            })
+            ->get();
+
+        return view('pages.clientList', compact('clients', 'matchedClientId'));
     }
 
     public function archiveList()
@@ -48,7 +85,7 @@ class ProfileController extends Controller
 
     public function restoreArchivedClient(ArchivedClient $archivedClient)
     {
-        Client::create([
+        $client = Client::create([
             'first_name' => $archivedClient->first_name,
             'middle_name' => $archivedClient->middle_name,
             'last_name' => $archivedClient->last_name,
@@ -63,9 +100,16 @@ class ProfileController extends Controller
             'barangay' => $archivedClient->barangay,
             'photo_path' => $archivedClient->photo_path,
             'fingerprint_path' => $archivedClient->fingerprint_path,
+            'fingerprint_template' => $archivedClient->fingerprint_template,
         ]);
 
         $archivedClient->delete();
+        $this->recordActivity(
+            'client_restored',
+            'Restored archived client ' . $this->clientDisplayName($client) . '.',
+            ['archived_client_id' => $archivedClient->id],
+            $client
+        );
 
         return redirect()->route('archive.list')->with('success', 'Client restored successfully.');
     }
@@ -99,9 +143,16 @@ class ProfileController extends Controller
     {
         $validated = $this->validateClientPayload($request);
 
-        $photoPath = $this->storeClientPhoto($validated['photo_data'] ?? null);
+        $this->ensureFingerprintIsUnique(
+            $validated['fingerprint_template'] ?? null,
+            $validated['fingerprint_data'] ?? null
+        );
 
-        Client::create([
+        $photoPath = $this->storeClientPhoto($validated['photo_data'] ?? null);
+        $fingerprintPath = $this->storeClientFingerprint($validated['fingerprint_data'] ?? null);
+        $fingerprintTemplate = $validated['fingerprint_template'] ?? null;
+
+        $client = Client::create([
             'first_name' => $validated['first_name'],
             'middle_name' => $validated['middle_name'] ?? null,
             'last_name' => $validated['last_name'],
@@ -115,8 +166,16 @@ class ProfileController extends Controller
             'city' => $validated['city'] ?? null,
             'barangay' => $validated['barangay'] ?? null,
             'photo_path' => $photoPath,
-            'fingerprint_path' => null,
+            'fingerprint_path' => $fingerprintPath,
+            'fingerprint_template' => $fingerprintTemplate,
         ]);
+
+        $this->recordActivity(
+            'client_created',
+            'Created client ' . $this->clientDisplayName($client) . '.',
+            ['client_id' => $client->id],
+            $client
+        );
 
         return redirect()->route('clients')->with('success', 'Client saved successfully.');
     }
@@ -134,6 +193,27 @@ class ProfileController extends Controller
             $photoPath = $this->storeClientPhoto($validated['photo_data']);
         }
 
+        $fingerprintPath = $client->fingerprint_path;
+        $fingerprintTemplate = $client->fingerprint_template;
+        if (!empty($validated['fingerprint_data'])) {
+            $this->ensureFingerprintIsUnique(
+                $validated['fingerprint_template'] ?? null,
+                $validated['fingerprint_data'] ?? null,
+                $client->id
+            );
+
+            if ($client->fingerprint_path) {
+                Storage::disk('public')->delete($client->fingerprint_path);
+            }
+
+            $fingerprintPath = $this->storeClientFingerprint($validated['fingerprint_data']);
+            $fingerprintTemplate = $validated['fingerprint_template'] ?? null;
+        } elseif ($request->boolean('fingerprint_remove') && $client->fingerprint_path) {
+            Storage::disk('public')->delete($client->fingerprint_path);
+            $fingerprintPath = null;
+            $fingerprintTemplate = null;
+        }
+
         $client->update([
             'first_name' => $validated['first_name'],
             'middle_name' => $validated['middle_name'] ?? null,
@@ -148,7 +228,16 @@ class ProfileController extends Controller
             'city' => $validated['city'] ?? null,
             'barangay' => $validated['barangay'] ?? null,
             'photo_path' => $photoPath,
+            'fingerprint_path' => $fingerprintPath,
+            'fingerprint_template' => $fingerprintTemplate,
         ]);
+
+        $this->recordActivity(
+            'client_updated',
+            'Updated client ' . $this->clientDisplayName($client) . '.',
+            ['client_id' => $client->id],
+            $client
+        );
 
         return redirect()->route('client.list')->with('success', 'Client updated successfully.');
     }
@@ -158,6 +247,17 @@ class ProfileController extends Controller
         if ($client->photo_path) {
             Storage::disk('public')->delete($client->photo_path);
         }
+
+        if ($client->fingerprint_path) {
+            Storage::disk('public')->delete($client->fingerprint_path);
+        }
+
+        $this->recordActivity(
+            'client_deleted',
+            'Deleted client ' . $this->clientDisplayName($client) . '.',
+            ['client_id' => $client->id],
+            $client
+        );
 
         $client->delete();
 
@@ -182,8 +282,16 @@ class ProfileController extends Controller
             'barangay' => $client->barangay,
             'photo_path' => $client->photo_path,
             'fingerprint_path' => $client->fingerprint_path,
+            'fingerprint_template' => $client->fingerprint_template,
             'archived_at' => now(),
         ]);
+
+        $this->recordActivity(
+            'client_archived',
+            'Archived client ' . $this->clientDisplayName($client) . '.',
+            ['client_id' => $client->id],
+            $client
+        );
 
         $client->delete();
 
@@ -206,12 +314,108 @@ class ProfileController extends Controller
             'city' => ['nullable', 'string', 'max:255'],
             'barangay' => ['nullable', 'string', 'max:255'],
             'photo_data' => ['nullable', 'string'],
+            'fingerprint_data' => ['nullable', 'string'],
+            'fingerprint_template' => ['nullable', 'string'],
+            'fingerprint_remove' => ['nullable'],
         ]);
     }
 
     private function storeClientPhoto(?string $photoData): ?string
     {
         return $this->storeBase64Image($photoData, 'clients', 'client_');
+    }
+
+    private function storeClientFingerprint(?string $fingerprintData): ?string
+    {
+        return $this->storeBase64Image($fingerprintData, 'fingerprints', 'fingerprint_');
+    }
+
+    private function recordActivity(string $action, string $description, array $properties = [], Client|ArchivedClient|array|null $subject = null): void
+    {
+        app(ActivityLogger::class)->record($action, $description, $properties, $subject);
+    }
+
+    private function clientDisplayName(Client|ArchivedClient $client): string
+    {
+        return trim($client->first_name . ' ' . ($client->middle_name ? $client->middle_name . ' ' : '') . $client->last_name);
+    }
+
+    private function ensureFingerprintIsUnique(?string $fingerprintTemplate, ?string $fingerprintData, ?int $ignoreClientId = null): void
+    {
+        if (empty($fingerprintTemplate) && empty($fingerprintData)) {
+            return;
+        }
+
+        $clientsQuery = Client::query()->select([
+            'id',
+            'first_name',
+            'middle_name',
+            'last_name',
+            'fingerprint_template',
+            'fingerprint_path',
+        ]);
+
+        if ($ignoreClientId) {
+            $clientsQuery->where('id', '!=', $ignoreClientId);
+        }
+
+        $clients = $clientsQuery
+            ->get()
+            ->map(function (Client $client) {
+                $fingerprintImageDataUrl = null;
+
+                if (empty($client->fingerprint_template) && !empty($client->fingerprint_path) && Storage::disk('public')->exists($client->fingerprint_path)) {
+                    $mimeType = Storage::disk('public')->mimeType($client->fingerprint_path) ?: 'image/png';
+                    $fingerprintImageDataUrl = 'data:' . $mimeType . ';base64,' . base64_encode(Storage::disk('public')->get($client->fingerprint_path));
+                }
+
+                return [
+                    'id' => $client->id,
+                    'name' => trim($client->first_name . ' ' . ($client->middle_name ? $client->middle_name . ' ' : '') . $client->last_name),
+                    'fingerprintTemplateXml' => $client->fingerprint_template,
+                    'fingerprintImageDataUrl' => $fingerprintImageDataUrl,
+                ];
+            })
+            ->filter(function (array $client) {
+                return !empty($client['fingerprintTemplateXml']) || !empty($client['fingerprintImageDataUrl']);
+            })
+            ->values()
+            ->all();
+
+        if (empty($clients)) {
+            return;
+        }
+
+        $response = Http::timeout(60)->post($this->fingerprintBridgeUrl('api/match'), [
+            'fingerprintTemplateXml' => $fingerprintTemplate ?? '',
+            'fingerprintImageDataUrl' => $fingerprintData ?? '',
+            'clients' => $clients,
+        ]);
+
+        if (!$response->successful()) {
+            throw ValidationException::withMessages([
+                'fingerprint_template' => $response->json('message') ?: 'Fingerprint validation failed.',
+            ]);
+        }
+
+        $match = $response->json();
+        if (!($match['matched'] ?? false) || empty($match['matchedClientId'])) {
+            return;
+        }
+
+        $matchedClient = Client::find($match['matchedClientId']);
+        $matchedName = $matchedClient
+            ? trim($matchedClient->first_name . ' ' . ($matchedClient->middle_name ? $matchedClient->middle_name . ' ' : '') . $matchedClient->last_name)
+            : ($match['matchedClientName'] ?? 'an existing client');
+
+        throw ValidationException::withMessages([
+            'fingerprint_template' => "This fingerprint is already registered to {$matchedName}.",
+        ]);
+    }
+
+    private function fingerprintBridgeUrl(string $path = ''): string
+    {
+        return rtrim(self::FINGERPRINT_BRIDGE_BASE, '/') . '/' . ltrim($path, '/');
     }
 
     private function storeBase64Image(?string $imageData, string $directory, string $prefix): ?string
@@ -249,6 +453,110 @@ class ProfileController extends Controller
         return response()->json($response->json());
     }
 
+    public function searchClientByFingerprint(Request $request)
+    {
+        $validated = $request->validate([
+            'fingerprint_template' => ['required', 'string'],
+        ]);
+
+        $clients = Client::query()
+            ->get([
+                'id',
+                'first_name',
+                'middle_name',
+                'last_name',
+                'fingerprint_template',
+                'fingerprint_path',
+            ])
+            ->map(function (Client $client) {
+                $fingerprintImageDataUrl = null;
+
+                if (empty($client->fingerprint_template) && !empty($client->fingerprint_path) && Storage::disk('public')->exists($client->fingerprint_path)) {
+                    $mimeType = Storage::disk('public')->mimeType($client->fingerprint_path) ?: 'image/png';
+                    $fingerprintImageDataUrl = 'data:' . $mimeType . ';base64,' . base64_encode(Storage::disk('public')->get($client->fingerprint_path));
+                }
+
+                return [
+                    'id' => $client->id,
+                    'name' => trim($client->first_name . ' ' . ($client->middle_name ? $client->middle_name . ' ' : '') . $client->last_name),
+                    'fingerprintTemplateXml' => $client->fingerprint_template,
+                    'fingerprintImageDataUrl' => $fingerprintImageDataUrl,
+                ];
+            })
+            ->filter(function (array $client) {
+                return !empty($client['fingerprintTemplateXml']) || !empty($client['fingerprintImageDataUrl']);
+            })
+            ->values()
+            ->all();
+
+        if (empty($clients)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No fingerprint templates were found to search against.',
+            ], 404);
+        }
+
+        $response = Http::timeout(60)->post($this->fingerprintBridgeUrl('api/match'), [
+            'fingerprintTemplateXml' => $validated['fingerprint_template'],
+            'clients' => $clients,
+        ]);
+
+        if (!$response->successful()) {
+            return response()->json([
+                'success' => false,
+                'message' => $response->json('message') ?: 'Fingerprint search failed.',
+            ], 503);
+        }
+
+        $match = $response->json();
+        if (!($match['success'] ?? false) || empty($match['matchedClientId'])) {
+            return response()->json([
+                'success' => true,
+                'matched' => false,
+                'message' => $match['message'] ?? 'No matching client found.',
+                'score' => $match['bestScore'] ?? null,
+            ]);
+        }
+
+        $client = Client::find($match['matchedClientId']);
+        if (!$client) {
+            return response()->json([
+                'success' => false,
+                'message' => 'The matching client record could not be loaded.',
+            ], 404);
+        }
+
+        $payload = [
+            'success' => true,
+            'matched' => true,
+            'score' => $match['bestScore'] ?? null,
+            'client' => [
+                'id' => $client->id,
+                'name' => trim($client->first_name . ' ' . ($client->middle_name ? $client->middle_name . ' ' : '') . $client->last_name),
+                'photo_url' => $client->photo_path ? asset('storage/' . $client->photo_path) : asset('assets/images/avatar-1.jpg'),
+                'age' => $client->age,
+                'gender' => $client->gender,
+                'civil_status' => $client->civil_status,
+                'email' => $client->email,
+                'contact' => $client->contact,
+                'address' => $client->address,
+                'province' => $client->province,
+                'city' => $client->city,
+                'barangay' => $client->barangay,
+                'show_url' => route('clients.show', $client),
+            ],
+        ];
+
+        $this->recordActivity(
+            'fingerprint_search',
+            'Fingerprint search matched client ' . $this->clientDisplayName($client) . '.',
+            ['client_id' => $client->id, 'score' => $match['bestScore'] ?? null],
+            $client
+        );
+
+        return response()->json($payload);
+    }
+
     public function profileSettings()
     {
         return view('pages.settings');
@@ -268,6 +576,9 @@ class ProfileController extends Controller
             ],
             'phone_number' => ['nullable', 'string', 'max:30'],
             'avatar' => ['nullable', 'image', 'max:2048'],
+            'cover_photo_file' => ['nullable', 'image', 'max:4096'],
+            'cover_photo_data' => ['nullable', 'string'],
+            'cover_photo' => ['nullable', 'image', 'max:4096'],
         ]);
 
         $user->name = $validated['name'];
@@ -282,7 +593,28 @@ class ProfileController extends Controller
             $user->avatar = $request->file('avatar')->store('avatars', 'public');
         }
 
+        if (!empty($validated['cover_photo_data'])) {
+            if ($user->cover_photo) {
+                Storage::disk('public')->delete($user->cover_photo);
+            }
+
+            $user->cover_photo = $this->storeBase64Image($validated['cover_photo_data'], 'covers', 'cover_');
+        } elseif ($request->hasFile('cover_photo_file')) {
+            if ($user->cover_photo) {
+                Storage::disk('public')->delete($user->cover_photo);
+            }
+
+            $user->cover_photo = $request->file('cover_photo_file')->store('covers', 'public');
+        }
+
         $user->save();
+
+        $this->recordActivity(
+            'profile_updated',
+            'Updated profile information.',
+            ['user_id' => $user->id],
+            ['type' => 'User', 'id' => $user->id]
+        );
 
         return redirect()->route('settings')->with('success', 'Profile updated successfully.');
     }

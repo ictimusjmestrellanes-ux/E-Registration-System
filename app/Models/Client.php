@@ -24,5 +24,6 @@ class Client extends Model
         'barangay',
         'photo_path',
         'fingerprint_path',
+        'fingerprint_template',
     ];
 }

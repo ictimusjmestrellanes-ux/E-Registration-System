@@ -5,7 +5,10 @@
     <div class="container-fluid">
         <div class="profile-foreground position-relative mx-n4 mt-n4">
             <div class="profile-wid-bg">
-                <img src="{{ asset('assets/images/profile-bg.jpg') }}" alt="" class="profile-wid-img">
+                @php
+                    $profileCover = auth()->user()?->cover_photo ? asset('storage/' . auth()->user()->cover_photo) : asset('assets/images/profile-bg.jpg');
+                @endphp
+                <img src="{{ $profileCover }}" alt="" class="profile-wid-img">
             </div>
         </div>
         <div class="pt-4 mb-4 mb-lg-3 pb-lg-4 profile-wrapper">

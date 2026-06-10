@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Foundation\Auth\AuthenticatesUsers;
 use Illuminate\Http\Request;
 use App\Models\User;
+use App\Services\ActivityLogger;
 use Carbon\Carbon;
 use Session;
 use Auth;
@@ -41,6 +42,11 @@ class LoginController extends Controller
              
                 // Update last login
                 $user->update(['last_login' => Carbon::now()]);
+                app(ActivityLogger::class)->record(
+                    'login',
+                    'User logged in.',
+                    ['user_id' => $user->id, 'email' => $user->email]
+                );
                 return redirect()->intended(route('dashboard'))->with('success', 'Login successfully :)'); 
             }
             return redirect('login')->with('error', 'Wrong Username or Password');
@@ -72,6 +78,15 @@ class LoginController extends Controller
     /** Logout and clear session */
     public function logout(Request $request)
     {
+        $user = Auth::user();
+        if ($user) {
+            app(ActivityLogger::class)->record(
+                'logout',
+                'User logged out.',
+                ['user_id' => $user->id, 'email' => $user->email]
+            );
+        }
+
         $request->session()->flush();
         Auth::logout();
         return redirect('login')->with('success', 'Logged out successfully!');

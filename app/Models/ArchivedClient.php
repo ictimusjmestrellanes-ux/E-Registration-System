@@ -25,6 +25,7 @@ class ArchivedClient extends Model
         'barangay',
         'photo_path',
         'fingerprint_path',
+        'fingerprint_template',
         'archived_at',
     ];
 

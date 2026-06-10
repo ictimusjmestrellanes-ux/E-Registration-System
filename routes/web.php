@@ -59,8 +59,10 @@ Route::group(['namespace' => 'App\Http\Controllers\Auth'],function()
 Route::group(['namespace' => 'App\Http\Controllers'], function () {
     Route::middleware('auth')->group(function () {
         Route::get('dashboard', [ProfileController::class, 'dashboard'])->name('dashboard');
+        Route::get('activity-logs', [ProfileController::class, 'activityLogs'])->name('activity.logs');
         Route::get('clients', [ProfileController::class, 'clients'])->name('clients');
         Route::get('client-list', [ProfileController::class, 'clientList'])->name('client.list');
+        Route::post('client-list/fingerprint-search', [ProfileController::class, 'searchClientByFingerprint'])->name('client.search.fingerprint');
         Route::get('archive', [ProfileController::class, 'archiveList'])->name('archive.list');
         Route::post('archive/{archivedClient}/restore', [ProfileController::class, 'restoreArchivedClient'])->name('archive.restore');
         Route::get('psgc/provinces', [ProfileController::class, 'psgcProvinces'])->name('psgc.provinces');

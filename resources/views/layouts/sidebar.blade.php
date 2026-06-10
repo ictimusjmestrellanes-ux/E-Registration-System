@@ -1,4 +1,18 @@
-<div class="app-menu navbar-menu">
+    <style>
+        .sidebar-user {
+            position: relative;
+            z-index: 5;
+        }
+
+        .sidebar-user .sidebar-user-toggle {
+            width: 100%;
+            text-align: left;
+            cursor: pointer;
+            position: relative;
+            z-index: 6;
+        }
+    </style>
+    <div class="app-menu navbar-menu">
     <!-- LOGO -->
     <div class="navbar-brand-box">
         <!-- Dark Logo-->
@@ -19,7 +33,7 @@
         </button>
     </div>
     <div class="dropdown sidebar-user m-1 rounded">
-        <button type="button" class="btn material-shadow-none" id="page-header-user-dropdown" data-bs-toggle="dropdown"
+        <button type="button" class="btn material-shadow-none sidebar-user-toggle" id="sidebar-user-dropdown" data-bs-toggle="dropdown"
             aria-haspopup="true" aria-expanded="false">
             <span class="d-flex align-items-center gap-2">
                 @php
@@ -35,12 +49,9 @@
                 </span>
             </span>
         </button>
-        <div class="dropdown-menu dropdown-menu-end">
+        <div class="dropdown-menu dropdown-menu-end" aria-labelledby="sidebar-user-dropdown">
             <!-- item-->
             <h6 class="dropdown-header">Welcome {{ auth()->user()->name ?? 'User' }}!</h6>
-            <a class="dropdown-item" href="pages-profile.html"><i
-                    class="mdi mdi-account-circle text-muted fs-16 align-middle me-1"></i> <span
-                    class="align-middle">Profile</span></a>
             <div class="dropdown-divider"></div>
             <a class="dropdown-item" href="{{ route('profile') }}"><i
                     class="mdi mdi-cog-outline text-muted fs-16 align-middle me-1"></i> <span
@@ -84,19 +95,19 @@
                         aria-expanded="{{ set_expanded(['profile', 'settings']) }}" aria-controls="sidebarPages">
                         <i class="ri-pages-line"></i> <span data-key="t-pages">Profile Page</span>
                     </a>
-                    <div class="collapse menu-dropdown {{ set_show(['profile', 'settings']) }}" id="sidebarPages">
+                    <div class="collapse menu-dropdown {{ set_show(['activity.logs', 'profile', 'settings']) }}" id="sidebarPages">
                         <ul class="nav nav-sm flex-column">
                             <li class="nav-item">
-                                <a href="#sidebarProfile" class="nav-link {{ set_active(['profile', 'settings']) }}"
+                                <a href="#sidebarProfile" class="nav-link {{ set_active(['activity.logs', 'profile', 'settings']) }}"
                                     data-bs-toggle="collapse" role="button"
-                                    aria-expanded="{{ set_expanded(['profile', 'settings']) }}"
+                                    aria-expanded="{{ set_expanded(['activity.logs', 'profile', 'settings']) }}"
                                     aria-controls="sidebarProfile" data-key="t-profile">Profile</a>
-                                <div class="collapse menu-dropdown {{ set_show(['profile', 'settings']) }}"
+                                <div class="collapse menu-dropdown {{ set_show(['activity.logs', 'profile', 'settings']) }}"
                                     id="sidebarProfile">
                                     <ul class="nav nav-sm flex-column">
                                         <li class="nav-item">
-                                            <a href="{{ route('profile') }}"
-                                                class="nav-link {{ set_active(['profile']) }}"
+                                            <a href="{{ route('activity.logs') }}"
+                                                class="nav-link {{ set_active(['activity.logs']) }}"
                                                 data-key="t-simple-page">Activity Logs</a>
                                         </li>
                                         <li class="nav-item">
