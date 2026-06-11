@@ -1,8 +1,8 @@
 <?php $__env->startSection('title', 'Client Details'); ?>
 <?php $__env->startSection('content'); ?>
     <?php
-        $clientPhoto = $client->photo_path ? asset('storage/' . $client->photo_path) : asset('assets/images/avatar-1.jpg');
-        $clientFingerprint = $client->fingerprint_path ? asset('storage/' . $client->fingerprint_path) : asset('assets/images/avatar-1.jpg');
+        $clientPhoto = $client->photo_url;
+        $clientFingerprint = $client->fingerprint_url;
     ?>
 
     <div class="container-fluid">
