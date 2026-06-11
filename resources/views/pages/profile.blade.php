@@ -2,13 +2,30 @@
 @section('title', 'Profile')
 @section('content')
     <!-- Page-content -->
+    <style>
+        .profile-cover-shell {
+            min-height: 220px;
+            overflow: hidden;
+            background: linear-gradient(135deg, rgba(64, 81, 137, 0.18), rgba(64, 81, 137, 0.06));
+        }
+
+        .profile-cover-placeholder {
+            min-height: 220px;
+            width: 100%;
+            background: linear-gradient(135deg, rgba(64, 81, 137, 0.18), rgba(64, 81, 137, 0.06));
+        }
+    </style>
     <div class="container-fluid">
         <div class="profile-foreground position-relative mx-n4 mt-n4">
-            <div class="profile-wid-bg">
+            <div class="profile-wid-bg profile-cover-shell">
                 @php
-                    $profileCover = auth()->user()?->cover_photo ? asset('storage/' . auth()->user()->cover_photo) : asset('assets/images/profile-bg.jpg');
+                    $profileCover = auth()->user()?->cover_photo ? asset('storage/' . auth()->user()->cover_photo) : null;
                 @endphp
-                <img src="{{ $profileCover }}" alt="" class="profile-wid-img">
+                @if ($profileCover)
+                    <img src="{{ $profileCover }}" alt="" class="profile-wid-img">
+                @else
+                    <div class="profile-cover-placeholder profile-wid-img" aria-hidden="true"></div>
+                @endif
             </div>
         </div>
         <div class="pt-4 mb-4 mb-lg-3 pb-lg-4 profile-wrapper">

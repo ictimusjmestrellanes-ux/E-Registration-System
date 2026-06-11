@@ -2,21 +2,23 @@
 setlocal
 
 set "ROOT=%~dp0"
-set "BRIDGE_EXE=%ROOT%bin\Release\net48\FingerprintBridge.exe"
+set "RUN_BRIDGE=%ROOT%run-bridge.bat"
 set "STARTUP=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup"
 set "SHORTCUT=%STARTUP%\FingerprintBridge.lnk"
 
-if not exist "%BRIDGE_EXE%" (
-    echo Build the bridge first so the Release EXE exists.
-    echo Expected file: %BRIDGE_EXE%
+if not exist "%RUN_BRIDGE%" (
+    echo Cannot find the bridge launcher.
+    echo Expected file: %RUN_BRIDGE%
     exit /b 1
 )
 
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
     "$ws = New-Object -ComObject WScript.Shell; " ^
     "$s = $ws.CreateShortcut('%SHORTCUT%'); " ^
-    "$s.TargetPath = '%BRIDGE_EXE%'; " ^
-    "$s.WorkingDirectory = '%ROOT%bin\Release\net48'; " ^
+    "$s.TargetPath = '%COMSPEC%'; " ^
+    "$s.Arguments = '/c ""%RUN_BRIDGE%""'; " ^
+    "$s.WorkingDirectory = '%ROOT%'; " ^
+    "$s.WindowStyle = 7; " ^
     "$s.Description = 'DigitalPersona Fingerprint Bridge'; " ^
     "$s.Save()"
 

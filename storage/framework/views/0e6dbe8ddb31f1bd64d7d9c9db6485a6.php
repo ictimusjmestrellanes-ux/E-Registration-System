@@ -17,7 +17,6 @@
                             </div>
                             <div class="d-flex gap-2">
                                 <a href="<?php echo e(route('client.list')); ?>" class="btn btn-soft-secondary">Back to List</a>
-                                <a href="<?php echo e(route('clients.edit', $client)); ?>" class="btn btn-primary">Edit Client</a>
                             </div>
                         </div>
 

@@ -2,8 +2,8 @@
 @section('title', 'Client Details')
 @section('content')
     @php
-        $clientPhoto = $client->photo_path ? asset('storage/' . $client->photo_path) : asset('assets/images/avatar-1.jpg');
-        $clientFingerprint = $client->fingerprint_path ? asset('storage/' . $client->fingerprint_path) : asset('assets/images/avatar-1.jpg');
+        $clientPhoto = $client->photo_url;
+        $clientFingerprint = $client->fingerprint_url;
     @endphp
 
     <div class="container-fluid">
@@ -18,7 +18,6 @@
                             </div>
                             <div class="d-flex gap-2">
                                 <a href="{{ route('client.list') }}" class="btn btn-soft-secondary">Back to List</a>
-                                <a href="{{ route('clients.edit', $client) }}" class="btn btn-primary">Edit Client</a>
                             </div>
                         </div>
 

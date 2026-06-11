@@ -40,7 +40,7 @@
                                             <td>{{ $loop->iteration }}</td>
                                             <td>
                                                 @php
-                                                    $clientPhoto = $client->photo_path ? asset('storage/' . $client->photo_path) : asset('assets/images/avatar-1.jpg');
+                                                    $clientPhoto = $client->photo_url;
                                                 @endphp
                                                 <img
                                                     src="{{ $clientPhoto }}"

@@ -273,7 +273,7 @@ namespace FingerprintBridge
 
         private Constants.ResultCode OpenReaderWithRecovery(Reader reader)
         {
-            var openResult = reader.Open(Constants.CapturePriority.DP_PRIORITY_EXCLUSIVE);
+            var openResult = reader.Open(Constants.CapturePriority.DP_PRIORITY_COOPERATIVE);
             if (openResult == Constants.ResultCode.DP_SUCCESS)
             {
                 return openResult;

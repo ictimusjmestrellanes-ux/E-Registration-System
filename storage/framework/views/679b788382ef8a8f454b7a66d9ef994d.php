@@ -2,9 +2,9 @@
 <?php $__env->startSection('content'); ?>
     <?php
         $editingClient = $client ?? null;
-        $selectedProvince = old('province', $editingClient?->province ?? '');
-        $selectedCity = old('city', $editingClient?->city ?? '');
-        $selectedBarangay = old('barangay', $editingClient?->barangay ?? '');
+        $selectedProvince = old('province', optional($editingClient)->province ?? '');
+        $selectedCity = old('city', optional($editingClient)->city ?? '');
+        $selectedBarangay = old('barangay', optional($editingClient)->barangay ?? '');
         $oldFingerprintData = old('fingerprint_data', '');
         $previewImage = $editingClient && $editingClient->photo_path
             ? asset('storage/' . $editingClient->photo_path)
@@ -86,6 +86,12 @@
                                                     <p class="text-muted small mb-2">
                                                         Upload a captured fingerprint image from the scanner or biometric device.
                                                     </p>
+                                                    <?php if (! ($editingClient)): ?>
+                                                        <div class="form-check form-switch mb-2">
+                                                            <input class="form-check-input" type="checkbox" role="switch" id="skipFingerprintCheck">
+                                                            <label class="form-check-label" for="skipFingerprintCheck">Skip fingerprint scan</label>
+                                                        </div>
+                                                    <?php endif; ?>
                                                     <input type="hidden" id="clientFingerprintData" name="fingerprint_data" value="<?php echo e(old('fingerprint_data', '')); ?>">
                                                     <input type="hidden" id="clientFingerprintTemplate" name="fingerprint_template" value="<?php echo e(old('fingerprint_template', '')); ?>">
                                                     <input type="hidden" id="clientFingerprintRemove" name="fingerprint_remove" value="<?php echo e(old('fingerprint_remove', '')); ?>">
@@ -111,48 +117,48 @@ unset($__errorArgs, $__bag); ?>
                                     <label for="firstName" class="form-label">First Name</label>
                                     <input type="text" class="form-control" id="firstName" name="first_name"
                                         placeholder="Enter first name"
-                                        value="<?php echo e(old('first_name', $editingClient->first_name ?? '')); ?>">
+                                        value="<?php echo e(old('first_name', optional($editingClient)->first_name ?? '')); ?>">
                                 </div>
 
                                 <div class="col-lg-4">
                                     <label for="middleName" class="form-label">Middle Name</label>
                                     <input type="text" class="form-control" id="middleName" name="middle_name"
                                         placeholder="Enter middle name"
-                                        value="<?php echo e(old('middle_name', $editingClient->middle_name ?? '')); ?>">
+                                        value="<?php echo e(old('middle_name', optional($editingClient)->middle_name ?? '')); ?>">
                                 </div>
 
                                 <div class="col-lg-4">
                                     <label for="lastName" class="form-label">Last Name</label>
                                     <input type="text" class="form-control" id="lastName" name="last_name"
                                         placeholder="Enter last name"
-                                        value="<?php echo e(old('last_name', $editingClient->last_name ?? '')); ?>">
+                                        value="<?php echo e(old('last_name', optional($editingClient)->last_name ?? '')); ?>">
                                 </div>
 
                                 <div class="col-lg-1">
                                     <label for="age" class="form-label">Age</label>
                                     <input type="number" class="form-control" id="age" name="age" placeholder="Enter age"
-                                        min="0" value="<?php echo e(old('age', $editingClient->age ?? '')); ?>">
+                                        min="0" value="<?php echo e(old('age', optional($editingClient)->age ?? '')); ?>">
                                 </div>
 
                                 <div class="col-lg-2">
                                     <label for="gender" class="form-label">Gender</label>
                                     <select class="form-select" id="gender" name="gender">
-                                        <option value="" <?php echo e(old('gender', $editingClient->gender ?? '') === '' ? 'selected' : ''); ?>>Select gender</option>
-                                        <option value="Male" <?php echo e(old('gender', $editingClient->gender ?? '') === 'Male' ? 'selected' : ''); ?>>Male</option>
-                                        <option value="Female" <?php echo e(old('gender', $editingClient->gender ?? '') === 'Female' ? 'selected' : ''); ?>>Female</option>
-                                        <option value="Other" <?php echo e(old('gender', $editingClient->gender ?? '') === 'Other' ? 'selected' : ''); ?>>Other</option>
+                                        <option value="" <?php echo e(old('gender', optional($editingClient)->gender ?? '') === '' ? 'selected' : ''); ?>>Select gender</option>
+                                        <option value="Male" <?php echo e(old('gender', optional($editingClient)->gender ?? '') === 'Male' ? 'selected' : ''); ?>>Male</option>
+                                        <option value="Female" <?php echo e(old('gender', optional($editingClient)->gender ?? '') === 'Female' ? 'selected' : ''); ?>>Female</option>
+                                        <option value="Other" <?php echo e(old('gender', optional($editingClient)->gender ?? '') === 'Other' ? 'selected' : ''); ?>>Other</option>
                                     </select>
                                 </div>
 
                                 <div class="col-lg-2">
                                     <label for="civilStatus" class="form-label">Civil Status</label>
                                     <select class="form-select" id="civilStatus" name="civil_status">
-                                        <option value="" <?php echo e(old('civil_status', $editingClient->civil_status ?? '') === '' ? 'selected' : ''); ?>>Select civil status</option>
-                                        <option value="Single" <?php echo e(old('civil_status', $editingClient->civil_status ?? '') === 'Single' ? 'selected' : ''); ?>>Single</option>
-                                        <option value="Married" <?php echo e(old('civil_status', $editingClient->civil_status ?? '') === 'Married' ? 'selected' : ''); ?>>Married</option>
-                                        <option value="Separated" <?php echo e(old('civil_status', $editingClient->civil_status ?? '') === 'Separated' ? 'selected' : ''); ?>>Separated</option>
-                                        <option value="Widowed" <?php echo e(old('civil_status', $editingClient->civil_status ?? '') === 'Widowed' ? 'selected' : ''); ?>>Widowed</option>
-                                        <option value="Annulled" <?php echo e(old('civil_status', $editingClient->civil_status ?? '') === 'Annulled' ? 'selected' : ''); ?>>Annulled</option>
+                                        <option value="" <?php echo e(old('civil_status', optional($editingClient)->civil_status ?? '') === '' ? 'selected' : ''); ?>>Select civil status</option>
+                                        <option value="Single" <?php echo e(old('civil_status', optional($editingClient)->civil_status ?? '') === 'Single' ? 'selected' : ''); ?>>Single</option>
+                                        <option value="Married" <?php echo e(old('civil_status', optional($editingClient)->civil_status ?? '') === 'Married' ? 'selected' : ''); ?>>Married</option>
+                                        <option value="Separated" <?php echo e(old('civil_status', optional($editingClient)->civil_status ?? '') === 'Separated' ? 'selected' : ''); ?>>Separated</option>
+                                        <option value="Widowed" <?php echo e(old('civil_status', optional($editingClient)->civil_status ?? '') === 'Widowed' ? 'selected' : ''); ?>>Widowed</option>
+                                        <option value="Annulled" <?php echo e(old('civil_status', optional($editingClient)->civil_status ?? '') === 'Annulled' ? 'selected' : ''); ?>>Annulled</option>
                                     </select>
                                 </div>
 
@@ -160,7 +166,7 @@ unset($__errorArgs, $__bag); ?>
                                     <label for="contact" class="form-label">Contact</label>
                                     <input type="text" class="form-control" id="contact" name="contact"
                                         placeholder="Enter contact number" inputmode="numeric" maxlength="11"
-                                        autocomplete="off" value="<?php echo e(old('contact', $editingClient->contact ?? '')); ?>">
+                                        autocomplete="off" value="<?php echo e(old('contact', optional($editingClient)->contact ?? '')); ?>">
                                     <div id="contactError" class="text-danger small mt-1 d-none">Only numbers can be input.
                                     </div>
                                 </div>
@@ -168,14 +174,14 @@ unset($__errorArgs, $__bag); ?>
                                 <div class="col-lg-4">
                                     <label for="email" class="form-label">Email</label>
                                     <input type="email" class="form-control" id="email" name="email"
-                                        placeholder="Enter email" value="<?php echo e(old('email', $editingClient->email ?? '')); ?>">
+                                        placeholder="Enter email" value="<?php echo e(old('email', optional($editingClient)->email ?? '')); ?>">
                                 </div>
 
                                 <div class="col-lg-12">
                                     <label for="address" class="form-label">Address</label>
                                     <input class="form-control" id="address" name="address" rows="3"
                                         placeholder="Enter address"
-                                        value="<?php echo e(old('address', $editingClient->address ?? '')); ?>">
+                                        value="<?php echo e(old('address', optional($editingClient)->address ?? '')); ?>">
                                 </div>
 
                                 <div class="col-lg-4">
@@ -185,7 +191,7 @@ unset($__errorArgs, $__bag); ?>
                                     </select>
                                     <input type="text" class="form-control d-none mt-2" id="provinceManual"
                                         name="province_manual" placeholder="Enter province manually"
-                                        value="<?php echo e(old('province', $editingClient->province ?? '')); ?>">
+                                        value="<?php echo e(old('province', optional($editingClient)->province ?? '')); ?>">
                                 </div>
 
                                 <div class="col-lg-4">
@@ -195,7 +201,7 @@ unset($__errorArgs, $__bag); ?>
                                     </select>
                                     <input type="text" class="form-control d-none mt-2" id="cityManual" name="city_manual"
                                         placeholder="Enter city manually"
-                                        value="<?php echo e(old('city', $editingClient->city ?? '')); ?>">
+                                        value="<?php echo e(old('city', optional($editingClient)->city ?? '')); ?>">
                                 </div>
 
                                 <div class="col-lg-4">
@@ -205,7 +211,7 @@ unset($__errorArgs, $__bag); ?>
                                     </select>
                                     <input type="text" class="form-control d-none mt-2" id="barangayManual"
                                         name="barangay_manual" placeholder="Enter barangay manually"
-                                        value="<?php echo e(old('barangay', $editingClient->barangay ?? '')); ?>">
+                                        value="<?php echo e(old('barangay', optional($editingClient)->barangay ?? '')); ?>">
                                 </div>
 
                                 <div class="col-12">
@@ -304,6 +310,7 @@ unset($__errorArgs, $__bag); ?>
             const clearFingerprintBtn = document.getElementById('clearFingerprintBtn');
             const fingerprintPreview = document.getElementById('fingerprintPreview');
             const fingerprintStatus = document.getElementById('fingerprintStatus');
+            const skipFingerprintCheck = document.getElementById('skipFingerprintCheck');
             const fingerprintModalEl = document.getElementById('fingerprintModal');
             const fingerprintModalPreview = document.getElementById('fingerprintModalPreview');
             const fingerprintModalError = document.getElementById('fingerprintModalError');
@@ -346,11 +353,44 @@ unset($__errorArgs, $__bag); ?>
             let fingerprintTemplateXml = clientFingerprintTemplate.value || '';
             const existingFingerprint = originalFingerprintPreview !== fingerprintPlaceholder;
             const fingerprintBridgeBase = 'http://127.0.0.1:38654';
+            const hasSkipFingerprintToggle = !!skipFingerprintCheck;
+            let fingerprintSkipped = false;
 
             if (existingFingerprint) {
                 clearFingerprintBtn.disabled = false;
                 fingerprintStatus.textContent = 'Existing fingerprint on file.';
             }
+
+            const setFingerprintSkipState = (skipped) => {
+                if (!hasSkipFingerprintToggle) {
+                    return;
+                }
+
+                fingerprintSkipped = skipped;
+                skipFingerprintCheck.checked = skipped;
+
+                if (skipped) {
+                    fingerprintDataUrl = '';
+                    fingerprintTemplateXml = '';
+                    clientFingerprintData.value = '';
+                    clientFingerprintTemplate.value = '';
+                    clientFingerprintRemove.value = '';
+                    fingerprintPreview.src = fingerprintPlaceholder;
+                    fingerprintModalPreview.src = fingerprintPlaceholder;
+                    fingerprintStatus.textContent = 'Fingerprint scan skipped.';
+                } else {
+                    fingerprintPreview.src = fingerprintDataUrl || (existingFingerprint ? originalFingerprintPreview : fingerprintPlaceholder);
+                    fingerprintModalPreview.src = fingerprintDataUrl || (existingFingerprint ? originalFingerprintPreview : fingerprintPlaceholder);
+                    if (fingerprintDataUrl) {
+                        fingerprintStatus.textContent = 'Fingerprint captured and ready to save.';
+                    } else {
+                        fingerprintStatus.textContent = existingFingerprint ? 'Existing fingerprint on file.' : 'No fingerprint captured yet.';
+                    }
+                }
+
+                openFingerprintBtn.disabled = skipped;
+                clearFingerprintBtn.disabled = skipped ? true : !fingerprintDataUrl && !existingFingerprint;
+            };
 
             const fillSelect = (select, placeholder, items, selectedValue = '') => {
                 select.innerHTML = '';
@@ -507,6 +547,11 @@ unset($__errorArgs, $__bag); ?>
                 fingerprintModalPreview.src = fingerprintDataUrl || fingerprintPlaceholder;
                 fingerprintStatus.textContent = statusText || (fingerprintDataUrl ? 'Fingerprint captured and ready to save.' : 'No fingerprint captured yet.');
                 clearFingerprintBtn.disabled = !fingerprintDataUrl;
+                if (hasSkipFingerprintToggle) {
+                    skipFingerprintCheck.checked = false;
+                    fingerprintSkipped = false;
+                    openFingerprintBtn.disabled = false;
+                }
             };
 
             const clearFingerprintModalError = () => {
@@ -557,7 +602,7 @@ unset($__errorArgs, $__bag); ?>
                 }
 
                 if (payload.matched && payload.client?.name) {
-                    throw new Error(`This fingerprint is already registered to ${payload.client.name}.`);
+                    throw new Error(`This fingerprint is already taken by ${payload.client.name}.`);
                 }
             };
 
@@ -639,6 +684,9 @@ unset($__errorArgs, $__bag); ?>
             });
 
             openFingerprintBtn.addEventListener('click', function () {
+                if (fingerprintSkipped) {
+                    return;
+                }
                 fingerprintModalPreview.src = fingerprintPreview.src;
                 retryFingerprintCaptureBtn.classList.add('d-none');
                 fingerprintModal.show();
@@ -688,7 +736,6 @@ unset($__errorArgs, $__bag); ?>
                         showFingerprintModalError(message);
                         fingerprintStatus.textContent = message;
                         retryFingerprintCaptureBtn.classList.remove('d-none');
-                        alert(message);
                     } finally {
                         saveFingerprintBtn.disabled = false;
                     }
@@ -710,6 +757,12 @@ unset($__errorArgs, $__bag); ?>
             clearFingerprintCaptureBtn.addEventListener('click', function () {
                 clearFingerprintCapture(false);
             });
+
+            if (hasSkipFingerprintToggle) {
+                skipFingerprintCheck.addEventListener('change', function () {
+                    setFingerprintSkipState(this.checked);
+                });
+            }
 
             provinceSelect.addEventListener('change', function () {
                 const provinceCode = this.selectedOptions[0]?.dataset.code || '';
@@ -785,6 +838,10 @@ unset($__errorArgs, $__bag); ?>
 
             restoreLocations().catch(() => enableManualLocations('Unable to load location data from the API. You can enter the address manually.'));
             window.addEventListener('beforeunload', stopCamera);
+
+            if (hasSkipFingerprintToggle) {
+                setFingerprintSkipState(skipFingerprintCheck.checked);
+            }
         });
     </script>
 <?php $__env->stopSection(); ?>

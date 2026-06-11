@@ -564,7 +564,7 @@
                                         <div class="flex-shrink-0">
                                             <img
                                                 id="editFingerprintPreview"
-                                                src="<?php echo e(asset('assets/images/avatar-1.jpg')); ?>"
+                                                src="<?php echo e(asset('assets/images/fingerprint.png')); ?>"
                                                 alt="Fingerprint Preview"
                                                 class="rounded-4 border border-secondary-subtle bg-light object-fit-cover"
                                                 style="width: 240px; height: 240px;"
@@ -577,6 +577,7 @@
                                             </div>
                                             <div class="client-details-muted small">Upload a captured fingerprint image from the scanner or biometric device.</div>
                                             <div class="client-details-muted small" id="editFingerprintStatus">No fingerprint captured yet.</div>
+                                            <button type="button" class="btn btn-soft-primary btn-sm d-none align-self-start" id="editScanAgainBtn">Scan Again</button>
                                         </div>
                                     </div>
                                     <input type="hidden" id="editFingerprintData" name="fingerprint_data">
@@ -683,7 +684,7 @@
                             Waiting to start fingerprint search.
                         </div>
                         <div class="mt-3 text-center">
-                            <img id="fingerprintSearchPreview" src="<?php echo e(asset('assets/images/avatar-1.jpg')); ?>" alt="Fingerprint Search Preview" class="rounded-3 border object-fit-cover bg-white" style="width: 100%; max-width: 420px; height: 280px;">
+                            <img id="fingerprintSearchPreview" src="<?php echo e(asset('assets/images/fingerprint-placeholder.svg')); ?>" alt="Fingerprint Search Preview" class="rounded-3 border object-fit-cover bg-white" style="width: 100%; max-width: 420px; height: 280px;">
                         </div>
                     </div>
                 </div>
@@ -746,11 +747,13 @@
             const editFingerprintTemplate = document.getElementById('editFingerprintTemplate');
             const editFingerprintRemove = document.getElementById('editFingerprintRemove');
             const editFingerprintStatus = document.getElementById('editFingerprintStatus');
+            const editScanAgainBtn = document.getElementById('editScanAgainBtn');
             const searchFingerprintBtn = document.getElementById('searchFingerprintBtn');
             const fingerprintSearchModalEl = document.getElementById('fingerprintSearchModal');
             const fingerprintSearchPreview = document.getElementById('fingerprintSearchPreview');
             const fingerprintSearchStatus = document.getElementById('fingerprintSearchStatus');
             const fingerprintScanAgainBtn = document.getElementById('fingerprintScanAgainBtn');
+            const fingerprintPlaceholderPreview = <?php echo json_encode(asset('assets/images/fingerprint-placeholder.svg'), 15, 512) ?>;
             const clientKeywordInput = document.getElementById('clientKeywordInput');
             const clientSexFilter = document.getElementById('clientSexFilter');
             const clientCivilStatusFilter = document.getElementById('clientCivilStatusFilter');
@@ -770,7 +773,7 @@
             const clientListSearchUrl = <?php echo json_encode(route('client.search.fingerprint'), 15, 512) ?>;
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
-            if (!modalEl || !modalImage || !modalTitle || !clientViewModalEl || !clientViewPhoto || !clientViewName || !clientViewAge || !clientViewGender || !clientViewCivilStatus || !clientViewEmail || !clientViewContact || !clientViewAddress || !clientViewProvince || !clientViewCity || !clientViewBarangay || !clientViewPageLink || !editModalEl || !editForm || !editFirstName || !editLastName || !editAge || !editGender || !editCivilStatus || !editContact || !editEmail || !editAddress || !editProvince || !editCity || !editBarangay || !editPhoto || !editName || !editTitle || !editOpenCameraBtn || !editCapturePhotoBtn || !editRetakePhotoBtn || !editCameraWrapper || !editCameraView || !editCameraCanvas || !editPhotoData || !editOpenFingerprintBtn || !editClearFingerprintBtn || !editFingerprintPreview || !editFingerprintData || !editFingerprintTemplate || !editFingerprintRemove || !editFingerprintStatus || !searchFingerprintBtn || !fingerprintSearchModalEl || !fingerprintSearchPreview || !fingerprintSearchStatus || !fingerprintScanAgainBtn || !clientKeywordInput || !clientSexFilter || !clientCivilStatusFilter || !clientCityFilter || !clientBarangayFilter || !clientRecordTypeFilter || !clientFiltersResetBtn || !clientFiltersToggleBtn || !clientFiltersBody || !clientDateFrom || !clientDateTo || !clientDateApplyBtn || !clientFiltersCountBadge || !clientSearchSummary || !clientSearchNoResultsRow) {
+            if (!modalEl || !modalImage || !modalTitle || !clientViewModalEl || !clientViewPhoto || !clientViewName || !clientViewAge || !clientViewGender || !clientViewCivilStatus || !clientViewEmail || !clientViewContact || !clientViewAddress || !clientViewProvince || !clientViewCity || !clientViewBarangay || !clientViewPageLink || !editModalEl || !editForm || !editFirstName || !editLastName || !editAge || !editGender || !editCivilStatus || !editContact || !editEmail || !editAddress || !editProvince || !editCity || !editBarangay || !editPhoto || !editName || !editTitle || !editOpenCameraBtn || !editCapturePhotoBtn || !editRetakePhotoBtn || !editCameraWrapper || !editCameraView || !editCameraCanvas || !editPhotoData || !editOpenFingerprintBtn || !editClearFingerprintBtn || !editScanAgainBtn || !editFingerprintPreview || !editFingerprintData || !editFingerprintTemplate || !editFingerprintRemove || !editFingerprintStatus || !searchFingerprintBtn || !fingerprintSearchModalEl || !fingerprintSearchPreview || !fingerprintSearchStatus || !fingerprintScanAgainBtn || !clientKeywordInput || !clientSexFilter || !clientCivilStatusFilter || !clientCityFilter || !clientBarangayFilter || !clientRecordTypeFilter || !clientFiltersResetBtn || !clientFiltersToggleBtn || !clientFiltersBody || !clientDateFrom || !clientDateTo || !clientDateApplyBtn || !clientFiltersCountBadge || !clientSearchSummary || !clientSearchNoResultsRow) {
                 return;
             }
 
@@ -871,6 +874,7 @@
                 editFingerprintPreview.src = editFingerprintDataUrl || editDefaultFingerprint;
                 editFingerprintStatus.textContent = statusText || (editFingerprintDataUrl ? 'Fingerprint captured and ready to save.' : 'No fingerprint captured yet.');
                 editClearFingerprintBtn.disabled = !editFingerprintDataUrl && !editHasFingerprint;
+                editScanAgainBtn.classList.toggle('d-none', !editFingerprintDataUrl && !editHasFingerprint);
             };
 
             const clearEditFingerprintCapture = (markRemove = false) => {
@@ -879,11 +883,12 @@
                 editFingerprintData.value = '';
                 editFingerprintTemplate.value = '';
                 editFingerprintRemove.value = markRemove && editHasFingerprint ? '1' : '';
-                editFingerprintPreview.src = markRemove ? "<?php echo e(asset('assets/images/avatar-1.jpg')); ?>" : editOriginalFingerprintPreview;
+                editFingerprintPreview.src = markRemove ? "<?php echo e(asset('assets/images/fingerprint.png')); ?>" : editOriginalFingerprintPreview;
                 editFingerprintStatus.textContent = markRemove
                     ? 'No fingerprint captured yet.'
                     : (editHasFingerprint ? 'Existing fingerprint on file.' : 'No fingerprint captured yet.');
                 editClearFingerprintBtn.disabled = markRemove ? true : !editHasFingerprint;
+                editScanAgainBtn.classList.toggle('d-none', markRemove ? true : !editHasFingerprint);
             };
 
             const captureEditFingerprintFromBridge = async () => {
@@ -961,7 +966,7 @@
             };
 
             const showClientViewModal = (client) => {
-                clientViewPhoto.src = client.photo_url || <?php echo json_encode(asset('assets/images/avatar-1.jpg'), 15, 512) ?>;
+                clientViewPhoto.src = client.photo_url || <?php echo json_encode(asset('assets/images/profile.png'), 15, 512) ?>;
                 clientViewName.textContent = client.name || 'Client';
                 clientViewAge.textContent = client.age ?? '-';
                 clientViewGender.textContent = client.gender || '-';
@@ -992,6 +997,7 @@
                     if (searchResult.matched && searchResult.client) {
                         fingerprintSearchStatus.textContent = `Match found: ${searchResult.client.name}`;
                         fingerprintScanAgainBtn.classList.add('d-none');
+                        highlightMatchedClient(searchResult.client.id);
                         fingerprintSearchModal.hide();
                         window.location.href = searchResult.client.show_url;
                         return;
@@ -1080,6 +1086,7 @@
                 editFingerprintTemplateXml = '';
                 editFingerprintStatus.textContent = editHasFingerprint ? 'Existing fingerprint on file.' : 'No fingerprint captured yet.';
                 editClearFingerprintBtn.disabled = !editHasFingerprint;
+                editScanAgainBtn.classList.toggle('d-none', !editHasFingerprint);
                 editCameraWrapper.classList.add('d-none');
                 editCapturePhotoBtn.disabled = true;
                 editRetakePhotoBtn.disabled = true;
@@ -1101,6 +1108,7 @@
                 editFingerprintTemplateXml = '';
                 editFingerprintStatus.textContent = 'No fingerprint captured yet.';
                 editClearFingerprintBtn.disabled = true;
+                editScanAgainBtn.classList.add('d-none');
                 editHasFingerprint = false;
                 stopEditCamera();
                 editForm.reset();
@@ -1155,17 +1163,14 @@
             filterClientList();
 
             fingerprintSearchModalEl.addEventListener('shown.bs.modal', function () {
-                fingerprintSearchPreview.src = <?php echo json_encode(asset('assets/images/avatar-1.jpg'), 15, 512) ?>;
+                fingerprintSearchPreview.src = fingerprintPlaceholderPreview;
                 fingerprintSearchStatus.textContent = 'Place your finger on the scanner...';
                 fingerprintScanAgainBtn.classList.add('d-none');
                 searchFingerprintAndHighlight();
             });
 
-            fingerprintSearchModalEl.addEventListener('hidden.bs.modal', function () {
-            });
-
             clientViewModalEl.addEventListener('hidden.bs.modal', function () {
-                clientViewPhoto.src = <?php echo json_encode(asset('assets/images/avatar-1.jpg'), 15, 512) ?>;
+                clientViewPhoto.src = <?php echo json_encode(asset('assets/images/profile.png'), 15, 512) ?>;
                 clientViewName.textContent = 'Client';
                 clientViewAge.textContent = '-';
                 clientViewGender.textContent = '-';
@@ -1195,6 +1200,10 @@
                         alert(`Unable to capture from the scanner bridge.\n\n${error.message || error}`);
                     }
                 })();
+            });
+
+            editScanAgainBtn.addEventListener('click', function () {
+                editOpenFingerprintBtn.click();
             });
 
             editClearFingerprintBtn.addEventListener('click', function () {

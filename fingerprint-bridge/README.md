@@ -26,8 +26,10 @@ You do not need to open Visual Studio to use this bridge.
    - `fingerprint-bridge\build-bridge.bat`
 2. Run it manually:
    - `fingerprint-bridge\run-bridge.bat`
+   - If the bridge has not been built yet, `run-bridge.bat` will build it first and then launch it.
 3. Install auto-start for Windows:
    - `fingerprint-bridge\install-autostart.bat`
+   - This adds a Startup shortcut that launches `run-bridge.bat`, so the bridge can rebuild and start automatically when Windows logs in.
 4. Remove auto-start later:
    - `fingerprint-bridge\uninstall-autostart.bat`
 

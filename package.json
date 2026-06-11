@@ -4,7 +4,9 @@
     "type": "module",
     "scripts": {
         "build": "vite build",
-        "dev": "vite"
+        "dev": "concurrently -k -n VITE,BRIDGE \"vite\" \"cmd /c fingerprint-bridge\\run-bridge.bat\"",
+        "dev:vite": "vite",
+        "dev:bridge": "cmd /c fingerprint-bridge\\run-bridge.bat"
     },
     "devDependencies": {
         "@popperjs/core": "^2.11.6",

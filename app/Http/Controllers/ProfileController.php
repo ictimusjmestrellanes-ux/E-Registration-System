@@ -409,7 +409,7 @@ class ProfileController extends Controller
             : ($match['matchedClientName'] ?? 'an existing client');
 
         throw ValidationException::withMessages([
-            'fingerprint_template' => "This fingerprint is already registered to {$matchedName}.",
+            'fingerprint_template' => "This fingerprint is already taken by {$matchedName}.",
         ]);
     }
 
@@ -533,7 +533,7 @@ class ProfileController extends Controller
             'client' => [
                 'id' => $client->id,
                 'name' => trim($client->first_name . ' ' . ($client->middle_name ? $client->middle_name . ' ' : '') . $client->last_name),
-                'photo_url' => $client->photo_path ? asset('storage/' . $client->photo_path) : asset('assets/images/avatar-1.jpg'),
+                'photo_url' => $client->photo_url,
                 'age' => $client->age,
                 'gender' => $client->gender,
                 'civil_status' => $client->civil_status,

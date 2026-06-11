@@ -4,7 +4,7 @@
     <?php
         $user = auth()->user();
         $profileAvatar = $user?->avatar ? asset('storage/' . $user->avatar) : asset('assets/images/avatar-1.jpg');
-        $profileCover = $user?->cover_photo ? asset('storage/' . $user->cover_photo) : asset('assets/images/profile-bg.jpg');
+        $profileCover = $user?->cover_photo ? asset('storage/' . $user->cover_photo) : null;
         $totalLogs = $activities->total();
         $todayCount = $todayActivities->count();
         $weeklyCount = $weeklyActivities->count();
@@ -72,6 +72,22 @@
             min-height: 220px;
             background: #3f4f8f;
             color: #fff;
+        }
+
+        .activity-hero-cover {
+            height: 100%;
+            min-height: 220px;
+            width: 100%;
+            object-fit: cover;
+            object-position: center;
+            display: block;
+        }
+
+        .activity-hero-placeholder {
+            height: 100%;
+            min-height: 220px;
+            width: 100%;
+            background: linear-gradient(135deg, rgba(64, 81, 137, 0.18), rgba(64, 81, 137, 0.06));
         }
 
         .activity-hero::before {
@@ -188,6 +204,11 @@
 
     <div class="container-fluid">
         <div class="activity-hero p-3 p-lg-4 mb-4">
+            <?php if($profileCover): ?>
+                <img src="<?php echo e($profileCover); ?>" alt="" class="profile-wid-img activity-hero-cover position-absolute top-0 start-0">
+            <?php else: ?>
+                <div class="profile-wid-img activity-hero-placeholder position-absolute top-0 start-0" aria-hidden="true"></div>
+            <?php endif; ?>
             <div class="d-flex flex-column flex-lg-row justify-content-between gap-4">
                 <div class="d-flex align-items-center gap-3 gap-lg-4">
                     <img src="<?php echo e($profileAvatar); ?>" alt="User Avatar" class="rounded-circle activity-avatar">
