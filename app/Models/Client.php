@@ -34,7 +34,7 @@ class Client extends Model
             return asset('storage/' . $this->photo_path);
         }
 
-        return asset('assets/images/avatar-1.jpg');
+        return asset('assets/images/profile.png');
     }
 
     public function getFingerprintUrlAttribute(): string

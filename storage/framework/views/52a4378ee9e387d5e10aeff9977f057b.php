@@ -336,7 +336,7 @@
                                             <td><?php echo e($loop->iteration); ?></td>
                                             <td>
                                                 <?php
-                                                    $clientPhoto = $client->photo_path ? asset('storage/' . $client->photo_path) : asset('assets/images/avatar-1.jpg');
+                                                    $clientPhoto = $client->photo_url;
                                                 ?>
                                                 <button
                                                     type="button"
@@ -390,7 +390,7 @@
                                                         data-barangay="<?php echo e($client->barangay); ?>"
                                                         data-client-name="<?php echo e(trim($client->first_name . ' ' . ($client->middle_name ? $client->middle_name . ' ' : '') . $client->last_name)); ?>"
                                                         data-client-photo="<?php echo e($clientPhoto); ?>"
-                                                        data-client-fingerprint="<?php echo e($client->fingerprint_path ? asset('storage/' . $client->fingerprint_path) : ''); ?>"
+                                                    data-client-fingerprint="<?php echo e($client->fingerprint_url); ?>"
                                                     >
                                                         Edit
                                                     </button>
