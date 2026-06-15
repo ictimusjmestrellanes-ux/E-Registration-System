@@ -5,11 +5,42 @@
         $selectedProvince = old('province', optional($editingClient)->province ?? '');
         $selectedCity = old('city', optional($editingClient)->city ?? '');
         $selectedBarangay = old('barangay', optional($editingClient)->barangay ?? '');
+        $selectedBirthDate = old('birth_date', optional($editingClient?->birth_date)->format('Y-m-d') ?? '');
+        $educationOptions = [
+            'ELEMENTARY GRADUATE',
+            'ELEMENTARY LEVEL (IN SCHOOL)',
+            'ELEMENTARY UNDERGRADUATE',
+            'HIGH SCHOOL GRADUATE',
+            'HIGH SCHOOL LEVEL (IN SCHOOL)',
+            'HIGH SCHOOL UNDERGRADUATE',
+            'N/A',
+            'POST-GRADUATE STUDIES',
+            'SENIOR HS (IN SCHOOL)',
+            'SENIOR HS GRADUATE',
+        ];
+        $sectorOptions = [
+            'COMMON CITIZEN',
+            'EDUCATION',
+            'FAMILY HEADS AND OTHER NEEDY ADULTS',
+            'HEALTH',
+            'INDUSTRY / BUSINESS',
+            'LGU',
+            'NGOS',
+            'OTHERS',
+            'PEACE AND ORDER',
+            'PERSONS WITH DISABILITIES',
+        ];
+        if (!$editingClient && $selectedProvince === '') {
+            $selectedProvince = 'CAVITE';
+        }
+        if (!$editingClient && $selectedCity === '') {
+            $selectedCity = 'CITY OF IMUS';
+        }
         $oldFingerprintData = old('fingerprint_data', '');
         $previewImage = $editingClient && $editingClient->photo_path
             ? asset('storage/' . $editingClient->photo_path)
-            : 'data:image/svg+xml;utf8,' . rawurlencode('<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 240 240"><rect width="240" height="240" rx="24" fill="#f1f5f9"/><path d="M85 80l10-16h50l10 16h15c8.3 0 15 6.7 15 15v70c0 8.3-6.7 15-15 15H80c-8.3 0-15-6.7-15-15V95c0-8.3 6.7-15 15-15h5zm35 30c-16.6 0-30 13.4-30 30s13.4 30 30 30 30-13.4 30-30-13.4-30-30-30zm0 15c8.3 0 15 6.7 15 15s-6.7 15-15 15-15-6.7-15-15 6.7-15 15-15z" fill="#6b7280"/><circle cx="170" cy="98" r="8" fill="#6b7280"/></svg>');
-        $fingerprintPlaceholder = 'data:image/svg+xml;utf8,' . rawurlencode('<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 240 240"><rect width="240" height="240" rx="24" fill="#eef2ff"/><path d="M120 56c-22.1 0-40 17.9-40 40 0 30 6 39 6 60 0 14 5 27 14 37" fill="none" stroke="#4f46e5" stroke-width="10" stroke-linecap="round"/><path d="M92 92c0-15.5 12.5-28 28-28s28 12.5 28 28c0 21-5 30-5 48 0 16 6 29 15 40" fill="none" stroke="#4f46e5" stroke-width="10" stroke-linecap="round"/><path d="M72 120c0-26.5 21.5-48 48-48s48 21.5 48 48c0 31-7 43-7 64" fill="none" stroke="#4f46e5" stroke-width="10" stroke-linecap="round"/><path d="M120 72c13.3 0 24 10.7 24 24 0 16-4 24-4 40 0 10 3 21 8 30" fill="none" stroke="#4f46e5" stroke-width="10" stroke-linecap="round"/><path d="M100 112c0-11 8.9-20 20-20s20 9 20 20c0 15-3 24-3 36 0 11 3 22 8 32" fill="none" stroke="#4f46e5" stroke-width="10" stroke-linecap="round"/><circle cx="120" cy="120" r="8" fill="#4f46e5"/></svg>');
+            : asset('assets/images/profile.png');
+        $fingerprintPlaceholder = asset('assets/images/fingerprint.png');
         $fingerprintPreview = $editingClient && $editingClient->fingerprint_path
             ? asset('storage/' . $editingClient->fingerprint_path)
             : ($oldFingerprintData ?: $fingerprintPlaceholder);
@@ -113,105 +144,218 @@ unset($__errorArgs, $__bag); ?>
                                     </div>
                                 </div>
 
-                                <div class="col-lg-4">
-                                    <label for="firstName" class="form-label">First Name</label>
-                                    <input type="text" class="form-control" id="firstName" name="first_name"
-                                        placeholder="Enter first name"
-                                        value="<?php echo e(old('first_name', optional($editingClient)->first_name ?? '')); ?>">
-                                </div>
+                                <div class="col-12">
+                                    <div class="border rounded-4 p-3 bg-light-subtle">
+                                        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+                                            <div>
+                                                <h5 class="mb-1">Personal Information</h5>
+                                                <p class="text-muted mb-0 small">Basic identity and demographic details.</p>
+                                            </div>
+                                        </div>
 
-                                <div class="col-lg-4">
-                                    <label for="middleName" class="form-label">Middle Name</label>
-                                    <input type="text" class="form-control" id="middleName" name="middle_name"
-                                        placeholder="Enter middle name"
-                                        value="<?php echo e(old('middle_name', optional($editingClient)->middle_name ?? '')); ?>">
-                                </div>
+                                        <div class="row g-3">
+                                            <div class="col-lg-3">
+                                                <label for="firstName" class="form-label">First Name</label>
+                                                <input type="text" class="form-control" id="firstName" name="first_name"
+                                                    placeholder="Enter first name"
+                                                    value="<?php echo e(old('first_name', optional($editingClient)->first_name ?? '')); ?>">
+                                            </div>
 
-                                <div class="col-lg-4">
-                                    <label for="lastName" class="form-label">Last Name</label>
-                                    <input type="text" class="form-control" id="lastName" name="last_name"
-                                        placeholder="Enter last name"
-                                        value="<?php echo e(old('last_name', optional($editingClient)->last_name ?? '')); ?>">
-                                </div>
+                                            <div class="col-lg-3">
+                                                <label for="middleName" class="form-label">Middle Name</label>
+                                                <input type="text" class="form-control" id="middleName" name="middle_name"
+                                                    placeholder="Enter middle name"
+                                                    value="<?php echo e(old('middle_name', optional($editingClient)->middle_name ?? '')); ?>">
+                                            </div>
 
-                                <div class="col-lg-1">
-                                    <label for="age" class="form-label">Age</label>
-                                    <input type="number" class="form-control" id="age" name="age" placeholder="Enter age"
-                                        min="0" value="<?php echo e(old('age', optional($editingClient)->age ?? '')); ?>">
-                                </div>
+                                            <div class="col-lg-3">
+                                                <label for="lastName" class="form-label">Last Name</label>
+                                                <input type="text" class="form-control" id="lastName" name="last_name"
+                                                    placeholder="Enter last name"
+                                                    value="<?php echo e(old('last_name', optional($editingClient)->last_name ?? '')); ?>">
+                                            </div>
 
-                                <div class="col-lg-2">
-                                    <label for="gender" class="form-label">Gender</label>
-                                    <select class="form-select" id="gender" name="gender">
-                                        <option value="" <?php echo e(old('gender', optional($editingClient)->gender ?? '') === '' ? 'selected' : ''); ?>>Select gender</option>
-                                        <option value="Male" <?php echo e(old('gender', optional($editingClient)->gender ?? '') === 'Male' ? 'selected' : ''); ?>>Male</option>
-                                        <option value="Female" <?php echo e(old('gender', optional($editingClient)->gender ?? '') === 'Female' ? 'selected' : ''); ?>>Female</option>
-                                        <option value="Other" <?php echo e(old('gender', optional($editingClient)->gender ?? '') === 'Other' ? 'selected' : ''); ?>>Other</option>
-                                    </select>
-                                </div>
+                                            <div class="col-lg-3">
+                                                <label for="suffix" class="form-label">Suffix</label>
+                                                <input type="text" class="form-control" id="suffix" name="suffix"
+                                                    placeholder="Jr., Sr., III"
+                                                    value="<?php echo e(old('suffix', optional($editingClient)->suffix ?? '')); ?>">
+                                            </div>
 
-                                <div class="col-lg-2">
-                                    <label for="civilStatus" class="form-label">Civil Status</label>
-                                    <select class="form-select" id="civilStatus" name="civil_status">
-                                        <option value="" <?php echo e(old('civil_status', optional($editingClient)->civil_status ?? '') === '' ? 'selected' : ''); ?>>Select civil status</option>
-                                        <option value="Single" <?php echo e(old('civil_status', optional($editingClient)->civil_status ?? '') === 'Single' ? 'selected' : ''); ?>>Single</option>
-                                        <option value="Married" <?php echo e(old('civil_status', optional($editingClient)->civil_status ?? '') === 'Married' ? 'selected' : ''); ?>>Married</option>
-                                        <option value="Separated" <?php echo e(old('civil_status', optional($editingClient)->civil_status ?? '') === 'Separated' ? 'selected' : ''); ?>>Separated</option>
-                                        <option value="Widowed" <?php echo e(old('civil_status', optional($editingClient)->civil_status ?? '') === 'Widowed' ? 'selected' : ''); ?>>Widowed</option>
-                                        <option value="Annulled" <?php echo e(old('civil_status', optional($editingClient)->civil_status ?? '') === 'Annulled' ? 'selected' : ''); ?>>Annulled</option>
-                                    </select>
-                                </div>
+                                            <div class="col-lg-2">
+                                                <label for="gender" class="form-label">Gender</label>
+                                                <select class="form-select" id="gender" name="gender">
+                                                    <option value="" <?php echo e(old('gender', optional($editingClient)->gender ?? '') === '' ? 'selected' : ''); ?>>Select gender</option>
+                                                    <option value="Male" <?php echo e(old('gender', optional($editingClient)->gender ?? '') === 'Male' ? 'selected' : ''); ?>>Male</option>
+                                                    <option value="Female" <?php echo e(old('gender', optional($editingClient)->gender ?? '') === 'Female' ? 'selected' : ''); ?>>Female</option>
+                                                    <option value="Other" <?php echo e(old('gender', optional($editingClient)->gender ?? '') === 'Other' ? 'selected' : ''); ?>>Other</option>
+                                                </select>
+                                            </div>
 
-                                <div class="col-lg-3">
-                                    <label for="contact" class="form-label">Contact</label>
-                                    <input type="text" class="form-control" id="contact" name="contact"
-                                        placeholder="Enter contact number" inputmode="numeric" maxlength="11"
-                                        autocomplete="off" value="<?php echo e(old('contact', optional($editingClient)->contact ?? '')); ?>">
-                                    <div id="contactError" class="text-danger small mt-1 d-none">Only numbers can be input.
+                                            <div class="col-lg-2">
+                                                <label for="birthDate" class="form-label">Birth Date</label>
+                                                <input type="date" class="form-control" id="birthDate" name="birth_date"
+                                                    value="<?php echo e($selectedBirthDate); ?>">
+                                            </div>
+
+                                            <div class="col-lg-3">
+                                                <label for="birthplace" class="form-label">Birthplace</label>
+                                                <input type="text" class="form-control" id="birthplace" name="birthplace"
+                                                    placeholder="Enter birthplace"
+                                                    value="<?php echo e(old('birthplace', optional($editingClient)->birthplace ?? '')); ?>">
+                                            </div>
+
+                                            <div class="col-lg-2">
+                                                <label for="age" class="form-label">Age</label>
+                                                <input type="number" class="form-control" id="age" name="age" placeholder="Enter age"
+                                                    min="0" value="<?php echo e(old('age', optional($editingClient)->age ?? '')); ?>">
+                                            </div>
+
+                                            <div class="col-lg-3">
+                                                <label for="civilStatus" class="form-label">Civil Status</label>
+                                                <select class="form-select" id="civilStatus" name="civil_status">
+                                                    <option value="" <?php echo e(old('civil_status', optional($editingClient)->civil_status ?? '') === '' ? 'selected' : ''); ?>>Select civil status</option>
+                                                    <option value="Single" <?php echo e(old('civil_status', optional($editingClient)->civil_status ?? '') === 'Single' ? 'selected' : ''); ?>>Single</option>
+                                                    <option value="Married" <?php echo e(old('civil_status', optional($editingClient)->civil_status ?? '') === 'Married' ? 'selected' : ''); ?>>Married</option>
+                                                    <option value="Separated" <?php echo e(old('civil_status', optional($editingClient)->civil_status ?? '') === 'Separated' ? 'selected' : ''); ?>>Separated</option>
+                                                    <option value="Widowed" <?php echo e(old('civil_status', optional($editingClient)->civil_status ?? '') === 'Widowed' ? 'selected' : ''); ?>>Widowed</option>
+                                                    <option value="Annulled" <?php echo e(old('civil_status', optional($editingClient)->civil_status ?? '') === 'Annulled' ? 'selected' : ''); ?>>Annulled</option>
+                                                </select>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
 
-                                <div class="col-lg-4">
-                                    <label for="email" class="form-label">Email</label>
-                                    <input type="email" class="form-control" id="email" name="email"
-                                        placeholder="Enter email" value="<?php echo e(old('email', optional($editingClient)->email ?? '')); ?>">
+                                <div class="col-12">
+                                    <div class="border rounded-4 p-3 bg-light-subtle">
+                                        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+                                            <div>
+                                                <h5 class="mb-1">Address and Contact Information</h5>
+                                                <p class="text-muted mb-0 small">Where the client lives and how to reach them.</p>
+                                            </div>
+                                        </div>
+
+                                        <div class="form-check form-switch mb-3">
+                                            <input class="form-check-input" type="checkbox" role="switch" id="sameAsHomeAddress">
+                                            <label class="form-check-label" for="sameAsHomeAddress">Check if address is outside City of Imus</label>
+                                        </div>
+
+                                        <div class="row g-3">
+                                            <div class="col-lg-12">
+                                                <label for="address" class="form-label">Address</label>
+                                                <input class="form-control" id="address" name="address" rows="3"
+                                                    placeholder="Enter address"
+                                                    value="<?php echo e(old('address', optional($editingClient)->address ?? '')); ?>">
+                                            </div>
+
+                                            <div class="col-lg-4">
+                                                <label for="province" class="form-label">Province</label>
+                                                <select class="form-select" id="province" name="province">
+                                                    <option value="">Select province</option>
+                                                </select>
+                                                <input type="text" class="form-control d-none mt-2" id="provinceManual"
+                                                    name="province_manual" placeholder="Enter province manually"
+                                                    value="<?php echo e(old('province', optional($editingClient)->province ?? '')); ?>">
+                                            </div>
+
+                                            <div class="col-lg-4">
+                                                <label for="city" class="form-label">City</label>
+                                                <select class="form-select" id="city" name="city">
+                                                    <option value="">Select city</option>
+                                                </select>
+                                                <input type="text" class="form-control d-none mt-2" id="cityManual" name="city_manual"
+                                                    placeholder="Enter city manually"
+                                                    value="<?php echo e(old('city', optional($editingClient)->city ?? '')); ?>">
+                                            </div>
+
+                                            <div class="col-lg-4">
+                                                <label for="barangay" class="form-label">Barangay</label>
+                                                <select class="form-select" id="barangay" name="barangay">
+                                                    <option value="">Select barangay</option>
+                                                </select>
+                                                <input type="text" class="form-control d-none mt-2" id="barangayManual"
+                                                    name="barangay_manual" placeholder="Enter barangay manually"
+                                                    value="<?php echo e(old('barangay', optional($editingClient)->barangay ?? '')); ?>">
+                                            </div>
+
+                                            <div class="col-lg-4">
+                                                <label for="contact" class="form-label">Contact 1</label>
+                                                <input type="text" class="form-control" id="contact" name="contact"
+                                                    placeholder="Enter primary contact number" inputmode="numeric" maxlength="11"
+                                                    autocomplete="off" value="<?php echo e(old('contact', optional($editingClient)->contact ?? '')); ?>">
+                                                <div id="contactError" class="text-danger small mt-1 d-none">Only numbers can be input.
+                                                </div>
+                                            </div>
+
+                                            <div class="col-lg-4">
+                                                <label for="contact2" class="form-label">Contact 2</label>
+                                                <input type="text" class="form-control" id="contact2" name="contact_2"
+                                                    placeholder="Enter secondary contact number" inputmode="numeric" maxlength="11"
+                                                    autocomplete="off" value="<?php echo e(old('contact_2', optional($editingClient)->contact_2 ?? '')); ?>">
+                                                <div id="contact2Error" class="text-danger small mt-1 d-none">Only numbers can be input.
+                                                </div>
+                                            </div>
+
+                                            <div class="col-lg-4">
+                                                <label for="email" class="form-label">Email</label>
+                                                <input type="email" class="form-control" id="email" name="email"
+                                                    placeholder="Enter email" value="<?php echo e(old('email', optional($editingClient)->email ?? '')); ?>">
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
 
-                                <div class="col-lg-12">
-                                    <label for="address" class="form-label">Address</label>
-                                    <input class="form-control" id="address" name="address" rows="3"
-                                        placeholder="Enter address"
-                                        value="<?php echo e(old('address', optional($editingClient)->address ?? '')); ?>">
-                                </div>
+                                <div class="col-12">
+                                    <div class="border rounded-4 p-3 bg-light-subtle">
+                                        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+                                            <div>
+                                                <h5 class="mb-1">Additional Information</h5>
+                                                <p class="text-muted mb-0 small">Education and work-related details.</p>
+                                            </div>
+                                        </div>
 
-                                <div class="col-lg-4">
-                                    <label for="province" class="form-label">Province</label>
-                                    <select class="form-select" id="province" name="province">
-                                        <option value="">Select province</option>
-                                    </select>
-                                    <input type="text" class="form-control d-none mt-2" id="provinceManual"
-                                        name="province_manual" placeholder="Enter province manually"
-                                        value="<?php echo e(old('province', optional($editingClient)->province ?? '')); ?>">
-                                </div>
+                                        <div class="row g-3">
+                                            <div class="col-lg-3">
+                                                <label for="education" class="form-label">Education</label>
+                                                <select class="form-select" id="education" name="education">
+                                                    <option value="">Select education</option>
+                                                    <?php $__currentLoopData = $educationOptions; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $educationOption): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                                        <option value="<?php echo e($educationOption); ?>" <?php echo e(old('education', optional($editingClient)->education ?? '') === $educationOption ? 'selected' : ''); ?>>
+                                                            <?php echo e($educationOption); ?>
 
-                                <div class="col-lg-4">
-                                    <label for="city" class="form-label">City</label>
-                                    <select class="form-select" id="city" name="city">
-                                        <option value="">Select city</option>
-                                    </select>
-                                    <input type="text" class="form-control d-none mt-2" id="cityManual" name="city_manual"
-                                        placeholder="Enter city manually"
-                                        value="<?php echo e(old('city', optional($editingClient)->city ?? '')); ?>">
-                                </div>
+                                                        </option>
+                                                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                                                </select>
+                                            </div>
 
-                                <div class="col-lg-4">
-                                    <label for="barangay" class="form-label">Barangay</label>
-                                    <select class="form-select" id="barangay" name="barangay">
-                                        <option value="">Select barangay</option>
-                                    </select>
-                                    <input type="text" class="form-control d-none mt-2" id="barangayManual"
-                                        name="barangay_manual" placeholder="Enter barangay manually"
-                                        value="<?php echo e(old('barangay', optional($editingClient)->barangay ?? '')); ?>">
+                                            <div class="col-lg-3">
+                                                <label for="course" class="form-label">Course</label>
+                                                <input type="text" class="form-control" id="course" name="course"
+                                                    placeholder="Enter course"
+                                                    value="<?php echo e(old('course', optional($editingClient)->course ?? '')); ?>">
+                                            </div>
+
+                                            <div class="col-lg-3">
+                                                <label for="sector" class="form-label">Sector</label>
+                                                <select class="form-select" id="sector" name="sector">
+                                                    <option value="">Select sector</option>
+                                                    <?php $__currentLoopData = $sectorOptions; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $sectorOption): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                                        <option value="<?php echo e($sectorOption); ?>" <?php echo e(old('sector', optional($editingClient)->sector ?? '') === $sectorOption ? 'selected' : ''); ?>>
+                                                            <?php echo e($sectorOption); ?>
+
+                                                        </option>
+                                                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                                                </select>
+                                            </div>
+
+                                            <div class="col-lg-3">
+                                                <label for="positionOrganization" class="form-label">Position / Organization</label>
+                                                <input type="text" class="form-control" id="positionOrganization" name="position_organization"
+                                                    placeholder="Enter position or organization"
+                                                    value="<?php echo e(old('position_organization', optional($editingClient)->position_organization ?? '')); ?>">
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <div class="col-12">
@@ -324,6 +468,8 @@ unset($__errorArgs, $__bag); ?>
             const form = document.querySelector('form');
             const contactInput = document.getElementById('contact');
             const contactError = document.getElementById('contactError');
+            const contact2Input = document.getElementById('contact2');
+            const contact2Error = document.getElementById('contact2Error');
             const cameraModalEl = document.getElementById('cameraModal');
             const provinceSelect = document.getElementById('province');
             const citySelect = document.getElementById('city');
@@ -331,6 +477,7 @@ unset($__errorArgs, $__bag); ?>
             const provinceManual = document.getElementById('provinceManual');
             const cityManual = document.getElementById('cityManual');
             const barangayManual = document.getElementById('barangayManual');
+            const sameAsHomeAddress = document.getElementById('sameAsHomeAddress');
 
             const selectedProvince = <?php echo json_encode($selectedProvince, 15, 512) ?>;
             const selectedCity = <?php echo json_encode($selectedCity, 15, 512) ?>;
@@ -340,7 +487,7 @@ unset($__errorArgs, $__bag); ?>
             const apiBase = 'https://psgc.gitlab.io/api';
             const calabarzonProvinces = ['Batangas', 'Cavite', 'Laguna', 'Quezon', 'Rizal'];
 
-            if (!openCameraBtn || !capturePhotoBtn || !retakePhotoBtn || !cameraWrapper || !cameraView || !cameraCanvas || !clientPhotoData || !preview || !form || !contactInput || !contactError || !cameraModalEl || !provinceSelect || !citySelect || !barangaySelect || !provinceManual || !cityManual || !barangayManual || !openFingerprintBtn || !clearFingerprintBtn || !fingerprintPreview || !fingerprintStatus || !fingerprintModalEl || !fingerprintModalPreview || !fingerprintModalError || !retryFingerprintCaptureBtn || !saveFingerprintBtn || !clearFingerprintCaptureBtn || !clientFingerprintData || !clientFingerprintTemplate || !clientFingerprintRemove) {
+            if (!openCameraBtn || !capturePhotoBtn || !retakePhotoBtn || !cameraWrapper || !cameraView || !cameraCanvas || !clientPhotoData || !preview || !form || !contactInput || !contactError || !contact2Input || !contact2Error || !cameraModalEl || !provinceSelect || !citySelect || !barangaySelect || !provinceManual || !cityManual || !barangayManual || !sameAsHomeAddress || !openFingerprintBtn || !clearFingerprintBtn || !fingerprintPreview || !fingerprintStatus || !fingerprintModalEl || !fingerprintModalPreview || !fingerprintModalError || !retryFingerprintCaptureBtn || !saveFingerprintBtn || !clearFingerprintCaptureBtn || !clientFingerprintData || !clientFingerprintTemplate || !clientFingerprintRemove) {
                 return;
             }
 
@@ -406,17 +553,31 @@ unset($__errorArgs, $__bag); ?>
                     option.value = item.name;
                     option.textContent = item.name;
                     option.dataset.code = item.code || '';
-                    if (item.name === selectedValue) {
+                    if ((item.name || '').toLowerCase() === (selectedValue || '').toLowerCase()) {
                         option.selected = true;
                     }
                     select.appendChild(option);
                 });
             };
 
+            const selectOptionByLabel = (select, desiredValue) => {
+                if (!desiredValue) {
+                    select.value = '';
+                    return;
+                }
+
+                const match = Array.from(select.options).find((option) =>
+                    (option.value || '').toLowerCase() === desiredValue.toLowerCase() ||
+                    (option.textContent || '').toLowerCase() === desiredValue.toLowerCase()
+                );
+
+                select.value = match ? match.value : desiredValue;
+            };
+
             const enableManualLocations = (message) => {
                 provinceSelect.disabled = true;
                 citySelect.disabled = true;
-                barangaySelect.disabled = true;
+                barangaySelect.disabled = false;
                 provinceSelect.classList.add('d-none');
                 citySelect.classList.add('d-none');
                 barangaySelect.classList.add('d-none');
@@ -442,8 +603,8 @@ unset($__errorArgs, $__bag); ?>
             };
 
             const disableManualLocations = () => {
-                provinceSelect.disabled = false;
-                citySelect.disabled = false;
+                provinceSelect.disabled = true;
+                citySelect.disabled = true;
                 barangaySelect.disabled = false;
                 provinceSelect.classList.remove('d-none');
                 citySelect.classList.remove('d-none');
@@ -455,6 +616,26 @@ unset($__errorArgs, $__bag); ?>
                 provinceManual.disabled = true;
                 cityManual.disabled = true;
                 barangayManual.disabled = true;
+
+                provinceManual.name = 'province_manual';
+                cityManual.name = 'city_manual';
+                barangayManual.name = 'barangay_manual';
+            };
+
+            const setLocationMode = (outsideImus) => {
+                sameAsHomeAddress.checked = outsideImus;
+
+                provinceSelect.disabled = !outsideImus;
+                citySelect.disabled = !outsideImus;
+                barangaySelect.disabled = false;
+
+                provinceManual.classList.add('d-none');
+                cityManual.classList.add('d-none');
+                barangayManual.classList.add('d-none');
+
+                provinceManual.disabled = true;
+                cityManual.disabled = true;
+                barangayManual.disabled = false;
 
                 provinceManual.name = 'province_manual';
                 cityManual.name = 'city_manual';
@@ -510,21 +691,25 @@ unset($__errorArgs, $__bag); ?>
                 if (!selectedProvince) {
                     fillSelect(citySelect, 'Select city', [], '');
                     fillSelect(barangaySelect, 'Select barangay', [], '');
+                    setLocationMode(sameAsHomeAddress.checked);
                     return;
                 }
 
-                provinceSelect.value = selectedProvince;
+                selectOptionByLabel(provinceSelect, selectedProvince);
                 const provinceCode = provinceSelect.selectedOptions[0]?.dataset.code || '';
                 await loadCities(provinceCode, selectedCity);
 
                 if (!selectedCity) {
                     fillSelect(barangaySelect, 'Select barangay', [], '');
+                    setLocationMode(sameAsHomeAddress.checked);
                     return;
                 }
 
-                citySelect.value = selectedCity;
+                selectOptionByLabel(citySelect, selectedCity);
                 const cityCode = citySelect.selectedOptions[0]?.dataset.code || '';
                 await loadBarangays(cityCode, selectedBarangay);
+
+                setLocationMode(sameAsHomeAddress.checked);
             };
 
             const stopCamera = () => {
@@ -824,6 +1009,7 @@ unset($__errorArgs, $__bag); ?>
                     fingerprintStatus.textContent = existingFingerprint ? 'Existing fingerprint on file.' : 'No fingerprint captured yet.';
                     clearFingerprintBtn.disabled = !existingFingerprint;
                     retryFingerprintCaptureBtn.classList.add('d-none');
+                    setLocationMode(false);
                     restoreLocations().catch(() => alert('Unable to restore location data.'));
                     stopCamera();
                 }, 0);
@@ -836,6 +1022,21 @@ unset($__errorArgs, $__bag); ?>
                 contactError.classList.toggle('d-none', !hasInvalidChars);
             });
 
+            contact2Input.addEventListener('input', function () {
+                const onlyDigits = this.value.replace(/\D/g, '').slice(0, 11);
+                const hasInvalidChars = this.value !== onlyDigits;
+                this.value = onlyDigits;
+                contact2Error.classList.toggle('d-none', !hasInvalidChars);
+            });
+
+            sameAsHomeAddress.addEventListener('change', function () {
+                setLocationMode(this.checked);
+                if (!this.checked) {
+                    restoreLocations().catch(() => enableManualLocations('Unable to load location data from the API. You can enter the address manually.'));
+                }
+            });
+
+            setLocationMode(sameAsHomeAddress.checked);
             restoreLocations().catch(() => enableManualLocations('Unable to load location data from the API. You can enter the address manually.'));
             window.addEventListener('beforeunload', stopCamera);
 

@@ -23,7 +23,7 @@
                         <div class="row g-4">
                             <div class="col-lg-3 text-center">
                                 <img src="<?php echo e($clientPhoto); ?>" alt="Client Photo" class="img-thumbnail avatar-xxl object-fit-cover rounded-3">
-                                <h5 class="mt-3 mb-1"><?php echo e(trim($client->first_name . ' ' . ($client->middle_name ? $client->middle_name . ' ' : '') . $client->last_name)); ?></h5>
+                                <h5 class="mt-3 mb-1"><?php echo e($client->full_name); ?></h5>
                                 <p class="text-muted mb-0"><?php echo e($client->gender ?? 'N/A'); ?></p>
                             </div>
 
@@ -48,6 +48,14 @@
                                                 <td><?php echo e($client->last_name); ?></td>
                                             </tr>
                                             <tr>
+                                                <th>Suffix</th>
+                                                <td><?php echo e($client->suffix ?? '-'); ?></td>
+                                            </tr>
+                                            <tr>
+                                                <th>Birth Date</th>
+                                                <td><?php echo e($client->birth_date?->format('M d, Y') ?? '-'); ?></td>
+                                            </tr>
+                                            <tr>
                                                 <th>Age</th>
                                                 <td><?php echo e($client->age ?? '-'); ?></td>
                                             </tr>
@@ -60,12 +68,36 @@
                                                 <td><?php echo e($client->civil_status ?? '-'); ?></td>
                                             </tr>
                                             <tr>
+                                                <th>Birthplace</th>
+                                                <td><?php echo e($client->birthplace ?? '-'); ?></td>
+                                            </tr>
+                                            <tr>
+                                                <th>Education</th>
+                                                <td><?php echo e($client->education ?? '-'); ?></td>
+                                            </tr>
+                                            <tr>
+                                                <th>Course</th>
+                                                <td><?php echo e($client->course ?? '-'); ?></td>
+                                            </tr>
+                                            <tr>
+                                                <th>Sector</th>
+                                                <td><?php echo e($client->sector ?? '-'); ?></td>
+                                            </tr>
+                                            <tr>
+                                                <th>Position / Organization</th>
+                                                <td><?php echo e($client->position_organization ?? '-'); ?></td>
+                                            </tr>
+                                            <tr>
                                                 <th>Email</th>
                                                 <td><?php echo e($client->email ?? '-'); ?></td>
                                             </tr>
                                             <tr>
-                                                <th>Contact</th>
+                                                <th>Contact 1</th>
                                                 <td><?php echo e($client->contact ?? '-'); ?></td>
+                                            </tr>
+                                            <tr>
+                                                <th>Contact 2</th>
+                                                <td><?php echo e($client->contact_2 ?? '-'); ?></td>
                                             </tr>
                                             <tr>
                                                 <th>Address</th>

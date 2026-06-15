@@ -39,7 +39,7 @@
                                             <td><?php echo e($loop->iteration); ?></td>
                                             <td>
                                                 <?php
-                                                    $clientPhoto = $client->photo_path ? asset('storage/' . $client->photo_path) : asset('assets/images/avatar-1.jpg');
+                                                    $clientPhoto = $client->photo_url;
                                                 ?>
                                                 <img
                                                     src="<?php echo e($clientPhoto); ?>"

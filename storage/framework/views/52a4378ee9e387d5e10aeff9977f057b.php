@@ -172,6 +172,32 @@
             background: rgba(77, 99, 214, 0.16) !important;
         }
     </style>
+    <?php
+        $educationOptions = [
+            'ELEMENTARY GRADUATE',
+            'ELEMENTARY LEVEL (IN SCHOOL)',
+            'ELEMENTARY UNDERGRADUATE',
+            'HIGH SCHOOL GRADUATE',
+            'HIGH SCHOOL LEVEL (IN SCHOOL)',
+            'HIGH SCHOOL UNDERGRADUATE',
+            'N/A',
+            'POST-GRADUATE STUDIES',
+            'SENIOR HS (IN SCHOOL)',
+            'SENIOR HS GRADUATE',
+        ];
+        $sectorOptions = [
+            'COMMON CITIZEN',
+            'EDUCATION',
+            'FAMILY HEADS AND OTHER NEEDY ADULTS',
+            'HEALTH',
+            'INDUSTRY / BUSINESS',
+            'LGU',
+            'NGOS',
+            'OTHERS',
+            'PEACE AND ORDER',
+            'PERSONS WITH DISABILITIES',
+        ];
+    ?>
     <div class="container-fluid">
         <div class="row">
             <div class="col-12">
@@ -302,11 +328,19 @@
                                         <th>#</th>
                                         <th>Photo</th>
                                         <th>Full Name</th>
+                                        <th>Suffix</th>
+                                        <th>Birth Date</th>
                                         <th>Age</th>
                                         <th>Gender</th>
                                         <th>Civil Status</th>
+                                        <th>Birthplace</th>
+                                        <th>Education</th>
+                                        <th>Course</th>
+                                        <th>Sector</th>
+                                        <th>Position / Organization</th>
                                         <th>Email</th>
-                                        <th>Contact</th>
+                                        <th>Contact 1</th>
+                                        <th>Contact 2</th>
                                         <th>Address</th>
                                         <th>Province</th>
                                         <th>City</th>
@@ -317,21 +351,27 @@
                                 <tbody class="text-center">
                                     <?php $__empty_1 = true; $__currentLoopData = $clients; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $client): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
                                         <?php
-                                            $clientName = trim($client->first_name . ' ' . ($client->middle_name ? $client->middle_name . ' ' : '') . $client->last_name);
+                                            $clientName = $client->full_name;
                                         ?>
                                         <tr
                                             data-client-row="<?php echo e($client->id); ?>"
                                             data-search-name="<?php echo e(strtolower($clientName)); ?>"
                                             data-search-email="<?php echo e(strtolower($client->email ?? '')); ?>"
                                             data-search-contact="<?php echo e(strtolower($client->contact ?? '')); ?>"
+                                            data-search-contact-2="<?php echo e(strtolower($client->contact_2 ?? '')); ?>"
                                             data-search-address="<?php echo e(strtolower($client->address ?? '')); ?>"
+                                            data-search-birthplace="<?php echo e(strtolower($client->birthplace ?? '')); ?>"
+                                            data-search-education="<?php echo e(strtolower($client->education ?? '')); ?>"
+                                            data-search-course="<?php echo e(strtolower($client->course ?? '')); ?>"
+                                            data-search-sector="<?php echo e(strtolower($client->sector ?? '')); ?>"
+                                            data-search-position-organization="<?php echo e(strtolower($client->position_organization ?? '')); ?>"
                                             data-search-gender="<?php echo e(strtolower($client->gender ?? '')); ?>"
                                             data-search-civil-status="<?php echo e(strtolower($client->civil_status ?? '')); ?>"
                                             data-search-province="<?php echo e(strtolower($client->province ?? '')); ?>"
                                             data-search-city="<?php echo e(strtolower($client->city ?? '')); ?>"
                                             data-search-barangay="<?php echo e(strtolower($client->barangay ?? '')); ?>"
                                             data-search-created-at="<?php echo e(optional($client->created_at)->format('Y-m-d')); ?>"
-                                            data-search-all="<?php echo e(strtolower($clientName . ' ' . ($client->email ?? '') . ' ' . ($client->contact ?? '') . ' ' . ($client->gender ?? '') . ' ' . ($client->civil_status ?? '') . ' ' . ($client->address ?? '') . ' ' . ($client->province ?? '') . ' ' . ($client->city ?? '') . ' ' . ($client->barangay ?? ''))); ?>"
+                                            data-search-all="<?php echo e(strtolower($clientName . ' ' . ($client->suffix ?? '') . ' ' . ($client->email ?? '') . ' ' . ($client->contact ?? '') . ' ' . ($client->contact_2 ?? '') . ' ' . ($client->gender ?? '') . ' ' . ($client->civil_status ?? '') . ' ' . ($client->birthplace ?? '') . ' ' . ($client->education ?? '') . ' ' . ($client->course ?? '') . ' ' . ($client->sector ?? '') . ' ' . ($client->position_organization ?? '') . ' ' . ($client->address ?? '') . ' ' . ($client->province ?? '') . ' ' . ($client->city ?? '') . ' ' . ($client->barangay ?? ''))); ?>"
                                         >
                                             <td><?php echo e($loop->iteration); ?></td>
                                             <td>
@@ -354,12 +394,20 @@
                                                     >
                                                 </button>
                                             </td>
-                                            <td><?php echo e(trim($client->first_name . ' ' . ($client->middle_name ? $client->middle_name . ' ' : '') . $client->last_name)); ?></td>
+                                            <td><?php echo e($client->full_name); ?></td>
+                                            <td><?php echo e($client->suffix ?? '-'); ?></td>
+                                            <td><?php echo e($client->birth_date?->format('M d, Y') ?? '-'); ?></td>
                                             <td><?php echo e($client->age ?? '-'); ?></td>
                                             <td><?php echo e($client->gender ?? '-'); ?></td>
                                             <td><?php echo e($client->civil_status ?? '-'); ?></td>
+                                            <td><?php echo e($client->birthplace ?? '-'); ?></td>
+                                            <td><?php echo e($client->education ?? '-'); ?></td>
+                                            <td><?php echo e($client->course ?? '-'); ?></td>
+                                            <td><?php echo e($client->sector ?? '-'); ?></td>
+                                            <td><?php echo e($client->position_organization ?? '-'); ?></td>
                                             <td><?php echo e($client->email ?? '-'); ?></td>
                                             <td><?php echo e($client->contact ?? '-'); ?></td>
+                                            <td><?php echo e($client->contact_2 ?? '-'); ?></td>
                                             <td><?php echo e($client->address ?? '-'); ?></td>
                                             <td><?php echo e($client->province ?? '-'); ?></td>
                                             <td><?php echo e($client->city ?? '-'); ?></td>
@@ -379,16 +427,24 @@
                                                         data-first-name="<?php echo e($client->first_name); ?>"
                                                         data-middle-name="<?php echo e($client->middle_name); ?>"
                                                         data-last-name="<?php echo e($client->last_name); ?>"
+                                                        data-suffix="<?php echo e($client->suffix); ?>"
                                                         data-age="<?php echo e($client->age); ?>"
+                                                        data-birth-date="<?php echo e(optional($client->birth_date)->format('Y-m-d')); ?>"
                                                         data-gender="<?php echo e($client->gender); ?>"
                                                         data-civil-status="<?php echo e($client->civil_status); ?>"
+                                                        data-birthplace="<?php echo e($client->birthplace); ?>"
+                                                        data-education="<?php echo e($client->education); ?>"
+                                                        data-course="<?php echo e($client->course); ?>"
+                                                        data-sector="<?php echo e($client->sector); ?>"
+                                                        data-position-organization="<?php echo e($client->position_organization); ?>"
                                                         data-email="<?php echo e($client->email); ?>"
                                                         data-contact="<?php echo e($client->contact); ?>"
+                                                        data-contact-2="<?php echo e($client->contact_2); ?>"
                                                         data-address="<?php echo e($client->address); ?>"
                                                         data-province="<?php echo e($client->province); ?>"
                                                         data-city="<?php echo e($client->city); ?>"
                                                         data-barangay="<?php echo e($client->barangay); ?>"
-                                                        data-client-name="<?php echo e(trim($client->first_name . ' ' . ($client->middle_name ? $client->middle_name . ' ' : '') . $client->last_name)); ?>"
+                                                        data-client-name="<?php echo e($client->full_name); ?>"
                                                         data-client-photo="<?php echo e($clientPhoto); ?>"
                                                     data-client-fingerprint="<?php echo e($client->fingerprint_url); ?>"
                                                     >
@@ -405,7 +461,7 @@
                                         </tr>
                                     <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                                         <tr id="clientSearchEmptyRow">
-                                            <td colspan="13" class="text-center text-muted py-4">
+                                            <td colspan="21" class="text-center text-muted py-4">
                                                 <?php echo e($matchedClientId ? 'No matching client found.' : 'No clients found.'); ?>
 
                                             </td>
@@ -413,7 +469,7 @@
                                     <?php endif; ?>
                                     <?php if($clients->count()): ?>
                                         <tr id="clientSearchNoResultsRow" class="d-none">
-                                            <td colspan="13" class="text-center text-muted py-4">
+                                            <td colspan="21" class="text-center text-muted py-4">
                                                 No matching clients found.
                                             </td>
                                         </tr>
@@ -467,6 +523,14 @@
                                 </div>
                                 <div class="row g-3">
                                     <div class="col-md-4">
+                                        <div class="text-muted small text-uppercase fw-semibold">Suffix</div>
+                                        <div class="fw-semibold" id="clientViewSuffix">-</div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="text-muted small text-uppercase fw-semibold">Birth Date</div>
+                                        <div class="fw-semibold" id="clientViewBirthDate">-</div>
+                                    </div>
+                                    <div class="col-md-4">
                                         <div class="text-muted small text-uppercase fw-semibold">Age</div>
                                         <div class="fw-semibold" id="clientViewAge">-</div>
                                     </div>
@@ -483,12 +547,36 @@
                                         <div class="fw-semibold" id="clientViewEmail">-</div>
                                     </div>
                                     <div class="col-md-6">
-                                        <div class="text-muted small text-uppercase fw-semibold">Contact</div>
+                                        <div class="text-muted small text-uppercase fw-semibold">Contact 1</div>
                                         <div class="fw-semibold" id="clientViewContact">-</div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="text-muted small text-uppercase fw-semibold">Contact 2</div>
+                                        <div class="fw-semibold" id="clientViewContact2">-</div>
                                     </div>
                                     <div class="col-12">
                                         <div class="text-muted small text-uppercase fw-semibold">Address</div>
                                         <div class="fw-semibold" id="clientViewAddress">-</div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="text-muted small text-uppercase fw-semibold">Birthplace</div>
+                                        <div class="fw-semibold" id="clientViewBirthplace">-</div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="text-muted small text-uppercase fw-semibold">Education</div>
+                                        <div class="fw-semibold" id="clientViewEducation">-</div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="text-muted small text-uppercase fw-semibold">Course</div>
+                                        <div class="fw-semibold" id="clientViewCourse">-</div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="text-muted small text-uppercase fw-semibold">Sector</div>
+                                        <div class="fw-semibold" id="clientViewSector">-</div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="text-muted small text-uppercase fw-semibold">Position / Organization</div>
+                                        <div class="fw-semibold" id="clientViewPositionOrganization">-</div>
                                     </div>
                                     <div class="col-md-4">
                                         <div class="text-muted small text-uppercase fw-semibold">Province</div>
@@ -601,6 +689,15 @@
                                 <label class="form-label" for="editLastName">Last Name</label>
                                 <input type="text" class="form-control" id="editLastName" name="last_name" required>
                             </div>
+                            <div class="col-lg-2">
+                                <label class="form-label" for="editSuffix">Suffix</label>
+                                <input type="text" class="form-control" id="editSuffix" name="suffix" placeholder="Jr., Sr., III">
+                            </div>
+
+                            <div class="col-lg-2">
+                                <label class="form-label" for="editBirthDate">Birth Date</label>
+                                <input type="date" class="form-control" id="editBirthDate" name="birth_date">
+                            </div>
 
                             <div class="col-lg-2">
                                 <label class="form-label" for="editAge">Age</label>
@@ -627,8 +724,12 @@
                                 </select>
                             </div>
                             <div class="col-lg-4">
-                                <label class="form-label" for="editContact">Contact</label>
+                                <label class="form-label" for="editContact">Contact 1</label>
                                 <input type="text" class="form-control" id="editContact" name="contact" maxlength="11" inputmode="numeric">
+                            </div>
+                            <div class="col-lg-4">
+                                <label class="form-label" for="editContact2">Contact 2</label>
+                                <input type="text" class="form-control" id="editContact2" name="contact_2" maxlength="11" inputmode="numeric">
                             </div>
 
                             <div class="col-lg-6">
@@ -638,6 +739,36 @@
                             <div class="col-lg-6">
                                 <label class="form-label" for="editAddress">Address</label>
                                 <input type="text" class="form-control" id="editAddress" name="address">
+                            </div>
+                            <div class="col-lg-4">
+                                <label class="form-label" for="editBirthplace">Birthplace</label>
+                                <input type="text" class="form-control" id="editBirthplace" name="birthplace">
+                            </div>
+                            <div class="col-lg-4">
+                                <label class="form-label" for="editEducation">Education</label>
+                                <select class="form-select" id="editEducation" name="education">
+                                    <option value="">Select education</option>
+                                    <?php $__currentLoopData = $educationOptions; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $educationOption): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                        <option value="<?php echo e($educationOption); ?>"><?php echo e($educationOption); ?></option>
+                                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                                </select>
+                            </div>
+                            <div class="col-lg-4">
+                                <label class="form-label" for="editCourse">Course</label>
+                                <input type="text" class="form-control" id="editCourse" name="course">
+                            </div>
+                            <div class="col-lg-4">
+                                <label class="form-label" for="editSector">Sector</label>
+                                <select class="form-select" id="editSector" name="sector">
+                                    <option value="">Select sector</option>
+                                    <?php $__currentLoopData = $sectorOptions; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $sectorOption): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                        <option value="<?php echo e($sectorOption); ?>"><?php echo e($sectorOption); ?></option>
+                                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                                </select>
+                            </div>
+                            <div class="col-lg-8">
+                                <label class="form-label" for="editPositionOrganization">Position / Organization</label>
+                                <input type="text" class="form-control" id="editPositionOrganization" name="position_organization">
                             </div>
 
                             <div class="col-lg-4">
@@ -706,12 +837,20 @@
             const clientViewModalEl = document.getElementById('clientViewModal');
             const clientViewPhoto = document.getElementById('clientViewPhoto');
             const clientViewName = document.getElementById('clientViewName');
+            const clientViewSuffix = document.getElementById('clientViewSuffix');
+            const clientViewBirthDate = document.getElementById('clientViewBirthDate');
             const clientViewAge = document.getElementById('clientViewAge');
             const clientViewGender = document.getElementById('clientViewGender');
             const clientViewCivilStatus = document.getElementById('clientViewCivilStatus');
             const clientViewEmail = document.getElementById('clientViewEmail');
             const clientViewContact = document.getElementById('clientViewContact');
+            const clientViewContact2 = document.getElementById('clientViewContact2');
             const clientViewAddress = document.getElementById('clientViewAddress');
+            const clientViewBirthplace = document.getElementById('clientViewBirthplace');
+            const clientViewEducation = document.getElementById('clientViewEducation');
+            const clientViewCourse = document.getElementById('clientViewCourse');
+            const clientViewSector = document.getElementById('clientViewSector');
+            const clientViewPositionOrganization = document.getElementById('clientViewPositionOrganization');
             const clientViewProvince = document.getElementById('clientViewProvince');
             const clientViewCity = document.getElementById('clientViewCity');
             const clientViewBarangay = document.getElementById('clientViewBarangay');
@@ -724,12 +863,20 @@
             const editFirstName = document.getElementById('editFirstName');
             const editMiddleName = document.getElementById('editMiddleName');
             const editLastName = document.getElementById('editLastName');
+            const editSuffix = document.getElementById('editSuffix');
             const editAge = document.getElementById('editAge');
+            const editBirthDate = document.getElementById('editBirthDate');
             const editGender = document.getElementById('editGender');
             const editCivilStatus = document.getElementById('editCivilStatus');
             const editContact = document.getElementById('editContact');
+            const editContact2 = document.getElementById('editContact2');
             const editEmail = document.getElementById('editEmail');
             const editAddress = document.getElementById('editAddress');
+            const editBirthplace = document.getElementById('editBirthplace');
+            const editEducation = document.getElementById('editEducation');
+            const editCourse = document.getElementById('editCourse');
+            const editSector = document.getElementById('editSector');
+            const editPositionOrganization = document.getElementById('editPositionOrganization');
             const editProvince = document.getElementById('editProvince');
             const editCity = document.getElementById('editCity');
             const editBarangay = document.getElementById('editBarangay');
@@ -773,7 +920,7 @@
             const clientListSearchUrl = <?php echo json_encode(route('client.search.fingerprint'), 15, 512) ?>;
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
-            if (!modalEl || !modalImage || !modalTitle || !clientViewModalEl || !clientViewPhoto || !clientViewName || !clientViewAge || !clientViewGender || !clientViewCivilStatus || !clientViewEmail || !clientViewContact || !clientViewAddress || !clientViewProvince || !clientViewCity || !clientViewBarangay || !clientViewPageLink || !editModalEl || !editForm || !editFirstName || !editLastName || !editAge || !editGender || !editCivilStatus || !editContact || !editEmail || !editAddress || !editProvince || !editCity || !editBarangay || !editPhoto || !editName || !editTitle || !editOpenCameraBtn || !editCapturePhotoBtn || !editRetakePhotoBtn || !editCameraWrapper || !editCameraView || !editCameraCanvas || !editPhotoData || !editOpenFingerprintBtn || !editClearFingerprintBtn || !editScanAgainBtn || !editFingerprintPreview || !editFingerprintData || !editFingerprintTemplate || !editFingerprintRemove || !editFingerprintStatus || !searchFingerprintBtn || !fingerprintSearchModalEl || !fingerprintSearchPreview || !fingerprintSearchStatus || !fingerprintScanAgainBtn || !clientKeywordInput || !clientSexFilter || !clientCivilStatusFilter || !clientCityFilter || !clientBarangayFilter || !clientRecordTypeFilter || !clientFiltersResetBtn || !clientFiltersToggleBtn || !clientFiltersBody || !clientDateFrom || !clientDateTo || !clientDateApplyBtn || !clientFiltersCountBadge || !clientSearchSummary || !clientSearchNoResultsRow) {
+            if (!modalEl || !modalImage || !modalTitle || !clientViewModalEl || !clientViewPhoto || !clientViewName || !clientViewSuffix || !clientViewBirthDate || !clientViewAge || !clientViewGender || !clientViewCivilStatus || !clientViewEmail || !clientViewContact || !clientViewContact2 || !clientViewAddress || !clientViewBirthplace || !clientViewEducation || !clientViewCourse || !clientViewSector || !clientViewPositionOrganization || !clientViewProvince || !clientViewCity || !clientViewBarangay || !clientViewPageLink || !editModalEl || !editForm || !editFirstName || !editLastName || !editSuffix || !editBirthDate || !editAge || !editGender || !editCivilStatus || !editContact || !editContact2 || !editEmail || !editAddress || !editBirthplace || !editEducation || !editCourse || !editSector || !editPositionOrganization || !editProvince || !editCity || !editBarangay || !editPhoto || !editName || !editTitle || !editOpenCameraBtn || !editCapturePhotoBtn || !editRetakePhotoBtn || !editCameraWrapper || !editCameraView || !editCameraCanvas || !editPhotoData || !editOpenFingerprintBtn || !editClearFingerprintBtn || !editScanAgainBtn || !editFingerprintPreview || !editFingerprintData || !editFingerprintTemplate || !editFingerprintRemove || !editFingerprintStatus || !searchFingerprintBtn || !fingerprintSearchModalEl || !fingerprintSearchPreview || !fingerprintSearchStatus || !fingerprintScanAgainBtn || !clientKeywordInput || !clientSexFilter || !clientCivilStatusFilter || !clientCityFilter || !clientBarangayFilter || !clientRecordTypeFilter || !clientFiltersResetBtn || !clientFiltersToggleBtn || !clientFiltersBody || !clientDateFrom || !clientDateTo || !clientDateApplyBtn || !clientFiltersCountBadge || !clientSearchSummary || !clientSearchNoResultsRow) {
                 return;
             }
 
@@ -968,12 +1115,20 @@
             const showClientViewModal = (client) => {
                 clientViewPhoto.src = client.photo_url || <?php echo json_encode(asset('assets/images/profile.png'), 15, 512) ?>;
                 clientViewName.textContent = client.name || 'Client';
+                clientViewSuffix.textContent = client.suffix || '-';
+                clientViewBirthDate.textContent = client.birth_date || '-';
                 clientViewAge.textContent = client.age ?? '-';
                 clientViewGender.textContent = client.gender || '-';
                 clientViewCivilStatus.textContent = client.civil_status || '-';
                 clientViewEmail.textContent = client.email || '-';
                 clientViewContact.textContent = client.contact || '-';
+                clientViewContact2.textContent = client.contact_2 || '-';
                 clientViewAddress.textContent = client.address || '-';
+                clientViewBirthplace.textContent = client.birthplace || '-';
+                clientViewEducation.textContent = client.education || '-';
+                clientViewCourse.textContent = client.course || '-';
+                clientViewSector.textContent = client.sector || '-';
+                clientViewPositionOrganization.textContent = client.position_organization || '-';
                 clientViewProvince.textContent = client.province || '-';
                 clientViewCity.textContent = client.city || '-';
                 clientViewBarangay.textContent = client.barangay || '-';
@@ -1065,12 +1220,20 @@
                 editFirstName.value = trigger.getAttribute('data-first-name') || '';
                 editMiddleName.value = trigger.getAttribute('data-middle-name') || '';
                 editLastName.value = trigger.getAttribute('data-last-name') || '';
+                editSuffix.value = trigger.getAttribute('data-suffix') || '';
                 editAge.value = trigger.getAttribute('data-age') || '';
+                editBirthDate.value = trigger.getAttribute('data-birth-date') || '';
                 editGender.value = trigger.getAttribute('data-gender') || '';
                 editCivilStatus.value = trigger.getAttribute('data-civil-status') || '';
                 editContact.value = trigger.getAttribute('data-contact') || '';
+                editContact2.value = trigger.getAttribute('data-contact-2') || '';
                 editEmail.value = trigger.getAttribute('data-email') || '';
                 editAddress.value = trigger.getAttribute('data-address') || '';
+                editBirthplace.value = trigger.getAttribute('data-birthplace') || '';
+                editEducation.value = trigger.getAttribute('data-education') || '';
+                editCourse.value = trigger.getAttribute('data-course') || '';
+                editSector.value = trigger.getAttribute('data-sector') || '';
+                editPositionOrganization.value = trigger.getAttribute('data-position-organization') || '';
                 editProvince.value = trigger.getAttribute('data-province') || '';
                 editCity.value = trigger.getAttribute('data-city') || '';
                 editBarangay.value = trigger.getAttribute('data-barangay') || '';
@@ -1172,12 +1335,20 @@
             clientViewModalEl.addEventListener('hidden.bs.modal', function () {
                 clientViewPhoto.src = <?php echo json_encode(asset('assets/images/profile.png'), 15, 512) ?>;
                 clientViewName.textContent = 'Client';
+                clientViewSuffix.textContent = '-';
+                clientViewBirthDate.textContent = '-';
                 clientViewAge.textContent = '-';
                 clientViewGender.textContent = '-';
                 clientViewCivilStatus.textContent = '-';
                 clientViewEmail.textContent = '-';
                 clientViewContact.textContent = '-';
+                clientViewContact2.textContent = '-';
                 clientViewAddress.textContent = '-';
+                clientViewBirthplace.textContent = '-';
+                clientViewEducation.textContent = '-';
+                clientViewCourse.textContent = '-';
+                clientViewSector.textContent = '-';
+                clientViewPositionOrganization.textContent = '-';
                 clientViewProvince.textContent = '-';
                 clientViewCity.textContent = '-';
                 clientViewBarangay.textContent = '-';

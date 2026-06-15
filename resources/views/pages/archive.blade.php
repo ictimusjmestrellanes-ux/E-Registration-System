@@ -21,11 +21,19 @@
                                         <th>#</th>
                                         <th>Photo</th>
                                         <th>Full Name</th>
+                                        <th>Suffix</th>
+                                        <th>Birth Date</th>
                                         <th>Age</th>
                                         <th>Gender</th>
                                         <th>Civil Status</th>
+                                        <th>Birthplace</th>
+                                        <th>Education</th>
+                                        <th>Course</th>
+                                        <th>Sector</th>
+                                        <th>Position / Organization</th>
                                         <th>Email</th>
-                                        <th>Contact</th>
+                                        <th>Contact 1</th>
+                                        <th>Contact 2</th>
                                         <th>Address</th>
                                         <th>Province</th>
                                         <th>City</th>
@@ -49,12 +57,20 @@
                                                     style="width: 72px; height: 72px;"
                                                 >
                                             </td>
-                                            <td>{{ trim($client->first_name . ' ' . ($client->middle_name ? $client->middle_name . ' ' : '') . $client->last_name) }}</td>
+                                            <td>{{ $client->full_name }}</td>
+                                            <td>{{ $client->suffix ?? '-' }}</td>
+                                            <td>{{ $client->birth_date?->format('M d, Y') ?? '-' }}</td>
                                             <td>{{ $client->age ?? '-' }}</td>
                                             <td>{{ $client->gender ?? '-' }}</td>
                                             <td>{{ $client->civil_status ?? '-' }}</td>
+                                            <td>{{ $client->birthplace ?? '-' }}</td>
+                                            <td>{{ $client->education ?? '-' }}</td>
+                                            <td>{{ $client->course ?? '-' }}</td>
+                                            <td>{{ $client->sector ?? '-' }}</td>
+                                            <td>{{ $client->position_organization ?? '-' }}</td>
                                             <td>{{ $client->email ?? '-' }}</td>
                                             <td>{{ $client->contact ?? '-' }}</td>
+                                            <td>{{ $client->contact_2 ?? '-' }}</td>
                                             <td>{{ $client->address ?? '-' }}</td>
                                             <td>{{ $client->province ?? '-' }}</td>
                                             <td>{{ $client->city ?? '-' }}</td>
@@ -71,7 +87,7 @@
                                         </tr>
                                     @empty
                                         <tr>
-                                            <td colspan="14" class="text-center text-muted py-4">
+                                            <td colspan="22" class="text-center text-muted py-4">
                                                 No archived clients found.
                                             </td>
                                         </tr>

@@ -15,11 +15,19 @@ class ArchivedClient extends Model
         'first_name',
         'middle_name',
         'last_name',
+        'suffix',
         'age',
+        'birth_date',
+        'birthplace',
+        'education',
+        'course',
+        'sector',
+        'position_organization',
         'gender',
         'civil_status',
         'email',
         'contact',
+        'contact_2',
         'address',
         'province',
         'city',
@@ -32,6 +40,7 @@ class ArchivedClient extends Model
 
     protected $casts = [
         'archived_at' => 'datetime',
+        'birth_date' => 'date',
     ];
 
     public function getPhotoUrlAttribute(): string
@@ -40,7 +49,7 @@ class ArchivedClient extends Model
             return asset('storage/' . $this->photo_path);
         }
 
-        return asset('assets/images/avatar-1.jpg');
+        return asset('assets/images/profile.png');
     }
 
     public function getFingerprintUrlAttribute(): string
@@ -50,5 +59,15 @@ class ArchivedClient extends Model
         }
 
         return asset('assets/images/fingerprint.png');
+    }
+
+    public function getFullNameAttribute(): string
+    {
+        return trim(implode(' ', array_filter([
+            $this->first_name,
+            $this->middle_name,
+            $this->last_name,
+            $this->suffix,
+        ])));
     }
 }

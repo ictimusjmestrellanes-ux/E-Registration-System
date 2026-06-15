@@ -14,11 +14,19 @@ class Client extends Model
         'first_name',
         'middle_name',
         'last_name',
+        'suffix',
         'age',
+        'birth_date',
+        'birthplace',
+        'education',
+        'course',
+        'sector',
+        'position_organization',
         'gender',
         'civil_status',
         'email',
         'contact',
+        'contact_2',
         'address',
         'province',
         'city',
@@ -26,6 +34,10 @@ class Client extends Model
         'photo_path',
         'fingerprint_path',
         'fingerprint_template',
+    ];
+
+    protected $casts = [
+        'birth_date' => 'date',
     ];
 
     public function getPhotoUrlAttribute(): string
@@ -44,5 +56,15 @@ class Client extends Model
         }
 
         return asset('assets/images/fingerprint.png');
+    }
+
+    public function getFullNameAttribute(): string
+    {
+        return trim(implode(' ', array_filter([
+            $this->first_name,
+            $this->middle_name,
+            $this->last_name,
+            $this->suffix,
+        ])));
     }
 }

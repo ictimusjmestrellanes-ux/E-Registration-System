@@ -89,7 +89,14 @@ class ProfileController extends Controller
             'first_name' => $archivedClient->first_name,
             'middle_name' => $archivedClient->middle_name,
             'last_name' => $archivedClient->last_name,
+            'suffix' => $archivedClient->suffix,
             'age' => $archivedClient->age,
+            'birth_date' => $archivedClient->birth_date,
+            'birthplace' => $archivedClient->birthplace,
+            'education' => $archivedClient->education,
+            'course' => $archivedClient->course,
+            'sector' => $archivedClient->sector,
+            'position_organization' => $archivedClient->position_organization,
             'gender' => $archivedClient->gender,
             'civil_status' => $archivedClient->civil_status,
             'email' => $archivedClient->email,
@@ -156,11 +163,19 @@ class ProfileController extends Controller
             'first_name' => $validated['first_name'],
             'middle_name' => $validated['middle_name'] ?? null,
             'last_name' => $validated['last_name'],
+            'suffix' => $validated['suffix'] ?? null,
             'age' => $validated['age'] ?? null,
+            'birth_date' => $validated['birth_date'] ?? null,
+            'birthplace' => $validated['birthplace'] ?? null,
+            'education' => $validated['education'] ?? null,
+            'course' => $validated['course'] ?? null,
+            'sector' => $validated['sector'] ?? null,
+            'position_organization' => $validated['position_organization'] ?? null,
             'gender' => $validated['gender'] ?? null,
             'civil_status' => $validated['civil_status'] ?? null,
             'email' => $validated['email'] ?? null,
             'contact' => $validated['contact'] ?? null,
+            'contact_2' => $validated['contact_2'] ?? null,
             'address' => $validated['address'] ?? null,
             'province' => $validated['province'] ?? null,
             'city' => $validated['city'] ?? null,
@@ -218,11 +233,19 @@ class ProfileController extends Controller
             'first_name' => $validated['first_name'],
             'middle_name' => $validated['middle_name'] ?? null,
             'last_name' => $validated['last_name'],
+            'suffix' => $validated['suffix'] ?? null,
             'age' => $validated['age'] ?? null,
+            'birth_date' => $validated['birth_date'] ?? null,
+            'birthplace' => $validated['birthplace'] ?? null,
+            'education' => $validated['education'] ?? null,
+            'course' => $validated['course'] ?? null,
+            'sector' => $validated['sector'] ?? null,
+            'position_organization' => $validated['position_organization'] ?? null,
             'gender' => $validated['gender'] ?? null,
             'civil_status' => $validated['civil_status'] ?? null,
             'email' => $validated['email'] ?? null,
             'contact' => $validated['contact'] ?? null,
+            'contact_2' => $validated['contact_2'] ?? null,
             'address' => $validated['address'] ?? null,
             'province' => $validated['province'] ?? null,
             'city' => $validated['city'] ?? null,
@@ -271,11 +294,19 @@ class ProfileController extends Controller
             'first_name' => $client->first_name,
             'middle_name' => $client->middle_name,
             'last_name' => $client->last_name,
+            'suffix' => $client->suffix,
             'age' => $client->age,
+            'birth_date' => $client->birth_date,
+            'birthplace' => $client->birthplace,
+            'education' => $client->education,
+            'course' => $client->course,
+            'sector' => $client->sector,
+            'position_organization' => $client->position_organization,
             'gender' => $client->gender,
             'civil_status' => $client->civil_status,
             'email' => $client->email,
             'contact' => $client->contact,
+            'contact_2' => $client->contact_2,
             'address' => $client->address,
             'province' => $client->province,
             'city' => $client->city,
@@ -304,11 +335,19 @@ class ProfileController extends Controller
             'first_name' => ['required', 'string', 'max:255'],
             'middle_name' => ['nullable', 'string', 'max:255'],
             'last_name' => ['required', 'string', 'max:255'],
+            'suffix' => ['nullable', 'string', 'max:20'],
             'age' => ['nullable', 'integer', 'min:0', 'max:120'],
+            'birth_date' => ['nullable', 'date'],
+            'birthplace' => ['nullable', 'string', 'max:255'],
+            'education' => ['nullable', 'string', 'max:255'],
+            'course' => ['nullable', 'string', 'max:255'],
+            'sector' => ['nullable', 'string', 'max:255'],
+            'position_organization' => ['nullable', 'string', 'max:255'],
             'gender' => ['nullable', 'string', 'max:20'],
             'civil_status' => ['nullable', 'string', 'max:30'],
             'email' => ['nullable', 'email', 'max:255'],
             'contact' => ['nullable', 'string', 'max:30'],
+            'contact_2' => ['nullable', 'string', 'max:30'],
             'address' => ['nullable', 'string'],
             'province' => ['nullable', 'string', 'max:255'],
             'city' => ['nullable', 'string', 'max:255'],
@@ -337,7 +376,12 @@ class ProfileController extends Controller
 
     private function clientDisplayName(Client|ArchivedClient $client): string
     {
-        return trim($client->first_name . ' ' . ($client->middle_name ? $client->middle_name . ' ' : '') . $client->last_name);
+        return trim(implode(' ', array_filter([
+            $client->first_name,
+            $client->middle_name,
+            $client->last_name,
+            $client->suffix ?? null,
+        ])));
     }
 
     private function ensureFingerprintIsUnique(?string $fingerprintTemplate, ?string $fingerprintData, ?int $ignoreClientId = null): void
@@ -351,6 +395,7 @@ class ProfileController extends Controller
             'first_name',
             'middle_name',
             'last_name',
+            'suffix',
             'fingerprint_template',
             'fingerprint_path',
         ]);
@@ -371,7 +416,7 @@ class ProfileController extends Controller
 
                 return [
                     'id' => $client->id,
-                    'name' => trim($client->first_name . ' ' . ($client->middle_name ? $client->middle_name . ' ' : '') . $client->last_name),
+                    'name' => $client->full_name,
                     'fingerprintTemplateXml' => $client->fingerprint_template,
                     'fingerprintImageDataUrl' => $fingerprintImageDataUrl,
                 ];
@@ -405,7 +450,7 @@ class ProfileController extends Controller
 
         $matchedClient = Client::find($match['matchedClientId']);
         $matchedName = $matchedClient
-            ? trim($matchedClient->first_name . ' ' . ($matchedClient->middle_name ? $matchedClient->middle_name . ' ' : '') . $matchedClient->last_name)
+            ? $matchedClient->full_name
             : ($match['matchedClientName'] ?? 'an existing client');
 
         throw ValidationException::withMessages([
@@ -465,6 +510,7 @@ class ProfileController extends Controller
                 'first_name',
                 'middle_name',
                 'last_name',
+                'suffix',
                 'fingerprint_template',
                 'fingerprint_path',
             ])
@@ -478,7 +524,7 @@ class ProfileController extends Controller
 
                 return [
                     'id' => $client->id,
-                    'name' => trim($client->first_name . ' ' . ($client->middle_name ? $client->middle_name . ' ' : '') . $client->last_name),
+                    'name' => $client->full_name,
                     'fingerprintTemplateXml' => $client->fingerprint_template,
                     'fingerprintImageDataUrl' => $fingerprintImageDataUrl,
                 ];
@@ -532,13 +578,20 @@ class ProfileController extends Controller
             'score' => $match['bestScore'] ?? null,
             'client' => [
                 'id' => $client->id,
-                'name' => trim($client->first_name . ' ' . ($client->middle_name ? $client->middle_name . ' ' : '') . $client->last_name),
+                'name' => $client->full_name,
                 'photo_url' => $client->photo_url,
                 'age' => $client->age,
+                'birth_date' => optional($client->birth_date)->format('Y-m-d'),
+                'birthplace' => $client->birthplace,
+                'education' => $client->education,
+                'course' => $client->course,
+                'sector' => $client->sector,
+                'position_organization' => $client->position_organization,
                 'gender' => $client->gender,
                 'civil_status' => $client->civil_status,
                 'email' => $client->email,
                 'contact' => $client->contact,
+                'contact_2' => $client->contact_2,
                 'address' => $client->address,
                 'province' => $client->province,
                 'city' => $client->city,
