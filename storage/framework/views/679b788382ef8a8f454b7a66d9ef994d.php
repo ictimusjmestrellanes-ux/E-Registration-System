@@ -5,7 +5,22 @@
         $selectedProvince = old('province', optional($editingClient)->province ?? '');
         $selectedCity = old('city', optional($editingClient)->city ?? '');
         $selectedBarangay = old('barangay', optional($editingClient)->barangay ?? '');
-        $selectedBirthDate = old('birth_date', optional($editingClient?->birth_date)->format('Y-m-d') ?? '');
+        // Safely resolve birth date without calling ->format on null/non-object
+        $selectedBirthDate = '';
+        if (old('birth_date')) {
+            $selectedBirthDate = old('birth_date');
+        } elseif ($editingClient && !empty($editingClient->birth_date)) {
+            $bd = $editingClient->birth_date;
+            if ($bd instanceof \Carbon\Carbon || $bd instanceof \Illuminate\Support\Carbon) {
+                $selectedBirthDate = $bd->format('Y-m-d');
+            } else {
+                try {
+                    $selectedBirthDate = \Carbon\Carbon::parse($bd)->format('Y-m-d');
+                } catch (\Exception $e) {
+                    $selectedBirthDate = '';
+                }
+            }
+        }
         $educationOptions = [
             'ELEMENTARY GRADUATE',
             'ELEMENTARY LEVEL (IN SCHOOL)',
@@ -37,9 +52,7 @@
             $selectedCity = 'CITY OF IMUS';
         }
         $oldFingerprintData = old('fingerprint_data', '');
-        $previewImage = $editingClient && $editingClient->photo_path
-            ? asset('storage/' . $editingClient->photo_path)
-            : asset('assets/images/profile.png');
+        $previewImage = $editingClient ? $editingClient->photo_url : asset('assets/images/profile.png');
         $fingerprintPlaceholder = asset('assets/images/fingerprint.png');
         $fingerprintPreview = $editingClient && $editingClient->fingerprint_path
             ? asset('storage/' . $editingClient->fingerprint_path)
@@ -88,7 +101,8 @@
                                                 <div class="col-md d-flex flex-column justify-content-center">
                                                     <div class="d-flex flex-wrap gap-2 mb-2">
                                                         <button type="button" class="btn btn-soft-primary"
-                                                            id="openCameraBtn">Open Camera</button>
+                                                            id="openCameraBtn" data-bs-toggle="modal"
+                                                            data-bs-target="#cameraModal">Open Camera</button>
                                                         <button type="button" class="btn btn-soft-success"
                                                             id="retakePhotoBtn" disabled>Retake</button>
                                                     </div>
@@ -110,7 +124,8 @@
                                                 <div class="col-md d-flex flex-column justify-content-center">
                                                     <div class="d-flex flex-wrap gap-2 mb-2">
                                                         <button type="button" class="btn btn-soft-primary"
-                                                            id="openFingerprintBtn">Open Scanner</button>
+                                                            id="openFingerprintBtn" data-bs-toggle="modal"
+                                                            data-bs-target="#fingerprintModal">Open Scanner</button>
                                                         <button type="button" class="btn btn-soft-success"
                                                             id="clearFingerprintBtn" disabled>Clear</button>
                                                     </div>
@@ -123,6 +138,9 @@
                                                             <label class="form-check-label" for="skipFingerprintCheck">Skip fingerprint scan</label>
                                                         </div>
                                                     <?php endif; ?>
+                                                    <p class="text-warning small mb-2">
+                                                        Fingerprint is required when the client name and birth date already exist.
+                                                    </p>
                                                     <input type="hidden" id="clientFingerprintData" name="fingerprint_data" value="<?php echo e(old('fingerprint_data', '')); ?>">
                                                     <input type="hidden" id="clientFingerprintTemplate" name="fingerprint_template" value="<?php echo e(old('fingerprint_template', '')); ?>">
                                                     <input type="hidden" id="clientFingerprintRemove" name="fingerprint_remove" value="<?php echo e(old('fingerprint_remove', '')); ?>">
@@ -219,7 +237,7 @@ unset($__errorArgs, $__bag); ?>
                                                     <option value="Married" <?php echo e(old('civil_status', optional($editingClient)->civil_status ?? '') === 'Married' ? 'selected' : ''); ?>>Married</option>
                                                     <option value="Separated" <?php echo e(old('civil_status', optional($editingClient)->civil_status ?? '') === 'Separated' ? 'selected' : ''); ?>>Separated</option>
                                                     <option value="Widowed" <?php echo e(old('civil_status', optional($editingClient)->civil_status ?? '') === 'Widowed' ? 'selected' : ''); ?>>Widowed</option>
-                                                    <option value="Annulled" <?php echo e(old('civil_status', optional($editingClient)->civil_status ?? '') === 'Annulled' ? 'selected' : ''); ?>>Annulled</option>
+                                                    <option value="Common-Law" <?php echo e(old('civil_status', optional($editingClient)->civil_status ?? '') === 'Common-Law' ? 'selected' : ''); ?>>Common-Law Relationship</option>
                                                 </select>
                                             </div>
                                         </div>
@@ -250,7 +268,7 @@ unset($__errorArgs, $__bag); ?>
 
                                             <div class="col-lg-4">
                                                 <label for="province" class="form-label">Province</label>
-                                                <select class="form-select" id="province" name="province">
+                                                <select class="form-select" id="province" name="province" disabled>
                                                     <option value="">Select province</option>
                                                 </select>
                                                 <input type="text" class="form-control d-none mt-2" id="provinceManual"
@@ -260,7 +278,7 @@ unset($__errorArgs, $__bag); ?>
 
                                             <div class="col-lg-4">
                                                 <label for="city" class="form-label">City</label>
-                                                <select class="form-select" id="city" name="city">
+                                                <select class="form-select" id="city" name="city" disabled>
                                                     <option value="">Select city</option>
                                                 </select>
                                                 <input type="text" class="form-control d-none mt-2" id="cityManual" name="city_manual"
@@ -482,6 +500,7 @@ unset($__errorArgs, $__bag); ?>
             const selectedProvince = <?php echo json_encode($selectedProvince, 15, 512) ?>;
             const selectedCity = <?php echo json_encode($selectedCity, 15, 512) ?>;
             const selectedBarangay = <?php echo json_encode($selectedBarangay, 15, 512) ?>;
+            const isCityOfImus = (value = '') => (value || '').trim().toLowerCase() === 'city of imus';
             const fingerprintPlaceholder = <?php echo json_encode($fingerprintPlaceholder, 15, 512) ?>;
             const fingerprintSearchUrl = <?php echo json_encode(route('client.search.fingerprint'), 15, 512) ?>;
             const apiBase = 'https://psgc.gitlab.io/api';
@@ -507,6 +526,8 @@ unset($__errorArgs, $__bag); ?>
                 clearFingerprintBtn.disabled = false;
                 fingerprintStatus.textContent = 'Existing fingerprint on file.';
             }
+
+            sameAsHomeAddress.checked = selectedCity ? !isCityOfImus(selectedCity) : false;
 
             const setFingerprintSkipState = (skipped) => {
                 if (!hasSkipFingerprintToggle) {

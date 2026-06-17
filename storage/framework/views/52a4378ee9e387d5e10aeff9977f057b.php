@@ -27,6 +27,15 @@
             color: #a7b0bf;
         }
 
+        #editClientModal .form-control,
+        #editClientModal .form-select {
+            text-transform: uppercase;
+        }
+
+        #editClientModal .form-control::placeholder {
+            text-transform: uppercase;
+        }
+
         #clientFiltersCard {
             background: #ffffff;
             border: 1px solid #e3e8ef;
@@ -173,6 +182,7 @@
         }
     </style>
     <?php
+        $defaultClientPhoto = asset('assets/images/profile.png');
         $educationOptions = [
             'ELEMENTARY GRADUATE',
             'ELEMENTARY LEVEL (IN SCHOOL)',
@@ -215,13 +225,15 @@
                                 <?php if($matchedClientId): ?>
                                     <a href="<?php echo e(route('client.list')); ?>" class="btn btn-soft-secondary">Show All Clients</a>
                                 <?php endif; ?>
-                                <button type="button" class="btn btn-soft-primary" id="searchFingerprintBtn">Search by Fingerprint</button>
+                                <button type="button" class="btn btn-soft-primary" id="searchFingerprintBtn">Search by
+                                    Fingerprint</button>
                                 <a href="<?php echo e(route('clients')); ?>" class="btn btn-primary">Add Client</a>
                             </div>
                         </div>
 
                         <?php if($matchedClientId): ?>
-                            <div class="alert alert-success d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+                            <div
+                                class="alert alert-success d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
                                 <div>Fingerprint search matched one client and the list is filtered to that result.</div>
                                 <a href="<?php echo e(route('client.list')); ?>" class="btn btn-sm btn-outline-success">Clear Filter</a>
                             </div>
@@ -230,35 +242,47 @@
                         <?php
                             $clientCities = $clients->pluck('city')->filter()->unique()->sort()->values();
                             $clientBarangays = $clients->pluck('barangay')->filter()->unique()->sort()->values();
-                            $clientCivilStatuses = $clients->pluck('civil_status')->filter()->unique()->sort()->values();
+                            $clientCivilStatuses = $clients
+                                ->pluck('civil_status')
+                                ->filter()
+                                ->unique()
+                                ->sort()
+                                ->values();
                         ?>
 
                         <div class="border rounded-4 p-3 mb-3" id="clientFiltersCard">
                             <div class="d-flex flex-wrap gap-3 align-items-start justify-content-between mb-3">
                                 <div>
                                     <div class="fw-bold fs-5">Filter Clients</div>
-                                    <div class="text-muted small">Narrow records by keyword, sex, civil status, location, and created date range.</div>
+                                    <div class="text-muted small">Narrow records by keyword, sex, civil status, location,
+                                        and created date range.</div>
                                 </div>
                                 <div class="d-flex flex-wrap gap-2 align-items-center">
-                                    <button type="button" class="btn btn-outline-primary client-filters-toggle-btn" id="clientFiltersToggleBtn">
+                                    <button type="button" class="btn btn-outline-primary client-filters-toggle-btn"
+                                        id="clientFiltersToggleBtn">
                                         Show Filters <i class="ri-arrow-down-s-line ms-1"></i>
                                     </button>
-                                    <button type="button" class="btn btn-soft-secondary" id="clientFiltersResetBtn">Reset</button>
-                                    <span class="badge rounded-pill px-3 py-2" id="clientFiltersCountBadge">Showing all clients</span>
+                                    <button type="button" class="btn btn-soft-secondary"
+                                        id="clientFiltersResetBtn">Reset</button>
+                                    <span class="badge rounded-pill px-3 py-2" id="clientFiltersCountBadge">Showing all
+                                        clients</span>
                                 </div>
                             </div>
 
                             <div id="clientFiltersBody" class="d-none">
                                 <div class="row g-3">
                                     <div class="col-12 col-xl-4">
-                                        <label for="clientKeywordInput" class="form-label fw-semibold text-uppercase small">Keyword Search</label>
+                                        <label for="clientKeywordInput"
+                                            class="form-label fw-semibold text-uppercase small">Keyword Search</label>
                                         <div class="input-group">
                                             <span class="input-group-text"><i class="ri-search-line"></i></span>
-                                            <input type="text" class="form-control" id="clientKeywordInput" placeholder="Name, email, contact, address">
+                                            <input type="text" class="form-control" id="clientKeywordInput"
+                                                placeholder="Name, email, contact, address">
                                         </div>
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
-                                        <label for="clientSexFilter" class="form-label fw-semibold text-uppercase small">Gender</label>
+                                        <label for="clientSexFilter"
+                                            class="form-label fw-semibold text-uppercase small">Gender</label>
                                         <select class="form-select" id="clientSexFilter">
                                             <option value="">All Gender</option>
                                             <option value="male">Male</option>
@@ -267,7 +291,8 @@
                                         </select>
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
-                                        <label for="clientCivilStatusFilter" class="form-label fw-semibold text-uppercase small">Civil Status</label>
+                                        <label for="clientCivilStatusFilter"
+                                            class="form-label fw-semibold text-uppercase small">Civil Status</label>
                                         <select class="form-select" id="clientCivilStatusFilter">
                                             <option value="">All civil statuses</option>
                                             <?php $__currentLoopData = $clientCivilStatuses; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $civilStatus): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
@@ -276,7 +301,8 @@
                                         </select>
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
-                                        <label for="clientCityFilter" class="form-label fw-semibold text-uppercase small">City</label>
+                                        <label for="clientCityFilter"
+                                            class="form-label fw-semibold text-uppercase small">City</label>
                                         <select class="form-select" id="clientCityFilter">
                                             <option value="">All cities</option>
                                             <?php $__currentLoopData = $clientCities; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $city): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
@@ -285,7 +311,8 @@
                                         </select>
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
-                                        <label for="clientBarangayFilter" class="form-label fw-semibold text-uppercase small">Barangay</label>
+                                        <label for="clientBarangayFilter"
+                                            class="form-label fw-semibold text-uppercase small">Barangay</label>
                                         <select class="form-select" id="clientBarangayFilter">
                                             <option value="">All barangays</option>
                                             <?php $__currentLoopData = $clientBarangays; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $barangay): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
@@ -297,17 +324,20 @@
 
                                 <div class="row g-3 mt-1 align-items-end">
                                     <div class="col-12 col-lg-3">
-                                        <label for="clientRecordTypeFilter" class="form-label fw-semibold text-uppercase small">Transaction Type</label>
+                                        <label for="clientRecordTypeFilter"
+                                            class="form-label fw-semibold text-uppercase small">Transaction Type</label>
                                         <select class="form-select" id="clientRecordTypeFilter">
                                             <option value="all">All records</option>
                                         </select>
                                     </div>
                                     <div class="col-12 col-md-6 col-lg-3">
-                                        <label for="clientDateFrom" class="form-label fw-semibold text-uppercase small">Date From</label>
+                                        <label for="clientDateFrom"
+                                            class="form-label fw-semibold text-uppercase small">Date From</label>
                                         <input type="date" class="form-control" id="clientDateFrom">
                                     </div>
                                     <div class="col-12 col-md-6 col-lg-3">
-                                        <label for="clientDateTo" class="form-label fw-semibold text-uppercase small">Date To</label>
+                                        <label for="clientDateTo" class="form-label fw-semibold text-uppercase small">Date
+                                            To</label>
                                         <input type="date" class="form-control" id="clientDateTo">
                                     </div>
                                     <div class="col-12 col-lg-3 d-flex gap-2 justify-content-lg-end">
@@ -329,22 +359,10 @@
                                         <th>Photo</th>
                                         <th>Full Name</th>
                                         <th>Suffix</th>
-                                        <th>Birth Date</th>
-                                        <th>Age</th>
                                         <th>Gender</th>
                                         <th>Civil Status</th>
-                                        <th>Birthplace</th>
-                                        <th>Education</th>
-                                        <th>Course</th>
-                                        <th>Sector</th>
-                                        <th>Position / Organization</th>
-                                        <th>Email</th>
                                         <th>Contact 1</th>
-                                        <th>Contact 2</th>
-                                        <th>Address</th>
-                                        <th>Province</th>
-                                        <th>City</th>
-                                        <th>Barangay</th>
+                                        <th>Location</th>
                                         <th>Actions</th>
                                     </tr>
                                 </thead>
@@ -353,8 +371,7 @@
                                         <?php
                                             $clientName = $client->full_name;
                                         ?>
-                                        <tr
-                                            data-client-row="<?php echo e($client->id); ?>"
+                                        <tr data-client-row="<?php echo e($client->id); ?>"
                                             data-search-name="<?php echo e(strtolower($clientName)); ?>"
                                             data-search-email="<?php echo e(strtolower($client->email ?? '')); ?>"
                                             data-search-contact="<?php echo e(strtolower($client->contact ?? '')); ?>"
@@ -371,57 +388,44 @@
                                             data-search-city="<?php echo e(strtolower($client->city ?? '')); ?>"
                                             data-search-barangay="<?php echo e(strtolower($client->barangay ?? '')); ?>"
                                             data-search-created-at="<?php echo e(optional($client->created_at)->format('Y-m-d')); ?>"
-                                            data-search-all="<?php echo e(strtolower($clientName . ' ' . ($client->suffix ?? '') . ' ' . ($client->email ?? '') . ' ' . ($client->contact ?? '') . ' ' . ($client->contact_2 ?? '') . ' ' . ($client->gender ?? '') . ' ' . ($client->civil_status ?? '') . ' ' . ($client->birthplace ?? '') . ' ' . ($client->education ?? '') . ' ' . ($client->course ?? '') . ' ' . ($client->sector ?? '') . ' ' . ($client->position_organization ?? '') . ' ' . ($client->address ?? '') . ' ' . ($client->province ?? '') . ' ' . ($client->city ?? '') . ' ' . ($client->barangay ?? ''))); ?>"
-                                        >
+                                            data-search-all="<?php echo e(strtolower($clientName . ' ' . ($client->suffix ?? '') . ' ' . ($client->email ?? '') . ' ' . ($client->contact ?? '') . ' ' . ($client->contact_2 ?? '') . ' ' . ($client->gender ?? '') . ' ' . ($client->civil_status ?? '') . ' ' . ($client->birthplace ?? '') . ' ' . ($client->education ?? '') . ' ' . ($client->course ?? '') . ' ' . ($client->sector ?? '') . ' ' . ($client->position_organization ?? '') . ' ' . ($client->address ?? '') . ' ' . ($client->province ?? '') . ' ' . ($client->city ?? '') . ' ' . ($client->barangay ?? ''))); ?>">
                                             <td><?php echo e($loop->iteration); ?></td>
                                             <td>
                                                 <?php
-                                                    $clientPhoto = $client->photo_url;
+                                                    $clientPhoto = $client->photo_url ?: $defaultClientPhoto;
                                                 ?>
-                                                <button
-                                                    type="button"
-                                                    class="btn p-0 border-0 bg-transparent"
-                                                    data-bs-toggle="modal"
-                                                    data-bs-target="#clientPhotoModal"
+                                                <button type="button" class="btn p-0 border-0 bg-transparent"
+                                                    data-bs-toggle="modal" data-bs-target="#clientPhotoModal"
                                                     data-client-photo="<?php echo e($clientPhoto); ?>"
-                                                    data-client-name="<?php echo e(trim($client->first_name . ' ' . ($client->middle_name ? $client->middle_name . ' ' : '') . $client->last_name)); ?>"
-                                                >
-                                                    <img
-                                                        src="<?php echo e($clientPhoto); ?>"
-                                                        alt="Client Photo"
+                                                    data-client-name="<?php echo e(trim($client->first_name . ' ' . ($client->middle_name ? $client->middle_name . ' ' : '') . $client->last_name)); ?>">
+                                                    <img src="<?php echo e($clientPhoto); ?>" alt="Client Photo"
+                                                        onerror="this.onerror=null;this.src='<?php echo e($defaultClientPhoto); ?>';"
                                                         class="rounded-3 border object-fit-cover"
-                                                        style="width: 72px; height: 72px;"
-                                                    >
+                                                        style="width: 72px; height: 72px;">
                                                 </button>
                                             </td>
                                             <td><?php echo e($client->full_name); ?></td>
                                             <td><?php echo e($client->suffix ?? '-'); ?></td>
-                                            <td><?php echo e($client->birth_date?->format('M d, Y') ?? '-'); ?></td>
-                                            <td><?php echo e($client->age ?? '-'); ?></td>
                                             <td><?php echo e($client->gender ?? '-'); ?></td>
                                             <td><?php echo e($client->civil_status ?? '-'); ?></td>
-                                            <td><?php echo e($client->birthplace ?? '-'); ?></td>
-                                            <td><?php echo e($client->education ?? '-'); ?></td>
-                                            <td><?php echo e($client->course ?? '-'); ?></td>
-                                            <td><?php echo e($client->sector ?? '-'); ?></td>
-                                            <td><?php echo e($client->position_organization ?? '-'); ?></td>
-                                            <td><?php echo e($client->email ?? '-'); ?></td>
                                             <td><?php echo e($client->contact ?? '-'); ?></td>
-                                            <td><?php echo e($client->contact_2 ?? '-'); ?></td>
-                                            <td><?php echo e($client->address ?? '-'); ?></td>
-                                            <td><?php echo e($client->province ?? '-'); ?></td>
-                                            <td><?php echo e($client->city ?? '-'); ?></td>
-                                            <td><?php echo e($client->barangay ?? '-'); ?></td>
+                                            <td class="text-start">
+                                                <div class="small lh-sm">
+                                                    <div><?php echo e($client->address ?? '-'); ?></div>
+                                                    <div class="text-muted">
+                                                        <?php echo e(collect([$client->barangay, $client->city, $client->province])->filter()->implode(', ') ?:'-'); ?>
+
+                                                    </div>
+                                                </div>
+                                            </td>
                                             <td>
                                                 <div class="d-flex gap-2 text-center justify-content-center">
-                                                    <a href="<?php echo e(route('clients.show', $client)); ?>" class="btn btn-sm btn-soft-info">
+                                                    <a href="<?php echo e(route('clients.show', $client)); ?>"
+                                                        class="btn btn-sm btn-soft-info">
                                                         View
                                                     </a>
-                                                    <button
-                                                        type="button"
-                                                        class="btn btn-sm btn-soft-primary"
-                                                        data-bs-toggle="modal"
-                                                        data-bs-target="#editClientModal"
+                                                    <button type="button" class="btn btn-sm btn-soft-primary"
+                                                        data-bs-toggle="modal" data-bs-target="#editClientModal"
                                                         data-update-url="<?php echo e(route('clients.update', $client)); ?>"
                                                         data-client-id="<?php echo e($client->id); ?>"
                                                         data-first-name="<?php echo e($client->first_name); ?>"
@@ -446,11 +450,11 @@
                                                         data-barangay="<?php echo e($client->barangay); ?>"
                                                         data-client-name="<?php echo e($client->full_name); ?>"
                                                         data-client-photo="<?php echo e($clientPhoto); ?>"
-                                                    data-client-fingerprint="<?php echo e($client->fingerprint_url); ?>"
-                                                    >
+                                                        data-client-fingerprint="<?php echo e($client->fingerprint_url); ?>">
                                                         Edit
                                                     </button>
-                                                    <form action="<?php echo e(route('clients.archive', $client)); ?>" method="POST" onsubmit="return confirm('Are you sure you want to archive this client?');">
+                                                    <form action="<?php echo e(route('clients.archive', $client)); ?>" method="POST"
+                                                        onsubmit="return confirm('Are you sure you want to archive this client?');">
                                                         <?php echo csrf_field(); ?>
                                                         <button type="submit" class="btn btn-sm btn-soft-warning">
                                                             Archive
@@ -461,7 +465,7 @@
                                         </tr>
                                     <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                                         <tr id="clientSearchEmptyRow">
-                                            <td colspan="21" class="text-center text-muted py-4">
+                                            <td colspan="9" class="text-center text-muted py-4">
                                                 <?php echo e($matchedClientId ? 'No matching client found.' : 'No clients found.'); ?>
 
                                             </td>
@@ -469,7 +473,7 @@
                                     <?php endif; ?>
                                     <?php if($clients->count()): ?>
                                         <tr id="clientSearchNoResultsRow" class="d-none">
-                                            <td colspan="21" class="text-center text-muted py-4">
+                                            <td colspan="9" class="text-center text-muted py-4">
                                                 No matching clients found.
                                             </td>
                                         </tr>
@@ -483,7 +487,8 @@
         </div>
     </div>
 
-    <div class="modal fade" id="clientPhotoModal" tabindex="-1" aria-labelledby="clientPhotoModalLabel" aria-hidden="true">
+    <div class="modal fade" id="clientPhotoModal" tabindex="-1" aria-labelledby="clientPhotoModalLabel"
+        aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-md">
             <div class="modal-content">
                 <div class="modal-header">
@@ -491,13 +496,15 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body text-center">
-                    <img id="clientPhotoModalImage" src="" alt="Client Photo Preview" class="img-fluid rounded-3 border object-fit-cover" style="max-height: 420px;">
+                    <img id="clientPhotoModalImage" src="" alt="Client Photo Preview"
+                        class="img-fluid rounded-3 border object-fit-cover" style="max-height: 420px;">
                 </div>
             </div>
         </div>
     </div>
 
-    <div class="modal fade" id="clientViewModal" tabindex="-1" aria-labelledby="clientViewModalLabel" aria-hidden="true">
+    <div class="modal fade" id="clientViewModal" tabindex="-1" aria-labelledby="clientViewModalLabel"
+        aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-xl modal-fullscreen-lg-down">
             <div class="modal-content">
                 <div class="modal-header">
@@ -507,13 +514,9 @@
                 <div class="modal-body">
                     <div class="row g-4 align-items-start">
                         <div class="col-12 col-lg-4 text-center">
-                            <img
-                                id="clientViewPhoto"
-                                src="<?php echo e(asset('assets/images/avatar-1.jpg')); ?>"
-                                alt="Client Photo"
+                            <img id="clientViewPhoto" src="<?php echo e(asset('assets/images/profile.png')); ?>" alt="Client Photo"
                                 class="rounded-4 border object-fit-cover bg-light"
-                                style="width: 100%; max-width: 320px; height: 320px;"
-                            >
+                                style="width: 100%; max-width: 320px; height: 320px;">
                         </div>
                         <div class="col-12 col-lg-8">
                             <div class="d-flex flex-column gap-3">
@@ -575,7 +578,8 @@
                                         <div class="fw-semibold" id="clientViewSector">-</div>
                                     </div>
                                     <div class="col-md-4">
-                                        <div class="text-muted small text-uppercase fw-semibold">Position / Organization</div>
+                                        <div class="text-muted small text-uppercase fw-semibold">Position / Organization
+                                        </div>
                                         <div class="fw-semibold" id="clientViewPositionOrganization">-</div>
                                     </div>
                                     <div class="col-md-4">
@@ -603,198 +607,10 @@
         </div>
     </div>
 
-    <div class="modal fade" id="editClientModal" tabindex="-1" aria-labelledby="editClientModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-scrollable modal-xl modal-fullscreen-lg-down">
-            <div class="modal-content" style="max-height: calc(100vh - 2rem); overflow: hidden;">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="editClientModalLabel">Edit Client</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <form id="editClientForm" method="POST">
-                    <?php echo csrf_field(); ?>
-                    <?php echo method_field('PUT'); ?>
-                    <div class="modal-body" style="overflow-y: auto; max-height: calc(100vh - 11rem);">
-                        <div class="rounded-4 client-details-panel p-3 mb-4">
-                            <div class="row g-4 align-items-start">
-                                <div class="col-12 col-xl-6">
-                                    <label class="form-label client-details-label mb-2">Client Photo</label>
-                                    <div class="d-flex flex-column flex-md-row gap-3 align-items-stretch">
-                                        <div class="flex-shrink-0">
-                                            <img
-                                                id="editClientPhoto"
-                                                src=""
-                                                alt="Client Photo"
-                                                class="rounded-4 border border-secondary-subtle bg-light object-fit-cover"
-                                                style="width: 240px; height: 240px;"
-                                            >
-                                        </div>
-                                        <div class="d-flex flex-column gap-2 justify-content-start">
-                                            <div class="fw-semibold fs-5 client-details-title" id="editClientName"></div>
-                                            <div class="client-details-muted small">Edit client details below.</div>
-                                            <div class="d-flex flex-column gap-2 mt-2">
-                                                <button type="button" class="btn btn-outline-primary" id="editOpenCameraBtn">Open Camera</button>
-                                                <button type="button" class="btn btn-outline-secondary" id="editRetakePhotoBtn" disabled>Retake</button>
-                                                <button type="button" class="btn btn-primary" id="editCapturePhotoBtn" disabled>Capture Photo</button>
-                                            </div>
-                                        </div>
-                                    </div>
+    <?php echo $__env->make('pages.clientEdit', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
 
-                                    <div id="editCameraWrapper" class="border border-secondary-subtle rounded-4 p-2 bg-body-tertiary d-none mt-3">
-                                        <video id="editCameraView" class="rounded-3 w-100" autoplay playsinline style="max-height: 320px; object-fit: cover; transform: scaleX(-1);"></video>
-                                    </div>
-                                    <canvas id="editCameraCanvas" class="d-none"></canvas>
-                                    <input type="hidden" id="editPhotoData" name="photo_data">
-                                </div>
-
-                                <div class="col-12 col-xl-6">
-                                    <label class="form-label client-details-label mb-2">Fingerprint Scanner</label>
-                                    <div class="d-flex flex-column flex-md-row gap-3 align-items-stretch">
-                                        <div class="flex-shrink-0">
-                                            <img
-                                                id="editFingerprintPreview"
-                                                src="<?php echo e(asset('assets/images/fingerprint.png')); ?>"
-                                                alt="Fingerprint Preview"
-                                                class="rounded-4 border border-secondary-subtle bg-light object-fit-cover"
-                                                style="width: 240px; height: 240px;"
-                                            >
-                                        </div>
-                                        <div class="d-flex flex-column gap-2 justify-content-start">
-                                            <div class="d-flex flex-column flex-sm-row gap-2">
-                                                <button type="button" class="btn btn-outline-primary" id="editOpenFingerprintBtn">Open Scanner</button>
-                                                <button type="button" class="btn btn-outline-secondary" id="editClearFingerprintBtn" disabled>Clear</button>
-                                            </div>
-                                            <div class="client-details-muted small">Upload a captured fingerprint image from the scanner or biometric device.</div>
-                                            <div class="client-details-muted small" id="editFingerprintStatus">No fingerprint captured yet.</div>
-                                            <button type="button" class="btn btn-soft-primary btn-sm d-none align-self-start" id="editScanAgainBtn">Scan Again</button>
-                                        </div>
-                                    </div>
-                                    <input type="hidden" id="editFingerprintData" name="fingerprint_data">
-                                    <input type="hidden" id="editFingerprintTemplate" name="fingerprint_template">
-                                    <input type="hidden" id="editFingerprintRemove" name="fingerprint_remove" value="">
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="row g-3">
-
-                            <div class="col-lg-4">
-                                <label class="form-label" for="editFirstName">First Name</label>
-                                <input type="text" class="form-control" id="editFirstName" name="first_name" required>
-                            </div>
-                            <div class="col-lg-4">
-                                <label class="form-label" for="editMiddleName">Middle Name</label>
-                                <input type="text" class="form-control" id="editMiddleName" name="middle_name">
-                            </div>
-                            <div class="col-lg-4">
-                                <label class="form-label" for="editLastName">Last Name</label>
-                                <input type="text" class="form-control" id="editLastName" name="last_name" required>
-                            </div>
-                            <div class="col-lg-2">
-                                <label class="form-label" for="editSuffix">Suffix</label>
-                                <input type="text" class="form-control" id="editSuffix" name="suffix" placeholder="Jr., Sr., III">
-                            </div>
-
-                            <div class="col-lg-2">
-                                <label class="form-label" for="editBirthDate">Birth Date</label>
-                                <input type="date" class="form-control" id="editBirthDate" name="birth_date">
-                            </div>
-
-                            <div class="col-lg-2">
-                                <label class="form-label" for="editAge">Age</label>
-                                <input type="number" class="form-control" id="editAge" name="age" min="0">
-                            </div>
-                            <div class="col-lg-3">
-                                <label class="form-label" for="editGender">Gender</label>
-                                <select class="form-select" id="editGender" name="gender">
-                                    <option value="">Select gender</option>
-                                    <option value="Male">Male</option>
-                                    <option value="Female">Female</option>
-                                    <option value="Other">Other</option>
-                                </select>
-                            </div>
-                            <div class="col-lg-3">
-                                <label class="form-label" for="editCivilStatus">Civil Status</label>
-                                <select class="form-select" id="editCivilStatus" name="civil_status">
-                                    <option value="">Select civil status</option>
-                                    <option value="Single">Single</option>
-                                    <option value="Married">Married</option>
-                                    <option value="Separated">Separated</option>
-                                    <option value="Widowed">Widowed</option>
-                                    <option value="Annulled">Annulled</option>
-                                </select>
-                            </div>
-                            <div class="col-lg-4">
-                                <label class="form-label" for="editContact">Contact 1</label>
-                                <input type="text" class="form-control" id="editContact" name="contact" maxlength="11" inputmode="numeric">
-                            </div>
-                            <div class="col-lg-4">
-                                <label class="form-label" for="editContact2">Contact 2</label>
-                                <input type="text" class="form-control" id="editContact2" name="contact_2" maxlength="11" inputmode="numeric">
-                            </div>
-
-                            <div class="col-lg-6">
-                                <label class="form-label" for="editEmail">Email</label>
-                                <input type="email" class="form-control" id="editEmail" name="email">
-                            </div>
-                            <div class="col-lg-6">
-                                <label class="form-label" for="editAddress">Address</label>
-                                <input type="text" class="form-control" id="editAddress" name="address">
-                            </div>
-                            <div class="col-lg-4">
-                                <label class="form-label" for="editBirthplace">Birthplace</label>
-                                <input type="text" class="form-control" id="editBirthplace" name="birthplace">
-                            </div>
-                            <div class="col-lg-4">
-                                <label class="form-label" for="editEducation">Education</label>
-                                <select class="form-select" id="editEducation" name="education">
-                                    <option value="">Select education</option>
-                                    <?php $__currentLoopData = $educationOptions; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $educationOption): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                        <option value="<?php echo e($educationOption); ?>"><?php echo e($educationOption); ?></option>
-                                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
-                                </select>
-                            </div>
-                            <div class="col-lg-4">
-                                <label class="form-label" for="editCourse">Course</label>
-                                <input type="text" class="form-control" id="editCourse" name="course">
-                            </div>
-                            <div class="col-lg-4">
-                                <label class="form-label" for="editSector">Sector</label>
-                                <select class="form-select" id="editSector" name="sector">
-                                    <option value="">Select sector</option>
-                                    <?php $__currentLoopData = $sectorOptions; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $sectorOption): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                        <option value="<?php echo e($sectorOption); ?>"><?php echo e($sectorOption); ?></option>
-                                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
-                                </select>
-                            </div>
-                            <div class="col-lg-8">
-                                <label class="form-label" for="editPositionOrganization">Position / Organization</label>
-                                <input type="text" class="form-control" id="editPositionOrganization" name="position_organization">
-                            </div>
-
-                            <div class="col-lg-4">
-                                <label class="form-label" for="editProvince">Province</label>
-                                <input type="text" class="form-control" id="editProvince" name="province">
-                            </div>
-                            <div class="col-lg-4">
-                                <label class="form-label" for="editCity">City</label>
-                                <input type="text" class="form-control" id="editCity" name="city">
-                            </div>
-                            <div class="col-lg-4">
-                                <label class="form-label" for="editBarangay">Barangay</label>
-                                <input type="text" class="form-control" id="editBarangay" name="barangay">
-                            </div>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-soft-secondary" data-bs-dismiss="modal">Close</button>
-                        <button type="submit" class="btn btn-primary">Update Client</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-
-    <div class="modal fade" id="fingerprintSearchModal" tabindex="-1" aria-labelledby="fingerprintSearchModalLabel" aria-hidden="true">
+    <div class="modal fade" id="fingerprintSearchModal" tabindex="-1" aria-labelledby="fingerprintSearchModalLabel"
+        aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
@@ -807,7 +623,8 @@
                             <div>
                                 <div class="fw-semibold mb-1">Fingerprint Search</div>
                                 <p class="text-muted small mb-0">
-                                    Open this panel, place your finger on the scanner, and the matching client will be highlighted automatically.
+                                    Open this panel, place your finger on the scanner, and the matching client will be
+                                    highlighted automatically.
                                 </p>
                             </div>
                         </div>
@@ -815,12 +632,15 @@
                             Waiting to start fingerprint search.
                         </div>
                         <div class="mt-3 text-center">
-                            <img id="fingerprintSearchPreview" src="<?php echo e(asset('assets/images/fingerprint-placeholder.svg')); ?>" alt="Fingerprint Search Preview" class="rounded-3 border object-fit-cover bg-white" style="width: 100%; max-width: 420px; height: 280px;">
+                            <img id="fingerprintSearchPreview" src="<?php echo e(asset('assets/images/fingerprint.png')); ?>"
+                                alt="Fingerprint Search Preview" class="rounded-3 border object-fit-cover bg-white"
+                                style="width: 100%; max-width: 420px; height: 280px;">
                         </div>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-soft-primary d-none" id="fingerprintScanAgainBtn">Scan Again</button>
+                    <button type="button" class="btn btn-soft-primary d-none" id="fingerprintScanAgainBtn">Scan
+                        Again</button>
                     <button type="button" class="btn btn-soft-secondary" data-bs-dismiss="modal">Close</button>
                 </div>
             </div>
@@ -830,7 +650,7 @@
 
 <?php $__env->startSection('script'); ?>
     <script>
-        document.addEventListener('DOMContentLoaded', function () {
+        document.addEventListener('DOMContentLoaded', function() {
             const modalEl = document.getElementById('clientPhotoModal');
             const modalImage = document.getElementById('clientPhotoModalImage');
             const modalTitle = document.getElementById('clientPhotoModalLabel');
@@ -880,6 +700,10 @@
             const editProvince = document.getElementById('editProvince');
             const editCity = document.getElementById('editCity');
             const editBarangay = document.getElementById('editBarangay');
+            const editProvinceManual = document.getElementById('editProvinceManual');
+            const editCityManual = document.getElementById('editCityManual');
+            const editBarangayManual = document.getElementById('editBarangayManual');
+            const sameAsHomeAddress = document.getElementById('sameAsHomeAddress');
             const editOpenCameraBtn = document.getElementById('editOpenCameraBtn');
             const editCapturePhotoBtn = document.getElementById('editCapturePhotoBtn');
             const editRetakePhotoBtn = document.getElementById('editRetakePhotoBtn');
@@ -895,12 +719,14 @@
             const editFingerprintRemove = document.getElementById('editFingerprintRemove');
             const editFingerprintStatus = document.getElementById('editFingerprintStatus');
             const editScanAgainBtn = document.getElementById('editScanAgainBtn');
+            const defaultClientPhoto = (editPhoto && editPhoto.dataset.defaultSrc) ||
+                <?php echo json_encode(asset('assets/images/profile.png'), 15, 512) ?>;
             const searchFingerprintBtn = document.getElementById('searchFingerprintBtn');
             const fingerprintSearchModalEl = document.getElementById('fingerprintSearchModal');
             const fingerprintSearchPreview = document.getElementById('fingerprintSearchPreview');
             const fingerprintSearchStatus = document.getElementById('fingerprintSearchStatus');
             const fingerprintScanAgainBtn = document.getElementById('fingerprintScanAgainBtn');
-            const fingerprintPlaceholderPreview = <?php echo json_encode(asset('assets/images/fingerprint-placeholder.svg'), 15, 512) ?>;
+            const fingerprintPlaceholderPreview = <?php echo json_encode(asset('assets/images/fingerprint.png'), 15, 512) ?>;
             const clientKeywordInput = document.getElementById('clientKeywordInput');
             const clientSexFilter = document.getElementById('clientSexFilter');
             const clientCivilStatusFilter = document.getElementById('clientCivilStatusFilter');
@@ -920,7 +746,27 @@
             const clientListSearchUrl = <?php echo json_encode(route('client.search.fingerprint'), 15, 512) ?>;
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
-            if (!modalEl || !modalImage || !modalTitle || !clientViewModalEl || !clientViewPhoto || !clientViewName || !clientViewSuffix || !clientViewBirthDate || !clientViewAge || !clientViewGender || !clientViewCivilStatus || !clientViewEmail || !clientViewContact || !clientViewContact2 || !clientViewAddress || !clientViewBirthplace || !clientViewEducation || !clientViewCourse || !clientViewSector || !clientViewPositionOrganization || !clientViewProvince || !clientViewCity || !clientViewBarangay || !clientViewPageLink || !editModalEl || !editForm || !editFirstName || !editLastName || !editSuffix || !editBirthDate || !editAge || !editGender || !editCivilStatus || !editContact || !editContact2 || !editEmail || !editAddress || !editBirthplace || !editEducation || !editCourse || !editSector || !editPositionOrganization || !editProvince || !editCity || !editBarangay || !editPhoto || !editName || !editTitle || !editOpenCameraBtn || !editCapturePhotoBtn || !editRetakePhotoBtn || !editCameraWrapper || !editCameraView || !editCameraCanvas || !editPhotoData || !editOpenFingerprintBtn || !editClearFingerprintBtn || !editScanAgainBtn || !editFingerprintPreview || !editFingerprintData || !editFingerprintTemplate || !editFingerprintRemove || !editFingerprintStatus || !searchFingerprintBtn || !fingerprintSearchModalEl || !fingerprintSearchPreview || !fingerprintSearchStatus || !fingerprintScanAgainBtn || !clientKeywordInput || !clientSexFilter || !clientCivilStatusFilter || !clientCityFilter || !clientBarangayFilter || !clientRecordTypeFilter || !clientFiltersResetBtn || !clientFiltersToggleBtn || !clientFiltersBody || !clientDateFrom || !clientDateTo || !clientDateApplyBtn || !clientFiltersCountBadge || !clientSearchSummary || !clientSearchNoResultsRow) {
+            if (!modalEl || !modalImage || !modalTitle || !clientViewModalEl || !clientViewPhoto || !
+                clientViewName || !clientViewSuffix || !clientViewBirthDate || !clientViewAge || !
+                clientViewGender || !clientViewCivilStatus || !clientViewEmail || !clientViewContact || !
+                clientViewContact2 || !clientViewAddress || !clientViewBirthplace || !clientViewEducation || !
+                clientViewCourse || !clientViewSector || !clientViewPositionOrganization || !clientViewProvince || !
+                clientViewCity || !clientViewBarangay || !clientViewPageLink || !editModalEl || !editForm || !
+                editFirstName || !editLastName || !editSuffix || !editBirthDate || !editAge || !editGender || !
+                editCivilStatus || !editContact || !editContact2 || !editEmail || !editAddress || !editBirthplace ||
+                !editEducation || !editCourse || !editSector || !editPositionOrganization || !editProvince || !
+                editCity || !editBarangay || !editProvinceManual || !editCityManual || !editBarangayManual || !
+                sameAsHomeAddress || !editPhoto || !editName || !editTitle || !editOpenCameraBtn || !
+                editCapturePhotoBtn || !editRetakePhotoBtn || !editCameraWrapper || !editCameraView || !
+                editCameraCanvas || !editPhotoData || !editOpenFingerprintBtn || !editClearFingerprintBtn || !
+                editScanAgainBtn || !editFingerprintPreview || !editFingerprintData || !editFingerprintTemplate || !
+                editFingerprintRemove || !editFingerprintStatus || !searchFingerprintBtn || !
+                fingerprintSearchModalEl || !fingerprintSearchPreview || !fingerprintSearchStatus || !
+                fingerprintScanAgainBtn || !clientKeywordInput || !clientSexFilter || !clientCivilStatusFilter || !
+                clientCityFilter || !clientBarangayFilter || !clientRecordTypeFilter || !clientFiltersResetBtn || !
+                clientFiltersToggleBtn || !clientFiltersBody || !clientDateFrom || !clientDateTo || !
+                clientDateApplyBtn || !clientFiltersCountBadge || !clientSearchSummary || !clientSearchNoResultsRow
+            ) {
                 return;
             }
 
@@ -934,13 +780,239 @@
             const clientViewModal = bootstrap.Modal.getOrCreateInstance(clientViewModalEl);
             const clientRows = Array.from(document.querySelectorAll('[data-client-row]'));
             let filtersVisible = true;
+            const psgcProvincesUrl = <?php echo json_encode(route('psgc.provinces'), 15, 512) ?>;
+            const psgcCitiesBaseUrl = <?php echo json_encode(url('psgc/provinces'), 15, 512) ?>;
+            const psgcBarangaysBaseUrl = <?php echo json_encode(url('psgc/cities'), 15, 512) ?>;
+            const calabarzonProvinces = ['Batangas', 'Cavite', 'Laguna', 'Quezon', 'Rizal'];
+            const normalizeLocationText = (value) => upperValue((value || '').toString().trim());
+            const editUppercaseTextFields = [
+                editFirstName,
+                editMiddleName,
+                editLastName,
+                editSuffix,
+                editBirthplace,
+                editAddress,
+                editCourse,
+                editPositionOrganization,
+                editProvinceManual,
+                editCityManual,
+                editBarangayManual,
+                editEmail,
+            ];
+            const normalizePsgcItems = (payload) => {
+                const items = Array.isArray(payload) ? payload : (payload?.data ?? payload?.result ?? payload?.items ?? []);
+
+                if (!Array.isArray(items)) {
+                    return [];
+                }
+
+                return items.map((item) => ({
+                    code: item?.code || item?.psgcCode || item?.id || '',
+                    name: item?.name || item?.label || item?.description || '',
+                })).filter((item) => item.name);
+            };
+
+            const upperValue = (value) => (value || '').toString().toUpperCase();
+
+            const setUppercaseValue = (element, value = '') => {
+                if (!element) {
+                    return;
+                }
+
+                element.value = upperValue(value);
+            };
+
+            editUppercaseTextFields.forEach((field) => {
+                if (!field) {
+                    return;
+                }
+
+                field.addEventListener('input', function() {
+                    const start = this.selectionStart;
+                    const end = this.selectionEnd;
+                    this.value = upperValue(this.value);
+
+                    if (typeof start === 'number' && typeof end === 'number') {
+                        this.setSelectionRange(start, end);
+                    }
+                });
+            });
+
+            const selectOptionByLabel = (select, desiredValue) => {
+                if (!desiredValue) {
+                    select.value = '';
+                    return;
+                }
+
+                const match = Array.from(select.options).find((option) =>
+                    (option.value || '').toLowerCase() === desiredValue.toLowerCase() ||
+                    (option.textContent || '').toLowerCase() === desiredValue.toLowerCase()
+                );
+
+                select.value = match ? match.value : desiredValue;
+            };
+
+            const fillPsgcSelect = (select, placeholder, items, selectedValue = '') => {
+                select.innerHTML = '';
+
+                const placeholderOption = document.createElement('option');
+                placeholderOption.value = '';
+                placeholderOption.textContent = upperValue(placeholder);
+                placeholderOption.selected = !selectedValue;
+                select.appendChild(placeholderOption);
+
+                items.forEach((item) => {
+                    const option = document.createElement('option');
+                    option.value = upperValue(item.name);
+                    option.textContent = upperValue(item.name);
+                    option.dataset.code = item.code || '';
+                    select.appendChild(option);
+                });
+
+                if (selectedValue) {
+                    const match = Array.from(select.options).find((option) =>
+                        (option.value || '').toLowerCase() === selectedValue.toLowerCase() ||
+                        (option.textContent || '').toLowerCase() === selectedValue.toLowerCase()
+                    );
+
+                    if (match) {
+                        match.selected = true;
+                    } else {
+                        const fallbackOption = document.createElement('option');
+                        fallbackOption.value = upperValue(selectedValue);
+                        fallbackOption.textContent = upperValue(selectedValue);
+                        fallbackOption.selected = true;
+                        select.appendChild(fallbackOption);
+                    }
+                }
+            };
+
+            const setEditLocationMode = (outsideImus) => {
+                sameAsHomeAddress.checked = !!outsideImus;
+
+                editProvince.classList.remove('d-none');
+                editCity.classList.remove('d-none');
+                editBarangay.classList.remove('d-none');
+                editProvince.disabled = false;
+                editCity.disabled = false;
+                editBarangay.disabled = false;
+
+                editProvinceManual.classList.add('d-none');
+                editCityManual.classList.add('d-none');
+                editBarangayManual.classList.add('d-none');
+                editProvinceManual.disabled = true;
+                editCityManual.disabled = true;
+                editBarangayManual.disabled = true;
+
+                editProvince.name = 'province';
+                editCity.name = 'city';
+                editBarangay.name = 'barangay';
+                editProvinceManual.name = 'province_manual';
+                editCityManual.name = 'city_manual';
+                editBarangayManual.name = 'barangay_manual';
+            };
+
+            const enableEditManualLocations = (provinceValue = '', cityValue = '', barangayValue = '', message = '') => {
+                setEditLocationMode(sameAsHomeAddress.checked);
+
+                if (message) {
+                    alert(message);
+                }
+            };
+
+            const disableEditManualLocations = () => {
+                setEditLocationMode(sameAsHomeAddress.checked);
+            };
+
+            const loadEditProvinces = async (selectedProvince = '') => {
+                const response = await fetch(psgcProvincesUrl);
+                if (!response.ok) {
+                    throw new Error('Failed to load provinces.');
+                }
+
+                const provinces = normalizePsgcItems(await response.json())
+                    .filter((province) => calabarzonProvinces.some((name) =>
+                        normalizeLocationText(name) === normalizeLocationText(province.name)
+                    ));
+                fillPsgcSelect(editProvince, 'Select province', provinces, selectedProvince);
+            };
+
+            const loadEditCities = async (provinceCode, selectedCity = '') => {
+                if (!provinceCode) {
+                    fillPsgcSelect(editCity, 'Select city', [], '');
+                    fillPsgcSelect(editBarangay, 'Select barangay', [], '');
+                    return;
+                }
+
+                const response = await fetch(`${psgcCitiesBaseUrl}/${encodeURIComponent(provinceCode)}/cities`);
+                if (!response.ok) {
+                    throw new Error('Failed to load cities.');
+                }
+
+                const cities = normalizePsgcItems(await response.json());
+                fillPsgcSelect(editCity, 'Select city', cities, selectedCity);
+            };
+
+            const loadEditBarangays = async (cityCode, selectedBarangay = '') => {
+                if (!cityCode) {
+                    fillPsgcSelect(editBarangay, 'Select barangay', [], '');
+                    return;
+                }
+
+                const response = await fetch(`${psgcBarangaysBaseUrl}/${encodeURIComponent(cityCode)}/barangays`);
+                if (!response.ok) {
+                    throw new Error('Failed to load barangays.');
+                }
+
+                const barangays = normalizePsgcItems(await response.json());
+                fillPsgcSelect(editBarangay, 'Select barangay', barangays, selectedBarangay);
+            };
+
+            const restoreEditLocations = async (provinceName, cityName, barangayName) => {
+                disableEditManualLocations();
+                await loadEditProvinces(provinceName);
+
+                const provinceOption = Array.from(editProvince.options).find((option) =>
+                    normalizeLocationText(option.value || option.textContent || '') === normalizeLocationText(provinceName)
+                );
+                const provinceCode = provinceOption?.dataset.code || '';
+
+                if (!provinceCode) {
+                    if (cityName) {
+                        fillPsgcSelect(editCity, 'Select city', [], cityName);
+                    }
+                    if (barangayName) {
+                        fillPsgcSelect(editBarangay, 'Select barangay', [], barangayName);
+                    }
+                    setEditLocationMode(sameAsHomeAddress.checked);
+                    return;
+                }
+
+                await loadEditCities(provinceCode, cityName);
+
+                const cityOption = Array.from(editCity.options).find((option) =>
+                    normalizeLocationText(option.value || option.textContent || '') === normalizeLocationText(cityName)
+                );
+                const cityCode = cityOption?.dataset.code || '';
+
+                if (!cityCode) {
+                    if (barangayName) {
+                        fillPsgcSelect(editBarangay, 'Select barangay', [], barangayName);
+                    }
+                    setEditLocationMode(sameAsHomeAddress.checked);
+                    return;
+                }
+
+                await loadEditBarangays(cityCode, barangayName);
+                setEditLocationMode(sameAsHomeAddress.checked);
+            };
 
             const setFiltersVisibility = (visible) => {
                 filtersVisible = visible;
                 clientFiltersBody.classList.toggle('d-none', !visible);
-                clientFiltersToggleBtn.innerHTML = visible
-                    ? 'Hide Filters <i class="ri-arrow-up-s-line ms-1"></i>'
-                    : 'Show Filters <i class="ri-arrow-down-s-line ms-1"></i>';
+                clientFiltersToggleBtn.innerHTML = visible ?
+                    'Hide Filters <i class="ri-arrow-up-s-line ms-1"></i>' :
+                    'Show Filters <i class="ri-arrow-down-s-line ms-1"></i>';
             };
 
             const filterClientList = () => {
@@ -965,8 +1037,10 @@
                     const matchesCivilStatus = !civilStatus || rowCivilStatus === civilStatus;
                     const matchesCity = !city || rowCity === city;
                     const matchesBarangay = !barangay || rowBarangay === barangay;
-                    const matchesDate = (!dateFrom || createdAt >= dateFrom) && (!dateTo || createdAt <= dateTo);
-                    const matches = matchesSearch && matchesSex && matchesCivilStatus && matchesCity && matchesBarangay && matchesDate;
+                    const matchesDate = (!dateFrom || createdAt >= dateFrom) && (!dateTo || createdAt <=
+                        dateTo);
+                    const matches = matchesSearch && matchesSex && matchesCivilStatus && matchesCity &&
+                        matchesBarangay && matchesDate;
                     row.classList.toggle('d-none', !matches);
 
                     if (matches) {
@@ -979,11 +1053,13 @@
                 }
 
                 if (clientSearchSummary) {
-                    const activeFilters = [query, sex, civilStatus, city, barangay, dateFrom, dateTo].filter(Boolean).length;
+                    const activeFilters = [query, sex, civilStatus, city, barangay, dateFrom, dateTo].filter(
+                        Boolean).length;
                     if (!activeFilters) {
                         clientSearchSummary.textContent = 'Showing all clients.';
                     } else {
-                        clientSearchSummary.textContent = `Showing ${visibleCount} matching client${visibleCount === 1 ? '' : 's'}.`;
+                        clientSearchSummary.textContent =
+                            `Showing ${visibleCount} matching client${visibleCount === 1 ? '' : 's'}.`;
                     }
                 }
 
@@ -994,11 +1070,11 @@
 
             const activeFiltersText = (visibleCount) => {
                 const totalCount = clientRows.length;
-                return totalCount === 0
-                    ? 'Showing 0 clients'
-                    : (visibleCount === totalCount
-                        ? 'Showing all clients'
-                        : `Showing ${visibleCount} of ${totalCount} clients`);
+                return totalCount === 0 ?
+                    'Showing 0 clients' :
+                    (visibleCount === totalCount ?
+                        'Showing all clients' :
+                        `Showing ${visibleCount} of ${totalCount} clients`);
             };
 
             const stopEditCamera = () => {
@@ -1019,7 +1095,8 @@
                 editFingerprintTemplate.value = editFingerprintTemplateXml;
                 editFingerprintRemove.value = '';
                 editFingerprintPreview.src = editFingerprintDataUrl || editDefaultFingerprint;
-                editFingerprintStatus.textContent = statusText || (editFingerprintDataUrl ? 'Fingerprint captured and ready to save.' : 'No fingerprint captured yet.');
+                editFingerprintStatus.textContent = statusText || (editFingerprintDataUrl ?
+                    'Fingerprint captured and ready to save.' : 'No fingerprint captured yet.');
                 editClearFingerprintBtn.disabled = !editFingerprintDataUrl && !editHasFingerprint;
                 editScanAgainBtn.classList.toggle('d-none', !editFingerprintDataUrl && !editHasFingerprint);
             };
@@ -1030,10 +1107,11 @@
                 editFingerprintData.value = '';
                 editFingerprintTemplate.value = '';
                 editFingerprintRemove.value = markRemove && editHasFingerprint ? '1' : '';
-                editFingerprintPreview.src = markRemove ? "<?php echo e(asset('assets/images/fingerprint.png')); ?>" : editOriginalFingerprintPreview;
-                editFingerprintStatus.textContent = markRemove
-                    ? 'No fingerprint captured yet.'
-                    : (editHasFingerprint ? 'Existing fingerprint on file.' : 'No fingerprint captured yet.');
+                editFingerprintPreview.src = markRemove ? "<?php echo e(asset('assets/images/fingerprint.png')); ?>" :
+                    editOriginalFingerprintPreview;
+                editFingerprintStatus.textContent = markRemove ?
+                    'No fingerprint captured yet.' :
+                    (editHasFingerprint ? 'Existing fingerprint on file.' : 'No fingerprint captured yet.');
                 editClearFingerprintBtn.disabled = markRemove ? true : !editHasFingerprint;
                 editScanAgainBtn.classList.toggle('d-none', markRemove ? true : !editHasFingerprint);
             };
@@ -1042,14 +1120,15 @@
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 45000);
 
-                try
-                {
+                try {
                     const response = await fetch(`${fingerprintBridgeBase}/api/capture`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json'
                         },
-                        body: JSON.stringify({ source: 'laravel' }),
+                        body: JSON.stringify({
+                            source: 'laravel'
+                        }),
                         signal: controller.signal
                     });
 
@@ -1109,7 +1188,10 @@
                 });
 
                 row.classList.add('table-success');
-                row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                row.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'center'
+                });
             };
 
             const showClientViewModal = (client) => {
@@ -1140,7 +1222,9 @@
                 try {
                     const bridgeOnline = await isFingerprintBridgeOnline();
                     if (!bridgeOnline) {
-                        throw new Error('DigitalPersona bridge is not running. Start the FingerprintBridge app first.');
+                        throw new Error(
+                            'DigitalPersona bridge is not running. Start the FingerprintBridge app first.'
+                        );
                     }
 
                     fingerprintSearchStatus.textContent = 'Place your finger on the scanner...';
@@ -1148,7 +1232,8 @@
                     fingerprintSearchPreview.src = captureResult.imageDataUrl;
                     fingerprintSearchStatus.textContent = 'Searching for a matching client...';
 
-                    const searchResult = await postFingerprintSearch(captureResult.fingerprintTemplateXml || '');
+                    const searchResult = await postFingerprintSearch(captureResult.fingerprintTemplateXml ||
+                        '');
                     if (searchResult.matched && searchResult.client) {
                         fingerprintSearchStatus.textContent = `Match found: ${searchResult.client.name}`;
                         fingerprintScanAgainBtn.classList.add('d-none');
@@ -1158,7 +1243,8 @@
                         return;
                     }
 
-                    fingerprintSearchStatus.textContent = searchResult.message || 'No matching client found.';
+                    fingerprintSearchStatus.textContent = searchResult.message ||
+                        'No matching client found.';
                     fingerprintScanAgainBtn.classList.remove('d-none');
                 } catch (error) {
                     fingerprintSearchStatus.textContent = 'Fingerprint search failed.';
@@ -1174,11 +1260,16 @@
 
                 try {
                     editStream = await navigator.mediaDevices.getUserMedia({
-                        video: { facingMode: 'environment' },
+                        video: {
+                            facingMode: 'environment'
+                        },
                         audio: false
                     });
 
                     editCameraView.srcObject = editStream;
+                    if (typeof editCameraView.play === 'function') {
+                        await editCameraView.play().catch(() => {});
+                    }
                     editCameraWrapper.classList.remove('d-none');
                     editCapturePhotoBtn.disabled = false;
                     editRetakePhotoBtn.disabled = true;
@@ -1187,7 +1278,7 @@
                 }
             };
 
-            modalEl.addEventListener('show.bs.modal', function (event) {
+            modalEl.addEventListener('show.bs.modal', function(event) {
                 const trigger = event.relatedTarget;
 
                 if (!trigger) {
@@ -1201,12 +1292,12 @@
                 modalTitle.textContent = name;
             });
 
-            modalEl.addEventListener('hidden.bs.modal', function () {
+            modalEl.addEventListener('hidden.bs.modal', function() {
                 modalImage.src = '';
                 modalTitle.textContent = 'Client Photo';
             });
 
-            editModalEl.addEventListener('show.bs.modal', function (event) {
+            editModalEl.addEventListener('show.bs.modal', function(event) {
                 const trigger = event.relatedTarget;
 
                 if (!trigger) {
@@ -1216,51 +1307,60 @@
                 editForm.action = trigger.getAttribute('data-update-url') || editForm.action;
                 editTitle.textContent = `Edit ${trigger.getAttribute('data-client-name') || 'Client'}`;
                 editName.textContent = trigger.getAttribute('data-client-name') || 'Client';
-                editPhoto.src = trigger.getAttribute('data-client-photo') || '';
-                editFirstName.value = trigger.getAttribute('data-first-name') || '';
-                editMiddleName.value = trigger.getAttribute('data-middle-name') || '';
-                editLastName.value = trigger.getAttribute('data-last-name') || '';
-                editSuffix.value = trigger.getAttribute('data-suffix') || '';
+                editPhoto.src = trigger.getAttribute('data-client-photo') || defaultClientPhoto;
+                setUppercaseValue(editFirstName, trigger.getAttribute('data-first-name') || '');
+                setUppercaseValue(editMiddleName, trigger.getAttribute('data-middle-name') || '');
+                setUppercaseValue(editLastName, trigger.getAttribute('data-last-name') || '');
+                setUppercaseValue(editSuffix, trigger.getAttribute('data-suffix') || '');
                 editAge.value = trigger.getAttribute('data-age') || '';
                 editBirthDate.value = trigger.getAttribute('data-birth-date') || '';
-                editGender.value = trigger.getAttribute('data-gender') || '';
-                editCivilStatus.value = trigger.getAttribute('data-civil-status') || '';
+                setUppercaseValue(editGender, trigger.getAttribute('data-gender') || '');
+                setUppercaseValue(editCivilStatus, trigger.getAttribute('data-civil-status') || '');
                 editContact.value = trigger.getAttribute('data-contact') || '';
                 editContact2.value = trigger.getAttribute('data-contact-2') || '';
-                editEmail.value = trigger.getAttribute('data-email') || '';
-                editAddress.value = trigger.getAttribute('data-address') || '';
-                editBirthplace.value = trigger.getAttribute('data-birthplace') || '';
-                editEducation.value = trigger.getAttribute('data-education') || '';
-                editCourse.value = trigger.getAttribute('data-course') || '';
-                editSector.value = trigger.getAttribute('data-sector') || '';
-                editPositionOrganization.value = trigger.getAttribute('data-position-organization') || '';
-                editProvince.value = trigger.getAttribute('data-province') || '';
-                editCity.value = trigger.getAttribute('data-city') || '';
-                editBarangay.value = trigger.getAttribute('data-barangay') || '';
+                setUppercaseValue(editEmail, trigger.getAttribute('data-email') || '');
+                setUppercaseValue(editAddress, trigger.getAttribute('data-address') || '');
+                setUppercaseValue(editBirthplace, trigger.getAttribute('data-birthplace') || '');
+                setUppercaseValue(editEducation, trigger.getAttribute('data-education') || '');
+                setUppercaseValue(editCourse, trigger.getAttribute('data-course') || '');
+                setUppercaseValue(editSector, trigger.getAttribute('data-sector') || '');
+                setUppercaseValue(editPositionOrganization, trigger.getAttribute('data-position-organization') || '');
                 editPhoto.dataset.original = trigger.getAttribute('data-client-photo') || '';
                 editPhotoData.value = '';
                 editHasFingerprint = !!trigger.getAttribute('data-client-fingerprint');
-                editOriginalFingerprintPreview = trigger.getAttribute('data-client-fingerprint') || editDefaultFingerprint;
-                editFingerprintPreview.src = trigger.getAttribute('data-client-fingerprint') || editDefaultFingerprint;
+                editOriginalFingerprintPreview = trigger.getAttribute('data-client-fingerprint') ||
+                    editDefaultFingerprint;
+                editFingerprintPreview.src = trigger.getAttribute('data-client-fingerprint') ||
+                    editDefaultFingerprint;
                 editFingerprintData.value = '';
                 editFingerprintTemplate.value = '';
                 editFingerprintRemove.value = '';
                 editFingerprintDataUrl = '';
                 editFingerprintTemplateXml = '';
-                editFingerprintStatus.textContent = editHasFingerprint ? 'Existing fingerprint on file.' : 'No fingerprint captured yet.';
+                editFingerprintStatus.textContent = editHasFingerprint ? 'Existing fingerprint on file.' :
+                    'No fingerprint captured yet.';
                 editClearFingerprintBtn.disabled = !editHasFingerprint;
                 editScanAgainBtn.classList.toggle('d-none', !editHasFingerprint);
                 editCameraWrapper.classList.add('d-none');
                 editCapturePhotoBtn.disabled = true;
                 editRetakePhotoBtn.disabled = true;
                 editCameraView.srcObject = null;
+
+                const provinceName = trigger.getAttribute('data-province') || '';
+                const cityName = trigger.getAttribute('data-city') || '';
+                const barangayName = trigger.getAttribute('data-barangay') || '';
+
+                sameAsHomeAddress.checked = false;
+                restoreEditLocations(provinceName, cityName, barangayName).catch(() => {
+                    enableEditManualLocations(provinceName, cityName, barangayName, 'Unable to load location data. You can enter it manually.');
+                });
             });
 
-            editModalEl.addEventListener('hidden.bs.modal', function () {
+            editModalEl.addEventListener('hidden.bs.modal', function() {
                 editForm.action = '';
                 editTitle.textContent = 'Edit Client';
                 editName.textContent = '';
-                editPhoto.src = '';
+                editPhoto.src = defaultClientPhoto;
                 editPhotoData.value = '';
                 editFingerprintPreview.src = editDefaultFingerprint;
                 editOriginalFingerprintPreview = editDefaultFingerprint;
@@ -1273,19 +1373,42 @@
                 editClearFingerprintBtn.disabled = true;
                 editScanAgainBtn.classList.add('d-none');
                 editHasFingerprint = false;
+                sameAsHomeAddress.checked = false;
+                disableEditManualLocations();
                 stopEditCamera();
                 editForm.reset();
             });
 
-            editOpenCameraBtn.addEventListener('click', function () {
+            sameAsHomeAddress.addEventListener('change', function() {
+                setEditLocationMode(this.checked);
+            });
+
+            editProvince.addEventListener('change', function() {
+                const provinceCode = this.selectedOptions[0]?.dataset.code || '';
+
+                loadEditCities(provinceCode, '').catch(() => {
+                    fillPsgcSelect(editCity, 'Select city', [], '');
+                    fillPsgcSelect(editBarangay, 'Select barangay', [], '');
+                });
+            });
+
+            editCity.addEventListener('change', function() {
+                const cityCode = this.selectedOptions[0]?.dataset.code || '';
+
+                loadEditBarangays(cityCode, '').catch(() => {
+                    fillPsgcSelect(editBarangay, 'Select barangay', [], '');
+                });
+            });
+
+            editOpenCameraBtn.addEventListener('click', function() {
                 startEditCamera();
             });
 
-            searchFingerprintBtn.addEventListener('click', function () {
+            searchFingerprintBtn.addEventListener('click', function() {
                 fingerprintSearchModal.show();
             });
 
-            fingerprintScanAgainBtn.addEventListener('click', function () {
+            fingerprintScanAgainBtn.addEventListener('click', function() {
                 fingerprintScanAgainBtn.classList.add('d-none');
                 fingerprintSearchStatus.textContent = 'Place your finger on the scanner...';
                 searchFingerprintAndHighlight();
@@ -1300,11 +1423,11 @@
             clientDateFrom.addEventListener('change', filterClientList);
             clientDateTo.addEventListener('change', filterClientList);
 
-            clientFiltersToggleBtn.addEventListener('click', function () {
+            clientFiltersToggleBtn.addEventListener('click', function() {
                 setFiltersVisibility(!filtersVisible);
             });
 
-            clientFiltersResetBtn.addEventListener('click', function () {
+            clientFiltersResetBtn.addEventListener('click', function() {
                 clientKeywordInput.value = '';
                 clientSexFilter.value = '';
                 clientCivilStatusFilter.value = '';
@@ -1318,21 +1441,21 @@
                 clientKeywordInput.focus();
             });
 
-            clientDateApplyBtn.addEventListener('click', function () {
+            clientDateApplyBtn.addEventListener('click', function() {
                 filterClientList();
             });
 
             setFiltersVisibility(false);
             filterClientList();
 
-            fingerprintSearchModalEl.addEventListener('shown.bs.modal', function () {
+            fingerprintSearchModalEl.addEventListener('shown.bs.modal', function() {
                 fingerprintSearchPreview.src = fingerprintPlaceholderPreview;
                 fingerprintSearchStatus.textContent = 'Place your finger on the scanner...';
                 fingerprintScanAgainBtn.classList.add('d-none');
                 searchFingerprintAndHighlight();
             });
 
-            clientViewModalEl.addEventListener('hidden.bs.modal', function () {
+            clientViewModalEl.addEventListener('hidden.bs.modal', function() {
                 clientViewPhoto.src = <?php echo json_encode(asset('assets/images/profile.png'), 15, 512) ?>;
                 clientViewName.textContent = 'Client';
                 clientViewSuffix.textContent = '-';
@@ -1355,33 +1478,41 @@
                 clientViewPageLink.href = '#';
             });
 
-            editOpenFingerprintBtn.addEventListener('click', function () {
+            editOpenFingerprintBtn.addEventListener('click', function() {
                 (async () => {
                     try {
+                        editFingerprintStatus.textContent = 'Checking fingerprint scanner bridge...';
                         const bridgeOnline = await isFingerprintBridgeOnline();
                         if (!bridgeOnline) {
-                            throw new Error('DigitalPersona bridge is not running. Start the FingerprintBridge app first.');
+                            throw new Error(
+                                'DigitalPersona bridge is not running. Start the FingerprintBridge app first.'
+                            );
                         }
 
                         editFingerprintStatus.textContent = 'Place your finger on the scanner...';
                         const captureResult = await captureEditFingerprintFromBridge();
-                        setEditFingerprintPreview(captureResult.imageDataUrl, 'Fingerprint captured from device. Save the client to keep it.', captureResult.fingerprintTemplateXml || '');
+                        setEditFingerprintPreview(captureResult.imageDataUrl,
+                            'Fingerprint captured from device. Save the client to keep it.',
+                            captureResult.fingerprintTemplateXml || '');
                     } catch (error) {
-                        editFingerprintStatus.textContent = 'Scanner bridge is not available. Make sure the bridge app is running.';
-                        alert(`Unable to capture from the scanner bridge.\n\n${error.message || error}`);
+                        editFingerprintStatus.textContent =
+                            'Scanner bridge is not available. Make sure the bridge app is running.';
+                        alert(
+                            `Unable to capture from the scanner bridge.\n\n${error.message || error}`
+                        );
                     }
                 })();
             });
 
-            editScanAgainBtn.addEventListener('click', function () {
+            editScanAgainBtn.addEventListener('click', function() {
                 editOpenFingerprintBtn.click();
             });
 
-            editClearFingerprintBtn.addEventListener('click', function () {
+            editClearFingerprintBtn.addEventListener('click', function() {
                 clearEditFingerprintCapture(true);
             });
 
-            editCapturePhotoBtn.addEventListener('click', function () {
+            editCapturePhotoBtn.addEventListener('click', function() {
                 const context = editCameraCanvas.getContext('2d');
                 editCameraCanvas.width = editCameraView.videoWidth || 200;
                 editCameraCanvas.height = editCameraView.videoHeight || 200;
@@ -1399,9 +1530,9 @@
                 editRetakePhotoBtn.disabled = false;
             });
 
-            editRetakePhotoBtn.addEventListener('click', function () {
+            editRetakePhotoBtn.addEventListener('click', function() {
                 editPhotoData.value = '';
-                editPhoto.src = editPhoto.dataset.original || editPhoto.src;
+                editPhoto.src = editPhoto.dataset.original || defaultClientPhoto;
                 editOpenCameraBtn.click();
             });
 

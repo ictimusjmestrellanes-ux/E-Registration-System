@@ -1311,7 +1311,6 @@
     </script>
 
     <?php echo $__env->yieldContent('script'); ?>
-    <?php echo app('Illuminate\Foundation\Vite')(['resources/js/app.js']); ?>
 </body>
 </html>
 <?php /**PATH C:\xampp\htdocs\E-Reg-System\resources\views/layouts/master.blade.php ENDPATH**/ ?>
