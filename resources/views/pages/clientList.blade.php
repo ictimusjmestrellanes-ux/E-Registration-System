@@ -181,6 +181,34 @@
         html[data-bs-theme="dark"] #clientFiltersCard .bg-primary-subtle {
             background: rgba(77, 99, 214, 0.16) !important;
         }
+
+        #clientListTable tbody tr[data-show-url] {
+            cursor: pointer;
+            transition: background-color 0.18s ease, box-shadow 0.18s ease;
+        }
+
+        #clientListTable tbody tr[data-show-url]:hover {
+            background-color: rgba(77, 99, 214, 0.06);
+        }
+
+        #clientListTable .client-name-link {
+            color: inherit;
+        }
+
+        #clientListTable .client-name-link:hover,
+        #clientListTable .client-name-link:focus {
+            color: #3551d5;
+            text-decoration: underline;
+        }
+
+        html[data-bs-theme="dark"] #clientListTable tbody tr[data-show-url]:hover {
+            background-color: rgba(255, 255, 255, 0.04);
+        }
+
+        html[data-bs-theme="dark"] #clientListTable .client-name-link:hover,
+        html[data-bs-theme="dark"] #clientListTable .client-name-link:focus {
+            color: #b9c7ff;
+        }
     </style>
     @php
         $defaultClientPhoto = asset('assets/images/profile.png');
@@ -230,6 +258,13 @@
                                 <a href="{{ route('clients') }}" class="btn btn-primary">Add Client</a>
                             </div>
                         </div>
+
+                        @if ($errors->any())
+                            <div class="alert alert-danger">
+                                <div class="fw-semibold mb-1">Please fix the highlighted issue(s) below.</div>
+                                <div>{{ $errors->first() }}</div>
+                            </div>
+                        @endif
 
                         @if ($matchedClientId)
                             <div
@@ -352,7 +387,7 @@
                         </div>
 
                         <div class="table-responsive">
-                            <table class="table table-bordered align-middle mb-0">
+                            <table id="clientListTable" class="table table-bordered table-hover align-middle mb-0">
                                 <thead class="table-light text-center">
                                     <tr>
                                         <th>#</th>
@@ -370,8 +405,32 @@
                                     @forelse ($clients as $client)
                                         @php
                                             $clientName = $client->full_name;
+                                            $clientPhoto = $client->photo_url ?: $defaultClientPhoto;
                                         @endphp
                                         <tr data-client-row="{{ $client->id }}"
+                                            data-show-url="{{ route('clients.show', $client) }}"
+                                            data-client-photo="{{ $clientPhoto }}"
+                                            data-client-name="{{ $client->full_name }}"
+                                            data-client-suffix="{{ $client->suffix ?? '' }}"
+                                            data-client-birth-date="{{ optional($client->birth_date)->format('m/d/Y') ?? '' }}"
+                                            data-client-age="{{ $client->age ?? '' }}"
+                                            data-client-gender="{{ $client->gender ?? '' }}"
+                                            data-client-civil-status="{{ $client->civil_status ?? '' }}"
+                                            data-client-email="{{ $client->email ?? '' }}"
+                                            data-client-contact="{{ $client->contact ?? '' }}"
+                                            data-client-contact-2="{{ $client->contact_2 ?? '' }}"
+                                            data-client-address="{{ $client->address ?? '' }}"
+                                            data-client-birthplace="{{ $client->birthplace ?? '' }}"
+                                            data-client-education="{{ $client->education ?? '' }}"
+                                            data-client-course="{{ $client->course ?? '' }}"
+                                            data-client-sector="{{ $client->sector ?? '' }}"
+                                            data-client-position-organization="{{ $client->position_organization ?? '' }}"
+                                            data-client-province="{{ $client->province ?? '' }}"
+                                            data-client-city="{{ $client->city ?? '' }}"
+                                            data-client-barangay="{{ $client->barangay ?? '' }}"
+                                            role="button"
+                                            tabindex="0"
+                                            title="Open {{ $clientName }} details"
                                             data-search-name="{{ strtolower($clientName) }}"
                                             data-search-email="{{ strtolower($client->email ?? '') }}"
                                             data-search-contact="{{ strtolower($client->contact ?? '') }}"
@@ -391,9 +450,6 @@
                                             data-search-all="{{ strtolower($clientName . ' ' . ($client->suffix ?? '') . ' ' . ($client->email ?? '') . ' ' . ($client->contact ?? '') . ' ' . ($client->contact_2 ?? '') . ' ' . ($client->gender ?? '') . ' ' . ($client->civil_status ?? '') . ' ' . ($client->birthplace ?? '') . ' ' . ($client->education ?? '') . ' ' . ($client->course ?? '') . ' ' . ($client->sector ?? '') . ' ' . ($client->position_organization ?? '') . ' ' . ($client->address ?? '') . ' ' . ($client->province ?? '') . ' ' . ($client->city ?? '') . ' ' . ($client->barangay ?? '')) }}">
                                             <td>{{ $loop->iteration }}</td>
                                             <td>
-                                                @php
-                                                    $clientPhoto = $client->photo_url ?: $defaultClientPhoto;
-                                                @endphp
                                                 <button type="button" class="btn p-0 border-0 bg-transparent"
                                                     data-bs-toggle="modal" data-bs-target="#clientPhotoModal"
                                                     data-client-photo="{{ $clientPhoto }}"
@@ -404,7 +460,12 @@
                                                         style="width: 72px; height: 72px;">
                                                 </button>
                                             </td>
-                                            <td>{{ $client->full_name }}</td>
+                                            <td>
+                                                <button type="button"
+                                                    class="client-name-link btn btn-link p-0 fw-semibold text-decoration-none">
+                                                    {{ $client->full_name }}
+                                                </button>
+                                            </td>
                                             <td>{{ $client->suffix ?? '-' }}</td>
                                             <td>{{ $client->gender ?? '-' }}</td>
                                             <td>{{ $client->civil_status ?? '-' }}</td>
@@ -714,17 +775,20 @@
             const editFingerprintPreview = document.getElementById('editFingerprintPreview');
             const editFingerprintData = document.getElementById('editFingerprintData');
             const editFingerprintTemplate = document.getElementById('editFingerprintTemplate');
-            const editFingerprintRemove = document.getElementById('editFingerprintRemove');
             const editFingerprintStatus = document.getElementById('editFingerprintStatus');
             const editScanAgainBtn = document.getElementById('editScanAgainBtn');
             const defaultClientPhoto = (editPhoto && editPhoto.dataset.defaultSrc) ||
                 @json(asset('assets/images/profile.png'));
+            const fingerprintPlaceholderPreview = @json(asset('assets/images/fingerprint.png'));
+            const oldEditClientId = @json(old('edit_client_id', ''));
+            const oldEditPhotoData = @json(old('photo_data', ''));
+            const oldEditFingerprintData = @json(old('fingerprint_data', ''));
+            const oldEditFingerprintTemplate = @json(old('fingerprint_template', ''));
             const searchFingerprintBtn = document.getElementById('searchFingerprintBtn');
             const fingerprintSearchModalEl = document.getElementById('fingerprintSearchModal');
             const fingerprintSearchPreview = document.getElementById('fingerprintSearchPreview');
             const fingerprintSearchStatus = document.getElementById('fingerprintSearchStatus');
             const fingerprintScanAgainBtn = document.getElementById('fingerprintScanAgainBtn');
-            const fingerprintPlaceholderPreview = @json(asset('assets/images/fingerprint.png'));
             const clientKeywordInput = document.getElementById('clientKeywordInput');
             const clientSexFilter = document.getElementById('clientSexFilter');
             const clientCivilStatusFilter = document.getElementById('clientCivilStatusFilter');
@@ -758,7 +822,7 @@
                 editCapturePhotoBtn || !editRetakePhotoBtn || !editCameraWrapper || !editCameraView || !
                 editCameraCanvas || !editPhotoData || !editOpenFingerprintBtn || !editClearFingerprintBtn || !
                 editScanAgainBtn || !editFingerprintPreview || !editFingerprintData || !editFingerprintTemplate || !
-                editFingerprintRemove || !editFingerprintStatus || !searchFingerprintBtn || !
+                editFingerprintStatus || !searchFingerprintBtn || !
                 fingerprintSearchModalEl || !fingerprintSearchPreview || !fingerprintSearchStatus || !
                 fingerprintScanAgainBtn || !clientKeywordInput || !clientSexFilter || !clientCivilStatusFilter || !
                 clientCityFilter || !clientBarangayFilter || !clientRecordTypeFilter || !clientFiltersResetBtn || !
@@ -769,7 +833,7 @@
             }
 
             let editStream = null;
-            const editDefaultFingerprint = editFingerprintPreview.src;
+            const editDefaultFingerprint = editFingerprintPreview.dataset.defaultSrc || fingerprintPlaceholderPreview;
             let editHasFingerprint = false;
             let editOriginalFingerprintPreview = editDefaultFingerprint;
             let editFingerprintDataUrl = '';
@@ -777,6 +841,7 @@
             const fingerprintSearchModal = bootstrap.Modal.getOrCreateInstance(fingerprintSearchModalEl);
             const clientViewModal = bootstrap.Modal.getOrCreateInstance(clientViewModalEl);
             const clientRows = Array.from(document.querySelectorAll('[data-client-row]'));
+            const clientRowInteractiveSelector = 'a, button, input, select, textarea, label, form';
             let filtersVisible = true;
             const psgcProvincesUrl = @json(route('psgc.provinces'));
             const psgcCitiesBaseUrl = @json(url('psgc/provinces'));
@@ -812,6 +877,43 @@
 
             const upperValue = (value) => (value || '').toString().toUpperCase();
 
+            const calculateAgeFromBirthDate = (birthDateValue) => {
+                if (!birthDateValue) {
+                    return '';
+                }
+
+                const birthDate = new Date(`${birthDateValue}T00:00:00`);
+                if (Number.isNaN(birthDate.getTime())) {
+                    return '';
+                }
+
+                const today = new Date();
+                let age = today.getFullYear() - birthDate.getFullYear();
+                const monthDifference = today.getMonth() - birthDate.getMonth();
+
+                if (monthDifference < 0 || (monthDifference === 0 && today.getDate() < birthDate.getDate())) {
+                    age--;
+                }
+
+                return age >= 0 ? String(age) : '';
+            };
+
+            const syncEditAgeFromBirthDate = (force = false) => {
+                const computedAge = calculateAgeFromBirthDate(editBirthDate.value);
+
+                if (!computedAge) {
+                    if (force) {
+                        editAge.value = '';
+                    }
+
+                    return;
+                }
+
+                if (force || !editAge.value) {
+                    editAge.value = computedAge;
+                }
+            };
+
             const setUppercaseValue = (element, value = '') => {
                 if (!element) {
                     return;
@@ -834,6 +936,14 @@
                         this.setSelectionRange(start, end);
                     }
                 });
+            });
+
+            editBirthDate.addEventListener('input', function () {
+                syncEditAgeFromBirthDate(true);
+            });
+
+            editBirthDate.addEventListener('change', function () {
+                syncEditAgeFromBirthDate(true);
             });
 
             const selectOptionByLabel = (select, desiredValue) => {
@@ -1086,12 +1196,34 @@
                 editCameraWrapper.classList.add('d-none');
             };
 
+            const applyEditValidationMedia = (clientId) => {
+                if (!oldEditClientId || oldEditClientId !== clientId) {
+                    return;
+                }
+
+                if (oldEditPhotoData) {
+                    editPhoto.src = oldEditPhotoData;
+                    editPhotoData.value = oldEditPhotoData;
+                    editRetakePhotoBtn.disabled = false;
+                }
+
+                if (oldEditFingerprintData) {
+                    editFingerprintDataUrl = oldEditFingerprintData;
+                    editFingerprintTemplateXml = oldEditFingerprintTemplate || '';
+                    editFingerprintData.value = oldEditFingerprintData;
+                    editFingerprintTemplate.value = oldEditFingerprintTemplate || '';
+                    editFingerprintPreview.src = oldEditFingerprintData;
+                    editFingerprintStatus.textContent = 'Fingerprint captured and ready to save.';
+                    editClearFingerprintBtn.disabled = false;
+                    editScanAgainBtn.classList.remove('d-none');
+                }
+            };
+
             const setEditFingerprintPreview = (imageData, statusText, templateXml = '') => {
                 editFingerprintDataUrl = imageData || '';
                 editFingerprintTemplateXml = templateXml || editFingerprintTemplateXml;
                 editFingerprintData.value = editFingerprintDataUrl;
                 editFingerprintTemplate.value = editFingerprintTemplateXml;
-                editFingerprintRemove.value = '';
                 editFingerprintPreview.src = editFingerprintDataUrl || editDefaultFingerprint;
                 editFingerprintStatus.textContent = statusText || (editFingerprintDataUrl ?
                     'Fingerprint captured and ready to save.' : 'No fingerprint captured yet.');
@@ -1099,19 +1231,16 @@
                 editScanAgainBtn.classList.toggle('d-none', !editFingerprintDataUrl && !editHasFingerprint);
             };
 
-            const clearEditFingerprintCapture = (markRemove = false) => {
+            const clearEditFingerprintCapture = () => {
                 editFingerprintDataUrl = '';
                 editFingerprintTemplateXml = '';
                 editFingerprintData.value = '';
                 editFingerprintTemplate.value = '';
-                editFingerprintRemove.value = markRemove && editHasFingerprint ? '1' : '';
-                editFingerprintPreview.src = markRemove ? "{{ asset('assets/images/fingerprint.png') }}" :
-                    editOriginalFingerprintPreview;
-                editFingerprintStatus.textContent = markRemove ?
-                    'No fingerprint captured yet.' :
-                    (editHasFingerprint ? 'Existing fingerprint on file.' : 'No fingerprint captured yet.');
-                editClearFingerprintBtn.disabled = markRemove ? true : !editHasFingerprint;
-                editScanAgainBtn.classList.toggle('d-none', markRemove ? true : !editHasFingerprint);
+                editFingerprintPreview.src = editOriginalFingerprintPreview;
+                editFingerprintStatus.textContent = editHasFingerprint ?
+                    'Existing fingerprint on file.' : 'No fingerprint captured yet.';
+                editClearFingerprintBtn.disabled = !editHasFingerprint;
+                editScanAgainBtn.classList.toggle('d-none', !editHasFingerprint);
             };
 
             const captureEditFingerprintFromBridge = async () => {
@@ -1192,6 +1321,29 @@
                 });
             };
 
+            const buildClientViewPayloadFromRow = (row) => ({
+                photo_url: row?.dataset.clientPhoto || @json(asset('assets/images/profile.png')),
+                name: row?.dataset.clientName || 'Client',
+                suffix: row?.dataset.clientSuffix || '-',
+                birth_date: row?.dataset.clientBirthDate || '-',
+                age: row?.dataset.clientAge || '-',
+                gender: row?.dataset.clientGender || '-',
+                civil_status: row?.dataset.clientCivilStatus || '-',
+                email: row?.dataset.clientEmail || '-',
+                contact: row?.dataset.clientContact || '-',
+                contact_2: row?.dataset.clientContact2 || '-',
+                address: row?.dataset.clientAddress || '-',
+                birthplace: row?.dataset.clientBirthplace || '-',
+                education: row?.dataset.clientEducation || '-',
+                course: row?.dataset.clientCourse || '-',
+                sector: row?.dataset.clientSector || '-',
+                position_organization: row?.dataset.clientPositionOrganization || '-',
+                province: row?.dataset.clientProvince || '-',
+                city: row?.dataset.clientCity || '-',
+                barangay: row?.dataset.clientBarangay || '-',
+                show_url: row?.dataset.showUrl || '#',
+            });
+
             const showClientViewModal = (client) => {
                 clientViewPhoto.src = client.photo_url || @json(asset('assets/images/profile.png'));
                 clientViewName.textContent = client.name || 'Client';
@@ -1214,6 +1366,10 @@
                 clientViewBarangay.textContent = client.barangay || '-';
                 clientViewPageLink.href = client.show_url || '#';
                 clientViewModal.show();
+            };
+
+            const openClientDetailsFromRow = (row) => {
+                showClientViewModal(buildClientViewPayloadFromRow(row));
             };
 
             const searchFingerprintAndHighlight = async () => {
@@ -1302,16 +1458,20 @@
                     return;
                 }
 
+                const clientId = trigger.getAttribute('data-client-id') || '';
                 editForm.action = trigger.getAttribute('data-update-url') || editForm.action;
+                editClientId.value = clientId;
                 editTitle.textContent = `Edit ${trigger.getAttribute('data-client-name') || 'Client'}`;
                 editName.textContent = trigger.getAttribute('data-client-name') || 'Client';
-                editPhoto.src = trigger.getAttribute('data-client-photo') || defaultClientPhoto;
+                const clientPhotoPreview = trigger.getAttribute('data-client-photo') || defaultClientPhoto;
+                editPhoto.src = clientPhotoPreview;
                 setUppercaseValue(editFirstName, trigger.getAttribute('data-first-name') || '');
                 setUppercaseValue(editMiddleName, trigger.getAttribute('data-middle-name') || '');
                 setUppercaseValue(editLastName, trigger.getAttribute('data-last-name') || '');
                 setUppercaseValue(editSuffix, trigger.getAttribute('data-suffix') || '');
                 editAge.value = trigger.getAttribute('data-age') || '';
                 editBirthDate.value = trigger.getAttribute('data-birth-date') || '';
+                syncEditAgeFromBirthDate();
                 setUppercaseValue(editGender, trigger.getAttribute('data-gender') || '');
                 setUppercaseValue(editCivilStatus, trigger.getAttribute('data-civil-status') || '');
                 editContact.value = trigger.getAttribute('data-contact') || '';
@@ -1323,16 +1483,14 @@
                 setUppercaseValue(editCourse, trigger.getAttribute('data-course') || '');
                 setUppercaseValue(editSector, trigger.getAttribute('data-sector') || '');
                 setUppercaseValue(editPositionOrganization, trigger.getAttribute('data-position-organization') || '');
-                editPhoto.dataset.original = trigger.getAttribute('data-client-photo') || '';
+                editPhoto.dataset.original = clientPhotoPreview;
                 editPhotoData.value = '';
-                editHasFingerprint = !!trigger.getAttribute('data-client-fingerprint');
+                editHasFingerprint = (trigger.getAttribute('data-client-fingerprint') || editDefaultFingerprint) !== editDefaultFingerprint;
                 editOriginalFingerprintPreview = trigger.getAttribute('data-client-fingerprint') ||
                     editDefaultFingerprint;
-                editFingerprintPreview.src = trigger.getAttribute('data-client-fingerprint') ||
-                    editDefaultFingerprint;
+                editFingerprintPreview.src = editOriginalFingerprintPreview;
                 editFingerprintData.value = '';
                 editFingerprintTemplate.value = '';
-                editFingerprintRemove.value = '';
                 editFingerprintDataUrl = '';
                 editFingerprintTemplateXml = '';
                 editFingerprintStatus.textContent = editHasFingerprint ? 'Existing fingerprint on file.' :
@@ -1352,10 +1510,13 @@
                 restoreEditLocations(provinceName, cityName, barangayName).catch(() => {
                     enableEditManualLocations(provinceName, cityName, barangayName, 'Unable to load location data. You can enter it manually.');
                 });
+
+                applyEditValidationMedia(clientId);
             });
 
             editModalEl.addEventListener('hidden.bs.modal', function() {
                 editForm.action = '';
+                editClientId.value = '';
                 editTitle.textContent = 'Edit Client';
                 editName.textContent = '';
                 editPhoto.src = defaultClientPhoto;
@@ -1364,7 +1525,6 @@
                 editOriginalFingerprintPreview = editDefaultFingerprint;
                 editFingerprintData.value = '';
                 editFingerprintTemplate.value = '';
-                editFingerprintRemove.value = '';
                 editFingerprintDataUrl = '';
                 editFingerprintTemplateXml = '';
                 editFingerprintStatus.textContent = 'No fingerprint captured yet.';
@@ -1400,6 +1560,34 @@
 
             editOpenCameraBtn.addEventListener('click', function() {
                 startEditCamera();
+            });
+
+            clientRows.forEach((row) => {
+                const nameButton = row.querySelector('.client-name-link');
+
+                row.addEventListener('click', function(event) {
+                    if (event.target.closest(clientRowInteractiveSelector)) {
+                        return;
+                    }
+
+                    openClientDetailsFromRow(row);
+                });
+
+                row.addEventListener('keydown', function(event) {
+                    if (event.target !== row || (event.key !== 'Enter' && event.key !== ' ')) {
+                        return;
+                    }
+
+                    event.preventDefault();
+                    openClientDetailsFromRow(row);
+                });
+
+                if (nameButton) {
+                    nameButton.addEventListener('click', function(event) {
+                        event.preventDefault();
+                        openClientDetailsFromRow(row);
+                    });
+                }
             });
 
             searchFingerprintBtn.addEventListener('click', function() {
@@ -1507,7 +1695,7 @@
             });
 
             editClearFingerprintBtn.addEventListener('click', function() {
-                clearEditFingerprintCapture(true);
+                clearEditFingerprintCapture();
             });
 
             editCapturePhotoBtn.addEventListener('click', function() {
@@ -1533,6 +1721,13 @@
                 editPhoto.src = editPhoto.dataset.original || defaultClientPhoto;
                 editOpenCameraBtn.click();
             });
+
+            if (oldEditClientId) {
+                const editTrigger = document.querySelector(`[data-client-id="${oldEditClientId}"]`);
+                if (editTrigger) {
+                    editTrigger.click();
+                }
+            }
 
             const matchedClientId = new URLSearchParams(window.location.search).get('matched_client');
             if (matchedClientId) {

@@ -10,14 +10,6 @@
     <meta content="E-Registration System" name="author">
     <!-- App favicon -->
     {{-- <link rel="shortcut icon" href="{{ asset('assets/images/favicon.ico') }}"> --}}
-    <!-- jsvectormap css -->
-    <link href="{{ asset('assets/css/jsvectormap.min.css') }}" rel="stylesheet" type="text/css">
-    <!-- Include Grid.js CSS and JS -->
-    <link href="https://unpkg.com/gridjs/dist/theme/mermaid.min.css" rel="stylesheet" />
-    <script src="https://unpkg.com/gridjs/dist/gridjs.umd.js"></script>
-
-    <!--Swiper slider css-->
-    <link href="{{ asset('assets/css/swiper-bundle.min.css') }}" rel="stylesheet" type="text/css">
     <!-- Layout config Js -->
     <script src="{{ asset('assets/js/layout.js') }}"></script>
     <!-- Bootstrap Css -->
@@ -30,6 +22,7 @@
     <link href="{{ asset('assets/css/app.min.css') }}" rel="stylesheet" type="text/css">
     <!-- custom Css-->
     <link href="{{ asset('assets/css/custom.min.css') }}" rel="stylesheet" type="text/css">
+    @stack('styles')
     <style>
         #page-topbar,
         #page-topbar .navbar-header {
@@ -206,7 +199,7 @@
                     </div>
                     <div class="modal-body">
                         <div class="mt-2 text-center">
-                            <lord-icon src="https://cdn.lordicon.com/gsqxdxog.json" trigger="loop" colors="primary:#f7b84b,secondary:#f06548" style="width:100px;height:100px"></lord-icon>
+                            <i class="ri-notification-off-line display-1 text-warning"></i>
                             <div class="mt-4 pt-2 fs-15 mx-4 mx-sm-5">
                                 <h4>Are you sure ?</h4>
                                 <p class="text-muted mx-4 mb-0">Are you sure you want to remove this Notification ?</p>
@@ -1218,17 +1211,30 @@
     <script src="{{ asset('assets/js/simplebar.min.js') }}"></script>
     <script src="{{ asset('assets/js/waves.min.js') }}"></script>
     <script src="{{ asset('assets/js/feather.min.js') }}"></script>
-    <script src="{{ asset('assets/js/lord-icon-2.1.0.js') }}"></script>
-    <script src="{{ asset('assets/js/plugins.js') }}"></script>
-    <!-- apexcharts -->
-    <script src="{{ asset('assets/js/apexcharts.min.js') }}"></script>
-    <!-- Vector map-->
-    <script src="{{ asset('assets/js/jsvectormap.min.js') }}"></script>
-    <script src="{{ asset('assets/js/world-merc.js') }}"></script>
-    <!--Swiper slider js-->
-    <script src="{{ asset('assets/js/swiper-bundle.min.js') }}"></script>
     <!-- App js -->
     <script src="{{ asset('assets/js/app.js') }}"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const sidebarPages = document.getElementById('sidebarPages');
+            const sidebarDashboard = document.getElementById('sidebarDashboard');
+
+            if (!sidebarPages || !sidebarDashboard) {
+                return;
+            }
+
+            const keepDashboardOpen = () => {
+                sidebarDashboard.classList.add('show');
+            };
+
+            keepDashboardOpen();
+
+            document.addEventListener('shown.bs.collapse', function(event) {
+                if (event.target && event.target.id === 'sidebarPages') {
+                    keepDashboardOpen();
+                }
+            });
+        });
+    </script>
     <!-- imessage -->
     <script src="{{ asset('assets/js/imessage.js') }}"></script>
 
@@ -1310,6 +1316,7 @@
         });
     </script>
 
+    @stack('scripts')
     @yield('script')
 </body>
 </html>
