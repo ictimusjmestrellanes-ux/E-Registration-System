@@ -8,11 +8,12 @@
             <form id="editClientForm" method="POST">
                 <?php echo csrf_field(); ?>
                 <?php echo method_field('PUT'); ?>
+                <input type="hidden" id="editClientId" name="edit_client_id">
                 <div class="modal-body" style="overflow-y: auto; max-height: calc(100vh - 11rem);">
                     <div class="rounded-4 client-details-panel p-3 mb-4">
                         <div class="row g-4 align-items-start">
                             <div class="col-12 col-xl-6">
-                                <label class="form-label client-details-label mb-2">Client Photo</label>
+                                <label class="form-label client-details-label mb-2">Client Photo <span class="text-danger">*</span></label>
                                 <div class="d-flex flex-column flex-md-row gap-3 align-items-stretch">
                                     <div class="flex-shrink-0">
                                         <img id="editClientPhoto" src="<?php echo e($defaultClientPhoto); ?>"
@@ -21,14 +22,15 @@
                                             class="rounded-4 border border-secondary-subtle bg-light object-fit-cover"
                                             style="width: 240px; height: 240px;">
                                     </div>
-                                    <div class="d-flex flex-column gap-2 justify-content-start">
-                                        <div class="fw-semibold fs-5 client-details-title" id="editClientName"></div>
-                                        <div class="client-details-muted small">Edit client details below.</div>
-                                        <div class="d-flex flex-column gap-2 mt-2">
-                                            <button type="button" class="btn btn-outline-primary"
-                                                id="editOpenCameraBtn">Open Camera</button>
-                                            <button type="button" class="btn btn-outline-secondary"
-                                                id="editRetakePhotoBtn" disabled>Retake</button>
+                                        <div class="d-flex flex-column gap-2 justify-content-start">
+                                            <div class="fw-semibold fs-5 client-details-title" id="editClientName"></div>
+                                            <div class="client-details-muted small">Edit client details below.</div>
+                                            <div class="client-details-muted small">A captured client photo is required before saving.</div>
+                                            <div class="d-flex flex-column gap-2 mt-2">
+                                                <button type="button" class="btn btn-outline-primary"
+                                                    id="editOpenCameraBtn">Open Camera</button>
+                                                <button type="button" class="btn btn-outline-secondary"
+                                                    id="editRetakePhotoBtn" disabled>Retake</button>
                                             <button type="button" class="btn btn-primary" id="editCapturePhotoBtn"
                                                 disabled>Capture Photo</button>
                                         </div>
@@ -41,14 +43,25 @@
                                 </div>
                                 <canvas id="editCameraCanvas" class="d-none"></canvas>
                                 <input type="hidden" id="editPhotoData" name="photo_data">
+                                <?php $__errorArgs = ['photo_data'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?>
+                                    <div class="text-danger small mt-2"><?php echo e($message); ?></div>
+                                <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>
                             </div>
 
                             <div class="col-12 col-xl-6">
-                                <label class="form-label client-details-label mb-2">Fingerprint Scanner</label>
+                                <label class="form-label client-details-label mb-2">Fingerprint Scanner <span class="text-danger">*</span></label>
                                 <div class="d-flex flex-column flex-md-row gap-3 align-items-stretch">
                                     <div class="flex-shrink-0">
                                         <img id="editFingerprintPreview"
-                                            src="<?php echo e(asset('assets/images/fingerprint.png')); ?>" alt="Fingerprint Preview"
+                                            src="<?php echo e(asset('assets/images/fingerprint.png')); ?>"
+                                            data-default-src="<?php echo e(asset('assets/images/fingerprint.png')); ?>" alt="Fingerprint Preview"
                                             class="rounded-4 border border-secondary-subtle bg-light object-fit-cover"
                                             style="width: 240px; height: 240px;">
                                     </div>
@@ -57,10 +70,11 @@
                                             <button type="button" class="btn btn-outline-primary"
                                                 id="editOpenFingerprintBtn">Capture New Fingerprint</button>
                                             <button type="button" class="btn btn-outline-secondary"
-                                                id="editClearFingerprintBtn" disabled>Clear</button>
+                                                id="editClearFingerprintBtn" disabled>Discard Capture</button>
                                         </div>
                                         <div class="client-details-muted small">Capture a replacement fingerprint
                                             image from the scanner or biometric device.</div>
+                                        <div class="client-details-muted small">Fingerprint capture is required before saving.</div>
                                         <div class="client-details-muted small" id="editFingerprintStatus">No
                                             fingerprint captured yet.</div>
                                         <button type="button"
@@ -70,8 +84,26 @@
                                 </div>
                                 <input type="hidden" id="editFingerprintData" name="fingerprint_data">
                                 <input type="hidden" id="editFingerprintTemplate" name="fingerprint_template">
-                                <input type="hidden" id="editFingerprintRemove" name="fingerprint_remove"
-                                    value="">
+                                <?php $__errorArgs = ['fingerprint_data'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?>
+                                    <div class="text-danger small mt-2"><?php echo e($message); ?></div>
+                                <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>
+                                <?php $__errorArgs = ['fingerprint_template'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?>
+                                    <div class="text-danger small mt-2"><?php echo e($message); ?></div>
+                                <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>
                             </div>
                         </div>
                     </div>
@@ -122,13 +154,13 @@
                                         placeholder="Enter birth date" name="birth_date">
                                 </div>
 
-                                <div class="col-lg-4">
+                                <div class="col-lg-3">
                                     <label class="form-label" for="editBirthplace">Birthplace</label>
                                     <input type="text" class="form-control" id="editBirthplace"
                                         placeholder="Enter birthplace" name="birthplace">
                                 </div>
 
-                                <div class="col-lg-1">
+                                <div class="col-lg-2">
                                     <label class="form-label" for="editAge">Age</label>
                                     <input type="number" class="form-control" id="editAge"
                                         placeholder="Enter Age" name="age" min="0">
@@ -156,16 +188,6 @@
                                     <h5 class="mb-1">Address and Contact Information</h5>
                                     <p class="text-muted mb-0 small">Where the client lives and how to reach them.</p>
                                 </div>
-                            </div>
-
-                            <div class="form-check form-switch mb-3">
-                                <input class="form-check-input" type="checkbox" role="switch"
-                                    id="sameAsHomeAddress">
-                                <label class="form-check-label" for="sameAsHomeAddress">Check if address is outside
-                                    City of Imus</label>
-                            </div>
-                            <div class="text-muted small mb-3">
-                                Province, city, and barangay always use API dropdowns in edit mode.
                             </div>
 
                             <div class="row g-3">
@@ -274,4 +296,4 @@
         </div>
     </div>
 </div>
-<?php /**PATH C:\xampp\htdocs\E-Reg-System\resources\views/pages/clientEdit.blade.php ENDPATH**/ ?>
+<?php /**PATH C:\xampp\htdocs\E-Reg-System\resources\views\pages\clientEdit.blade.php ENDPATH**/ ?>

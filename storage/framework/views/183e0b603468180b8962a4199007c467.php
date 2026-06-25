@@ -77,7 +77,7 @@
                     <div class="collapse menu-dropdown show" id="sidebarDashboard">
                         <ul class="nav nav-sm flex-column">
                             <li class="nav-item">
-                                <a href="<?php echo e(route('clients')); ?>" class="nav-link <?php echo e(set_active(['clients'])); ?>" data-key="t-clients">Clients</a>
+                                <a href="<?php echo e(route('clients')); ?>" class="nav-link <?php echo e(set_active(['clients'])); ?>" data-key="t-clients">Create Clients</a>
                             </li>
                             <li class="nav-item">
                                 <a href="<?php echo e(route('client.list')); ?>" class="nav-link <?php echo e(set_active(['client.list'])); ?>" data-key="t-client-list">Client List</a>

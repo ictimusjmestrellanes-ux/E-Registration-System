@@ -17,26 +17,15 @@
                             <table class="table table-bordered align-middle mb-0">
                                 <thead class="table-light text-center">
                                     <tr>
-                                        <th>#</th>
+                                        <th>Client ID</th>
                                         <th>Photo</th>
                                         <th>Full Name</th>
-                                        <th>Suffix</th>
-                                        <th>Birth Date</th>
                                         <th>Age</th>
                                         <th>Gender</th>
                                         <th>Civil Status</th>
                                         <th>Birthplace</th>
-                                        <th>Education</th>
-                                        <th>Course</th>
-                                        <th>Sector</th>
-                                        <th>Position / Organization</th>
-                                        <th>Email</th>
                                         <th>Contact 1</th>
-                                        <th>Contact 2</th>
                                         <th>Address</th>
-                                        <th>Province</th>
-                                        <th>City</th>
-                                        <th>Barangay</th>
                                         <th>Archived At</th>
                                         <th>Actions</th>
                                     </tr>
@@ -44,37 +33,41 @@
                                 <tbody class="text-center">
                                     <?php $__empty_1 = true; $__currentLoopData = $archivedClients; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $client): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
                                         <tr>
-                                            <td><?php echo e($loop->iteration); ?></td>
+                                            <td><?php echo e($client->client_id ?? '-'); ?></td>
                                             <td>
                                                 <?php
                                                     $clientPhoto = $client->photo_url;
+                                                    $defaultClientPhoto = asset('images/default-client.png');
                                                 ?>
-                                                <img
-                                                    src="<?php echo e($clientPhoto); ?>"
-                                                    alt="Archived Client Photo"
-                                                    class="rounded-3 border object-fit-cover"
-                                                    style="width: 72px; height: 72px;"
-                                                >
+                                                <button type="button" class="btn p-0 border-0 bg-transparent"
+                                                    data-bs-toggle="modal" data-bs-target="#clientPhotoModal"
+                                                    data-client-photo="<?php echo e($clientPhoto); ?>"
+                                                    data-client-name="<?php echo e(trim($client->first_name . ' ' . ($client->middle_name ? $client->middle_name . ' ' : '') . $client->last_name)); ?>">
+                                                    <img src="<?php echo e($clientPhoto); ?>" alt="Client Photo"
+                                                        onerror="this.onerror=null;this.src='<?php echo e($defaultClientPhoto); ?>';"
+                                                        class="rounded-3 border object-fit-cover"
+                                                        style="width: 72px; height: 72px;">
+                                                </button>
                                             </td>
-                                            <td><?php echo e($client->full_name); ?></td>
+                                            <td>
+                                                <?php echo e($client->full_name); ?>
+
+                                            </td>
                                             <td><?php echo e($client->suffix ?? '-'); ?></td>
-                                            <td><?php echo e($client->birth_date?->format('M d, Y') ?? '-'); ?></td>
-                                            <td><?php echo e($client->age ?? '-'); ?></td>
                                             <td><?php echo e($client->gender ?? '-'); ?></td>
                                             <td><?php echo e($client->civil_status ?? '-'); ?></td>
                                             <td><?php echo e($client->birthplace ?? '-'); ?></td>
-                                            <td><?php echo e($client->education ?? '-'); ?></td>
-                                            <td><?php echo e($client->course ?? '-'); ?></td>
-                                            <td><?php echo e($client->sector ?? '-'); ?></td>
-                                            <td><?php echo e($client->position_organization ?? '-'); ?></td>
-                                            <td><?php echo e($client->email ?? '-'); ?></td>
                                             <td><?php echo e($client->contact ?? '-'); ?></td>
-                                            <td><?php echo e($client->contact_2 ?? '-'); ?></td>
-                                            <td><?php echo e($client->address ?? '-'); ?></td>
-                                            <td><?php echo e($client->province ?? '-'); ?></td>
-                                            <td><?php echo e($client->city ?? '-'); ?></td>
-                                            <td><?php echo e($client->barangay ?? '-'); ?></td>
-                                            <td><?php echo e($client->archived_at ? $client->archived_at->format('M d, Y h:i A') : '-'); ?></td>
+                                            <td class="text-start">
+                                                <div class="small lh-sm">
+                                                    <div><?php echo e($client->address ?? '-'); ?></div>
+                                                    <div class="text-muted">
+                                                        <?php echo e(collect([$client->barangay, $client->city, $client->province])->filter()->implode(', ') ?:'-'); ?>
+
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td><?php echo e($client->archived_at ? $client->archived_at->format('m/d/Y h:i A') : '-'); ?></td>
                                             <td>
                                                 <form action="<?php echo e(route('archive.restore', $client)); ?>" method="POST" onsubmit="return confirm('Restore this client back to the active list?');">
                                                     <?php echo csrf_field(); ?>
@@ -86,7 +79,7 @@
                                         </tr>
                                     <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                                         <tr>
-                                            <td colspan="22" class="text-center text-muted py-4">
+                                            <td colspan="23" class="text-center text-muted py-4">
                                                 No archived clients found.
                                             </td>
                                         </tr>

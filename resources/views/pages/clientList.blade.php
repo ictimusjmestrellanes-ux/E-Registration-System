@@ -205,37 +205,13 @@
             background-color: rgba(255, 255, 255, 0.04);
         }
 
-        html[data-bs-theme="dark"] #clientListTable .client-name-link:hover,
+        html[data-bs-theme="dark"] #clientListTable .client-name-link:hover, 
         html[data-bs-theme="dark"] #clientListTable .client-name-link:focus {
-            color: #b9c7ff;
+            color: #b9c7ff; 
         }
     </style>
     @php
         $defaultClientPhoto = asset('assets/images/profile.png');
-        $educationOptions = [
-            'ELEMENTARY GRADUATE',
-            'ELEMENTARY LEVEL (IN SCHOOL)',
-            'ELEMENTARY UNDERGRADUATE',
-            'HIGH SCHOOL GRADUATE',
-            'HIGH SCHOOL LEVEL (IN SCHOOL)',
-            'HIGH SCHOOL UNDERGRADUATE',
-            'N/A',
-            'POST-GRADUATE STUDIES',
-            'SENIOR HS (IN SCHOOL)',
-            'SENIOR HS GRADUATE',
-        ];
-        $sectorOptions = [
-            'COMMON CITIZEN',
-            'EDUCATION',
-            'FAMILY HEADS AND OTHER NEEDY ADULTS',
-            'HEALTH',
-            'INDUSTRY / BUSINESS',
-            'LGU',
-            'NGOS',
-            'OTHERS',
-            'PEACE AND ORDER',
-            'PERSONS WITH DISABILITIES',
-        ];
     @endphp
     <div class="container-fluid">
         <div class="row">
@@ -390,10 +366,9 @@
                             <table id="clientListTable" class="table table-bordered table-hover align-middle mb-0">
                                 <thead class="table-light text-center">
                                     <tr>
-                                        <th>#</th>
+                                        <th>Client ID</th>
                                         <th>Photo</th>
                                         <th>Full Name</th>
-                                        <th>Suffix</th>
                                         <th>Gender</th>
                                         <th>Civil Status</th>
                                         <th>Contact 1</th>
@@ -401,7 +376,7 @@
                                         <th>Actions</th>
                                     </tr>
                                 </thead>
-                                <tbody class="text-center">
+                                <tbody class="text-center text-uppercase">
                                     @forelse ($clients as $client)
                                         @php
                                             $clientName = $client->full_name;
@@ -427,10 +402,8 @@
                                             data-client-position-organization="{{ $client->position_organization ?? '' }}"
                                             data-client-province="{{ $client->province ?? '' }}"
                                             data-client-city="{{ $client->city ?? '' }}"
-                                            data-client-barangay="{{ $client->barangay ?? '' }}"
-                                            role="button"
-                                            tabindex="0"
-                                            title="Open {{ $clientName }} details"
+                                            data-client-barangay="{{ $client->barangay ?? '' }}" role="button"
+                                            tabindex="0" title="Open {{ $clientName }} details"
                                             data-search-name="{{ strtolower($clientName) }}"
                                             data-search-email="{{ strtolower($client->email ?? '') }}"
                                             data-search-contact="{{ strtolower($client->contact ?? '') }}"
@@ -448,7 +421,7 @@
                                             data-search-barangay="{{ strtolower($client->barangay ?? '') }}"
                                             data-search-created-at="{{ optional($client->created_at)->format('Y-m-d') }}"
                                             data-search-all="{{ strtolower($clientName . ' ' . ($client->suffix ?? '') . ' ' . ($client->email ?? '') . ' ' . ($client->contact ?? '') . ' ' . ($client->contact_2 ?? '') . ' ' . ($client->gender ?? '') . ' ' . ($client->civil_status ?? '') . ' ' . ($client->birthplace ?? '') . ' ' . ($client->education ?? '') . ' ' . ($client->course ?? '') . ' ' . ($client->sector ?? '') . ' ' . ($client->position_organization ?? '') . ' ' . ($client->address ?? '') . ' ' . ($client->province ?? '') . ' ' . ($client->city ?? '') . ' ' . ($client->barangay ?? '')) }}">
-                                            <td>{{ $loop->iteration }}</td>
+                                            <td>{{ $client->client_id ?? '-' }}</td>
                                             <td>
                                                 <button type="button" class="btn p-0 border-0 bg-transparent"
                                                     data-bs-toggle="modal" data-bs-target="#clientPhotoModal"
@@ -461,12 +434,8 @@
                                                 </button>
                                             </td>
                                             <td>
-                                                <button type="button"
-                                                    class="client-name-link btn btn-link p-0 fw-semibold text-decoration-none">
-                                                    {{ $client->full_name }}
-                                                </button>
+                                                {{ $client->full_name }}
                                             </td>
-                                            <td>{{ $client->suffix ?? '-' }}</td>
                                             <td>{{ $client->gender ?? '-' }}</td>
                                             <td>{{ $client->civil_status ?? '-' }}</td>
                                             <td>{{ $client->contact ?? '-' }}</td>
@@ -484,35 +453,10 @@
                                                         class="btn btn-sm btn-soft-info">
                                                         View
                                                     </a>
-                                                    <button type="button" class="btn btn-sm btn-soft-primary"
-                                                        data-bs-toggle="modal" data-bs-target="#editClientModal"
-                                                        data-update-url="{{ route('clients.update', $client) }}"
-                                                        data-client-id="{{ $client->id }}"
-                                                        data-first-name="{{ $client->first_name }}"
-                                                        data-middle-name="{{ $client->middle_name }}"
-                                                        data-last-name="{{ $client->last_name }}"
-                                                        data-suffix="{{ $client->suffix }}"
-                                                        data-age="{{ $client->age }}"
-                                                        data-birth-date="{{ optional($client->birth_date)->format('Y-m-d') }}"
-                                                        data-gender="{{ $client->gender }}"
-                                                        data-civil-status="{{ $client->civil_status }}"
-                                                        data-birthplace="{{ $client->birthplace }}"
-                                                        data-education="{{ $client->education }}"
-                                                        data-course="{{ $client->course }}"
-                                                        data-sector="{{ $client->sector }}"
-                                                        data-position-organization="{{ $client->position_organization }}"
-                                                        data-email="{{ $client->email }}"
-                                                        data-contact="{{ $client->contact }}"
-                                                        data-contact-2="{{ $client->contact_2 }}"
-                                                        data-address="{{ $client->address }}"
-                                                        data-province="{{ $client->province }}"
-                                                        data-city="{{ $client->city }}"
-                                                        data-barangay="{{ $client->barangay }}"
-                                                        data-client-name="{{ $client->full_name }}"
-                                                        data-client-photo="{{ $clientPhoto }}"
-                                                        data-client-fingerprint="{{ $client->fingerprint_url }}">
+                                                    <a href="{{ route('clients.edit', $client) }}"
+                                                        class="btn btn-sm btn-soft-primary">
                                                         Edit
-                                                    </button>
+                                                    </a>
                                                     <form action="{{ route('clients.archive', $client) }}" method="POST"
                                                         onsubmit="return confirm('Are you sure you want to archive this client?');">
                                                         @csrf
@@ -525,14 +469,14 @@
                                         </tr>
                                     @empty
                                         <tr id="clientSearchEmptyRow">
-                                            <td colspan="9" class="text-center text-muted py-4">
+                                            <td colspan="8" class="text-center text-muted py-4">
                                                 {{ $matchedClientId ? 'No matching client found.' : 'No clients found.' }}
                                             </td>
                                         </tr>
                                     @endforelse
                                     @if ($clients->count())
                                         <tr id="clientSearchNoResultsRow" class="d-none">
-                                            <td colspan="9" class="text-center text-muted py-4">
+                                            <td colspan="8" class="text-center text-muted py-4">
                                                 No matching clients found.
                                             </td>
                                         </tr>
@@ -666,8 +610,6 @@
         </div>
     </div>
 
-    @include('pages.clientEdit')
-
     <div class="modal fade" id="fingerprintSearchModal" tabindex="-1" aria-labelledby="fingerprintSearchModalLabel"
         aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-lg">
@@ -734,56 +676,7 @@
             const clientViewCity = document.getElementById('clientViewCity');
             const clientViewBarangay = document.getElementById('clientViewBarangay');
             const clientViewPageLink = document.getElementById('clientViewPageLink');
-            const editModalEl = document.getElementById('editClientModal');
-            const editForm = document.getElementById('editClientForm');
-            const editTitle = document.getElementById('editClientModalLabel');
-            const editPhoto = document.getElementById('editClientPhoto');
-            const editName = document.getElementById('editClientName');
-            const editFirstName = document.getElementById('editFirstName');
-            const editMiddleName = document.getElementById('editMiddleName');
-            const editLastName = document.getElementById('editLastName');
-            const editSuffix = document.getElementById('editSuffix');
-            const editAge = document.getElementById('editAge');
-            const editBirthDate = document.getElementById('editBirthDate');
-            const editGender = document.getElementById('editGender');
-            const editCivilStatus = document.getElementById('editCivilStatus');
-            const editContact = document.getElementById('editContact');
-            const editContact2 = document.getElementById('editContact2');
-            const editEmail = document.getElementById('editEmail');
-            const editAddress = document.getElementById('editAddress');
-            const editBirthplace = document.getElementById('editBirthplace');
-            const editEducation = document.getElementById('editEducation');
-            const editCourse = document.getElementById('editCourse');
-            const editSector = document.getElementById('editSector');
-            const editPositionOrganization = document.getElementById('editPositionOrganization');
-            const editProvince = document.getElementById('editProvince');
-            const editCity = document.getElementById('editCity');
-            const editBarangay = document.getElementById('editBarangay');
-            const editProvinceManual = document.getElementById('editProvinceManual');
-            const editCityManual = document.getElementById('editCityManual');
-            const editBarangayManual = document.getElementById('editBarangayManual');
-            const sameAsHomeAddress = document.getElementById('sameAsHomeAddress');
-            const editOpenCameraBtn = document.getElementById('editOpenCameraBtn');
-            const editCapturePhotoBtn = document.getElementById('editCapturePhotoBtn');
-            const editRetakePhotoBtn = document.getElementById('editRetakePhotoBtn');
-            const editCameraWrapper = document.getElementById('editCameraWrapper');
-            const editCameraView = document.getElementById('editCameraView');
-            const editCameraCanvas = document.getElementById('editCameraCanvas');
-            const editPhotoData = document.getElementById('editPhotoData');
-            const editOpenFingerprintBtn = document.getElementById('editOpenFingerprintBtn');
-            const editClearFingerprintBtn = document.getElementById('editClearFingerprintBtn');
-            const editFingerprintPreview = document.getElementById('editFingerprintPreview');
-            const editFingerprintData = document.getElementById('editFingerprintData');
-            const editFingerprintTemplate = document.getElementById('editFingerprintTemplate');
-            const editFingerprintStatus = document.getElementById('editFingerprintStatus');
-            const editScanAgainBtn = document.getElementById('editScanAgainBtn');
-            const defaultClientPhoto = (editPhoto && editPhoto.dataset.defaultSrc) ||
-                @json(asset('assets/images/profile.png'));
             const fingerprintPlaceholderPreview = @json(asset('assets/images/fingerprint.png'));
-            const oldEditClientId = @json(old('edit_client_id', ''));
-            const oldEditPhotoData = @json(old('photo_data', ''));
-            const oldEditFingerprintData = @json(old('fingerprint_data', ''));
-            const oldEditFingerprintTemplate = @json(old('fingerprint_template', ''));
             const searchFingerprintBtn = document.getElementById('searchFingerprintBtn');
             const fingerprintSearchModalEl = document.getElementById('fingerprintSearchModal');
             const fingerprintSearchPreview = document.getElementById('fingerprintSearchPreview');
@@ -813,16 +706,7 @@
                 clientViewGender || !clientViewCivilStatus || !clientViewEmail || !clientViewContact || !
                 clientViewContact2 || !clientViewAddress || !clientViewBirthplace || !clientViewEducation || !
                 clientViewCourse || !clientViewSector || !clientViewPositionOrganization || !clientViewProvince || !
-                clientViewCity || !clientViewBarangay || !clientViewPageLink || !editModalEl || !editForm || !
-                editFirstName || !editLastName || !editSuffix || !editBirthDate || !editAge || !editGender || !
-                editCivilStatus || !editContact || !editContact2 || !editEmail || !editAddress || !editBirthplace ||
-                !editEducation || !editCourse || !editSector || !editPositionOrganization || !editProvince || !
-                editCity || !editBarangay || !editProvinceManual || !editCityManual || !editBarangayManual || !
-                sameAsHomeAddress || !editPhoto || !editName || !editTitle || !editOpenCameraBtn || !
-                editCapturePhotoBtn || !editRetakePhotoBtn || !editCameraWrapper || !editCameraView || !
-                editCameraCanvas || !editPhotoData || !editOpenFingerprintBtn || !editClearFingerprintBtn || !
-                editScanAgainBtn || !editFingerprintPreview || !editFingerprintData || !editFingerprintTemplate || !
-                editFingerprintStatus || !searchFingerprintBtn || !
+                clientViewCity || !clientViewBarangay || !clientViewPageLink || !searchFingerprintBtn || !
                 fingerprintSearchModalEl || !fingerprintSearchPreview || !fingerprintSearchStatus || !
                 fingerprintScanAgainBtn || !clientKeywordInput || !clientSexFilter || !clientCivilStatusFilter || !
                 clientCityFilter || !clientBarangayFilter || !clientRecordTypeFilter || !clientFiltersResetBtn || !
@@ -832,288 +716,13 @@
                 return;
             }
 
-            let editStream = null;
-            const editDefaultFingerprint = editFingerprintPreview.dataset.defaultSrc || fingerprintPlaceholderPreview;
-            let editHasFingerprint = false;
-            let editOriginalFingerprintPreview = editDefaultFingerprint;
-            let editFingerprintDataUrl = '';
-            let editFingerprintTemplateXml = '';
+
             const fingerprintSearchModal = bootstrap.Modal.getOrCreateInstance(fingerprintSearchModalEl);
             const clientViewModal = bootstrap.Modal.getOrCreateInstance(clientViewModalEl);
             const clientRows = Array.from(document.querySelectorAll('[data-client-row]'));
             const clientRowInteractiveSelector = 'a, button, input, select, textarea, label, form';
             let filtersVisible = true;
-            const psgcProvincesUrl = @json(route('psgc.provinces'));
-            const psgcCitiesBaseUrl = @json(url('psgc/provinces'));
-            const psgcBarangaysBaseUrl = @json(url('psgc/cities'));
-            const calabarzonProvinces = ['Batangas', 'Cavite', 'Laguna', 'Quezon', 'Rizal'];
-            const normalizeLocationText = (value) => upperValue((value || '').toString().trim());
-            const editUppercaseTextFields = [
-                editFirstName,
-                editMiddleName,
-                editLastName,
-                editSuffix,
-                editBirthplace,
-                editAddress,
-                editCourse,
-                editPositionOrganization,
-                editProvinceManual,
-                editCityManual,
-                editBarangayManual,
-                editEmail,
-            ];
-            const normalizePsgcItems = (payload) => {
-                const items = Array.isArray(payload) ? payload : (payload?.data ?? payload?.result ?? payload?.items ?? []);
 
-                if (!Array.isArray(items)) {
-                    return [];
-                }
-
-                return items.map((item) => ({
-                    code: item?.code || item?.psgcCode || item?.id || '',
-                    name: item?.name || item?.label || item?.description || '',
-                })).filter((item) => item.name);
-            };
-
-            const upperValue = (value) => (value || '').toString().toUpperCase();
-
-            const calculateAgeFromBirthDate = (birthDateValue) => {
-                if (!birthDateValue) {
-                    return '';
-                }
-
-                const birthDate = new Date(`${birthDateValue}T00:00:00`);
-                if (Number.isNaN(birthDate.getTime())) {
-                    return '';
-                }
-
-                const today = new Date();
-                let age = today.getFullYear() - birthDate.getFullYear();
-                const monthDifference = today.getMonth() - birthDate.getMonth();
-
-                if (monthDifference < 0 || (monthDifference === 0 && today.getDate() < birthDate.getDate())) {
-                    age--;
-                }
-
-                return age >= 0 ? String(age) : '';
-            };
-
-            const syncEditAgeFromBirthDate = (force = false) => {
-                const computedAge = calculateAgeFromBirthDate(editBirthDate.value);
-
-                if (!computedAge) {
-                    if (force) {
-                        editAge.value = '';
-                    }
-
-                    return;
-                }
-
-                if (force || !editAge.value) {
-                    editAge.value = computedAge;
-                }
-            };
-
-            const setUppercaseValue = (element, value = '') => {
-                if (!element) {
-                    return;
-                }
-
-                element.value = upperValue(value);
-            };
-
-            editUppercaseTextFields.forEach((field) => {
-                if (!field) {
-                    return;
-                }
-
-                field.addEventListener('input', function() {
-                    const start = this.selectionStart;
-                    const end = this.selectionEnd;
-                    this.value = upperValue(this.value);
-
-                    if (typeof start === 'number' && typeof end === 'number') {
-                        this.setSelectionRange(start, end);
-                    }
-                });
-            });
-
-            editBirthDate.addEventListener('input', function () {
-                syncEditAgeFromBirthDate(true);
-            });
-
-            editBirthDate.addEventListener('change', function () {
-                syncEditAgeFromBirthDate(true);
-            });
-
-            const selectOptionByLabel = (select, desiredValue) => {
-                if (!desiredValue) {
-                    select.value = '';
-                    return;
-                }
-
-                const match = Array.from(select.options).find((option) =>
-                    (option.value || '').toLowerCase() === desiredValue.toLowerCase() ||
-                    (option.textContent || '').toLowerCase() === desiredValue.toLowerCase()
-                );
-
-                select.value = match ? match.value : desiredValue;
-            };
-
-            const fillPsgcSelect = (select, placeholder, items, selectedValue = '') => {
-                select.innerHTML = '';
-
-                const placeholderOption = document.createElement('option');
-                placeholderOption.value = '';
-                placeholderOption.textContent = upperValue(placeholder);
-                placeholderOption.selected = !selectedValue;
-                select.appendChild(placeholderOption);
-
-                items.forEach((item) => {
-                    const option = document.createElement('option');
-                    option.value = upperValue(item.name);
-                    option.textContent = upperValue(item.name);
-                    option.dataset.code = item.code || '';
-                    select.appendChild(option);
-                });
-
-                if (selectedValue) {
-                    const match = Array.from(select.options).find((option) =>
-                        (option.value || '').toLowerCase() === selectedValue.toLowerCase() ||
-                        (option.textContent || '').toLowerCase() === selectedValue.toLowerCase()
-                    );
-
-                    if (match) {
-                        match.selected = true;
-                    } else {
-                        const fallbackOption = document.createElement('option');
-                        fallbackOption.value = upperValue(selectedValue);
-                        fallbackOption.textContent = upperValue(selectedValue);
-                        fallbackOption.selected = true;
-                        select.appendChild(fallbackOption);
-                    }
-                }
-            };
-
-            const setEditLocationMode = (outsideImus) => {
-                sameAsHomeAddress.checked = !!outsideImus;
-
-                editProvince.classList.remove('d-none');
-                editCity.classList.remove('d-none');
-                editBarangay.classList.remove('d-none');
-                editProvince.disabled = false;
-                editCity.disabled = false;
-                editBarangay.disabled = false;
-
-                editProvinceManual.classList.add('d-none');
-                editCityManual.classList.add('d-none');
-                editBarangayManual.classList.add('d-none');
-                editProvinceManual.disabled = true;
-                editCityManual.disabled = true;
-                editBarangayManual.disabled = true;
-
-                editProvince.name = 'province';
-                editCity.name = 'city';
-                editBarangay.name = 'barangay';
-                editProvinceManual.name = 'province_manual';
-                editCityManual.name = 'city_manual';
-                editBarangayManual.name = 'barangay_manual';
-            };
-
-            const enableEditManualLocations = (provinceValue = '', cityValue = '', barangayValue = '', message = '') => {
-                setEditLocationMode(sameAsHomeAddress.checked);
-
-                if (message) {
-                    alert(message);
-                }
-            };
-
-            const disableEditManualLocations = () => {
-                setEditLocationMode(sameAsHomeAddress.checked);
-            };
-
-            const loadEditProvinces = async (selectedProvince = '') => {
-                const response = await fetch(psgcProvincesUrl);
-                if (!response.ok) {
-                    throw new Error('Failed to load provinces.');
-                }
-
-                const provinces = normalizePsgcItems(await response.json())
-                    .filter((province) => calabarzonProvinces.some((name) =>
-                        normalizeLocationText(name) === normalizeLocationText(province.name)
-                    ));
-                fillPsgcSelect(editProvince, 'Select province', provinces, selectedProvince);
-            };
-
-            const loadEditCities = async (provinceCode, selectedCity = '') => {
-                if (!provinceCode) {
-                    fillPsgcSelect(editCity, 'Select city', [], '');
-                    fillPsgcSelect(editBarangay, 'Select barangay', [], '');
-                    return;
-                }
-
-                const response = await fetch(`${psgcCitiesBaseUrl}/${encodeURIComponent(provinceCode)}/cities`);
-                if (!response.ok) {
-                    throw new Error('Failed to load cities.');
-                }
-
-                const cities = normalizePsgcItems(await response.json());
-                fillPsgcSelect(editCity, 'Select city', cities, selectedCity);
-            };
-
-            const loadEditBarangays = async (cityCode, selectedBarangay = '') => {
-                if (!cityCode) {
-                    fillPsgcSelect(editBarangay, 'Select barangay', [], '');
-                    return;
-                }
-
-                const response = await fetch(`${psgcBarangaysBaseUrl}/${encodeURIComponent(cityCode)}/barangays`);
-                if (!response.ok) {
-                    throw new Error('Failed to load barangays.');
-                }
-
-                const barangays = normalizePsgcItems(await response.json());
-                fillPsgcSelect(editBarangay, 'Select barangay', barangays, selectedBarangay);
-            };
-
-            const restoreEditLocations = async (provinceName, cityName, barangayName) => {
-                disableEditManualLocations();
-                await loadEditProvinces(provinceName);
-
-                const provinceOption = Array.from(editProvince.options).find((option) =>
-                    normalizeLocationText(option.value || option.textContent || '') === normalizeLocationText(provinceName)
-                );
-                const provinceCode = provinceOption?.dataset.code || '';
-
-                if (!provinceCode) {
-                    if (cityName) {
-                        fillPsgcSelect(editCity, 'Select city', [], cityName);
-                    }
-                    if (barangayName) {
-                        fillPsgcSelect(editBarangay, 'Select barangay', [], barangayName);
-                    }
-                    setEditLocationMode(sameAsHomeAddress.checked);
-                    return;
-                }
-
-                await loadEditCities(provinceCode, cityName);
-
-                const cityOption = Array.from(editCity.options).find((option) =>
-                    normalizeLocationText(option.value || option.textContent || '') === normalizeLocationText(cityName)
-                );
-                const cityCode = cityOption?.dataset.code || '';
-
-                if (!cityCode) {
-                    if (barangayName) {
-                        fillPsgcSelect(editBarangay, 'Select barangay', [], barangayName);
-                    }
-                    setEditLocationMode(sameAsHomeAddress.checked);
-                    return;
-                }
-
-                await loadEditBarangays(cityCode, barangayName);
-                setEditLocationMode(sameAsHomeAddress.checked);
-            };
 
             const setFiltersVisibility = (visible) => {
                 filtersVisible = visible;
@@ -1183,64 +792,6 @@
                     (visibleCount === totalCount ?
                         'Showing all clients' :
                         `Showing ${visibleCount} of ${totalCount} clients`);
-            };
-
-            const stopEditCamera = () => {
-                if (editStream) {
-                    editStream.getTracks().forEach((track) => track.stop());
-                    editStream = null;
-                }
-                editCameraView.srcObject = null;
-                editCapturePhotoBtn.disabled = true;
-                editRetakePhotoBtn.disabled = false;
-                editCameraWrapper.classList.add('d-none');
-            };
-
-            const applyEditValidationMedia = (clientId) => {
-                if (!oldEditClientId || oldEditClientId !== clientId) {
-                    return;
-                }
-
-                if (oldEditPhotoData) {
-                    editPhoto.src = oldEditPhotoData;
-                    editPhotoData.value = oldEditPhotoData;
-                    editRetakePhotoBtn.disabled = false;
-                }
-
-                if (oldEditFingerprintData) {
-                    editFingerprintDataUrl = oldEditFingerprintData;
-                    editFingerprintTemplateXml = oldEditFingerprintTemplate || '';
-                    editFingerprintData.value = oldEditFingerprintData;
-                    editFingerprintTemplate.value = oldEditFingerprintTemplate || '';
-                    editFingerprintPreview.src = oldEditFingerprintData;
-                    editFingerprintStatus.textContent = 'Fingerprint captured and ready to save.';
-                    editClearFingerprintBtn.disabled = false;
-                    editScanAgainBtn.classList.remove('d-none');
-                }
-            };
-
-            const setEditFingerprintPreview = (imageData, statusText, templateXml = '') => {
-                editFingerprintDataUrl = imageData || '';
-                editFingerprintTemplateXml = templateXml || editFingerprintTemplateXml;
-                editFingerprintData.value = editFingerprintDataUrl;
-                editFingerprintTemplate.value = editFingerprintTemplateXml;
-                editFingerprintPreview.src = editFingerprintDataUrl || editDefaultFingerprint;
-                editFingerprintStatus.textContent = statusText || (editFingerprintDataUrl ?
-                    'Fingerprint captured and ready to save.' : 'No fingerprint captured yet.');
-                editClearFingerprintBtn.disabled = !editFingerprintDataUrl && !editHasFingerprint;
-                editScanAgainBtn.classList.toggle('d-none', !editFingerprintDataUrl && !editHasFingerprint);
-            };
-
-            const clearEditFingerprintCapture = () => {
-                editFingerprintDataUrl = '';
-                editFingerprintTemplateXml = '';
-                editFingerprintData.value = '';
-                editFingerprintTemplate.value = '';
-                editFingerprintPreview.src = editOriginalFingerprintPreview;
-                editFingerprintStatus.textContent = editHasFingerprint ?
-                    'Existing fingerprint on file.' : 'No fingerprint captured yet.';
-                editClearFingerprintBtn.disabled = !editHasFingerprint;
-                editScanAgainBtn.classList.toggle('d-none', !editHasFingerprint);
             };
 
             const captureEditFingerprintFromBridge = async () => {
@@ -1406,32 +957,6 @@
                 }
             };
 
-            const startEditCamera = async () => {
-                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                    alert('Camera capture is not supported in this browser.');
-                    return;
-                }
-
-                try {
-                    editStream = await navigator.mediaDevices.getUserMedia({
-                        video: {
-                            facingMode: 'environment'
-                        },
-                        audio: false
-                    });
-
-                    editCameraView.srcObject = editStream;
-                    if (typeof editCameraView.play === 'function') {
-                        await editCameraView.play().catch(() => {});
-                    }
-                    editCameraWrapper.classList.remove('d-none');
-                    editCapturePhotoBtn.disabled = false;
-                    editRetakePhotoBtn.disabled = true;
-                } catch (error) {
-                    alert('Unable to access the camera. Please allow camera permissions and try again.');
-                }
-            };
-
             modalEl.addEventListener('show.bs.modal', function(event) {
                 const trigger = event.relatedTarget;
 
@@ -1449,117 +974,6 @@
             modalEl.addEventListener('hidden.bs.modal', function() {
                 modalImage.src = '';
                 modalTitle.textContent = 'Client Photo';
-            });
-
-            editModalEl.addEventListener('show.bs.modal', function(event) {
-                const trigger = event.relatedTarget;
-
-                if (!trigger) {
-                    return;
-                }
-
-                const clientId = trigger.getAttribute('data-client-id') || '';
-                editForm.action = trigger.getAttribute('data-update-url') || editForm.action;
-                editClientId.value = clientId;
-                editTitle.textContent = `Edit ${trigger.getAttribute('data-client-name') || 'Client'}`;
-                editName.textContent = trigger.getAttribute('data-client-name') || 'Client';
-                const clientPhotoPreview = trigger.getAttribute('data-client-photo') || defaultClientPhoto;
-                editPhoto.src = clientPhotoPreview;
-                setUppercaseValue(editFirstName, trigger.getAttribute('data-first-name') || '');
-                setUppercaseValue(editMiddleName, trigger.getAttribute('data-middle-name') || '');
-                setUppercaseValue(editLastName, trigger.getAttribute('data-last-name') || '');
-                setUppercaseValue(editSuffix, trigger.getAttribute('data-suffix') || '');
-                editAge.value = trigger.getAttribute('data-age') || '';
-                editBirthDate.value = trigger.getAttribute('data-birth-date') || '';
-                syncEditAgeFromBirthDate();
-                setUppercaseValue(editGender, trigger.getAttribute('data-gender') || '');
-                setUppercaseValue(editCivilStatus, trigger.getAttribute('data-civil-status') || '');
-                editContact.value = trigger.getAttribute('data-contact') || '';
-                editContact2.value = trigger.getAttribute('data-contact-2') || '';
-                setUppercaseValue(editEmail, trigger.getAttribute('data-email') || '');
-                setUppercaseValue(editAddress, trigger.getAttribute('data-address') || '');
-                setUppercaseValue(editBirthplace, trigger.getAttribute('data-birthplace') || '');
-                setUppercaseValue(editEducation, trigger.getAttribute('data-education') || '');
-                setUppercaseValue(editCourse, trigger.getAttribute('data-course') || '');
-                setUppercaseValue(editSector, trigger.getAttribute('data-sector') || '');
-                setUppercaseValue(editPositionOrganization, trigger.getAttribute('data-position-organization') || '');
-                editPhoto.dataset.original = clientPhotoPreview;
-                editPhotoData.value = '';
-                editHasFingerprint = (trigger.getAttribute('data-client-fingerprint') || editDefaultFingerprint) !== editDefaultFingerprint;
-                editOriginalFingerprintPreview = trigger.getAttribute('data-client-fingerprint') ||
-                    editDefaultFingerprint;
-                editFingerprintPreview.src = editOriginalFingerprintPreview;
-                editFingerprintData.value = '';
-                editFingerprintTemplate.value = '';
-                editFingerprintDataUrl = '';
-                editFingerprintTemplateXml = '';
-                editFingerprintStatus.textContent = editHasFingerprint ? 'Existing fingerprint on file.' :
-                    'No fingerprint captured yet.';
-                editClearFingerprintBtn.disabled = !editHasFingerprint;
-                editScanAgainBtn.classList.toggle('d-none', !editHasFingerprint);
-                editCameraWrapper.classList.add('d-none');
-                editCapturePhotoBtn.disabled = true;
-                editRetakePhotoBtn.disabled = true;
-                editCameraView.srcObject = null;
-
-                const provinceName = trigger.getAttribute('data-province') || '';
-                const cityName = trigger.getAttribute('data-city') || '';
-                const barangayName = trigger.getAttribute('data-barangay') || '';
-
-                sameAsHomeAddress.checked = false;
-                restoreEditLocations(provinceName, cityName, barangayName).catch(() => {
-                    enableEditManualLocations(provinceName, cityName, barangayName, 'Unable to load location data. You can enter it manually.');
-                });
-
-                applyEditValidationMedia(clientId);
-            });
-
-            editModalEl.addEventListener('hidden.bs.modal', function() {
-                editForm.action = '';
-                editClientId.value = '';
-                editTitle.textContent = 'Edit Client';
-                editName.textContent = '';
-                editPhoto.src = defaultClientPhoto;
-                editPhotoData.value = '';
-                editFingerprintPreview.src = editDefaultFingerprint;
-                editOriginalFingerprintPreview = editDefaultFingerprint;
-                editFingerprintData.value = '';
-                editFingerprintTemplate.value = '';
-                editFingerprintDataUrl = '';
-                editFingerprintTemplateXml = '';
-                editFingerprintStatus.textContent = 'No fingerprint captured yet.';
-                editClearFingerprintBtn.disabled = true;
-                editScanAgainBtn.classList.add('d-none');
-                editHasFingerprint = false;
-                sameAsHomeAddress.checked = false;
-                disableEditManualLocations();
-                stopEditCamera();
-                editForm.reset();
-            });
-
-            sameAsHomeAddress.addEventListener('change', function() {
-                setEditLocationMode(this.checked);
-            });
-
-            editProvince.addEventListener('change', function() {
-                const provinceCode = this.selectedOptions[0]?.dataset.code || '';
-
-                loadEditCities(provinceCode, '').catch(() => {
-                    fillPsgcSelect(editCity, 'Select city', [], '');
-                    fillPsgcSelect(editBarangay, 'Select barangay', [], '');
-                });
-            });
-
-            editCity.addEventListener('change', function() {
-                const cityCode = this.selectedOptions[0]?.dataset.code || '';
-
-                loadEditBarangays(cityCode, '').catch(() => {
-                    fillPsgcSelect(editBarangay, 'Select barangay', [], '');
-                });
-            });
-
-            editOpenCameraBtn.addEventListener('click', function() {
-                startEditCamera();
             });
 
             clientRows.forEach((row) => {
@@ -1663,71 +1077,6 @@
                 clientViewBarangay.textContent = '-';
                 clientViewPageLink.href = '#';
             });
-
-            editOpenFingerprintBtn.addEventListener('click', function() {
-                (async () => {
-                    try {
-                        editFingerprintStatus.textContent = 'Checking fingerprint scanner bridge...';
-                        const bridgeOnline = await isFingerprintBridgeOnline();
-                        if (!bridgeOnline) {
-                            throw new Error(
-                                'DigitalPersona bridge is not running. Start the FingerprintBridge app first.'
-                            );
-                        }
-
-                        editFingerprintStatus.textContent = 'Place your finger on the scanner...';
-                        const captureResult = await captureEditFingerprintFromBridge();
-                        setEditFingerprintPreview(captureResult.imageDataUrl,
-                            'Fingerprint captured from device. Save the client to keep it.',
-                            captureResult.fingerprintTemplateXml || '');
-                    } catch (error) {
-                        editFingerprintStatus.textContent =
-                            'Scanner bridge is not available. Make sure the bridge app is running.';
-                        alert(
-                            `Unable to capture from the scanner bridge.\n\n${error.message || error}`
-                        );
-                    }
-                })();
-            });
-
-            editScanAgainBtn.addEventListener('click', function() {
-                editOpenFingerprintBtn.click();
-            });
-
-            editClearFingerprintBtn.addEventListener('click', function() {
-                clearEditFingerprintCapture();
-            });
-
-            editCapturePhotoBtn.addEventListener('click', function() {
-                const context = editCameraCanvas.getContext('2d');
-                editCameraCanvas.width = editCameraView.videoWidth || 200;
-                editCameraCanvas.height = editCameraView.videoHeight || 200;
-                context.save();
-                context.translate(editCameraCanvas.width, 0);
-                context.scale(-1, 1);
-                context.drawImage(editCameraView, 0, 0, editCameraCanvas.width, editCameraCanvas.height);
-                context.restore();
-
-                const imageData = editCameraCanvas.toDataURL('image/png');
-                editPhoto.src = imageData;
-                editPhotoData.value = imageData;
-
-                stopEditCamera();
-                editRetakePhotoBtn.disabled = false;
-            });
-
-            editRetakePhotoBtn.addEventListener('click', function() {
-                editPhotoData.value = '';
-                editPhoto.src = editPhoto.dataset.original || defaultClientPhoto;
-                editOpenCameraBtn.click();
-            });
-
-            if (oldEditClientId) {
-                const editTrigger = document.querySelector(`[data-client-id="${oldEditClientId}"]`);
-                if (editTrigger) {
-                    editTrigger.click();
-                }
-            }
 
             const matchedClientId = new URLSearchParams(window.location.search).get('matched_client');
             if (matchedClientId) {

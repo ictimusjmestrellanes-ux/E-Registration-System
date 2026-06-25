@@ -71,10 +71,6 @@
     <script src="{{ asset('assets/js/feather.min.js') }}"></script>
     <script src="{{ asset('assets/js/lord-icon-2.1.0.js') }}"></script>
     <script src="{{ asset('assets/js/plugins.js') }}"></script>
-    <!-- particles js -->
-    <script src="{{ asset('assets/js/particles.js') }}"></script>
-    <!-- particles app js -->
-    <script src="{{ asset('assets/js/particles.app.js') }}"></script>
     <!-- password-addon init -->
     <script src="{{ asset('assets/js/password-addon.init.js') }}"></script>
     <!-- imessage -->
@@ -97,5 +93,8 @@
     </script>
 
     @yield('script')
+    @if (file_exists(public_path('hot')))
+        @vite('resources/js/app.js')
+    @endif
 </body>
 </html>

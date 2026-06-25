@@ -114,13 +114,17 @@
                                                 <div class="col-md d-flex flex-column justify-content-center">
                                                     <div class="d-flex flex-wrap gap-2 mb-2">
                                                         <button type="button" class="btn btn-soft-primary"
-                                                            id="openCameraBtn" data-bs-toggle="modal"
-                                                            data-bs-target="#cameraModal">Open Camera</button>
+                                                            id="openCameraBtn">Open Camera</button>
                                                         <button type="button" class="btn btn-soft-success"
                                                             id="retakePhotoBtn" disabled>Retake</button>
+                                                        <button type="button" class="btn btn-soft-secondary"
+                                                            id="uploadPhotoBtn">Upload Photo</button>
                                                     </div>
+                                                    <input type="file" id="clientPhotoFileInput" class="d-none"
+                                                        accept="image/*">
                                                     <canvas id="cameraCanvas" class="d-none"></canvas>
                                                     <input type="hidden" id="clientPhotoData" name="photo_data">
+                                                    <div id="photoCaptureError" class="text-danger small mt-1 d-none"></div>
                                                 </div>
                                             </div>
                                         </div>
@@ -156,6 +160,7 @@
                                                         value="{{ old('fingerprint_template', '') }}">
                                                     <div class="small text-muted" id="fingerprintStatus">No fingerprint
                                                         captured yet.</div>
+                                                    <div id="fingerprintCaptureError" class="text-danger small mt-1 d-none"></div>
                                                     @error('fingerprint_template')
                                                         <div class="text-danger small mt-1">{{ $message }}</div>
                                                     @enderror
@@ -185,11 +190,10 @@
                                             </div>
 
                                             <div class="col-lg-3">
-                                                <label for="middleName" class="form-label">Middle Name</label>
+                                                <label for="middleName" class="form-label">Middle Name (Optional)</label>
                                                 <input type="text" class="form-control" id="middleName"
                                                     name="middle_name" placeholder="Enter middle name"
-                                                    value="{{ old('middle_name', optional($editingClient)->middle_name ?? '') }}"
-                                                    required>
+                                                    value="{{ old('middle_name', optional($editingClient)->middle_name ?? '') }}">
                                             </div>
 
                                             <div class="col-lg-3">
@@ -201,11 +205,10 @@
                                             </div>
 
                                             <div class="col-lg-3">
-                                                <label for="suffix" class="form-label">Suffix</label>
+                                                <label for="suffix" class="form-label">Suffix (Optional)</label>
                                                 <input type="text" class="form-control" id="suffix" name="suffix"
                                                     placeholder="Jr., Sr., III"
-                                                    value="{{ old('suffix', optional($editingClient)->suffix ?? '') }}"
-                                                    required>
+                                                    value="{{ old('suffix', optional($editingClient)->suffix ?? '') }}">
                                             </div>
 
                                             <div class="col-lg-2">
@@ -306,25 +309,27 @@
 
                                             <div class="col-lg-4">
                                                 <label for="province" class="form-label">Province</label>
-                                                <select class="form-select" id="province" name="province" disabled>
+                                                <select class="form-select" id="province" name="province_select" disabled>
                                                     <option value="">Select province</option>
                                                 </select>
+                                                <input type="hidden" id="provinceHidden" name="province"
+                                                    value="{{ old('province', optional($editingClient)->province ?? 'CAVITE') }}">
                                                 <input type="text" class="form-control d-none mt-2"
                                                     id="provinceManual" name="province_manual"
                                                     placeholder="Enter province manually"
-                                                    value="{{ old('province', optional($editingClient)->province ?? '') }}"
-                                                    required>
+                                                    value="{{ old('province', optional($editingClient)->province ?? '') }}">
                                             </div>
 
                                             <div class="col-lg-4">
                                                 <label for="city" class="form-label">City</label>
-                                                <select class="form-select" id="city" name="city" disabled>
+                                                <select class="form-select" id="city" name="city_select" disabled>
                                                     <option value="">Select city</option>
                                                 </select>
+                                                <input type="hidden" id="cityHidden" name="city"
+                                                    value="{{ old('city', optional($editingClient)->city ?? 'CITY OF IMUS') }}">
                                                 <input type="text" class="form-control d-none mt-2" id="cityManual"
                                                     name="city_manual" placeholder="Enter city manually"
-                                                    value="{{ old('city', optional($editingClient)->city ?? '') }}"
-                                                    required>
+                                                    value="{{ old('city', optional($editingClient)->city ?? '') }}">
                                             </div>
 
                                             <div class="col-lg-4">
@@ -335,8 +340,7 @@
                                                 <input type="text" class="form-control d-none mt-2"
                                                     id="barangayManual" name="barangay_manual"
                                                     placeholder="Enter barangay manually"
-                                                    value="{{ old('barangay', optional($editingClient)->barangay ?? '') }}"
-                                                    required>
+                                                    value="{{ old('barangay', optional($editingClient)->barangay ?? '') }}">
                                             </div>
 
                                             <div class="col-lg-4">
@@ -352,12 +356,11 @@
                                             </div>
 
                                             <div class="col-lg-4">
-                                                <label for="contact2" class="form-label">Contact 2</label>
+                                                <label for="contact2" class="form-label">Contact 2 (Optional)</label>
                                                 <input type="text" class="form-control" id="contact2"
                                                     name="contact_2" placeholder="Enter secondary contact number"
                                                     inputmode="numeric" maxlength="11" autocomplete="off"
-                                                    value="{{ old('contact_2', optional($editingClient)->contact_2 ?? '') }}"
-                                                    required>
+                                                    value="{{ old('contact_2', optional($editingClient)->contact_2 ?? '') }}">
                                                 <div id="contact2Error" class="text-danger small mt-1 d-none">Only numbers
                                                     can be input.
                                                 </div>
@@ -452,13 +455,18 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <div id="cameraWrapper" class="border rounded p-2 bg-light">
+                    <div id="cameraWrapper" class="border rounded p-2 bg-light" style="min-height: 300px;">
                         <video id="cameraView" class="rounded w-100" autoplay playsinline
                             style="max-height: 1000px; object-fit: cover; transform: scaleX(-1);"></video>
+                        <div id="cameraUnsupportedMessage" class="d-none d-flex flex-column justify-content-center align-items-center text-center text-muted h-100">
+                            <div class="fw-semibold mb-2">Camera is unavailable.</div>
+                            <div>Please allow camera permissions or use the Upload Photo button.</div>
+                        </div>
                     </div>
                     <p class="text-muted small mt-2 mb-0">Position the camera, then click Capture Photo.</p>
                 </div>
                 <div class="modal-footer">
+                    <button type="button" class="btn btn-soft-secondary" id="uploadPhotoModalBtn">Upload Photo</button>
                     <button type="button" class="btn btn-soft-secondary" data-bs-dismiss="modal">Close</button>
                     <button type="button" class="btn btn-primary" id="capturePhotoBtn" disabled>Capture Photo</button>
                 </div>
@@ -514,8 +522,12 @@
             const openCameraBtn = document.getElementById('openCameraBtn');
             const capturePhotoBtn = document.getElementById('capturePhotoBtn');
             const retakePhotoBtn = document.getElementById('retakePhotoBtn');
+            const uploadPhotoBtn = document.getElementById('uploadPhotoBtn');
+            const uploadPhotoModalBtn = document.getElementById('uploadPhotoModalBtn');
+            const clientPhotoFileInput = document.getElementById('clientPhotoFileInput');
             const cameraWrapper = document.getElementById('cameraWrapper');
             const cameraView = document.getElementById('cameraView');
+            const cameraUnsupportedMessage = document.getElementById('cameraUnsupportedMessage');
             const cameraCanvas = document.getElementById('cameraCanvas');
             const clientPhotoData = document.getElementById('clientPhotoData');
             const birthDateInput = document.getElementById('birthDate');
@@ -533,6 +545,8 @@
             const clientFingerprintData = document.getElementById('clientFingerprintData');
             const clientFingerprintTemplate = document.getElementById('clientFingerprintTemplate');
             const preview = document.getElementById('clientPhotoPreview');
+            const photoCaptureError = document.getElementById('photoCaptureError');
+            const fingerprintCaptureError = document.getElementById('fingerprintCaptureError');
             const form = document.querySelector('form');
             const contactInput = document.getElementById('contact');
             const contactError = document.getElementById('contactError');
@@ -542,6 +556,8 @@
             const provinceSelect = document.getElementById('province');
             const citySelect = document.getElementById('city');
             const barangaySelect = document.getElementById('barangay');
+            const provinceHidden = document.getElementById('provinceHidden');
+            const cityHidden = document.getElementById('cityHidden');
             const provinceManual = document.getElementById('provinceManual');
             const cityManual = document.getElementById('cityManual');
             const barangayManual = document.getElementById('barangayManual');
@@ -559,8 +575,8 @@
             if (!openCameraBtn || !capturePhotoBtn || !retakePhotoBtn || !cameraWrapper || !cameraView || !
                 cameraCanvas || !clientPhotoData || !birthDateInput || !ageInput || !preview || !form || !
                 contactInput || !contactError || !contact2Input || !contact2Error || !cameraModalEl || !
-                provinceSelect || !citySelect || !barangaySelect || !provinceManual || !cityManual || !
-                barangayManual || !sameAsHomeAddress || !openFingerprintBtn || !clearFingerprintBtn || !
+                uploadPhotoBtn || !clientPhotoFileInput || !provinceSelect || !citySelect || !barangaySelect || !provinceHidden || !cityHidden || !
+                provinceManual || !cityManual || !barangayManual || !sameAsHomeAddress || !openFingerprintBtn || !clearFingerprintBtn || !
                 fingerprintPreview || !fingerprintStatus || !fingerprintModalEl || !fingerprintModalPreview || !
                 fingerprintModalError || !retryFingerprintCaptureBtn || !saveFingerprintBtn || !
                 clearFingerprintCaptureBtn || !clientFingerprintData || !clientFingerprintTemplate) {
@@ -665,12 +681,18 @@
                 citySelect.classList.add('d-none');
                 barangaySelect.classList.add('d-none');
 
+                provinceHidden.disabled = true;
+                cityHidden.disabled = true;
+
                 provinceManual.classList.remove('d-none');
                 cityManual.classList.remove('d-none');
                 barangayManual.classList.remove('d-none');
                 provinceManual.disabled = false;
                 cityManual.disabled = false;
                 barangayManual.disabled = false;
+                provinceManual.required = true;
+                cityManual.required = true;
+                barangayManual.required = true;
 
                 provinceManual.name = 'province';
                 cityManual.name = 'city';
@@ -693,16 +715,27 @@
                 citySelect.classList.remove('d-none');
                 barangaySelect.classList.remove('d-none');
 
+                provinceHidden.disabled = false;
+                cityHidden.disabled = false;
+
                 provinceManual.classList.add('d-none');
                 cityManual.classList.add('d-none');
                 barangayManual.classList.add('d-none');
                 provinceManual.disabled = true;
                 cityManual.disabled = true;
                 barangayManual.disabled = true;
+                provinceManual.required = false;
+                cityManual.required = false;
+                barangayManual.required = false;
 
                 provinceManual.name = 'province_manual';
                 cityManual.name = 'city_manual';
                 barangayManual.name = 'barangay_manual';
+            };
+
+            const syncLocationHiddenFields = () => {
+                provinceHidden.value = provinceManual.disabled ? provinceSelect.value : provinceManual.value;
+                cityHidden.value = cityManual.disabled ? citySelect.value : cityManual.value;
             };
 
             const setLocationMode = (outsideImus) => {
@@ -719,10 +752,15 @@
                 provinceManual.disabled = true;
                 cityManual.disabled = true;
                 barangayManual.disabled = false;
+                provinceManual.required = false;
+                cityManual.required = false;
+                barangayManual.required = false;
 
                 provinceManual.name = 'province_manual';
                 cityManual.name = 'city_manual';
                 barangayManual.name = 'barangay_manual';
+
+                syncLocationHiddenFields();
             };
 
             const loadProvinces = async () => {
@@ -931,7 +969,8 @@
 
             const startCamera = async () => {
                 if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                    alert('Camera capture is not supported in this browser.');
+                    cameraModal.hide();
+                    clientPhotoFileInput.click();
                     return;
                 }
 
@@ -943,15 +982,23 @@
                         audio: false
                     });
 
+                    cameraUnsupportedMessage.classList.add('d-none');
+                    cameraView.classList.remove('d-none');
                     cameraView.srcObject = stream;
                     capturePhotoBtn.disabled = false;
                     retakePhotoBtn.disabled = true;
                 } catch (error) {
-                    alert('Unable to access the camera. Please allow camera permissions and try again.');
+                    cameraModal.hide();
+                    clientPhotoFileInput.click();
                 }
             };
 
             openCameraBtn.addEventListener('click', function() {
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    clientPhotoFileInput.click();
+                    return;
+                }
+
                 cameraModal.show();
             });
 
@@ -1032,18 +1079,47 @@
                 clearFingerprintCapture();
             });
 
+            uploadPhotoBtn.addEventListener('click', function() {
+                clientPhotoFileInput.click();
+            });
+
+            clientPhotoFileInput.addEventListener('change', function() {
+                const file = this.files?.[0];
+                if (!file) {
+                    return;
+                }
+
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    const imageData = event.target?.result;
+                    if (typeof imageData === 'string') {
+                        preview.src = imageData;
+                        clientPhotoData.value = imageData;
+                        retakePhotoBtn.disabled = false;
+                        cameraModal.hide();
+                        photoCaptureError.classList.add('d-none');
+                    }
+                };
+                reader.readAsDataURL(file);
+            });
+
             provinceSelect.addEventListener('change', function() {
                 const provinceCode = this.selectedOptions[0]?.dataset.code || '';
                 loadCities(provinceCode, '').catch(() => enableManualLocations(
                     'Unable to load cities for the selected province. You can enter it manually.'));
                 fillSelect(barangaySelect, 'Select barangay', [], '');
+                syncLocationHiddenFields();
             });
 
             citySelect.addEventListener('change', function() {
                 const cityCode = this.selectedOptions[0]?.dataset.code || '';
                 loadBarangays(cityCode, '').catch(() => enableManualLocations(
                     'Unable to load barangays for the selected city. You can enter it manually.'));
+                syncLocationHiddenFields();
             });
+
+            provinceManual.addEventListener('input', syncLocationHiddenFields);
+            cityManual.addEventListener('input', syncLocationHiddenFields);
 
             cameraModalEl.addEventListener('shown.bs.modal', function() {
                 startCamera();
@@ -1051,6 +1127,12 @@
 
             cameraModalEl.addEventListener('hidden.bs.modal', function() {
                 stopCamera();
+                cameraUnsupportedMessage.classList.add('d-none');
+                cameraView.classList.remove('d-none');
+            });
+
+            uploadPhotoModalBtn.addEventListener('click', function() {
+                clientPhotoFileInput.click();
             });
 
             capturePhotoBtn.addEventListener('click', function() {
@@ -1066,6 +1148,7 @@
                 const imageData = cameraCanvas.toDataURL('image/png');
                 preview.src = imageData;
                 clientPhotoData.value = imageData;
+                photoCaptureError.classList.add('d-none');
 
                 stopCamera();
                 retakePhotoBtn.disabled = false;
@@ -1112,6 +1195,31 @@
                 const hasInvalidChars = this.value !== onlyDigits;
                 this.value = onlyDigits;
                 contact2Error.classList.toggle('d-none', !hasInvalidChars);
+            });
+
+            form.addEventListener('submit', function(event) {
+                syncLocationHiddenFields();
+
+                let hasError = false;
+                photoCaptureError.classList.add('d-none');
+                fingerprintCaptureError.classList.add('d-none');
+
+                if (!clientPhotoData.value) {
+                    photoCaptureError.textContent = 'Please capture or upload a client photo before saving.';
+                    photoCaptureError.classList.remove('d-none');
+                    hasError = true;
+                }
+
+                if (!clientFingerprintTemplate.value) {
+                    fingerprintCaptureError.textContent = 'Please capture a client fingerprint before saving.';
+                    fingerprintCaptureError.classList.remove('d-none');
+                    hasError = true;
+                }
+
+                if (hasError) {
+                    event.preventDefault();
+                    return;
+                }
             });
 
             sameAsHomeAddress.addEventListener('change', function() {
