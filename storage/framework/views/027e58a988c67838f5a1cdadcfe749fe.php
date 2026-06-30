@@ -1,7 +1,6 @@
-@extends('layouts.app')
-@section('title', 'Login')
+<?php $__env->startSection('title', 'Login'); ?>
 
-@section('content')
+<?php $__env->startSection('content'); ?>
     <style>
         html,
         body {
@@ -366,7 +365,7 @@
         <section class="login-hero">
             <div class="login-hero-inner">
                 <div class="brand-lockup">
-                    {{-- <img src="{{ asset('assets/images/logo-dark.png') }}" alt="PESO logo"> --}}
+                    
                     <div class="brand-copy">
                         E-REGISTRATION SYSTEM
                     </div>
@@ -391,54 +390,13 @@
                         </span>
                         Sign in with Microsoft
                     </button>
-                    <a href="{{ route('google.redirect') }}" class="google-btn" aria-label="Sign in with Google">
+                    <a href="<?php echo e(route('google.redirect')); ?>" class="google-btn" aria-label="Sign in with Google">
                         <i class="ri-google-fill fs-18" aria-hidden="true"></i>
                         Sign in with Google
                     </a>
                 </div>
 
-                {{-- <div class="divider">Authorized access</div>
-
-                <form class="login-form" action="{{ route('login') }}" method="POST">
-                    @csrf
-                    <div class="mb-3">
-                        <label for="email" class="form-label">Username</label>
-                        <input
-                            type="text"
-                            class="form-control @error('email') is-invalid @enderror"
-                            id="email"
-                            name="email"
-                            placeholder="Enter username"
-                            value="{{ old('email') }}"
-                        >
-                    </div>
-
-                    <div class="mb-2">
-                        <div class="d-flex justify-content-between align-items-center gap-3">
-                            <label class="form-label mb-0" for="password-input">Password</label>
-                            <a href="{{ route('forget-password') }}" class="forgot-link">Forgot password?</a>
-                        </div>
-                        <div class="position-relative mt-2">
-                            <input
-                                type="password"
-                                class="form-control pe-5 password-input @error('password') is-invalid @enderror"
-                                id="password-input"
-                                name="password"
-                                placeholder="Enter password"
-                            >
-                            <button class="btn btn-link position-absolute end-0 top-0 text-decoration-none text-muted password-addon material-shadow-none" type="button" id="password-addon" aria-label="Toggle password visibility">
-                                <i class="ri-eye-fill align-middle"></i>
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="form-check mt-3">
-                        <input class="form-check-input" type="checkbox" value="1" id="auth-remember-check" name="remember">
-                        <label class="form-check-label" for="auth-remember-check">Remember me</label>
-                    </div>
-
-                    <button type="submit" class="login-submit">Sign In</button>
-                </form> --}}
+                
 
                 <p class="support-copy mt-4">
                     Need assistance? Contact the <strong>IT Support Team</strong> for help accessing your account.
@@ -446,4 +404,6 @@
             </div>
         </section>
     </div>
-@endsection
+<?php $__env->stopSection(); ?>
+
+<?php echo $__env->make('layouts.app', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH C:\xampp\htdocs\E-Reg-System\resources\views/auth/login.blade.php ENDPATH**/ ?>

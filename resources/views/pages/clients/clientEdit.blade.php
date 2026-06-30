@@ -249,13 +249,32 @@
                                         placeholder="Enter course" name="course">
                                 </div>
                                 <div class="col-lg-3">
-                                    <label class="form-label" for="editSector">Sector</label>
-                                    <select class="form-select" id="editSector" name="sector">
-                                        <option value="">Select sector</option>
-                                        @foreach ($sectorOptions as $sectorOption)
-                                            <option value="{{ $sectorOption }}">{{ $sectorOption }}</option>
-                                        @endforeach
-                                    </select>
+                                    <label class="form-label">Sector</label>
+                                    @php
+                                        $editSelectedSectors = old('sectors', old('sector', $client->sector ?? ''));
+                                        $editSelectedSectorsArr = is_array($editSelectedSectors)
+                                            ? array_map('trim', $editSelectedSectors)
+                                            : array_filter(
+                                                array_map('trim', explode(',', (string) $editSelectedSectors)),
+                                            );
+                                    @endphp
+                                    <div class="border rounded-3 p-2 bg-light-subtle">
+                                        <div class="d-flex flex-column gap-2">
+                                            @foreach ($sectorOptions as $sectorOption)
+                                                <div class="form-check mb-0">
+                                                    <input type="checkbox" class="form-check-input edit-sector-checkbox"
+                                                        id="editSector{{ $loop->index }}" name="sectors[]"
+                                                        value="{{ $sectorOption }}"
+                                                        {{ in_array($sectorOption, $editSelectedSectorsArr) ? 'checked' : '' }}>
+                                                    <label class="form-check-label" for="editSector{{ $loop->index }}">
+                                                        {{ $sectorOption }}
+                                                    </label>
+                                                </div>
+                                            @endforeach
+                                        </div>
+                                    </div>
+                                    <input type="hidden" id="editSector" name="sector"
+                                        value="{{ old('sector', $client->sector ?? '') }}">
                                 </div>
                                 <div class="col-lg-3">
                                     <label class="form-label" for="editPositionOrganization">Position /
@@ -275,3 +294,46 @@
         </div>
     </div>
 </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const editSectorHidden = document.getElementById('editSector');
+        const editSectorCheckboxes = document.querySelectorAll('.edit-sector-checkbox');
+
+        if (!editSectorHidden || !editSectorCheckboxes.length) {
+            return;
+        }
+
+        const selectedSectorValues = () => editSectorHidden.value
+            .split(',')
+            .map(value => value.trim())
+            .filter(Boolean);
+
+        const syncEditSectorHidden = () => {
+            editSectorHidden.value = Array.from(editSectorCheckboxes)
+                .filter(checkbox => checkbox.checked)
+                .map(checkbox => checkbox.value)
+                .join(',');
+        };
+
+        const syncEditSectorCheckboxes = () => {
+            const selectedValues = selectedSectorValues();
+            editSectorCheckboxes.forEach(checkbox => {
+                checkbox.checked = selectedValues.includes(checkbox.value);
+            });
+        };
+
+        editSectorCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', syncEditSectorHidden);
+        });
+
+        syncEditSectorCheckboxes();
+        syncEditSectorHidden();
+
+        const editClientModal = document.getElementById('editClientModal');
+        if (editClientModal) {
+            editClientModal.addEventListener('shown.bs.modal', syncEditSectorCheckboxes);
+            editClientModal.addEventListener('hide.bs.modal', syncEditSectorHidden);
+        }
+    });
+</script>

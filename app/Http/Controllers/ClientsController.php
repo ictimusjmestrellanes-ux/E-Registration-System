@@ -7,6 +7,7 @@ use App\Models\ArchivedClient;
 use App\Models\Client;
 use App\Http\Controllers\Traits\HandlesClientStorage;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
@@ -94,16 +95,17 @@ class ClientsController extends Controller
 
     public function show(Client $client)
     {
-        $transactionLogs = ActivityLog::with('user')
-            ->where(function ($query) use ($client) {
-                $query->where('subject_type', 'Client')
-                    ->where('subject_id', $client->id);
-            })
+        $transactions = \App\Models\TransactionHistory::where('transaction_id', 'LIKE', $client->client_id . '-%')
             ->latest()
-            ->take(10)
             ->get();
 
-        return view('pages.clients.clientShow', compact('client', 'transactionLogs'));
+        $transaction = null;
+        $transactionId = session('show_transaction') ?? request()->query('show_transaction');
+        if ($transactionId) {
+            $transaction = \App\Models\TransactionHistory::find($transactionId);
+        }
+
+        return view('pages.clients.clientShow', compact('client', 'transactions', 'transaction'));
     }
 
     public function destroy(Client $client)
@@ -188,13 +190,17 @@ class ClientsController extends Controller
 
     private function fetchPsgcJson(string $url)
     {
-        $response = Http::timeout(15)->get($url);
+        $cacheKey = 'psgc_' . md5($url);
 
-        if (!$response->successful()) {
-            return response()->json(['message' => 'Unable to load PSGC data.'], 503);
-        }
+        return Cache::remember($cacheKey, 86400, function () use ($url) {
+            $response = Http::timeout(15)->get($url);
 
-        return response()->json($this->normalizePsgcItems($response->json()));
+            if (!$response->successful()) {
+                return response()->json(['message' => 'Unable to load PSGC data.'], 503);
+            }
+
+            return response()->json($this->normalizePsgcItems($response->json()));
+        });
     }
 
     private function normalizePsgcItems(mixed $payload): array

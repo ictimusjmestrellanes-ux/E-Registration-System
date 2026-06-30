@@ -7,6 +7,7 @@ use App\Models\Client;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 
 class FingerprintController extends Controller
 {
@@ -20,49 +21,52 @@ class FingerprintController extends Controller
     public function search(Request $request)
     {
         $validated = $request->validate([
-            'fingerprint_template' => ['required', 'string'],
+            'fingerprint_template' => ['nullable', 'string'],
+            'fingerprint_data' => ['nullable', 'string'],
         ]);
 
-        $clients = Client::query()
-            ->get([
-                'id',
-                'first_name',
-                'middle_name',
-                'last_name',
-                'suffix',
-                'fingerprint_template',
-                'fingerprint_path',
-            ])
-            ->map(function (Client $client) {
-                $fingerprintImageDataUrl = null;
+        if (empty($validated['fingerprint_template'] ?? null) && empty($validated['fingerprint_data'] ?? null)) {
+            throw ValidationException::withMessages([
+                'fingerprint_template' => 'A fingerprint capture is required.',
+                'fingerprint_data' => 'A fingerprint capture is required.',
+            ]);
+        }
 
-                if (empty($client->fingerprint_template) && !empty($client->fingerprint_path) && Storage::disk('public')->exists($client->fingerprint_path)) {
-                    $mimeType = Storage::disk('public')->mimeType($client->fingerprint_path) ?: 'image/png';
-                    $fingerprintImageDataUrl = 'data:' . $mimeType . ';base64,' . base64_encode(Storage::disk('public')->get($client->fingerprint_path));
+        $clients = [];
+        Client::query()
+            ->select(['id', 'first_name', 'middle_name', 'last_name', 'suffix', 'fingerprint_template', 'fingerprint_path'])
+            ->chunk(200, function ($chunk) use (&$clients) {
+                foreach ($chunk as $client) {
+                    $fingerprintImageDataUrl = null;
+
+                    if (empty($client->fingerprint_template) && !empty($client->fingerprint_path) && Storage::disk('public')->exists($client->fingerprint_path)) {
+                        $mimeType = Storage::disk('public')->mimeType($client->fingerprint_path) ?: 'image/png';
+                        $fingerprintImageDataUrl = 'data:' . $mimeType . ';base64,' . base64_encode(Storage::disk('public')->get($client->fingerprint_path));
+                    }
+
+                    if (!empty($client->fingerprint_template) || !empty($fingerprintImageDataUrl)) {
+                        $clients[] = [
+                            'id' => $client->id,
+                            'name' => $client->full_name,
+                            'fingerprintTemplateXml' => $client->fingerprint_template,
+                            'fingerprintImageDataUrl' => $fingerprintImageDataUrl,
+                        ];
+                    }
                 }
-
-                return [
-                    'id' => $client->id,
-                    'name' => $client->full_name,
-                    'fingerprintTemplateXml' => $client->fingerprint_template,
-                    'fingerprintImageDataUrl' => $fingerprintImageDataUrl,
-                ];
-            })
-            ->filter(function (array $client) {
-                return !empty($client['fingerprintTemplateXml']) || !empty($client['fingerprintImageDataUrl']);
-            })
-            ->values()
-            ->all();
+            });
 
         if (empty($clients)) {
             return response()->json([
-                'success' => false,
+                'success' => true,
+                'matched' => false,
                 'message' => 'No fingerprint templates were found to search against.',
-            ], 404);
+                'score' => null,
+            ]);
         }
 
         $response = Http::timeout(60)->post($this->fingerprintBridgeUrl('api/match'), [
-            'fingerprintTemplateXml' => $validated['fingerprint_template'],
+            'fingerprintTemplateXml' => $validated['fingerprint_template'] ?? '',
+            'fingerprintImageDataUrl' => $validated['fingerprint_data'] ?? '',
             'clients' => $clients,
         ]);
 

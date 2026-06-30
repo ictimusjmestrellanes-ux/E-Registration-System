@@ -15,6 +15,7 @@ use App\Http\Controllers\FingerprintController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\TransactionController;
+use App\Http\Controllers\TransactionRequirementController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -28,6 +29,8 @@ Route::group(['namespace' => 'App\Http\Controllers\Auth'],function()
     // ----------------------------- login ------------------------------------//
     Route::get('/login', [LoginController::class, 'login'])->name('login');
     Route::post('/login', [LoginController::class, 'authenticate']);
+    Route::get('auth/google/redirect', [LoginController::class, 'redirectToGoogle'])->name('google.redirect');
+    Route::get('auth/google/callback', [LoginController::class, 'handleGoogleCallback'])->name('google.callback');
     Route::get('/logout', [LoginController::class, 'logout'])->name('logout');
     Route::get('logout/page', [LoginController::class, 'logout'])->name('logout/page');
 
@@ -103,7 +106,13 @@ Route::group(['namespace' => 'App\Http\Controllers'], function () {
 
         // --------------------- Transactions ------------------//
         Route::post('transactions', [TransactionController::class, 'store'])->name('transactions.store');
-        Route::get('transactions/{transaction}', [TransactionController::class, 'show'])->name('transactions.show');
+        Route::get('transactions/{id}', [TransactionController::class, 'show'])->name('transactions.show');
+
+        // --------------------- Transaction Requirements ------------------//
+        Route::post('transaction-requirements', [TransactionRequirementController::class, 'store'])->name('transaction-requirements.store');
+        Route::get('transaction-requirements/{transactionId}', [TransactionRequirementController::class, 'show'])->name('transaction-requirements.show');
+        Route::delete('transaction-requirements/{requirementId}', [TransactionRequirementController::class, 'destroy'])->name('transaction-requirements.destroy');
+        Route::get('transaction-requirements/{requirementId}/download', [TransactionRequirementController::class, 'download'])->name('transaction-requirements.download');
     
     });
 });

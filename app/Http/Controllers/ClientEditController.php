@@ -42,7 +42,7 @@ class ClientEditController extends Controller
 
         $fingerprintPath = $client->fingerprint_path;
         $fingerprintTemplate = $client->fingerprint_template;
-        if (!empty($validated['fingerprint_data']) && !empty($validated['fingerprint_template'])) {
+        if (!empty($validated['fingerprint_data'])) {
             $this->ensureFingerprintIsUnique(
                 $validated['fingerprint_template'] ?? null,
                 $validated['fingerprint_data'] ?? null,
@@ -53,7 +53,6 @@ class ClientEditController extends Controller
             if (empty($storedFingerprintPath)) {
                 throw ValidationException::withMessages([
                     'fingerprint_data' => 'A valid fingerprint capture is required.',
-                    'fingerprint_template' => 'A valid fingerprint capture is required.',
                 ]);
             }
 

@@ -16,7 +16,16 @@ class ClientListController extends Controller
     {
         $matchedClientId = $request->query('matched_client');
 
-        $clients = Client::latest()
+        $clients = Client::query()
+            ->select([
+                'id', 'client_id', 'first_name', 'middle_name', 'last_name', 'suffix',
+                'age', 'birth_date', 'gender', 'civil_status',
+                'email', 'contact', 'contact_2', 'address',
+                'province', 'city', 'barangay', 'birthplace',
+                'education', 'course', 'sector', 'position_organization',
+                'photo_path', 'created_at',
+            ])
+            ->latest()
             ->when($matchedClientId, function ($query, $matchedClientId) {
                 $query->where('id', $matchedClientId);
             })

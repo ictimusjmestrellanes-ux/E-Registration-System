@@ -28,7 +28,7 @@ trait HandlesClientStorage
             'birthplace' => ['nullable', 'string', 'max:255'],
             'education' => ['nullable', 'string', 'max:255'],
             'course' => ['nullable', 'string', 'max:255'],
-            'sector' => ['nullable', 'string', 'max:255'],
+            'sector' => ['nullable', 'string', 'max:500'],
             'position_organization' => ['nullable', 'string', 'max:255'],
             'gender' => ['nullable', 'string', 'max:20'],
             'civil_status' => ['nullable', 'string', 'max:30'],
@@ -41,7 +41,7 @@ trait HandlesClientStorage
             'barangay' => ['nullable', 'string', 'max:255'],
             'photo_data' => $client ? ['nullable', 'string'] : ['required', 'string'],
             'fingerprint_data' => $client ? ['nullable', 'string'] : ['required', 'string'],
-            'fingerprint_template' => $client ? ['nullable', 'string'] : ['required', 'string'],
+            'fingerprint_template' => ['nullable', 'string'],
         ]);
 
         if (!$client) {
@@ -57,9 +57,8 @@ trait HandlesClientStorage
             $errors['photo_data'] = 'Client photo is required before saving.';
         }
 
-        if ($hasIncomingFingerprintData xor $hasIncomingFingerprintTemplate) {
-            $errors['fingerprint_data'] = 'Fingerprint capture must include both the image and template.';
-            $errors['fingerprint_template'] = 'Fingerprint capture must include both the image and template.';
+        if (!$hasIncomingFingerprintData && $hasIncomingFingerprintTemplate) {
+            $errors['fingerprint_data'] = 'Fingerprint capture must include an image.';
         } elseif (!$hasIncomingFingerprintData && !$hasIncomingFingerprintTemplate && !$this->clientHasStoredFingerprint($client)) {
             $errors['fingerprint_data'] = 'Client fingerprint is required before saving.';
             $errors['fingerprint_template'] = 'Client fingerprint is required before saving.';
@@ -111,6 +110,8 @@ trait HandlesClientStorage
         foreach ([Client::class, ArchivedClient::class] as $modelClass) {
             $matches = $modelClass::query()
                 ->whereDate('birth_date', $birthDate)
+                ->where('first_name', $validated['first_name'] ?? '')
+                ->where('last_name', $validated['last_name'] ?? '')
                 ->get(['first_name', 'middle_name', 'last_name', 'suffix'])
                 ->contains(function ($client) use ($validated) {
                     return $this->clientIdentityMatches($validated, $client);
@@ -187,23 +188,16 @@ trait HandlesClientStorage
             return;
         }
 
-        $clientsQuery = Client::query()->select([
-            'id',
-            'first_name',
-            'middle_name',
-            'last_name',
-            'suffix',
-            'fingerprint_template',
-            'fingerprint_path',
-        ]);
+        $clients = [];
+        $query = Client::query()
+            ->select(['id', 'first_name', 'middle_name', 'last_name', 'suffix', 'fingerprint_template', 'fingerprint_path']);
 
         if ($ignoreClientId) {
-            $clientsQuery->where('id', '!=', $ignoreClientId);
+            $query->where('id', '!=', $ignoreClientId);
         }
 
-        $clients = $clientsQuery
-            ->get()
-            ->map(function (Client $client) {
+        $query->chunk(200, function ($chunk) use (&$clients) {
+            foreach ($chunk as $client) {
                 $fingerprintImageDataUrl = null;
 
                 if (empty($client->fingerprint_template) && !empty($client->fingerprint_path) && Storage::disk('public')->exists($client->fingerprint_path)) {
@@ -211,18 +205,16 @@ trait HandlesClientStorage
                     $fingerprintImageDataUrl = 'data:' . $mimeType . ';base64,' . base64_encode(Storage::disk('public')->get($client->fingerprint_path));
                 }
 
-                return [
-                    'id' => $client->id,
-                    'name' => $client->full_name,
-                    'fingerprintTemplateXml' => $client->fingerprint_template,
-                    'fingerprintImageDataUrl' => $fingerprintImageDataUrl,
-                ];
-            })
-            ->filter(function (array $client) {
-                return !empty($client['fingerprintTemplateXml']) || !empty($client['fingerprintImageDataUrl']);
-            })
-            ->values()
-            ->all();
+                if (!empty($client->fingerprint_template) || !empty($fingerprintImageDataUrl)) {
+                    $clients[] = [
+                        'id' => $client->id,
+                        'name' => $client->full_name,
+                        'fingerprintTemplateXml' => $client->fingerprint_template,
+                        'fingerprintImageDataUrl' => $fingerprintImageDataUrl,
+                    ];
+                }
+            }
+        });
 
         if (empty($clients)) {
             return;

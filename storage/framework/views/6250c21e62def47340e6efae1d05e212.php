@@ -1,6 +1,5 @@
-@extends('layouts.master')
-@section('title', 'Clients')
-@push('styles')
+<?php $__env->startSection('title', 'Clients'); ?>
+<?php $__env->startPush('styles'); ?>
     <style>
         .clients-uppercase-form input,
         .clients-uppercase-form textarea,
@@ -9,9 +8,9 @@
             text-transform: uppercase;
         }
     </style>
-@endpush
-@section('content')
-    @php
+<?php $__env->stopPush(); ?>
+<?php $__env->startSection('content'); ?>
+    <?php
         $editingClient = $client ?? null;
         $selectedProvince = old('province', optional($editingClient)->province ?? '');
         $selectedCity = old('city', optional($editingClient)->city ?? '');
@@ -70,7 +69,7 @@
                 ? asset('storage/' . $editingClient->fingerprint_path)
                 : ($oldFingerprintData ?:
                 $fingerprintPlaceholder);
-    @endphp
+    ?>
 
     <div class="container-fluid">
         <div class="row">
@@ -84,20 +83,20 @@
                             </div>
                         </div>
 
-                        @if ($errors->any())
+                        <?php if($errors->any()): ?>
                             <div class="alert alert-danger">
                                 <div class="fw-semibold mb-1">Please fix the highlighted issue(s) below.</div>
-                                <div>{{ $errors->first() }}</div>
+                                <div><?php echo e($errors->first()); ?></div>
                             </div>
-                        @endif
+                        <?php endif; ?>
 
                         <form
-                            action="{{ $editingClient ? route('clients.update', $editingClient) : route('clients.store') }}"
+                            action="<?php echo e($editingClient ? route('clients.update', $editingClient) : route('clients.store')); ?>"
                             method="POST" class="clients-uppercase-form">
-                            @csrf
-                            @if ($editingClient)
-                                @method('PUT')
-                            @endif
+                            <?php echo csrf_field(); ?>
+                            <?php if($editingClient): ?>
+                                <?php echo method_field('PUT'); ?>
+                            <?php endif; ?>
 
                             <div class="row g-3">
                                 <div class="col-12">
@@ -106,7 +105,7 @@
                                             <label for="clientPhoto" class="form-label">Client Photo</label>
                                             <div class="row g-3 align-items-start">
                                                 <div class="col-md-auto">
-                                                    <img id="clientPhotoPreview" src="{{ $previewImage }}"
+                                                    <img id="clientPhotoPreview" src="<?php echo e($previewImage); ?>"
                                                         alt="Client Photo Preview"
                                                         class="rounded-3 img-thumbnail material-shadow object-fit-cover"
                                                         style="width: 250px; height: 250px;">
@@ -133,7 +132,7 @@
                                             <label for="fingerprintCapture" class="form-label">Fingerprint Scanner</label>
                                             <div class="row g-3 align-items-start">
                                                 <div class="col-md-auto">
-                                                    <img id="fingerprintPreview" src="{{ $fingerprintPreview }}"
+                                                    <img id="fingerprintPreview" src="<?php echo e($fingerprintPreview); ?>"
                                                         alt="Fingerprint Preview"
                                                         class="rounded-3 img-thumbnail material-shadow object-fit-cover"
                                                         style="width: 250px; height: 250px;">
@@ -154,16 +153,23 @@
                                                           exist.
                                                       </p>
                                                       <input type="hidden" id="clientFingerprintData" name="fingerprint_data"
-                                                         value="{{ old('fingerprint_data', '') }}">
+                                                         value="<?php echo e(old('fingerprint_data', '')); ?>">
                                                      <input type="hidden" id="clientFingerprintTemplate"
                                                          name="fingerprint_template"
-                                                         value="{{ old('fingerprint_template', '') }}">
+                                                         value="<?php echo e(old('fingerprint_template', '')); ?>">
                                                      <div class="small text-muted" id="fingerprintStatus">No fingerprint
                                                          captured yet.</div>
                                                      <div id="fingerprintCaptureError" class="text-danger small mt-1 d-none"></div>
-                                                     @error('fingerprint_template')
-                                                         <div class="text-danger small mt-1">{{ $message }}</div>
-                                                     @enderror
+                                                     <?php $__errorArgs = ['fingerprint_template'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?>
+                                                         <div class="text-danger small mt-1"><?php echo e($message); ?></div>
+                                                     <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>
                                                  </div>
                                             </div>
                                         </div>
@@ -185,7 +191,7 @@
                                                 <label for="firstName" class="form-label">First Name</label>
                                                 <input type="text" class="form-control" id="firstName" name="first_name"
                                                     placeholder="Enter first name"
-                                                    value="{{ old('first_name', optional($editingClient)->first_name ?? '') }}"
+                                                    value="<?php echo e(old('first_name', optional($editingClient)->first_name ?? '')); ?>"
                                                     required>
                                             </div>
 
@@ -193,14 +199,14 @@
                                                 <label for="middleName" class="form-label">Middle Name (Optional)</label>
                                                 <input type="text" class="form-control" id="middleName"
                                                     name="middle_name" placeholder="Enter middle name"
-                                                    value="{{ old('middle_name', optional($editingClient)->middle_name ?? '') }}">
+                                                    value="<?php echo e(old('middle_name', optional($editingClient)->middle_name ?? '')); ?>">
                                             </div>
 
                                             <div class="col-lg-3">
                                                 <label for="lastName" class="form-label">Last Name</label>
                                                 <input type="text" class="form-control" id="lastName"
                                                     name="last_name" placeholder="Enter last name"
-                                                    value="{{ old('last_name', optional($editingClient)->last_name ?? '') }}"
+                                                    value="<?php echo e(old('last_name', optional($editingClient)->last_name ?? '')); ?>"
                                                     required>
                                             </div>
 
@@ -208,23 +214,23 @@
                                                 <label for="suffix" class="form-label">Suffix (Optional)</label>
                                                 <input type="text" class="form-control" id="suffix" name="suffix"
                                                     placeholder="Jr., Sr., III"
-                                                    value="{{ old('suffix', optional($editingClient)->suffix ?? '') }}">
+                                                    value="<?php echo e(old('suffix', optional($editingClient)->suffix ?? '')); ?>">
                                             </div>
 
                                             <div class="col-lg-2">
                                                 <label for="gender" class="form-label">Gender</label>
                                                 <select class="form-select" id="gender" name="gender" required>
                                                     <option value=""
-                                                        {{ old('gender', optional($editingClient)->gender ?? '') === '' ? 'selected' : '' }}>
+                                                        <?php echo e(old('gender', optional($editingClient)->gender ?? '') === '' ? 'selected' : ''); ?>>
                                                         Select gender</option>
                                                     <option value="Male"
-                                                        {{ old('gender', optional($editingClient)->gender ?? '') === 'Male' ? 'selected' : '' }}>
+                                                        <?php echo e(old('gender', optional($editingClient)->gender ?? '') === 'Male' ? 'selected' : ''); ?>>
                                                         Male</option>
                                                     <option value="Female"
-                                                        {{ old('gender', optional($editingClient)->gender ?? '') === 'Female' ? 'selected' : '' }}>
+                                                        <?php echo e(old('gender', optional($editingClient)->gender ?? '') === 'Female' ? 'selected' : ''); ?>>
                                                         Female</option>
                                                     <option value="Other"
-                                                        {{ old('gender', optional($editingClient)->gender ?? '') === 'Other' ? 'selected' : '' }}>
+                                                        <?php echo e(old('gender', optional($editingClient)->gender ?? '') === 'Other' ? 'selected' : ''); ?>>
                                                         Other</option>
                                                 </select>
                                             </div>
@@ -233,14 +239,14 @@
                                                 <label for="birthDate" class="form-label">Birth Date</label>
                                                 <input type="date" class="form-control" id="birthDate"
                                                     name="birth_date" required
-                                                value="{{ $selectedBirthDate }}">
+                                                value="<?php echo e($selectedBirthDate); ?>">
                                             </div>
 
                                             <div class="col-lg-3">
                                                 <label for="birthplace" class="form-label">Birthplace</label>
                                                 <input type="text" class="form-control" id="birthplace"
                                                     name="birthplace" placeholder="Enter birthplace"
-                                                    value="{{ old('birthplace', optional($editingClient)->birthplace ?? '') }}"
+                                                    value="<?php echo e(old('birthplace', optional($editingClient)->birthplace ?? '')); ?>"
                                                     required>
                                             </div>
 
@@ -249,7 +255,7 @@
                                                 <input type="number" class="form-control" id="age" name="age"
                                                     placeholder="Enter age" required
                                                 min="0"
-                                                value="{{ old('age', optional($editingClient)->age ?? '') }}">
+                                                value="<?php echo e(old('age', optional($editingClient)->age ?? '')); ?>">
                                             </div>
 
                                             <div class="col-lg-3">
@@ -257,22 +263,22 @@
                                                 <select class="form-select" id="civilStatus" name="civil_status"
                                                     required>
                                                     <option value=""
-                                                        {{ old('civil_status', optional($editingClient)->civil_status ?? '') === '' ? 'selected' : '' }}>
+                                                        <?php echo e(old('civil_status', optional($editingClient)->civil_status ?? '') === '' ? 'selected' : ''); ?>>
                                                         Select civil status</option>
                                                     <option value="Single"
-                                                        {{ old('civil_status', optional($editingClient)->civil_status ?? '') === 'Single' ? 'selected' : '' }}>
+                                                        <?php echo e(old('civil_status', optional($editingClient)->civil_status ?? '') === 'Single' ? 'selected' : ''); ?>>
                                                         Single</option>
                                                     <option value="Married"
-                                                        {{ old('civil_status', optional($editingClient)->civil_status ?? '') === 'Married' ? 'selected' : '' }}>
+                                                        <?php echo e(old('civil_status', optional($editingClient)->civil_status ?? '') === 'Married' ? 'selected' : ''); ?>>
                                                         Married</option>
                                                     <option value="Separated"
-                                                        {{ old('civil_status', optional($editingClient)->civil_status ?? '') === 'Separated' ? 'selected' : '' }}>
+                                                        <?php echo e(old('civil_status', optional($editingClient)->civil_status ?? '') === 'Separated' ? 'selected' : ''); ?>>
                                                         Separated</option>
                                                     <option value="Widowed"
-                                                        {{ old('civil_status', optional($editingClient)->civil_status ?? '') === 'Widowed' ? 'selected' : '' }}>
+                                                        <?php echo e(old('civil_status', optional($editingClient)->civil_status ?? '') === 'Widowed' ? 'selected' : ''); ?>>
                                                         Widowed</option>
                                                     <option value="Common-Law"
-                                                        {{ old('civil_status', optional($editingClient)->civil_status ?? '') === 'Common-Law' ? 'selected' : '' }}>
+                                                        <?php echo e(old('civil_status', optional($editingClient)->civil_status ?? '') === 'Common-Law' ? 'selected' : ''); ?>>
                                                         Common-Law Relationship</option>
                                                 </select>
                                             </div>
@@ -303,7 +309,7 @@
                                                 <label for="address" class="form-label">Address</label>
                                                 <input class="form-control" id="address" name="address" rows="3"
                                                     placeholder="Enter address"
-                                                    value="{{ old('address', optional($editingClient)->address ?? '') }}"
+                                                    value="<?php echo e(old('address', optional($editingClient)->address ?? '')); ?>"
                                                     required>
                                             </div>
 
@@ -313,11 +319,11 @@
                                                     <option value="">Select province</option>
                                                 </select>
                                                 <input type="hidden" id="provinceHidden" name="province"
-                                                    value="{{ old('province', optional($editingClient)->province ?? 'CAVITE') }}">
+                                                    value="<?php echo e(old('province', optional($editingClient)->province ?? 'CAVITE')); ?>">
                                                 <input type="text" class="form-control d-none mt-2"
                                                     id="provinceManual" name="province_manual"
                                                     placeholder="Enter province manually"
-                                                    value="{{ old('province', optional($editingClient)->province ?? '') }}">
+                                                    value="<?php echo e(old('province', optional($editingClient)->province ?? '')); ?>">
                                             </div>
 
                                             <div class="col-lg-4">
@@ -326,10 +332,10 @@
                                                     <option value="">Select city</option>
                                                 </select>
                                                 <input type="hidden" id="cityHidden" name="city"
-                                                    value="{{ old('city', optional($editingClient)->city ?? 'CITY OF IMUS') }}">
+                                                    value="<?php echo e(old('city', optional($editingClient)->city ?? 'CITY OF IMUS')); ?>">
                                                 <input type="text" class="form-control d-none mt-2" id="cityManual"
                                                     name="city_manual" placeholder="Enter city manually"
-                                                    value="{{ old('city', optional($editingClient)->city ?? '') }}">
+                                                    value="<?php echo e(old('city', optional($editingClient)->city ?? '')); ?>">
                                             </div>
 
                                             <div class="col-lg-4">
@@ -340,7 +346,7 @@
                                                 <input type="text" class="form-control d-none mt-2"
                                                     id="barangayManual" name="barangay_manual"
                                                     placeholder="Enter barangay manually"
-                                                    value="{{ old('barangay', optional($editingClient)->barangay ?? '') }}">
+                                                    value="<?php echo e(old('barangay', optional($editingClient)->barangay ?? '')); ?>">
                                             </div>
 
                                             <div class="col-lg-4">
@@ -348,7 +354,7 @@
                                                 <input type="text" class="form-control" id="contact" name="contact"
                                                     placeholder="Enter primary contact number" inputmode="numeric"
                                                     maxlength="11" autocomplete="off"
-                                                    value="{{ old('contact', optional($editingClient)->contact ?? '') }}"
+                                                    value="<?php echo e(old('contact', optional($editingClient)->contact ?? '')); ?>"
                                                     required>
                                                 <div id="contactError" class="text-danger small mt-1 d-none">Only numbers
                                                     can be input.
@@ -360,7 +366,7 @@
                                                 <input type="text" class="form-control" id="contact2"
                                                     name="contact_2" placeholder="Enter secondary contact number"
                                                     inputmode="numeric" maxlength="11" autocomplete="off"
-                                                    value="{{ old('contact_2', optional($editingClient)->contact_2 ?? '') }}">
+                                                    value="<?php echo e(old('contact_2', optional($editingClient)->contact_2 ?? '')); ?>">
                                                 <div id="contact2Error" class="text-danger small mt-1 d-none">Only numbers
                                                     can be input.
                                                 </div>
@@ -370,7 +376,7 @@
                                                 <label for="email" class="form-label">Email</label>
                                                 <input type="email" class="form-control" id="email" name="email"
                                                     placeholder="Enter email"
-                                                    value="{{ old('email', optional($editingClient)->email ?? '') }}"
+                                                    value="<?php echo e(old('email', optional($editingClient)->email ?? '')); ?>"
                                                     required>
                                             </div>
                                         </div>
@@ -392,12 +398,13 @@
                                                 <label for="education" class="form-label">Education</label>
                                                 <select class="form-select" id="education" name="education" required>
                                                     <option value="">Select education</option>
-                                                    @foreach ($educationOptions as $educationOption)
-                                                        <option value="{{ $educationOption }}"
-                                                            {{ old('education', optional($editingClient)->education ?? '') === $educationOption ? 'selected' : '' }}>
-                                                            {{ $educationOption }}
+                                                    <?php $__currentLoopData = $educationOptions; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $educationOption): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                                        <option value="<?php echo e($educationOption); ?>"
+                                                            <?php echo e(old('education', optional($editingClient)->education ?? '') === $educationOption ? 'selected' : ''); ?>>
+                                                            <?php echo e($educationOption); ?>
+
                                                         </option>
-                                                    @endforeach
+                                                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                                 </select>
                                             </div>
 
@@ -405,12 +412,12 @@
                                                 <label for="course" class="form-label">Course</label>
                                                 <input type="text" class="form-control" id="course" name="course"
                                                     required placeholder="Enter course"
-                                                    value="{{ old('course', optional($editingClient)->course ?? '') }}">
+                                                    value="<?php echo e(old('course', optional($editingClient)->course ?? '')); ?>">
                                             </div>
 
                                             <div class="col-lg-3">
                                                 <label class="form-label">Sector</label>
-                                                @php
+                                                <?php
                                                     $selectedSectors = old(
                                                         'sectors',
                                                         old('sector', optional($editingClient)->sector ?? ''),
@@ -420,24 +427,25 @@
                                                         : array_filter(
                                                             array_map('trim', explode(',', (string) $selectedSectors)),
                                                         );
-                                                @endphp
+                                                ?>
                                                 <div class="border rounded-3 p-2 bg-light-subtle">
                                                     <div class="d-flex flex-column gap-2">
-                                                        @foreach ($sectorOptions as $sectorOption)
+                                                        <?php $__currentLoopData = $sectorOptions; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $sectorOption): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                                             <div class="form-check mb-0">
                                                                 <input type="checkbox" class="form-check-input sector-checkbox"
-                                                                    id="sector{{ $loop->index }}" name="sectors[]"
-                                                                    value="{{ $sectorOption }}"
-                                                                    {{ in_array($sectorOption, $selectedSectorsArr) ? 'checked' : '' }}>
-                                                                <label class="form-check-label" for="sector{{ $loop->index }}">
-                                                                    {{ $sectorOption }}
+                                                                    id="sector<?php echo e($loop->index); ?>" name="sectors[]"
+                                                                    value="<?php echo e($sectorOption); ?>"
+                                                                    <?php echo e(in_array($sectorOption, $selectedSectorsArr) ? 'checked' : ''); ?>>
+                                                                <label class="form-check-label" for="sector<?php echo e($loop->index); ?>">
+                                                                    <?php echo e($sectorOption); ?>
+
                                                                 </label>
                                                             </div>
-                                                        @endforeach
+                                                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                                     </div>
                                                 </div>
                                                 <input type="hidden" name="sector" id="sectorHidden"
-                                                    value="{{ old('sector', optional($editingClient)->sector ?? '') }}">
+                                                    value="<?php echo e(old('sector', optional($editingClient)->sector ?? '')); ?>">
                                             </div>
 
                                             <div class="col-lg-3">
@@ -446,7 +454,7 @@
                                                 <input type="text" class="form-control" id="positionOrganization"
                                                     name="position_organization" required
                                                     placeholder="Enter position or organization"
-                                                    value="{{ old('position_organization', optional($editingClient)->position_organization ?? '') }}">
+                                                    value="<?php echo e(old('position_organization', optional($editingClient)->position_organization ?? '')); ?>">
                                             </div>
                                         </div>
                                     </div>
@@ -455,7 +463,7 @@
                                 <div class="col-12">
                                     <div class="d-flex justify-content-end gap-2 mt-2">
                                         <button type="submit"
-                                            class="btn btn-primary">{{ $editingClient ? 'Update Client' : 'Save Client' }}</button>
+                                            class="btn btn-primary"><?php echo e($editingClient ? 'Update Client' : 'Save Client'); ?></button>
                                     </div>
                                 </div>
                             </div>
@@ -516,7 +524,7 @@
                             </div>
                         </div>
                         <div class="mt-3 text-center">
-                            <img id="fingerprintModalPreview" src="{{ $fingerprintPreview }}"
+                            <img id="fingerprintModalPreview" src="<?php echo e($fingerprintPreview); ?>"
                                 alt="Fingerprint Scanner Preview" class="rounded-3 border object-fit-cover bg-white"
                                 style="width: 100%; max-width: 420px; height: 280px;">
                         </div>
@@ -533,9 +541,9 @@
         </div>
     </div>
 
-@endsection
+<?php $__env->stopSection(); ?>
 
-@section('script')
+<?php $__env->startSection('script'); ?>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const openCameraBtn = document.getElementById('openCameraBtn');
@@ -582,12 +590,12 @@
             const barangayManual = document.getElementById('barangayManual');
             const sameAsHomeAddress = document.getElementById('sameAsHomeAddress');
 
-            const selectedProvince = @json($selectedProvince);
-            const selectedCity = @json($selectedCity);
-            const selectedBarangay = @json($selectedBarangay);
+            const selectedProvince = <?php echo json_encode($selectedProvince, 15, 512) ?>;
+            const selectedCity = <?php echo json_encode($selectedCity, 15, 512) ?>;
+            const selectedBarangay = <?php echo json_encode($selectedBarangay, 15, 512) ?>;
             const isCityOfImus = (value = '') => (value || '').trim().toLowerCase() === 'city of imus';
-            const fingerprintPlaceholder = @json($fingerprintPlaceholder);
-            const fingerprintSearchUrl = @json(route('client.search.fingerprint'));
+            const fingerprintPlaceholder = <?php echo json_encode($fingerprintPlaceholder, 15, 512) ?>;
+            const fingerprintSearchUrl = <?php echo json_encode(route('client.search.fingerprint'), 15, 512) ?>;
             const apiBase = 'https://psgc.gitlab.io/api';
             const calabarzonProvinces = ['Batangas', 'Cavite', 'Laguna', 'Quezon', 'Rizal'];
 
@@ -1314,4 +1322,6 @@
             window.addEventListener('beforeunload', stopCamera);
         });
     </script>
-@endsection
+<?php $__env->stopSection(); ?>
+
+<?php echo $__env->make('layouts.master', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH C:\xampp\htdocs\E-Reg-System\resources\views/pages/clients/clients.blade.php ENDPATH**/ ?>

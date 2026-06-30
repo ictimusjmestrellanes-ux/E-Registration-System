@@ -64,7 +64,7 @@
                                 List</a>
                         </div>
 
-                        <div class="border rounded-4 p-3 mb-4 bg-light-subtle">
+                        <div class="border rounded-4 p-3 mb-2 bg-light-subtle">
                             <div class="row g-4 align-items-start">
                                 <div class="col-12 col-lg-4 text-center">
                                     <img src="{{ $clientPhoto }}" alt="Client Photo"
@@ -160,7 +160,7 @@
                                                 <div class="text-muted small text-uppercase fw-semibold">
                                                     Sector
                                                 </div>
-                                                <div class="fw-semibold">{{ strtoupper($client->sector ?: '-') }}</div>
+                                                <div class="fw-semibold">{{ $client->sector ? strtoupper(str_replace(',', ', ', $client->sector)) : '-' }}</div>
                                             </div>
                                             <div class="col-md-3">
                                                 <div class="text-muted small text-uppercase fw-semibold">
@@ -190,75 +190,57 @@
                                     </div>
                                 </div>
                             </div>
+                        </div>
 
-                            <div class="border rounded-4 p-3 bg-light-subtle" id="clientTransactionHistory">
-                                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
-                                    <div>
-                                        <h5 class="mb-1">Transaction History</h5>
-                                        <p class="text-muted mb-0 small">Latest recorded activity for this client.
-                                        </p>
-                                    </div>
+                        <div class="border rounded-4 p-3 bg-light-subtle" id="clientTransactionHistory">
+                            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+                                <div>
+                                    <h5 class="mb-1">Transaction History</h5>
+                                    <p class="text-muted mb-0 small">Latest transactions for this client.</p>
                                 </div>
+                            </div>
 
-                                <div class="table-responsive">
-                                    <table class="table table-bordered table-hover align-middle mb-0">
-                                        <thead class="table-light text-center">
-                                            <tr>
-                                                <th>Transaction ID</th>
-                                                <th>Transaction Date</th>
-                                                <th>Source</th>
-                                                <th>Type</th>
-                                                <th>Clerk</th>
-                                                <th>Status</th>
-                                                <th>Description of Request</th>
-                                                <th>Actions Taken</th>
-                                                <th>Remarks</th>
-                                                <th>Amount</th>
+                            <div class="table-responsive" style="max-height: 650px; overflow-y: auto;">
+                                <table class="table table-bordered table-hover align-middle mb-0">
+                                    <thead class="table-light text-center" style="position: sticky; top: 0; z-index: 1; background: #f8f9fa;">
+                                        <tr>
+                                            <th>Transaction ID</th>
+                                            <th>Transaction Date</th>
+                                            <th>Source</th>
+                                            <th>Category Type</th>
+                                            <th>Clerk</th>
+                                            <th>Status</th>
+                                            <th>Description of Request</th>
+                                            <th>Actions Taken</th>
+                                            <th>Remarks</th>
+                                            <th>Amount</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="text-center">
+                                        @forelse ($transactions as $transaction)
+                                            <tr class="transaction-row" style="cursor: pointer;" data-transaction-id="{{ $transaction->id }}">
+                                                <td>{{ $transaction->transaction_id }}</td>
+                                                <td>{{ $transaction->transaction_date->format('m/d/Y') }}</td>
+                                                <td class="text-uppercase">E-Registration</td>
+                                                <td class="text-uppercase">{{ $transaction->category_label }}</td>
+                                                <td class="text-uppercase">{{ $transaction->clerk ?? auth()->user()->name ?? 'System' }}</td>
+                                                <td>
+                                                    <span class="badge bg-success-subtle text-success">{{ $transaction->status ?? 'Completed' }}</span>
+                                                </td>
+                                                <td>{{ $transaction->description ?? 'N/A' }}</td>
+                                                <td>{{ $transaction->actions_taken ?? 'N/A' }}</td>
+                                                <td>{{ $transaction->remarks ?? 'N/A' }}</td>
+                                                <td>{{ $transaction->amount > 0 ? '₱' . number_format($transaction->amount, 2) : 'PHP 0.00' }}</td>
                                             </tr>
-                                        </thead>
-                                        <tbody class="text-center">
-                                            @forelse ($transactionLogs as $log)
-                                                @php
-                                                    $transactionType = \Illuminate\Support\Str::headline($log->action);
-                                                    $transactionStatus = in_array(
-                                                        $log->action,
-                                                        ['client_deleted', 'client_archived'],
-                                                        true,
-                                                    )
-                                                        ? 'Archived'
-                                                        : 'Completed';
-                                                    $statusClass =
-                                                        $transactionStatus === 'Archived'
-                                                            ? 'bg-warning-subtle text-warning'
-                                                            : 'bg-success-subtle text-success';
-                                                @endphp
-                                                <tr>
-                                                    <td>TXN-{{ str_pad((string) $log->id, 6, '0', STR_PAD_LEFT) }}
-                                                    </td>
-                                                    <td>{{ optional($log->created_at)->format('m/d/Y') ?? '-' }}
-                                                    </td>
-                                                    <td>E-Registration</td>
-                                                    <td>{{ $transactionType }}</td>
-                                                    <td>{{ $log->user?->name ?? 'System' }}</td>
-                                                    <td>
-                                                        <span
-                                                            class="badge {{ $statusClass }}">{{ $transactionStatus }}</span>
-                                                    </td>
-                                                    <td>{{ $log->description ?? 'N/A' }}</td>
-                                                    <td>{{ $log->actions_taken ?? 'N/A' }}</td>
-                                                    <td>{{ $log->remarks ?? 'N/A' }}</td>
-                                                    <td>{{ $log->amount ? '₱' . number_format($log->amount, 2) : 'PHP 0.00' }}</td>
-                                                </tr>
-                                            @empty
-                                                <tr>
-                                                    <td colspan="8" class="text-center text-muted py-4">
-                                                        No transaction history available for this client.
-                                                    </td>
-                                                </tr>
-                                            @endforelse
-                                        </tbody>
-                                    </table>
-                                </div>
+                                        @empty
+                                            <tr>
+                                                <td colspan="10" class="text-center text-muted py-4">
+                                                    No transactions recorded for this client.
+                                                </td>
+                                            </tr>
+                                        @endforelse
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     </div>
@@ -266,6 +248,8 @@
             </div>
         </div>
     </div>
+
+    @include('pages.client_transaction.transactionInfo')
 
     <div class="modal fade" id="verifyFingerprintModal" tabindex="-1" aria-labelledby="verifyFingerprintModalLabel"
         aria-hidden="true">
@@ -315,12 +299,19 @@
                     </div>
                     <div class="modal-footer border-0 justify-content-center gap-3 pt-0">
                         <a href="{{ route('clients') }}" class="btn btn-primary px-4">Continue</a>
-                        <button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-outline-secondary px-4"
+                            data-bs-dismiss="modal">Cancel</button>
                     </div>
                 </div>
             </div>
         </div>
     @endif
+
+    <style>
+        .transaction-row:hover {
+            background-color: rgba(0, 0, 0, 0.075) !important;
+        }
+    </style>
 @endsection
 
 @section('script')
@@ -331,6 +322,26 @@
             const verifyStatus = document.getElementById('verifyFingerprintStatus');
             const verifyScanAgainBtn = document.getElementById('verifyFingerprintScanAgainBtn');
             const createdModalEl = document.getElementById('clientCreatedModal');
+
+            window.previewRequirement = function(input, previewId) {
+                const preview = document.getElementById(previewId);
+                const file = input.files[0];
+                if (!file) {
+                    preview.classList.add('d-none');
+                    return;
+                }
+                if (file.type.startsWith('image/')) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        preview.src = e.target.result;
+                        preview.classList.remove('d-none');
+                    };
+                    reader.readAsDataURL(file);
+                } else {
+                    preview.classList.add('d-none');
+                }
+            };
+
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
             const currentClientId = Number(@json($client->id));
             const currentClientName = @json($fullName);
@@ -341,6 +352,128 @@
             if (createdModalEl) {
                 const createdModal = bootstrap.Modal.getOrCreateInstance(createdModalEl);
                 createdModal.show();
+            }
+
+            // Global variable to track current transaction ID for modal
+            let currentTransactionId = null;
+
+            const transactionInfoModalEl = document.getElementById('transactionInfoModal');
+            const showTransactionId = @json(session('show_transaction'));
+
+            // Only auto-show if there's a new transaction from session flash
+            if (transactionInfoModalEl && showTransactionId) {
+                loadTransactionData(showTransactionId);
+
+                // Clean up URL
+                const url = new URL(window.location.href);
+                if (url.searchParams.has('show_transaction')) {
+                    url.searchParams.delete('show_transaction');
+                    window.history.replaceState({}, '', url.toString());
+                }
+            }
+
+            // Function to populate modal with transaction data
+            async function loadTransactionData(transactionId) {
+                try {
+                    const response = await fetch(`{{ route('transactions.show', ['id' => 'REPLACE']) }}`.replace('REPLACE', transactionId));
+                    if (!response.ok) {
+                        throw new Error('Failed to load transaction');
+                    }
+                    const data = await response.json();
+
+                    // Update modal with fetched data
+                    document.getElementById('modalTransactionId').textContent = data.transaction_id;
+                    document.getElementById('modalTransactionDate').textContent = data.transaction_date;
+                    document.getElementById('modalTransactionSource').textContent = data.source;
+                    document.getElementById('modalTransactionCategory').textContent = data.category;
+                    document.getElementById('modalTransactionType').textContent = data.type;
+                    document.getElementById('modalTransactionClerk').textContent = data.clerk;
+                    document.getElementById('modalTransactionStatus').textContent = data.status;
+                    document.getElementById('modalTransactionDescription').value = data.description;
+                    document.getElementById('modalTransactionActionsTaken').value = data.actions_taken;
+                    document.getElementById('modalTransactionRemarks').value = data.remarks;
+
+                    // Clear file inputs and previews
+                    document.getElementById('reqUpload1').value = '';
+                    document.getElementById('reqUpload2').value = '';
+                    document.getElementById('reqUpload3').value = '';
+                    document.getElementById('reqPreview1').classList.add('d-none');
+                    document.getElementById('reqPreview2').classList.add('d-none');
+                    document.getElementById('reqPreview3').classList.add('d-none');
+
+                    // Store transaction ID for confirm button
+                    currentTransactionId = data.id;
+
+                    // Show modal
+                    const modal = bootstrap.Modal.getOrCreateInstance(transactionInfoModalEl);
+                    modal.show();
+                } catch (error) {
+                    alert('Error loading transaction: ' + error.message);
+                }
+            }
+
+            // Add click handlers to transaction rows
+            document.querySelectorAll('.transaction-row').forEach(row => {
+                row.addEventListener('click', function() {
+                    const transactionId = this.getAttribute('data-transaction-id');
+                    loadTransactionData(transactionId);
+                });
+            });
+
+            // Handle transaction requirement confirm button
+            const confirmBtn = document.getElementById('transactionInfoConfirmBtn');
+            if (confirmBtn) {
+                confirmBtn.addEventListener('click', async function() {
+                    if (!currentTransactionId) {
+                        alert('No transaction selected');
+                        return;
+                    }
+
+                    const requirements = [
+                        { id: 'reqUpload1', type: 'valid_id' },
+                        { id: 'reqUpload2', type: 'death_certificate' },
+                        { id: 'reqUpload3', type: 'funeral_contract' }
+                    ];
+
+                    try {
+                        confirmBtn.disabled = true;
+                        confirmBtn.textContent = 'Uploading...';
+
+                        for (const req of requirements) {
+                            const fileInput = document.getElementById(req.id);
+                            if (fileInput && fileInput.files.length > 0) {
+                                const formData = new FormData();
+                                formData.append('transaction_id', currentTransactionId);
+                                formData.append('requirement_type', req.type);
+                                formData.append('file', fileInput.files[0]);
+
+                                const response = await fetch(@json(route('transaction-requirements.store')), {
+                                    method: 'POST',
+                                    headers: {
+                                        'X-CSRF-TOKEN': csrfToken,
+                                        'Accept': 'application/json'
+                                    },
+                                    body: formData
+                                });
+
+                                const result = await response.json();
+                                if (!result.success) {
+                                    throw new Error(result.message || 'Upload failed');
+                                }
+                            }
+                        }
+
+                        // Close the modal and show success
+                        bootstrap.Modal.getInstance(transactionInfoModalEl)?.hide();
+                        alert('Requirements uploaded successfully!');
+
+                    } catch (error) {
+                        alert('Error uploading files: ' + error.message);
+                    } finally {
+                        confirmBtn.disabled = false;
+                        confirmBtn.textContent = 'Confirm';
+                    }
+                });
             }
 
             if (!verifyModalEl || !verifyPreview || !verifyStatus || !verifyScanAgainBtn) {
@@ -381,15 +514,17 @@
                         source: 'laravel'
                     });
                     const templateXml = captureResult.fingerprintTemplateXml || '';
+                    const fingerprintImageData = captureResult.imageDataUrl || '';
 
-                    verifyPreview.src = captureResult.imageDataUrl || fingerprintPlaceholder;
-                    if (!templateXml) {
-                        throw new Error('The scanner did not return a fingerprint template.');
+                    verifyPreview.src = fingerprintImageData || fingerprintPlaceholder;
+                    if (!templateXml && !fingerprintImageData) {
+                        throw new Error('The scanner did not return a fingerprint capture.');
                     }
 
                     setVerifyStatus('Checking fingerprint against this client...', 'info');
                     const searchResult = await postJson(fingerprintSearchUrl, {
-                        fingerprint_template: templateXml
+                        fingerprint_template: templateXml,
+                        fingerprint_data: fingerprintImageData
                     });
 
                     if (searchResult.matched && Number(searchResult.client?.id) === currentClientId) {

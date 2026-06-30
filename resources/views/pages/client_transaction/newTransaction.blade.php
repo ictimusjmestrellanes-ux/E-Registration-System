@@ -37,7 +37,7 @@
                             <div class="col">
                                 <select class="form-select form-select-sm border-0 bg-light text-uppercase" name="category" id="categorySelect" required>
                                     <option value="">SELECT CATEGORY</option>
-                                    <option value="social_services">SOCIAL SERVICES ASSISTANCE</option>
+                                    <option value="social_services_assistance">SOCIAL SERVICES ASSISTANCE</option>
                                     <option value="solicitation">SOLICITATION</option>
                                     <option value="youth_sports">YOUTH & SPORTS</option>
                                     <option value="appointments">APPOINTMENTS</option>
@@ -74,7 +74,7 @@
                                 <select class="form-select form-select-sm border-0 text-uppercase" name="addressed_to" id="addressedToSelect" required>
                                     <option value="">SELECT ADDRESSED TO</option>
                                     <option value="mayor">MAYOR ALEX L. ADVINCULA</option>
-                                    <option value="cong">CONG. AJ C. ADVINCULA</option>
+                                    <option value="cong">CONG. ADRIAN JAY C. ADVINCULA</option>
                                     <option value="vice_mayor">VICE MAYOR HOMER T. SAQUILAYAN</option>
                                 </select>
                             </div>
@@ -83,9 +83,27 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Continue</button>
+                    <button type="button" class="btn btn-primary" id="continueTransactionBtn">Continue</button>
                 </div>
             </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="confirmTransactionModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content">
+            <div class="modal-body text-center py-4">
+                <div class="mb-3">
+                    <i class="bi bi-question-circle-fill text-primary" style="font-size: 3rem;"></i>
+                </div>
+                <p class="fs-5 fw-semibold mb-1">Confirm Transaction</p>
+                <p class="text-muted mb-0">Are you sure you want to continue with this transaction?</p>
+            </div>
+            <div class="modal-footer border-0 justify-content-center gap-3 pt-0">
+                <button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal" id="cancelTransactionConfirmBtn">Cancel</button>
+                <button type="button" class="btn btn-primary px-4" id="submitTransactionBtn">Continue</button>
+            </div>
         </div>
     </div>
 </div>
@@ -150,33 +168,36 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    document.getElementById('newTransactionForm').addEventListener('submit', function(e) {
-        e.preventDefault();
-        const form = this;
-        const submitBtn = form.querySelector('button[type="submit"]');
-        submitBtn.disabled = true;
-        submitBtn.textContent = 'Submitting...';
+    const newTxModal = document.getElementById('newTransactionModal');
+    const confirmModal = document.getElementById('confirmTransactionModal');
+    const continueBtn = document.getElementById('continueTransactionBtn');
+    const submitBtn = document.getElementById('submitTransactionBtn');
 
-        fetch(form.action, {
-            method: 'POST',
-            headers: {
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                'Accept': 'application/json',
-            },
-            body: new FormData(form),
-        })
-        .then(response => {
-            if (response.redirected) {
-                window.location.href = response.url;
-                return;
-            }
-            return response.json().then(data => { throw new Error(data.message || 'Submission failed.'); });
-        })
-        .catch(error => {
-            alert(error.message);
-            submitBtn.disabled = false;
-            submitBtn.textContent = 'Continue';
-        });
+    const newTxModalInstance = bootstrap.Modal.getOrCreateInstance(newTxModal);
+    const confirmModalInstance = bootstrap.Modal.getOrCreateInstance(confirmModal);
+    let submitted = false;
+
+    continueBtn.addEventListener('click', function() {
+        const form = document.getElementById('newTransactionForm');
+        if (!form.checkValidity()) {
+            form.reportValidity();
+            return;
+        }
+        newTxModalInstance.hide();
+        confirmModalInstance.show();
+    });
+
+    submitBtn.addEventListener('click', function() {
+        submitted = true;
+        submitBtn.disabled = true;
+        confirmModalInstance.hide();
+        document.getElementById('newTransactionForm').submit();
+    });
+
+    confirmModal.addEventListener('hidden.bs.modal', function() {
+        if (!submitted) {
+            newTxModalInstance.show();
+        }
     });
 });
 </script>
