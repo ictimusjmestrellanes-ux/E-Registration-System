@@ -22,7 +22,7 @@ class ClientsController extends Controller
 
     public function create()
     {
-        return view('pages.clients');
+        return view('pages.clients.clients');
     }
 
     public function store(Request $request)
@@ -103,7 +103,7 @@ class ClientsController extends Controller
             ->take(10)
             ->get();
 
-        return view('pages.clientShow', compact('client', 'transactionLogs'));
+        return view('pages.clients.clientShow', compact('client', 'transactionLogs'));
     }
 
     public function destroy(Client $client)

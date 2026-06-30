@@ -113,8 +113,7 @@
                                                 <div class="col-md d-flex flex-column justify-content-center">
                                                     <div class="d-flex flex-wrap gap-2 mb-2">
                                                         <button type="button" class="btn btn-soft-primary"
-                                                            id="openCameraBtn" data-bs-toggle="modal"
-                                                            data-bs-target="#cameraModal">Open Camera</button>
+                                                            id="openCameraBtn">Open Camera</button>
                                                         <button type="button" class="btn btn-soft-success"
                                                             id="retakePhotoBtn" disabled>Retake</button>
                                                         <button type="button" class="btn btn-soft-secondary"
@@ -1256,4 +1255,4 @@ unset($__errorArgs, $__bag); ?>
     </script>
 <?php $__env->stopSection(); ?>
 
-<?php echo $__env->make('layouts.master', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH C:\xampp\htdocs\E-Reg-System\resources\views\pages\clients.blade.php ENDPATH**/ ?>
+<?php echo $__env->make('layouts.master', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH C:\xampp\htdocs\E-Reg-System\resources\views\pages\clients\clients.blade.php ENDPATH**/ ?>

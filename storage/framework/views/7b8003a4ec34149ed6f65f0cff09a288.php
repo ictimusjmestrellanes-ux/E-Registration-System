@@ -296,4 +296,4 @@ unset($__errorArgs, $__bag); ?>
         </div>
     </div>
 </div>
-<?php /**PATH C:\xampp\htdocs\E-Reg-System\resources\views\pages\clientEdit.blade.php ENDPATH**/ ?>
+<?php /**PATH C:\xampp\htdocs\E-Reg-System\resources\views\pages\clients\clientEdit.blade.php ENDPATH**/ ?>

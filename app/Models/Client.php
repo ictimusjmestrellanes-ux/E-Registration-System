@@ -42,7 +42,7 @@ class Client extends Model
         $year = now()->format('y');
         $prefix = $year;
 
-        $latest = static::query()
+        $latest = self::query()
             ->where('client_id', 'like', "{$prefix}%")
             ->orderBy('client_id', 'desc')
             ->value('client_id');
@@ -86,5 +86,10 @@ class Client extends Model
             $this->last_name,
             $this->suffix,
         ]))));
+    }
+
+    public function transactions()
+    {
+        return $this->hasMany(Transaction::class, 'client_id', 'client_id');
     }
 }

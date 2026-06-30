@@ -29,7 +29,7 @@ class ActivityLogsController extends Controller
             ->take(8)
             ->get();
 
-        return view('pages.activityLogs', compact(
+        return view('pages.activity_logs.activityLogs', compact(
             'activities',
             'todayActivities',
             'weeklyActivities',

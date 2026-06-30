@@ -19,7 +19,7 @@ class ArchiveController extends Controller
     {
         $archivedClients = ArchivedClient::latest('archived_at')->get();
 
-        return view('pages.archive', compact('archivedClients'));
+        return view('pages.archive.archive', compact('archivedClients'));
     }
 
     public function restore(ArchivedClient $archivedClient)

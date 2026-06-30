@@ -14,6 +14,7 @@ use App\Http\Controllers\ClientsController;
 use App\Http\Controllers\FingerprintController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SettingsController;
+use App\Http\Controllers\TransactionController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -98,6 +99,11 @@ Route::group(['namespace' => 'App\Http\Controllers'], function () {
 
         // --------------------- Settings ------------------//
         Route::get('settings', [SettingsController::class, 'index'])->name('settings');
-        Route::put('profile/update', [SettingsController::class, 'update'])->name('profile.update');    
+        Route::put('profile/update', [SettingsController::class, 'update'])->name('profile.update');
+
+        // --------------------- Transactions ------------------//
+        Route::post('transactions', [TransactionController::class, 'store'])->name('transactions.store');
+        Route::get('transactions/{transaction}', [TransactionController::class, 'show'])->name('transactions.show');
+    
     });
 });

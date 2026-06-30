@@ -13,7 +13,7 @@ class ProfileController extends Controller
 
     public function profile()
     {
-        return view('pages.profile');
+        return view('pages.client_profile.profile');
     }
 
     public function dashboard()

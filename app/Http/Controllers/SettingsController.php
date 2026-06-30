@@ -19,7 +19,7 @@ class SettingsController extends Controller
 
     public function index()
     {
-        return view('pages.settings');
+        return view('pages.client_profile.settings');
     }
 
     public function update(Request $request)

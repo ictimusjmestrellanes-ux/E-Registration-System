@@ -22,6 +22,6 @@ class ClientListController extends Controller
             })
             ->get();
 
-        return view('pages.clientList', compact('clients', 'matchedClientId'));
+        return view('pages.clients.clientList', compact('clients', 'matchedClientId'));
     }
 }
