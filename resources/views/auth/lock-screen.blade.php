@@ -26,7 +26,7 @@
                         </div>
                         <div class="user-thumb text-center">
                             @php
-                                $lockScreenAvatar = auth()->user()?->avatar ? asset('storage/' . auth()->user()->avatar) : asset('assets/images/avatar-1.jpg');
+                                $lockScreenAvatar = auth()->user()?->avatar_url;
                             @endphp
                             <img src="{{ $lockScreenAvatar }}" class="rounded-circle img-thumbnail avatar-lg material-shadow" alt="thumbnail">
                             <h5 class="font-size-15 mt-3">E-Registration System</h5>

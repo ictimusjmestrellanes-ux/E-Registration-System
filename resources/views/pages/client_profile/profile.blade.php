@@ -19,7 +19,7 @@
         <div class="profile-foreground position-relative mx-n4 mt-n4">
             <div class="profile-wid-bg profile-cover-shell">
                 @php
-                    $profileCover = auth()->user()?->cover_photo ? asset('storage/' . auth()->user()->cover_photo) : null;
+                    $profileCover = auth()->user()?->cover_url;
                 @endphp
                 @if ($profileCover)
                     <img src="{{ $profileCover }}" alt="" class="profile-wid-img">
@@ -33,7 +33,7 @@
                 <div class="col-auto">
                     <div class="avatar-lg">
                         @php
-                            $profileAvatar = auth()->user()?->avatar ? asset('storage/' . auth()->user()->avatar) : asset('assets/images/avatar-1.jpg');
+                            $profileAvatar = auth()->user()?->avatar_url;
                         @endphp
                         <img src="{{ $profileAvatar }}" alt="user-img"
                             class="img-thumbnail rounded-circle">

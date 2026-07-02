@@ -6,16 +6,14 @@ use App\Models\ActivityLog;
 use App\Models\ArchivedClient;
 use App\Models\Client;
 use App\Services\ActivityLogger;
+use App\Services\FingerprintWorkflowService;
+use App\Services\MediaStorageService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 trait HandlesClientStorage
 {
-    private const FINGERPRINT_BRIDGE_BASE = 'http://127.0.0.1:38654';
-
     private function validateClientPayload(Request $request, ?Client $client = null): array
     {
         $validated = $request->validate([
@@ -73,16 +71,12 @@ trait HandlesClientStorage
 
     private function clientHasStoredPhoto(Client|ArchivedClient $client): bool
     {
-        return !empty($client->photo_path) && Storage::disk('public')->exists($client->photo_path);
+        return app(MediaStorageService::class)->clientHasStoredPhoto($client);
     }
 
     private function clientHasStoredFingerprint(Client|ArchivedClient $client): bool
     {
-        if (!empty($client->fingerprint_template)) {
-            return true;
-        }
-
-        return !empty($client->fingerprint_path) && Storage::disk('public')->exists($client->fingerprint_path);
+        return app(MediaStorageService::class)->clientHasStoredFingerprint($client);
     }
 
     private function ensureFingerprintForDuplicateClientIdentity(array $validated): void
@@ -159,12 +153,12 @@ trait HandlesClientStorage
 
     private function storeClientPhoto(?string $photoData): ?string
     {
-        return $this->storeBase64Image($photoData, 'clients', 'client_');
+        return app(MediaStorageService::class)->storeClientPhoto($photoData);
     }
 
     private function storeClientFingerprint(?string $fingerprintData): ?string
     {
-        return $this->storeBase64Image($fingerprintData, 'fingerprints', 'fingerprint_');
+        return app(MediaStorageService::class)->storeClientFingerprint($fingerprintData);
     }
 
     private function recordActivity(string $action, string $description, array $properties = [], Client|ArchivedClient|array|null $subject = null): void
@@ -184,95 +178,16 @@ trait HandlesClientStorage
 
     private function ensureFingerprintIsUnique(?string $fingerprintTemplate, ?string $fingerprintData, ?int $ignoreClientId = null): void
     {
-        if (empty($fingerprintTemplate) && empty($fingerprintData)) {
-            return;
-        }
-
-        $clients = [];
-        $query = Client::query()
-            ->select(['id', 'first_name', 'middle_name', 'last_name', 'suffix', 'fingerprint_template', 'fingerprint_path']);
-
-        if ($ignoreClientId) {
-            $query->where('id', '!=', $ignoreClientId);
-        }
-
-        $query->chunk(200, function ($chunk) use (&$clients) {
-            foreach ($chunk as $client) {
-                $fingerprintImageDataUrl = null;
-
-                if (empty($client->fingerprint_template) && !empty($client->fingerprint_path) && Storage::disk('public')->exists($client->fingerprint_path)) {
-                    $mimeType = Storage::disk('public')->mimeType($client->fingerprint_path) ?: 'image/png';
-                    $fingerprintImageDataUrl = 'data:' . $mimeType . ';base64,' . base64_encode(Storage::disk('public')->get($client->fingerprint_path));
-                }
-
-                if (!empty($client->fingerprint_template) || !empty($fingerprintImageDataUrl)) {
-                    $clients[] = [
-                        'id' => $client->id,
-                        'name' => $client->full_name,
-                        'fingerprintTemplateXml' => $client->fingerprint_template,
-                        'fingerprintImageDataUrl' => $fingerprintImageDataUrl,
-                    ];
-                }
-            }
-        });
-
-        if (empty($clients)) {
-            return;
-        }
-
-        $response = Http::timeout(60)->post($this->fingerprintBridgeUrl('api/match'), [
-            'fingerprintTemplateXml' => $fingerprintTemplate ?? '',
-            'fingerprintImageDataUrl' => $fingerprintData ?? '',
-            'clients' => $clients,
-        ]);
-
-        if (!$response->successful()) {
-            throw ValidationException::withMessages([
-                'fingerprint_template' => $response->json('message') ?: 'Fingerprint validation failed.',
-            ]);
-        }
-
-        $match = $response->json();
-        if (!($match['matched'] ?? false) || empty($match['matchedClientId'])) {
-            return;
-        }
-
-        $matchedClient = Client::find($match['matchedClientId']);
-        $matchedName = $matchedClient
-            ? $matchedClient->full_name
-            : ($match['matchedClientName'] ?? 'an existing client');
-
-        throw ValidationException::withMessages([
-            'fingerprint_template' => "This fingerprint is already taken by {$matchedName}.",
-        ]);
+        app(FingerprintWorkflowService::class)->ensureUnique($fingerprintTemplate, $fingerprintData, $ignoreClientId);
     }
 
     private function fingerprintBridgeUrl(string $path = ''): string
     {
-        return rtrim(self::FINGERPRINT_BRIDGE_BASE, '/') . '/' . ltrim($path, '/');
+        return rtrim((string) config('fingerprint.local_bridge_url'), '/') . '/' . ltrim($path, '/');
     }
 
     private function storeBase64Image(?string $imageData, string $directory, string $prefix): ?string
     {
-        if (empty($imageData)) {
-            return null;
-        }
-
-        if (!preg_match('/^data:image\/(\w+);base64,/', $imageData, $matches)) {
-            return null;
-        }
-
-        $extension = strtolower($matches[1]);
-        $imageData = substr($imageData, strpos($imageData, ',') + 1);
-        $decoded = base64_decode($imageData);
-
-        if ($decoded === false) {
-            return null;
-        }
-
-        $path = $directory . '/' . uniqid($prefix, true) . '.' . $extension;
-        Storage::disk('public')->put($path, $decoded);
-
-        return $path;
+        return app(MediaStorageService::class)->storeBase64Image($imageData, $directory, $prefix);
     }
 }

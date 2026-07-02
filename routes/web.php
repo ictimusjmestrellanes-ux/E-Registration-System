@@ -31,8 +31,8 @@ Route::group(['namespace' => 'App\Http\Controllers\Auth'],function()
     Route::post('/login', [LoginController::class, 'authenticate']);
     Route::get('auth/google/redirect', [LoginController::class, 'redirectToGoogle'])->name('google.redirect');
     Route::get('auth/google/callback', [LoginController::class, 'handleGoogleCallback'])->name('google.callback');
-    Route::get('/logout', [LoginController::class, 'logout'])->name('logout');
-    Route::get('logout/page', [LoginController::class, 'logout'])->name('logout/page');
+    Route::get('auth/azure/redirect', [LoginController::class, 'redirectToAzure'])->name('azure.redirect');
+    Route::get('auth/azure/callback', [LoginController::class, 'handleAzureCallback'])->name('azure.callback');
 
     // ----------------------------- register -------------------------------//
     Route::get('/register', [RegisterController::class, 'register'])->name('register');
@@ -84,6 +84,7 @@ Route::group(['namespace' => 'App\Http\Controllers'], function () {
         Route::post('client-list/fingerprint-search', [FingerprintController::class, 'search'])->name('client.search.fingerprint');
         Route::get('fingerprint/health', [FingerprintController::class, 'health'])->name('fingerprint.health');
         Route::post('fingerprint/capture', [FingerprintController::class, 'capture'])->name('fingerprint.capture');
+        Route::post('fingerprint/start-bridge', [FingerprintController::class, 'startBridge'])->name('fingerprint.start-bridge');
 
         // --------------------- Archive ------------------//
         Route::get('archive', [ArchiveController::class, 'index'])->name('archive.list');

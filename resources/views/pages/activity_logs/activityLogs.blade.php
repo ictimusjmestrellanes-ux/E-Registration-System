@@ -4,8 +4,8 @@
 @section('content')
     @php
         $user = auth()->user();
-        $profileAvatar = $user?->avatar ? asset('storage/' . $user->avatar) : asset('assets/images/avatar-1.jpg');
-        $profileCover = $user?->cover_photo ? asset('storage/' . $user->cover_photo) : asset('assets/images/profile-bg.jpg');
+        $profileAvatar = $user?->avatar_url;
+        $profileCover = $user?->cover_url ?? asset('assets/images/profile-bg.jpg');
         $totalLogs = $activities->total();
         $todayCount = $todayActivities->count();
         $weeklyCount = $weeklyActivities->count();

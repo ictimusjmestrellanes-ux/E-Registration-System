@@ -588,6 +588,7 @@
             const isCityOfImus = (value = '') => (value || '').trim().toLowerCase() === 'city of imus';
             const fingerprintPlaceholder = @json($fingerprintPlaceholder);
             const fingerprintSearchUrl = @json(route('client.search.fingerprint'));
+            const fingerprintStartBridgeUrl = @json(route('fingerprint.start-bridge'));
             const apiBase = 'https://psgc.gitlab.io/api';
             const calabarzonProvinces = ['Batangas', 'Cavite', 'Laguna', 'Quezon', 'Rizal'];
 
@@ -596,7 +597,8 @@
                 contactInput || !contactError || !contact2Input || !contact2Error || !cameraModalEl || !
                 uploadPhotoBtn || !clientPhotoFileInput || !provinceSelect || !citySelect || !barangaySelect || !provinceHidden || !cityHidden || !
                 provinceManual || !cityManual || !barangayManual || !sameAsHomeAddress || !openFingerprintBtn || !clearFingerprintBtn || !
-                fingerprintPreview || !fingerprintStatus || !fingerprintModalEl || !fingerprintModalPreview || !
+                fingerprintPreview || !fingerprintStatus || !fingerprintModalEl || !fingerprintModalPreview
+            ) {
                 return;
             }
 
@@ -887,16 +889,53 @@
                 fingerprintModalError.classList.remove('d-none');
             };
 
+            const waitForBridgeOnline = async (maxRetries = 15, intervalMs = 1500) => {
+                for (let i = 0; i < maxRetries; i++) {
+                    if (await isFingerprintBridgeOnline()) {
+                        return true;
+                    }
+                    await new Promise(resolve => setTimeout(resolve, intervalMs));
+                }
+                return false;
+            };
+
+            const autoStartBridge = async () => {
+                try {
+                    const response = await fetch(fingerprintStartBridgeUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')
+                                ?.content || ''
+                        }
+                    });
+                    return response.ok;
+                } catch (_) {
+                    return false;
+                }
+            };
+
             const scanFingerprintAgain = async () => {
                 clearFingerprintModalError();
                 retryFingerprintCaptureBtn.classList.add('d-none');
-                fingerprintStatus.textContent = 'Place your finger on the scanner...';
 
-                const bridgeOnline = await isFingerprintBridgeOnline();
+                let bridgeOnline = await isFingerprintBridgeOnline();
+
                 if (!bridgeOnline) {
-                    throw new Error(
-                        'DigitalPersona bridge is not running. Start the FingerprintBridge app first.');
+                    fingerprintStatus.textContent = 'Starting fingerprint scanner...';
+
+                    await autoStartBridge();
+
+                    bridgeOnline = await waitForBridgeOnline(12, 1500);
+
+                    if (!bridgeOnline) {
+                        throw new Error(
+                            'Unable to connect to the fingerprint scanner. Ensure the scanner is connected via USB.'
+                            );
+                    }
                 }
+
+                fingerprintStatus.textContent = 'Place your finger on the scanner...';
 
                 const captureResult = await captureFingerprintFromBridge();
                 fingerprintModalPreview.src = captureResult.imageDataUrl;
@@ -1036,11 +1075,11 @@
                     try {
                         await scanFingerprintAgain();
                     } catch (error) {
-                        fingerprintStatus.textContent =
-                            'Scanner bridge is not available. Make sure the bridge app is running.';
+                        const message = error?.message ||
+                            'Unable to connect to the fingerprint scanner.';
+                        fingerprintStatus.textContent = message;
+                        showFingerprintModalError(message);
                         retryFingerprintCaptureBtn.classList.remove('d-none');
-                        alert(
-                            `Unable to capture from the scanner bridge.\n\n${error.message || error}`);
                     }
                 })();
             });
@@ -1087,11 +1126,11 @@
                     try {
                         await scanFingerprintAgain();
                     } catch (error) {
-                        fingerprintStatus.textContent =
-                            'Scanner bridge is not available. Make sure the bridge app is running.';
+                        const message = error?.message ||
+                            'Unable to connect to the fingerprint scanner.';
+                        fingerprintStatus.textContent = message;
+                        showFingerprintModalError(message);
                         retryFingerprintCaptureBtn.classList.remove('d-none');
-                        alert(
-                            `Unable to capture from the scanner bridge.\n\n${error.message || error}`);
                     }
                 })();
             });

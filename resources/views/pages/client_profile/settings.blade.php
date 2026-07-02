@@ -29,7 +29,7 @@
         <div class="position-relative mx-n4 mt-n4">
             <div class="profile-wid-bg profile-setting-img">
                 @php
-                    $profileCover = auth()->user()?->cover_photo ? asset('storage/' . auth()->user()->cover_photo) : asset('assets/images/profile-bg.jpg');
+                    $profileCover = auth()->user()?->cover_url ?? asset('assets/images/profile-bg.jpg');
                 @endphp
                 <img src="{{ $profileCover }}" class="profile-wid-img" alt="">
                 <div class="overlay-content">
@@ -56,7 +56,7 @@
                     <div class="card-body p-4">
                         <div class="text-center">
                             @php
-                                $profileAvatar = auth()->user()?->avatar ? asset('storage/' . auth()->user()->avatar) : asset('assets/images/avatar-1.jpg');
+                                $profileAvatar = auth()->user()?->avatar_url;
                             @endphp
                             <div class="profile-user position-relative d-inline-block mx-auto  mb-4">
                                 <img src="{{ $profileAvatar }}" class="rounded-circle avatar-xl img-thumbnail user-profile-image material-shadow" alt="user-profile-image">

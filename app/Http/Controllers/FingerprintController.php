@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Traits\HandlesClientStorage;
 use App\Models\Client;
+use App\Services\FingerprintBridgeService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
@@ -13,9 +14,12 @@ class FingerprintController extends Controller
 {
     use HandlesClientStorage;
 
-    public function __construct()
+    private FingerprintBridgeService $bridgeService;
+
+    public function __construct(FingerprintBridgeService $bridgeService)
     {
         $this->middleware('auth');
+        $this->bridgeService = $bridgeService;
     }
 
     public function search(Request $request)
@@ -131,6 +135,26 @@ class FingerprintController extends Controller
         );
 
         return response()->json($payload);
+    }
+
+    public function startBridge()
+    {
+        $started = $this->bridgeService->start();
+
+        if ($started) {
+            $status = $this->bridgeService->getStatus();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Fingerprint bridge started successfully.',
+                'readers_count' => $status['readers_count'],
+            ]);
+        }
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Failed to start fingerprint bridge. Ensure the scanner is connected and the DigitalPersona SDK is installed.',
+        ], 503);
     }
 
     public function health()

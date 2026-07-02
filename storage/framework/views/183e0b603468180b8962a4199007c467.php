@@ -37,9 +37,7 @@
                 data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                 <span class="d-flex align-items-center gap-2">
                     <?php
-                        $sidebarAvatar = auth()->user()?->avatar
-                            ? asset('storage/' . auth()->user()->avatar)
-                            : asset('assets/images/avatar-1.jpg');
+                        $sidebarAvatar = auth()->user()?->avatar_url ?? asset('assets/images/avatar-1.jpg');
                     ?>
                     <img class="rounded header-profile-user" src="<?php echo e($sidebarAvatar); ?>" alt="Header Avatar">
                     <span class="text-start">

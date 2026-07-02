@@ -382,7 +382,7 @@
                 <p class="lead">Sign in to your account to continue</p>
 
                 <div class="oauth-buttons">
-                    <button type="button" class="microsoft-btn" aria-label="Sign in with Microsoft">
+                    <a href="{{ route('azure.redirect') }}" class="microsoft-btn" aria-label="Sign in with Microsoft">
                         <span class="microsoft-logo" aria-hidden="true">
                             <span class="c1"></span>
                             <span class="c2"></span>
@@ -390,14 +390,15 @@
                             <span class="c4"></span>
                         </span>
                         Sign in with Microsoft
-                    </button>
+                    </a>
                     <a href="{{ route('google.redirect') }}" class="google-btn" aria-label="Sign in with Google">
                         <i class="ri-google-fill fs-18" aria-hidden="true"></i>
                         Sign in with Google
                     </a>
                 </div>
 
-                {{-- <div class="divider">Authorized access</div>
+                @if ($localAuthEnabled)
+                <div class="divider">Local access</div>
 
                 <form class="login-form" action="{{ route('login') }}" method="POST">
                     @csrf
@@ -438,7 +439,8 @@
                     </div>
 
                     <button type="submit" class="login-submit">Sign In</button>
-                </form> --}}
+                </form>
+                @endif
 
                 <p class="support-copy mt-4">
                     Need assistance? Contact the <strong>IT Support Team</strong> for help accessing your account.

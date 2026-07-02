@@ -10,7 +10,6 @@
     <meta content="E-Registration System" name="author">
     <!-- App favicon -->
     {{-- <link rel="shortcut icon" href="{{ asset('assets/images/favicon.ico') }}"> --}}
-    @vite(['resources/sass/app.scss', 'resources/js/app.js'])
     <!-- Layout config Js -->
     <script src="{{ asset('assets/js/layout.js') }}"></script>
     <!-- Bootstrap Css -->
@@ -169,7 +168,7 @@
                             <button type="button" class="btn material-shadow-none" id="topbar-user-dropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                                 <span class="d-flex align-items-center">
                                     @php
-                                        $headerAvatar = auth()->user()?->avatar ? asset('storage/' . auth()->user()->avatar) : asset('assets/images/avatar-1.jpg');
+                                        $headerAvatar = auth()->user()?->avatar_url ?? asset('assets/images/avatar-1.jpg');
                                     @endphp
                                     <img class="rounded-circle header-profile-user" src="{{ $headerAvatar }}" alt="Header Avatar">
                                     <span class="text-start ms-xl-2">
@@ -183,7 +182,13 @@
                                 <div class="dropdown-divider"></div>
                                 <a class="dropdown-item" href="{{ route('settings') }}"><i class="mdi mdi-cog-outline text-muted fs-16 align-middle me-1"></i> <span class="align-middle">Settings</span></a>
                                 <a class="dropdown-item" href="{{ route('lock-activate') }}"><i class="mdi mdi-lock text-muted fs-16 align-middle me-1"></i> <span class="align-middle">Lock screen</span></a>
-                                <a class="dropdown-item" href="{{ route('logout') }}"><i class="mdi mdi-logout text-muted fs-16 align-middle me-1"></i> <span class="align-middle" data-key="t-logout">Logout</span></a>
+                                <form method="POST" action="{{ route('logout') }}" class="m-0">
+                                    @csrf
+                                    <button type="submit" class="dropdown-item">
+                                        <i class="mdi mdi-logout text-muted fs-16 align-middle me-1"></i>
+                                        <span class="align-middle" data-key="t-logout">Logout</span>
+                                    </button>
+                                </form>
                             </div>
                         </div>
                     </div>
