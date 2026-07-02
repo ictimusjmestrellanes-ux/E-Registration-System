@@ -208,29 +208,58 @@
             filter: brightness(1.02);
         }
 
-        .microsoft-btn {
+        .oauth-buttons {
             margin: 56px auto 42px;
             width: 100%;
             max-width: 368px;
+            display: grid;
+            gap: 12px;
+        }
+
+        .microsoft-btn,
+        .google-btn {
+            width: 100%;
             border: 0;
             border-radius: 14px;
             padding: 16px 24px;
-            background: linear-gradient(180deg, #1784ec 0%, #0f75d9 100%);
-            color: #ffffff;
             font-size: 1.02rem;
             font-weight: 700;
-            box-shadow: 0 16px 28px rgba(22, 120, 219, 0.22);
             display: inline-flex;
             align-items: center;
             justify-content: center;
             gap: 12px;
             cursor: pointer;
+            text-decoration: none;
+        }
+
+        .microsoft-btn {
+            background: linear-gradient(180deg, #1784ec 0%, #0f75d9 100%);
+            color: #ffffff;
+            box-shadow: 0 16px 28px rgba(22, 120, 219, 0.22);
+        }
+
+        .google-btn {
+            background: #ffffff;
+            color: #24304a;
+            border: 1px solid #d7dfec;
+            box-shadow: 0 12px 22px rgba(36, 48, 74, 0.08);
+        }
+
+        .google-btn i {
+            color: #ea4335;
         }
 
         .microsoft-btn:focus,
         .microsoft-btn:hover {
             color: #ffffff;
             filter: brightness(1.02);
+            transform: translateY(-1px);
+        }
+
+        .google-btn:focus,
+        .google-btn:hover {
+            color: #24304a;
+            border-color: #c3ccdc;
             transform: translateY(-1px);
         }
 
@@ -352,17 +381,23 @@
                 <h1>Welcome back</h1>
                 <p class="lead">Sign in to your account to continue</p>
 
-                <button type="button" class="microsoft-btn" aria-label="Sign in with Microsoft">
-                    <span class="microsoft-logo" aria-hidden="true">
-                        <span class="c1"></span>
-                        <span class="c2"></span>
-                        <span class="c3"></span>
-                        <span class="c4"></span>
-                    </span>
-                    Sign in with Microsoft
-                </button>
+                <div class="oauth-buttons">
+                    <button type="button" class="microsoft-btn" aria-label="Sign in with Microsoft">
+                        <span class="microsoft-logo" aria-hidden="true">
+                            <span class="c1"></span>
+                            <span class="c2"></span>
+                            <span class="c3"></span>
+                            <span class="c4"></span>
+                        </span>
+                        Sign in with Microsoft
+                    </button>
+                    <a href="{{ route('google.redirect') }}" class="google-btn" aria-label="Sign in with Google">
+                        <i class="ri-google-fill fs-18" aria-hidden="true"></i>
+                        Sign in with Google
+                    </a>
+                </div>
 
-                <div class="divider">Authorized access</div>
+                {{-- <div class="divider">Authorized access</div>
 
                 <form class="login-form" action="{{ route('login') }}" method="POST">
                     @csrf
@@ -403,7 +438,7 @@
                     </div>
 
                     <button type="submit" class="login-submit">Sign In</button>
-                </form>
+                </form> --}}
 
                 <p class="support-copy mt-4">
                     Need assistance? Contact the <strong>IT Support Team</strong> for help accessing your account.

@@ -207,29 +207,58 @@
             filter: brightness(1.02);
         }
 
-        .microsoft-btn {
+        .oauth-buttons {
             margin: 56px auto 42px;
             width: 100%;
             max-width: 368px;
+            display: grid;
+            gap: 12px;
+        }
+
+        .microsoft-btn,
+        .google-btn {
+            width: 100%;
             border: 0;
             border-radius: 14px;
             padding: 16px 24px;
-            background: linear-gradient(180deg, #1784ec 0%, #0f75d9 100%);
-            color: #ffffff;
             font-size: 1.02rem;
             font-weight: 700;
-            box-shadow: 0 16px 28px rgba(22, 120, 219, 0.22);
             display: inline-flex;
             align-items: center;
             justify-content: center;
             gap: 12px;
             cursor: pointer;
+            text-decoration: none;
+        }
+
+        .microsoft-btn {
+            background: linear-gradient(180deg, #1784ec 0%, #0f75d9 100%);
+            color: #ffffff;
+            box-shadow: 0 16px 28px rgba(22, 120, 219, 0.22);
+        }
+
+        .google-btn {
+            background: #ffffff;
+            color: #24304a;
+            border: 1px solid #d7dfec;
+            box-shadow: 0 12px 22px rgba(36, 48, 74, 0.08);
+        }
+
+        .google-btn i {
+            color: #ea4335;
         }
 
         .microsoft-btn:focus,
         .microsoft-btn:hover {
             color: #ffffff;
             filter: brightness(1.02);
+            transform: translateY(-1px);
+        }
+
+        .google-btn:focus,
+        .google-btn:hover {
+            color: #24304a;
+            border-color: #c3ccdc;
             transform: translateY(-1px);
         }
 
@@ -351,72 +380,23 @@
                 <h1>Welcome back</h1>
                 <p class="lead">Sign in to your account to continue</p>
 
-                <button type="button" class="microsoft-btn" aria-label="Sign in with Microsoft">
-                    <span class="microsoft-logo" aria-hidden="true">
-                        <span class="c1"></span>
-                        <span class="c2"></span>
-                        <span class="c3"></span>
-                        <span class="c4"></span>
-                    </span>
-                    Sign in with Microsoft
-                </button>
+                <div class="oauth-buttons">
+                    <button type="button" class="microsoft-btn" aria-label="Sign in with Microsoft">
+                        <span class="microsoft-logo" aria-hidden="true">
+                            <span class="c1"></span>
+                            <span class="c2"></span>
+                            <span class="c3"></span>
+                            <span class="c4"></span>
+                        </span>
+                        Sign in with Microsoft
+                    </button>
+                    <a href="<?php echo e(route('google.redirect')); ?>" class="google-btn" aria-label="Sign in with Google">
+                        <i class="ri-google-fill fs-18" aria-hidden="true"></i>
+                        Sign in with Google
+                    </a>
+                </div>
 
-                <div class="divider">Authorized access</div>
-
-                <form class="login-form" action="<?php echo e(route('login')); ?>" method="POST">
-                    <?php echo csrf_field(); ?>
-                    <div class="mb-3">
-                        <label for="email" class="form-label">Username</label>
-                        <input
-                            type="text"
-                            class="form-control <?php $__errorArgs = ['email'];
-$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
-if ($__bag->has($__errorArgs[0])) :
-if (isset($message)) { $__messageOriginal = $message; }
-$message = $__bag->first($__errorArgs[0]); ?> is-invalid <?php unset($message);
-if (isset($__messageOriginal)) { $message = $__messageOriginal; }
-endif;
-unset($__errorArgs, $__bag); ?>"
-                            id="email"
-                            name="email"
-                            placeholder="Enter username"
-                            value="<?php echo e(old('email')); ?>"
-                        >
-                    </div>
-
-                    <div class="mb-2">
-                        <div class="d-flex justify-content-between align-items-center gap-3">
-                            <label class="form-label mb-0" for="password-input">Password</label>
-                            <a href="<?php echo e(route('forget-password')); ?>" class="forgot-link">Forgot password?</a>
-                        </div>
-                        <div class="position-relative mt-2">
-                            <input
-                                type="password"
-                                class="form-control pe-5 password-input <?php $__errorArgs = ['password'];
-$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
-if ($__bag->has($__errorArgs[0])) :
-if (isset($message)) { $__messageOriginal = $message; }
-$message = $__bag->first($__errorArgs[0]); ?> is-invalid <?php unset($message);
-if (isset($__messageOriginal)) { $message = $__messageOriginal; }
-endif;
-unset($__errorArgs, $__bag); ?>"
-                                id="password-input"
-                                name="password"
-                                placeholder="Enter password"
-                            >
-                            <button class="btn btn-link position-absolute end-0 top-0 text-decoration-none text-muted password-addon material-shadow-none" type="button" id="password-addon" aria-label="Toggle password visibility">
-                                <i class="ri-eye-fill align-middle"></i>
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="form-check mt-3">
-                        <input class="form-check-input" type="checkbox" value="1" id="auth-remember-check" name="remember">
-                        <label class="form-check-label" for="auth-remember-check">Remember me</label>
-                    </div>
-
-                    <button type="submit" class="login-submit">Sign In</button>
-                </form>
+                
 
                 <p class="support-copy mt-4">
                     Need assistance? Contact the <strong>IT Support Team</strong> for help accessing your account.

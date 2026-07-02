@@ -71,10 +71,6 @@
     <script src="<?php echo e(asset('assets/js/feather.min.js')); ?>"></script>
     <script src="<?php echo e(asset('assets/js/lord-icon-2.1.0.js')); ?>"></script>
     <script src="<?php echo e(asset('assets/js/plugins.js')); ?>"></script>
-    <!-- particles js -->
-    <script src="<?php echo e(asset('assets/js/particles.js')); ?>"></script>
-    <!-- particles app js -->
-    <script src="<?php echo e(asset('assets/js/particles.app.js')); ?>"></script>
     <!-- password-addon init -->
     <script src="<?php echo e(asset('assets/js/password-addon.init.js')); ?>"></script>
     <!-- imessage -->
@@ -97,6 +93,9 @@
     </script>
 
     <?php echo $__env->yieldContent('script'); ?>
+    <?php if(file_exists(public_path('hot'))): ?>
+        <?php echo app('Illuminate\Foundation\Vite')('resources/js/app.js'); ?>
+    <?php endif; ?>
 </body>
 </html>
 <?php /**PATH C:\xampp\htdocs\E-Reg-System\resources\views/layouts/app.blade.php ENDPATH**/ ?>

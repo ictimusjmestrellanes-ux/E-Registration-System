@@ -10,6 +10,7 @@
     <meta content="E-Registration System" name="author">
     <!-- App favicon -->
     
+    <?php echo app('Illuminate\Foundation\Vite')(['resources/sass/app.scss', 'resources/js/app.js']); ?>
     <!-- Layout config Js -->
     <script src="<?php echo e(asset('assets/js/layout.js')); ?>"></script>
     <!-- Bootstrap Css -->

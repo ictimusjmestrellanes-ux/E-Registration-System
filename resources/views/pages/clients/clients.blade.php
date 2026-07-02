@@ -1,5 +1,6 @@
-<?php $__env->startSection('title', 'Clients'); ?>
-<?php $__env->startPush('styles'); ?>
+@extends('layouts.master')
+@section('title', 'Clients')
+@push('styles')
     <style>
         .clients-uppercase-form input,
         .clients-uppercase-form textarea,
@@ -8,9 +9,9 @@
             text-transform: uppercase;
         }
     </style>
-<?php $__env->stopPush(); ?>
-<?php $__env->startSection('content'); ?>
-    <?php
+@endpush
+@section('content')
+    @php
         $editingClient = $client ?? null;
         $selectedProvince = old('province', optional($editingClient)->province ?? '');
         $selectedCity = old('city', optional($editingClient)->city ?? '');
@@ -69,7 +70,7 @@
                 ? asset('storage/' . $editingClient->fingerprint_path)
                 : ($oldFingerprintData ?:
                 $fingerprintPlaceholder);
-    ?>
+    @endphp
 
     <div class="container-fluid">
         <div class="row">
@@ -83,20 +84,20 @@
                             </div>
                         </div>
 
-                        <?php if($errors->any()): ?>
+                        @if ($errors->any())
                             <div class="alert alert-danger">
                                 <div class="fw-semibold mb-1">Please fix the highlighted issue(s) below.</div>
-                                <div><?php echo e($errors->first()); ?></div>
+                                <div>{{ $errors->first() }}</div>
                             </div>
-                        <?php endif; ?>
+                        @endif
 
                         <form
-                            action="<?php echo e($editingClient ? route('clients.update', $editingClient) : route('clients.store')); ?>"
+                            action="{{ $editingClient ? route('clients.update', $editingClient) : route('clients.store') }}"
                             method="POST" class="clients-uppercase-form">
-                            <?php echo csrf_field(); ?>
-                            <?php if($editingClient): ?>
-                                <?php echo method_field('PUT'); ?>
-                            <?php endif; ?>
+                            @csrf
+                            @if ($editingClient)
+                                @method('PUT')
+                            @endif
 
                             <div class="row g-3">
                                 <div class="col-12">
@@ -105,7 +106,7 @@
                                             <label for="clientPhoto" class="form-label">Client Photo</label>
                                             <div class="row g-3 align-items-start">
                                                 <div class="col-md-auto">
-                                                    <img id="clientPhotoPreview" src="<?php echo e($previewImage); ?>"
+                                                    <img id="clientPhotoPreview" src="{{ $previewImage }}"
                                                         alt="Client Photo Preview"
                                                         class="rounded-3 img-thumbnail material-shadow object-fit-cover"
                                                         style="width: 250px; height: 250px;">
@@ -113,13 +114,17 @@
                                                 <div class="col-md d-flex flex-column justify-content-center">
                                                     <div class="d-flex flex-wrap gap-2 mb-2">
                                                         <button type="button" class="btn btn-soft-primary"
-                                                            id="openCameraBtn" data-bs-toggle="modal"
-                                                            data-bs-target="#cameraModal">Open Camera</button>
+                                                            id="openCameraBtn">Open Camera</button>
                                                         <button type="button" class="btn btn-soft-success"
                                                             id="retakePhotoBtn" disabled>Retake</button>
+                                                        <button type="button" class="btn btn-soft-secondary"
+                                                            id="uploadPhotoBtn">Upload Photo</button>
                                                     </div>
+                                                    <input type="file" id="clientPhotoFileInput" class="d-none"
+                                                        accept="image/*">
                                                     <canvas id="cameraCanvas" class="d-none"></canvas>
                                                     <input type="hidden" id="clientPhotoData" name="photo_data">
+                                                    <div id="photoCaptureError" class="text-danger small mt-1 d-none"></div>
                                                 </div>
                                             </div>
                                         </div>
@@ -128,44 +133,38 @@
                                             <label for="fingerprintCapture" class="form-label">Fingerprint Scanner</label>
                                             <div class="row g-3 align-items-start">
                                                 <div class="col-md-auto">
-                                                    <img id="fingerprintPreview" src="<?php echo e($fingerprintPreview); ?>"
+                                                    <img id="fingerprintPreview" src="{{ $fingerprintPreview }}"
                                                         alt="Fingerprint Preview"
                                                         class="rounded-3 img-thumbnail material-shadow object-fit-cover"
                                                         style="width: 250px; height: 250px;">
                                                 </div>
-                                                <div class="col-md d-flex flex-column justify-content-center">
-                                                    <div class="d-flex flex-wrap gap-2 mb-2">
-                                                        <button type="button" class="btn btn-soft-primary"
-                                                            id="openFingerprintBtn" data-bs-toggle="modal"
-                                                            data-bs-target="#fingerprintModal">Open Scanner</button>
-                                                        <button type="button" class="btn btn-soft-success"
-                                                            id="clearFingerprintBtn" disabled>Clear</button>
-                                                    </div>
-                                                    <p class="text-muted small mb-2">
-                                                        Capture a fingerprint image from the scanner or biometric device.
-                                                    </p>
-                                                    <p class="text-warning small mb-2">
-                                                        Fingerprint is required when the client name and birth date already
-                                                        exist.
-                                                    </p>
-                                                    <input type="hidden" id="clientFingerprintData" name="fingerprint_data"
-                                                        value="<?php echo e(old('fingerprint_data', '')); ?>">
-                                                    <input type="hidden" id="clientFingerprintTemplate"
-                                                        name="fingerprint_template"
-                                                        value="<?php echo e(old('fingerprint_template', '')); ?>">
-                                                    <div class="small text-muted" id="fingerprintStatus">No fingerprint
-                                                        captured yet.</div>
-                                                    <?php $__errorArgs = ['fingerprint_template'];
-$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
-if ($__bag->has($__errorArgs[0])) :
-if (isset($message)) { $__messageOriginal = $message; }
-$message = $__bag->first($__errorArgs[0]); ?>
-                                                        <div class="text-danger small mt-1"><?php echo e($message); ?></div>
-                                                    <?php unset($message);
-if (isset($__messageOriginal)) { $message = $__messageOriginal; }
-endif;
-unset($__errorArgs, $__bag); ?>
-                                                </div>
+<div class="col-md d-flex flex-column justify-content-center">
+<div class="d-flex flex-wrap gap-2 mb-2">
+                                                              <button type="button" class="btn btn-soft-primary"
+                                                                  id="openFingerprintBtn" data-bs-toggle="modal"
+                                                                  data-bs-target="#fingerprintModal">Open Scanner</button>
+                                                              <button type="button" class="btn btn-soft-success"
+                                                                  id="clearFingerprintBtn" disabled>Clear</button>
+                                                          </div>
+                                                     <p class="text-muted small mb-2">
+                                                         Capture a fingerprint image from the scanner or biometric device.
+                                                     </p>
+<p class="text-warning small mb-2">
+                                                          Fingerprint is required when the client name and birth date already
+                                                          exist.
+                                                      </p>
+                                                      <input type="hidden" id="clientFingerprintData" name="fingerprint_data"
+                                                         value="{{ old('fingerprint_data', '') }}">
+                                                     <input type="hidden" id="clientFingerprintTemplate"
+                                                         name="fingerprint_template"
+                                                         value="{{ old('fingerprint_template', '') }}">
+                                                     <div class="small text-muted" id="fingerprintStatus">No fingerprint
+                                                         captured yet.</div>
+                                                     <div id="fingerprintCaptureError" class="text-danger small mt-1 d-none"></div>
+                                                     @error('fingerprint_template')
+                                                         <div class="text-danger small mt-1">{{ $message }}</div>
+                                                     @enderror
+                                                 </div>
                                             </div>
                                         </div>
 
@@ -186,48 +185,46 @@ unset($__errorArgs, $__bag); ?>
                                                 <label for="firstName" class="form-label">First Name</label>
                                                 <input type="text" class="form-control" id="firstName" name="first_name"
                                                     placeholder="Enter first name"
-                                                    value="<?php echo e(old('first_name', optional($editingClient)->first_name ?? '')); ?>"
+                                                    value="{{ old('first_name', optional($editingClient)->first_name ?? '') }}"
                                                     required>
                                             </div>
 
                                             <div class="col-lg-3">
-                                                <label for="middleName" class="form-label">Middle Name</label>
+                                                <label for="middleName" class="form-label">Middle Name (Optional)</label>
                                                 <input type="text" class="form-control" id="middleName"
                                                     name="middle_name" placeholder="Enter middle name"
-                                                    value="<?php echo e(old('middle_name', optional($editingClient)->middle_name ?? '')); ?>"
-                                                    required>
+                                                    value="{{ old('middle_name', optional($editingClient)->middle_name ?? '') }}">
                                             </div>
 
                                             <div class="col-lg-3">
                                                 <label for="lastName" class="form-label">Last Name</label>
                                                 <input type="text" class="form-control" id="lastName"
                                                     name="last_name" placeholder="Enter last name"
-                                                    value="<?php echo e(old('last_name', optional($editingClient)->last_name ?? '')); ?>"
+                                                    value="{{ old('last_name', optional($editingClient)->last_name ?? '') }}"
                                                     required>
                                             </div>
 
                                             <div class="col-lg-3">
-                                                <label for="suffix" class="form-label">Suffix</label>
+                                                <label for="suffix" class="form-label">Suffix (Optional)</label>
                                                 <input type="text" class="form-control" id="suffix" name="suffix"
                                                     placeholder="Jr., Sr., III"
-                                                    value="<?php echo e(old('suffix', optional($editingClient)->suffix ?? '')); ?>"
-                                                    required>
+                                                    value="{{ old('suffix', optional($editingClient)->suffix ?? '') }}">
                                             </div>
 
                                             <div class="col-lg-2">
                                                 <label for="gender" class="form-label">Gender</label>
                                                 <select class="form-select" id="gender" name="gender" required>
                                                     <option value=""
-                                                        <?php echo e(old('gender', optional($editingClient)->gender ?? '') === '' ? 'selected' : ''); ?>>
+                                                        {{ old('gender', optional($editingClient)->gender ?? '') === '' ? 'selected' : '' }}>
                                                         Select gender</option>
                                                     <option value="Male"
-                                                        <?php echo e(old('gender', optional($editingClient)->gender ?? '') === 'Male' ? 'selected' : ''); ?>>
+                                                        {{ old('gender', optional($editingClient)->gender ?? '') === 'Male' ? 'selected' : '' }}>
                                                         Male</option>
                                                     <option value="Female"
-                                                        <?php echo e(old('gender', optional($editingClient)->gender ?? '') === 'Female' ? 'selected' : ''); ?>>
+                                                        {{ old('gender', optional($editingClient)->gender ?? '') === 'Female' ? 'selected' : '' }}>
                                                         Female</option>
                                                     <option value="Other"
-                                                        <?php echo e(old('gender', optional($editingClient)->gender ?? '') === 'Other' ? 'selected' : ''); ?>>
+                                                        {{ old('gender', optional($editingClient)->gender ?? '') === 'Other' ? 'selected' : '' }}>
                                                         Other</option>
                                                 </select>
                                             </div>
@@ -236,14 +233,14 @@ unset($__errorArgs, $__bag); ?>
                                                 <label for="birthDate" class="form-label">Birth Date</label>
                                                 <input type="date" class="form-control" id="birthDate"
                                                     name="birth_date" required
-                                                value="<?php echo e($selectedBirthDate); ?>">
+                                                value="{{ $selectedBirthDate }}">
                                             </div>
 
                                             <div class="col-lg-3">
                                                 <label for="birthplace" class="form-label">Birthplace</label>
                                                 <input type="text" class="form-control" id="birthplace"
                                                     name="birthplace" placeholder="Enter birthplace"
-                                                    value="<?php echo e(old('birthplace', optional($editingClient)->birthplace ?? '')); ?>"
+                                                    value="{{ old('birthplace', optional($editingClient)->birthplace ?? '') }}"
                                                     required>
                                             </div>
 
@@ -252,7 +249,7 @@ unset($__errorArgs, $__bag); ?>
                                                 <input type="number" class="form-control" id="age" name="age"
                                                     placeholder="Enter age" required
                                                 min="0"
-                                                value="<?php echo e(old('age', optional($editingClient)->age ?? '')); ?>">
+                                                value="{{ old('age', optional($editingClient)->age ?? '') }}">
                                             </div>
 
                                             <div class="col-lg-3">
@@ -260,22 +257,22 @@ unset($__errorArgs, $__bag); ?>
                                                 <select class="form-select" id="civilStatus" name="civil_status"
                                                     required>
                                                     <option value=""
-                                                        <?php echo e(old('civil_status', optional($editingClient)->civil_status ?? '') === '' ? 'selected' : ''); ?>>
+                                                        {{ old('civil_status', optional($editingClient)->civil_status ?? '') === '' ? 'selected' : '' }}>
                                                         Select civil status</option>
                                                     <option value="Single"
-                                                        <?php echo e(old('civil_status', optional($editingClient)->civil_status ?? '') === 'Single' ? 'selected' : ''); ?>>
+                                                        {{ old('civil_status', optional($editingClient)->civil_status ?? '') === 'Single' ? 'selected' : '' }}>
                                                         Single</option>
                                                     <option value="Married"
-                                                        <?php echo e(old('civil_status', optional($editingClient)->civil_status ?? '') === 'Married' ? 'selected' : ''); ?>>
+                                                        {{ old('civil_status', optional($editingClient)->civil_status ?? '') === 'Married' ? 'selected' : '' }}>
                                                         Married</option>
                                                     <option value="Separated"
-                                                        <?php echo e(old('civil_status', optional($editingClient)->civil_status ?? '') === 'Separated' ? 'selected' : ''); ?>>
+                                                        {{ old('civil_status', optional($editingClient)->civil_status ?? '') === 'Separated' ? 'selected' : '' }}>
                                                         Separated</option>
                                                     <option value="Widowed"
-                                                        <?php echo e(old('civil_status', optional($editingClient)->civil_status ?? '') === 'Widowed' ? 'selected' : ''); ?>>
+                                                        {{ old('civil_status', optional($editingClient)->civil_status ?? '') === 'Widowed' ? 'selected' : '' }}>
                                                         Widowed</option>
                                                     <option value="Common-Law"
-                                                        <?php echo e(old('civil_status', optional($editingClient)->civil_status ?? '') === 'Common-Law' ? 'selected' : ''); ?>>
+                                                        {{ old('civil_status', optional($editingClient)->civil_status ?? '') === 'Common-Law' ? 'selected' : '' }}>
                                                         Common-Law Relationship</option>
                                                 </select>
                                             </div>
@@ -306,31 +303,33 @@ unset($__errorArgs, $__bag); ?>
                                                 <label for="address" class="form-label">Address</label>
                                                 <input class="form-control" id="address" name="address" rows="3"
                                                     placeholder="Enter address"
-                                                    value="<?php echo e(old('address', optional($editingClient)->address ?? '')); ?>"
+                                                    value="{{ old('address', optional($editingClient)->address ?? '') }}"
                                                     required>
                                             </div>
 
                                             <div class="col-lg-4">
                                                 <label for="province" class="form-label">Province</label>
-                                                <select class="form-select" id="province" name="province" disabled>
+                                                <select class="form-select" id="province" name="province_select" disabled>
                                                     <option value="">Select province</option>
                                                 </select>
+                                                <input type="hidden" id="provinceHidden" name="province"
+                                                    value="{{ old('province', optional($editingClient)->province ?? 'CAVITE') }}">
                                                 <input type="text" class="form-control d-none mt-2"
                                                     id="provinceManual" name="province_manual"
                                                     placeholder="Enter province manually"
-                                                    value="<?php echo e(old('province', optional($editingClient)->province ?? '')); ?>"
-                                                    required>
+                                                    value="{{ old('province', optional($editingClient)->province ?? '') }}">
                                             </div>
 
                                             <div class="col-lg-4">
                                                 <label for="city" class="form-label">City</label>
-                                                <select class="form-select" id="city" name="city" disabled>
+                                                <select class="form-select" id="city" name="city_select" disabled>
                                                     <option value="">Select city</option>
                                                 </select>
+                                                <input type="hidden" id="cityHidden" name="city"
+                                                    value="{{ old('city', optional($editingClient)->city ?? 'CITY OF IMUS') }}">
                                                 <input type="text" class="form-control d-none mt-2" id="cityManual"
                                                     name="city_manual" placeholder="Enter city manually"
-                                                    value="<?php echo e(old('city', optional($editingClient)->city ?? '')); ?>"
-                                                    required>
+                                                    value="{{ old('city', optional($editingClient)->city ?? '') }}">
                                             </div>
 
                                             <div class="col-lg-4">
@@ -341,8 +340,7 @@ unset($__errorArgs, $__bag); ?>
                                                 <input type="text" class="form-control d-none mt-2"
                                                     id="barangayManual" name="barangay_manual"
                                                     placeholder="Enter barangay manually"
-                                                    value="<?php echo e(old('barangay', optional($editingClient)->barangay ?? '')); ?>"
-                                                    required>
+                                                    value="{{ old('barangay', optional($editingClient)->barangay ?? '') }}">
                                             </div>
 
                                             <div class="col-lg-4">
@@ -350,7 +348,7 @@ unset($__errorArgs, $__bag); ?>
                                                 <input type="text" class="form-control" id="contact" name="contact"
                                                     placeholder="Enter primary contact number" inputmode="numeric"
                                                     maxlength="11" autocomplete="off"
-                                                    value="<?php echo e(old('contact', optional($editingClient)->contact ?? '')); ?>"
+                                                    value="{{ old('contact', optional($editingClient)->contact ?? '') }}"
                                                     required>
                                                 <div id="contactError" class="text-danger small mt-1 d-none">Only numbers
                                                     can be input.
@@ -358,12 +356,11 @@ unset($__errorArgs, $__bag); ?>
                                             </div>
 
                                             <div class="col-lg-4">
-                                                <label for="contact2" class="form-label">Contact 2</label>
+                                                <label for="contact2" class="form-label">Contact 2 (Optional)</label>
                                                 <input type="text" class="form-control" id="contact2"
                                                     name="contact_2" placeholder="Enter secondary contact number"
                                                     inputmode="numeric" maxlength="11" autocomplete="off"
-                                                    value="<?php echo e(old('contact_2', optional($editingClient)->contact_2 ?? '')); ?>"
-                                                    required>
+                                                    value="{{ old('contact_2', optional($editingClient)->contact_2 ?? '') }}">
                                                 <div id="contact2Error" class="text-danger small mt-1 d-none">Only numbers
                                                     can be input.
                                                 </div>
@@ -373,7 +370,7 @@ unset($__errorArgs, $__bag); ?>
                                                 <label for="email" class="form-label">Email</label>
                                                 <input type="email" class="form-control" id="email" name="email"
                                                     placeholder="Enter email"
-                                                    value="<?php echo e(old('email', optional($editingClient)->email ?? '')); ?>"
+                                                    value="{{ old('email', optional($editingClient)->email ?? '') }}"
                                                     required>
                                             </div>
                                         </div>
@@ -395,13 +392,12 @@ unset($__errorArgs, $__bag); ?>
                                                 <label for="education" class="form-label">Education</label>
                                                 <select class="form-select" id="education" name="education" required>
                                                     <option value="">Select education</option>
-                                                    <?php $__currentLoopData = $educationOptions; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $educationOption): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                                        <option value="<?php echo e($educationOption); ?>"
-                                                            <?php echo e(old('education', optional($editingClient)->education ?? '') === $educationOption ? 'selected' : ''); ?>>
-                                                            <?php echo e($educationOption); ?>
-
+                                                    @foreach ($educationOptions as $educationOption)
+                                                        <option value="{{ $educationOption }}"
+                                                            {{ old('education', optional($editingClient)->education ?? '') === $educationOption ? 'selected' : '' }}>
+                                                            {{ $educationOption }}
                                                         </option>
-                                                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                                                    @endforeach
                                                 </select>
                                             </div>
 
@@ -409,21 +405,39 @@ unset($__errorArgs, $__bag); ?>
                                                 <label for="course" class="form-label">Course</label>
                                                 <input type="text" class="form-control" id="course" name="course"
                                                     required placeholder="Enter course"
-                                                    value="<?php echo e(old('course', optional($editingClient)->course ?? '')); ?>">
+                                                    value="{{ old('course', optional($editingClient)->course ?? '') }}">
                                             </div>
 
                                             <div class="col-lg-3">
-                                                <label for="sector" class="form-label">Sector</label>
-                                                <select class="form-select" id="sector" name="sector" required>
-                                                    <option value="">Select sector</option>
-                                                    <?php $__currentLoopData = $sectorOptions; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $sectorOption): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                                        <option value="<?php echo e($sectorOption); ?>"
-                                                            <?php echo e(old('sector', optional($editingClient)->sector ?? '') === $sectorOption ? 'selected' : ''); ?>>
-                                                            <?php echo e($sectorOption); ?>
-
-                                                        </option>
-                                                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
-                                                </select>
+                                                <label class="form-label">Sector</label>
+                                                @php
+                                                    $selectedSectors = old(
+                                                        'sectors',
+                                                        old('sector', optional($editingClient)->sector ?? ''),
+                                                    );
+                                                    $selectedSectorsArr = is_array($selectedSectors)
+                                                        ? array_map('trim', $selectedSectors)
+                                                        : array_filter(
+                                                            array_map('trim', explode(',', (string) $selectedSectors)),
+                                                        );
+                                                @endphp
+                                                <div class="border rounded-3 p-2 bg-light-subtle">
+                                                    <div class="d-flex flex-column gap-2">
+                                                        @foreach ($sectorOptions as $sectorOption)
+                                                            <div class="form-check mb-0">
+                                                                <input type="checkbox" class="form-check-input sector-checkbox"
+                                                                    id="sector{{ $loop->index }}" name="sectors[]"
+                                                                    value="{{ $sectorOption }}"
+                                                                    {{ in_array($sectorOption, $selectedSectorsArr) ? 'checked' : '' }}>
+                                                                <label class="form-check-label" for="sector{{ $loop->index }}">
+                                                                    {{ $sectorOption }}
+                                                                </label>
+                                                            </div>
+                                                        @endforeach
+                                                    </div>
+                                                </div>
+                                                <input type="hidden" name="sector" id="sectorHidden"
+                                                    value="{{ old('sector', optional($editingClient)->sector ?? '') }}">
                                             </div>
 
                                             <div class="col-lg-3">
@@ -432,7 +446,7 @@ unset($__errorArgs, $__bag); ?>
                                                 <input type="text" class="form-control" id="positionOrganization"
                                                     name="position_organization" required
                                                     placeholder="Enter position or organization"
-                                                    value="<?php echo e(old('position_organization', optional($editingClient)->position_organization ?? '')); ?>">
+                                                    value="{{ old('position_organization', optional($editingClient)->position_organization ?? '') }}">
                                             </div>
                                         </div>
                                     </div>
@@ -441,7 +455,7 @@ unset($__errorArgs, $__bag); ?>
                                 <div class="col-12">
                                     <div class="d-flex justify-content-end gap-2 mt-2">
                                         <button type="submit"
-                                            class="btn btn-primary"><?php echo e($editingClient ? 'Update Client' : 'Save Client'); ?></button>
+                                            class="btn btn-primary">{{ $editingClient ? 'Update Client' : 'Save Client' }}</button>
                                     </div>
                                 </div>
                             </div>
@@ -460,13 +474,18 @@ unset($__errorArgs, $__bag); ?>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <div id="cameraWrapper" class="border rounded p-2 bg-light">
+                    <div id="cameraWrapper" class="border rounded p-2 bg-light" style="min-height: 300px;">
                         <video id="cameraView" class="rounded w-100" autoplay playsinline
                             style="max-height: 1000px; object-fit: cover; transform: scaleX(-1);"></video>
+                        <div id="cameraUnsupportedMessage" class="d-none d-flex flex-column justify-content-center align-items-center text-center text-muted h-100">
+                            <div class="fw-semibold mb-2">Camera is unavailable.</div>
+                            <div>Please allow camera permissions or use the Upload Photo button.</div>
+                        </div>
                     </div>
                     <p class="text-muted small mt-2 mb-0">Position the camera, then click Capture Photo.</p>
                 </div>
                 <div class="modal-footer">
+                    <button type="button" class="btn btn-soft-secondary" id="uploadPhotoModalBtn">Upload Photo</button>
                     <button type="button" class="btn btn-soft-secondary" data-bs-dismiss="modal">Close</button>
                     <button type="button" class="btn btn-primary" id="capturePhotoBtn" disabled>Capture Photo</button>
                 </div>
@@ -497,7 +516,7 @@ unset($__errorArgs, $__bag); ?>
                             </div>
                         </div>
                         <div class="mt-3 text-center">
-                            <img id="fingerprintModalPreview" src="<?php echo e($fingerprintPreview); ?>"
+                            <img id="fingerprintModalPreview" src="{{ $fingerprintPreview }}"
                                 alt="Fingerprint Scanner Preview" class="rounded-3 border object-fit-cover bg-white"
                                 style="width: 100%; max-width: 420px; height: 280px;">
                         </div>
@@ -514,16 +533,20 @@ unset($__errorArgs, $__bag); ?>
         </div>
     </div>
 
-<?php $__env->stopSection(); ?>
+@endsection
 
-<?php $__env->startSection('script'); ?>
+@section('script')
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const openCameraBtn = document.getElementById('openCameraBtn');
             const capturePhotoBtn = document.getElementById('capturePhotoBtn');
             const retakePhotoBtn = document.getElementById('retakePhotoBtn');
+            const uploadPhotoBtn = document.getElementById('uploadPhotoBtn');
+            const uploadPhotoModalBtn = document.getElementById('uploadPhotoModalBtn');
+            const clientPhotoFileInput = document.getElementById('clientPhotoFileInput');
             const cameraWrapper = document.getElementById('cameraWrapper');
             const cameraView = document.getElementById('cameraView');
+            const cameraUnsupportedMessage = document.getElementById('cameraUnsupportedMessage');
             const cameraCanvas = document.getElementById('cameraCanvas');
             const clientPhotoData = document.getElementById('clientPhotoData');
             const birthDateInput = document.getElementById('birthDate');
@@ -541,6 +564,8 @@ unset($__errorArgs, $__bag); ?>
             const clientFingerprintData = document.getElementById('clientFingerprintData');
             const clientFingerprintTemplate = document.getElementById('clientFingerprintTemplate');
             const preview = document.getElementById('clientPhotoPreview');
+            const photoCaptureError = document.getElementById('photoCaptureError');
+            const fingerprintCaptureError = document.getElementById('fingerprintCaptureError');
             const form = document.querySelector('form');
             const contactInput = document.getElementById('contact');
             const contactError = document.getElementById('contactError');
@@ -550,28 +575,28 @@ unset($__errorArgs, $__bag); ?>
             const provinceSelect = document.getElementById('province');
             const citySelect = document.getElementById('city');
             const barangaySelect = document.getElementById('barangay');
+            const provinceHidden = document.getElementById('provinceHidden');
+            const cityHidden = document.getElementById('cityHidden');
             const provinceManual = document.getElementById('provinceManual');
             const cityManual = document.getElementById('cityManual');
             const barangayManual = document.getElementById('barangayManual');
             const sameAsHomeAddress = document.getElementById('sameAsHomeAddress');
 
-            const selectedProvince = <?php echo json_encode($selectedProvince, 15, 512) ?>;
-            const selectedCity = <?php echo json_encode($selectedCity, 15, 512) ?>;
-            const selectedBarangay = <?php echo json_encode($selectedBarangay, 15, 512) ?>;
+            const selectedProvince = @json($selectedProvince);
+            const selectedCity = @json($selectedCity);
+            const selectedBarangay = @json($selectedBarangay);
             const isCityOfImus = (value = '') => (value || '').trim().toLowerCase() === 'city of imus';
-            const fingerprintPlaceholder = <?php echo json_encode($fingerprintPlaceholder, 15, 512) ?>;
-            const fingerprintSearchUrl = <?php echo json_encode(route('client.search.fingerprint'), 15, 512) ?>;
+            const fingerprintPlaceholder = @json($fingerprintPlaceholder);
+            const fingerprintSearchUrl = @json(route('client.search.fingerprint'));
             const apiBase = 'https://psgc.gitlab.io/api';
             const calabarzonProvinces = ['Batangas', 'Cavite', 'Laguna', 'Quezon', 'Rizal'];
 
             if (!openCameraBtn || !capturePhotoBtn || !retakePhotoBtn || !cameraWrapper || !cameraView || !
                 cameraCanvas || !clientPhotoData || !birthDateInput || !ageInput || !preview || !form || !
                 contactInput || !contactError || !contact2Input || !contact2Error || !cameraModalEl || !
-                provinceSelect || !citySelect || !barangaySelect || !provinceManual || !cityManual || !
-                barangayManual || !sameAsHomeAddress || !openFingerprintBtn || !clearFingerprintBtn || !
+                uploadPhotoBtn || !clientPhotoFileInput || !provinceSelect || !citySelect || !barangaySelect || !provinceHidden || !cityHidden || !
+                provinceManual || !cityManual || !barangayManual || !sameAsHomeAddress || !openFingerprintBtn || !clearFingerprintBtn || !
                 fingerprintPreview || !fingerprintStatus || !fingerprintModalEl || !fingerprintModalPreview || !
-                fingerprintModalError || !retryFingerprintCaptureBtn || !saveFingerprintBtn || !
-                clearFingerprintCaptureBtn || !clientFingerprintData || !clientFingerprintTemplate) {
                 return;
             }
 
@@ -673,12 +698,18 @@ unset($__errorArgs, $__bag); ?>
                 citySelect.classList.add('d-none');
                 barangaySelect.classList.add('d-none');
 
+                provinceHidden.disabled = true;
+                cityHidden.disabled = true;
+
                 provinceManual.classList.remove('d-none');
                 cityManual.classList.remove('d-none');
                 barangayManual.classList.remove('d-none');
                 provinceManual.disabled = false;
                 cityManual.disabled = false;
                 barangayManual.disabled = false;
+                provinceManual.required = true;
+                cityManual.required = true;
+                barangayManual.required = true;
 
                 provinceManual.name = 'province';
                 cityManual.name = 'city';
@@ -701,16 +732,27 @@ unset($__errorArgs, $__bag); ?>
                 citySelect.classList.remove('d-none');
                 barangaySelect.classList.remove('d-none');
 
+                provinceHidden.disabled = false;
+                cityHidden.disabled = false;
+
                 provinceManual.classList.add('d-none');
                 cityManual.classList.add('d-none');
                 barangayManual.classList.add('d-none');
                 provinceManual.disabled = true;
                 cityManual.disabled = true;
                 barangayManual.disabled = true;
+                provinceManual.required = false;
+                cityManual.required = false;
+                barangayManual.required = false;
 
                 provinceManual.name = 'province_manual';
                 cityManual.name = 'city_manual';
                 barangayManual.name = 'barangay_manual';
+            };
+
+            const syncLocationHiddenFields = () => {
+                provinceHidden.value = provinceManual.disabled ? provinceSelect.value : provinceManual.value;
+                cityHidden.value = cityManual.disabled ? citySelect.value : cityManual.value;
             };
 
             const setLocationMode = (outsideImus) => {
@@ -727,10 +769,15 @@ unset($__errorArgs, $__bag); ?>
                 provinceManual.disabled = true;
                 cityManual.disabled = true;
                 barangayManual.disabled = false;
+                provinceManual.required = false;
+                cityManual.required = false;
+                barangayManual.required = false;
 
                 provinceManual.name = 'province_manual';
                 cityManual.name = 'city_manual';
                 barangayManual.name = 'barangay_manual';
+
+                syncLocationHiddenFields();
             };
 
             const loadProvinces = async () => {
@@ -816,9 +863,11 @@ unset($__errorArgs, $__bag); ?>
                 retakePhotoBtn.disabled = false;
             };
 
-            const setFingerprintPreview = (imageData, statusText, templateXml = '') => {
+            const setFingerprintPreview = (imageData, statusText, templateXml = null) => {
                 fingerprintDataUrl = imageData || '';
-                fingerprintTemplateXml = templateXml || fingerprintTemplateXml;
+                if (templateXml !== null) {
+                    fingerprintTemplateXml = templateXml || '';
+                }
                 clientFingerprintData.value = fingerprintDataUrl;
                 clientFingerprintTemplate.value = fingerprintTemplateXml;
                 fingerprintPreview.src = fingerprintDataUrl || fingerprintPlaceholder;
@@ -857,7 +906,7 @@ unset($__errorArgs, $__bag); ?>
             };
 
             const checkDuplicateFingerprint = async () => {
-                if (!fingerprintTemplateXml) {
+                if (!fingerprintTemplateXml && !fingerprintDataUrl) {
                     throw new Error('Please wait for the fingerprint to finish capturing.');
                 }
 
@@ -869,7 +918,8 @@ unset($__errorArgs, $__bag); ?>
                             ?.content || ''
                     },
                     body: JSON.stringify({
-                        fingerprint_template: fingerprintTemplateXml
+                        fingerprint_template: fingerprintTemplateXml,
+                        fingerprint_data: fingerprintDataUrl
                     })
                 });
 
@@ -895,6 +945,7 @@ unset($__errorArgs, $__bag); ?>
                     'No fingerprint captured yet.';
                 clearFingerprintBtn.disabled = !existingFingerprint;
                 retryFingerprintCaptureBtn.classList.add('d-none');
+                fingerprintFileInput.value = '';
             };
 
             const captureFingerprintFromBridge = async () => {
@@ -939,7 +990,8 @@ unset($__errorArgs, $__bag); ?>
 
             const startCamera = async () => {
                 if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                    alert('Camera capture is not supported in this browser.');
+                    cameraModal.hide();
+                    clientPhotoFileInput.click();
                     return;
                 }
 
@@ -951,15 +1003,23 @@ unset($__errorArgs, $__bag); ?>
                         audio: false
                     });
 
+                    cameraUnsupportedMessage.classList.add('d-none');
+                    cameraView.classList.remove('d-none');
                     cameraView.srcObject = stream;
                     capturePhotoBtn.disabled = false;
                     retakePhotoBtn.disabled = true;
                 } catch (error) {
-                    alert('Unable to access the camera. Please allow camera permissions and try again.');
+                    cameraModal.hide();
+                    clientPhotoFileInput.click();
                 }
             };
 
             openCameraBtn.addEventListener('click', function() {
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    clientPhotoFileInput.click();
+                    return;
+                }
+
                 cameraModal.show();
             });
 
@@ -1040,18 +1100,47 @@ unset($__errorArgs, $__bag); ?>
                 clearFingerprintCapture();
             });
 
+            uploadPhotoBtn.addEventListener('click', function() {
+                clientPhotoFileInput.click();
+            });
+
+            clientPhotoFileInput.addEventListener('change', function() {
+                const file = this.files?.[0];
+                if (!file) {
+                    return;
+                }
+
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    const imageData = event.target?.result;
+                    if (typeof imageData === 'string') {
+                        preview.src = imageData;
+                        clientPhotoData.value = imageData;
+                        retakePhotoBtn.disabled = false;
+                        cameraModal.hide();
+                        photoCaptureError.classList.add('d-none');
+                    }
+                };
+                reader.readAsDataURL(file);
+            });
+
             provinceSelect.addEventListener('change', function() {
                 const provinceCode = this.selectedOptions[0]?.dataset.code || '';
                 loadCities(provinceCode, '').catch(() => enableManualLocations(
                     'Unable to load cities for the selected province. You can enter it manually.'));
                 fillSelect(barangaySelect, 'Select barangay', [], '');
+                syncLocationHiddenFields();
             });
 
             citySelect.addEventListener('change', function() {
                 const cityCode = this.selectedOptions[0]?.dataset.code || '';
                 loadBarangays(cityCode, '').catch(() => enableManualLocations(
                     'Unable to load barangays for the selected city. You can enter it manually.'));
+                syncLocationHiddenFields();
             });
+
+            provinceManual.addEventListener('input', syncLocationHiddenFields);
+            cityManual.addEventListener('input', syncLocationHiddenFields);
 
             cameraModalEl.addEventListener('shown.bs.modal', function() {
                 startCamera();
@@ -1059,6 +1148,40 @@ unset($__errorArgs, $__bag); ?>
 
             cameraModalEl.addEventListener('hidden.bs.modal', function() {
                 stopCamera();
+                cameraUnsupportedMessage.classList.add('d-none');
+                cameraView.classList.remove('d-none');
+            });
+
+            uploadPhotoModalBtn.addEventListener('click', function() {
+                clientPhotoFileInput.click();
+            });
+
+            // Upload fingerprint handler
+            uploadFingerprintBtn.addEventListener('click', function() {
+                fingerprintFileInput.click();
+            });
+
+            fingerprintFileInput.addEventListener('change', function() {
+                const file = this.files?.[0];
+                if (!file) {
+                    return;
+                }
+
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    const imageData = event.target?.result;
+                    if (typeof imageData === 'string') {
+                        fingerprintModalPreview.src = imageData;
+                        fingerprintPreview.src = imageData;
+                        clientFingerprintData.value = imageData;
+                        // Note: uploaded images won't have a template, so duplicate check may not work
+                        fingerprintStatus.textContent = 'Fingerprint image uploaded (no template).';
+                        clearFingerprintBtn.disabled = false;
+                        fingerprintModal.hide();
+                        fingerprintCaptureError.classList.add('d-none');
+                    }
+                };
+                reader.readAsDataURL(file);
             });
 
             capturePhotoBtn.addEventListener('click', function() {
@@ -1074,6 +1197,7 @@ unset($__errorArgs, $__bag); ?>
                 const imageData = cameraCanvas.toDataURL('image/png');
                 preview.src = imageData;
                 clientPhotoData.value = imageData;
+                photoCaptureError.classList.add('d-none');
 
                 stopCamera();
                 retakePhotoBtn.disabled = false;
@@ -1122,6 +1246,51 @@ unset($__errorArgs, $__bag); ?>
                 contact2Error.classList.toggle('d-none', !hasInvalidChars);
             });
 
+            const sectorCheckboxes = document.querySelectorAll('.sector-checkbox');
+            const sectorHidden = document.getElementById('sectorHidden');
+
+            const updateSectorDisplay = () => {
+                if (!sectorHidden) {
+                    return;
+                }
+
+                const labels = Array.from(sectorCheckboxes)
+                    .filter(cb => cb.checked)
+                    .map(cb => cb.value);
+                sectorHidden.value = labels.join(',');
+            };
+
+            sectorCheckboxes.forEach(cb => {
+                cb.addEventListener('change', updateSectorDisplay);
+            });
+
+            updateSectorDisplay();
+
+            form.addEventListener('submit', function(event) {
+                syncLocationHiddenFields();
+
+                let hasError = false;
+                photoCaptureError.classList.add('d-none');
+                fingerprintCaptureError.classList.add('d-none');
+
+                if (!clientPhotoData.value) {
+                    photoCaptureError.textContent = 'Please capture or upload a client photo before saving.';
+                    photoCaptureError.classList.remove('d-none');
+                    hasError = true;
+                }
+
+                if (!clientFingerprintData.value) {
+                    fingerprintCaptureError.textContent = 'Please capture a client fingerprint before saving.';
+                    fingerprintCaptureError.classList.remove('d-none');
+                    hasError = true;
+                }
+
+                if (hasError) {
+                    event.preventDefault();
+                    return;
+                }
+            });
+
             sameAsHomeAddress.addEventListener('change', function() {
                 setLocationMode(this.checked);
                 if (!this.checked) {
@@ -1145,6 +1314,4 @@ unset($__errorArgs, $__bag); ?>
             window.addEventListener('beforeunload', stopCamera);
         });
     </script>
-<?php $__env->stopSection(); ?>
-
-<?php echo $__env->make('layouts.master', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH C:\xampp\htdocs\E-Reg-System\resources\views/pages/clients.blade.php ENDPATH**/ ?>
+@endsection

@@ -1,6 +1,5 @@
-@extends('layouts.master')
-@section('title', 'Client List')
-@section('content')
+<?php $__env->startSection('title', 'Client List'); ?>
+<?php $__env->startSection('content'); ?>
     <style>
         .client-details-panel {
             background: #f8fafc;
@@ -205,38 +204,14 @@
             background-color: rgba(255, 255, 255, 0.04);
         }
 
-        html[data-bs-theme="dark"] #clientListTable .client-name-link:hover,
+        html[data-bs-theme="dark"] #clientListTable .client-name-link:hover, 
         html[data-bs-theme="dark"] #clientListTable .client-name-link:focus {
-            color: #b9c7ff;
+            color: #b9c7ff; 
         }
     </style>
-    @php
+    <?php
         $defaultClientPhoto = asset('assets/images/profile.png');
-        $educationOptions = [
-            'ELEMENTARY GRADUATE',
-            'ELEMENTARY LEVEL (IN SCHOOL)',
-            'ELEMENTARY UNDERGRADUATE',
-            'HIGH SCHOOL GRADUATE',
-            'HIGH SCHOOL LEVEL (IN SCHOOL)',
-            'HIGH SCHOOL UNDERGRADUATE',
-            'N/A',
-            'POST-GRADUATE STUDIES',
-            'SENIOR HS (IN SCHOOL)',
-            'SENIOR HS GRADUATE',
-        ];
-        $sectorOptions = [
-            'COMMON CITIZEN',
-            'EDUCATION',
-            'FAMILY HEADS AND OTHER NEEDY ADULTS',
-            'HEALTH',
-            'INDUSTRY / BUSINESS',
-            'LGU',
-            'NGOS',
-            'OTHERS',
-            'PEACE AND ORDER',
-            'PERSONS WITH DISABILITIES',
-        ];
-    @endphp
+    ?>
     <div class="container-fluid">
         <div class="row">
             <div class="col-12">
@@ -246,35 +221,36 @@
                             <div>
                                 <h4 class="mb-1">Client List</h4>
                                 <p class="text-muted mb-0">
-                                    {{ $matchedClientId ? 'Showing the matched client only.' : 'View all registered clients here.' }}
+                                    <?php echo e($matchedClientId ? 'Showing the matched client only.' : 'View all registered clients here.'); ?>
+
                                 </p>
                             </div>
                             <div class="d-flex flex-wrap gap-2">
-                                @if ($matchedClientId)
-                                    <a href="{{ route('client.list') }}" class="btn btn-soft-secondary">Show All Clients</a>
-                                @endif
+                                <?php if($matchedClientId): ?>
+                                    <a href="<?php echo e(route('client.list')); ?>" class="btn btn-soft-secondary">Show All Clients</a>
+                                <?php endif; ?>
                                 <button type="button" class="btn btn-soft-primary" id="searchFingerprintBtn">Search by
                                     Fingerprint</button>
-                                <a href="{{ route('clients') }}" class="btn btn-primary">Add Client</a>
+                                <a href="<?php echo e(route('clients')); ?>" class="btn btn-primary">Add Client</a>
                             </div>
                         </div>
 
-                        @if ($errors->any())
+                        <?php if($errors->any()): ?>
                             <div class="alert alert-danger">
                                 <div class="fw-semibold mb-1">Please fix the highlighted issue(s) below.</div>
-                                <div>{{ $errors->first() }}</div>
+                                <div><?php echo e($errors->first()); ?></div>
                             </div>
-                        @endif
+                        <?php endif; ?>
 
-                        @if ($matchedClientId)
+                        <?php if($matchedClientId): ?>
                             <div
                                 class="alert alert-success d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
                                 <div>Fingerprint search matched one client and the list is filtered to that result.</div>
-                                <a href="{{ route('client.list') }}" class="btn btn-sm btn-outline-success">Clear Filter</a>
+                                <a href="<?php echo e(route('client.list')); ?>" class="btn btn-sm btn-outline-success">Clear Filter</a>
                             </div>
-                        @endif
+                        <?php endif; ?>
 
-                        @php
+                        <?php
                             $clientCities = $clients->pluck('city')->filter()->unique()->sort()->values();
                             $clientBarangays = $clients->pluck('barangay')->filter()->unique()->sort()->values();
                             $clientCivilStatuses = $clients
@@ -283,7 +259,7 @@
                                 ->unique()
                                 ->sort()
                                 ->values();
-                        @endphp
+                        ?>
 
                         <div class="border rounded-4 p-3 mb-3" id="clientFiltersCard">
                             <div class="d-flex flex-wrap gap-3 align-items-start justify-content-between mb-3">
@@ -330,9 +306,9 @@
                                             class="form-label fw-semibold text-uppercase small">Civil Status</label>
                                         <select class="form-select" id="clientCivilStatusFilter">
                                             <option value="">All civil statuses</option>
-                                            @foreach ($clientCivilStatuses as $civilStatus)
-                                                <option value="{{ strtolower($civilStatus) }}">{{ $civilStatus }}</option>
-                                            @endforeach
+                                            <?php $__currentLoopData = $clientCivilStatuses; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $civilStatus): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                                <option value="<?php echo e(strtolower($civilStatus)); ?>"><?php echo e($civilStatus); ?></option>
+                                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                         </select>
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
@@ -340,9 +316,9 @@
                                             class="form-label fw-semibold text-uppercase small">City</label>
                                         <select class="form-select" id="clientCityFilter">
                                             <option value="">All cities</option>
-                                            @foreach ($clientCities as $city)
-                                                <option value="{{ strtolower($city) }}">{{ $city }}</option>
-                                            @endforeach
+                                            <?php $__currentLoopData = $clientCities; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $city): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                                <option value="<?php echo e(strtolower($city)); ?>"><?php echo e($city); ?></option>
+                                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                         </select>
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
@@ -350,9 +326,9 @@
                                             class="form-label fw-semibold text-uppercase small">Barangay</label>
                                         <select class="form-select" id="clientBarangayFilter">
                                             <option value="">All barangays</option>
-                                            @foreach ($clientBarangays as $barangay)
-                                                <option value="{{ strtolower($barangay) }}">{{ $barangay }}</option>
-                                            @endforeach
+                                            <?php $__currentLoopData = $clientBarangays; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $barangay): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                                <option value="<?php echo e(strtolower($barangay)); ?>"><?php echo e($barangay); ?></option>
+                                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                         </select>
                                     </div>
                                 </div>
@@ -390,10 +366,9 @@
                             <table id="clientListTable" class="table table-bordered table-hover align-middle mb-0">
                                 <thead class="table-light text-center">
                                     <tr>
-                                        <th>#</th>
+                                        <th>Client ID</th>
                                         <th>Photo</th>
                                         <th>Full Name</th>
-                                        <th>Suffix</th>
                                         <th>Gender</th>
                                         <th>Civil Status</th>
                                         <th>Contact 1</th>
@@ -401,121 +376,92 @@
                                         <th>Actions</th>
                                     </tr>
                                 </thead>
-                                <tbody class="text-center">
-                                    @forelse ($clients as $client)
-                                        @php
+                                <tbody class="text-center text-uppercase">
+                                    <?php $__empty_1 = true; $__currentLoopData = $clients; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $client): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
+                                        <?php
                                             $clientName = $client->full_name;
                                             $clientPhoto = $client->photo_url ?: $defaultClientPhoto;
-                                        @endphp
-                                        <tr data-client-row="{{ $client->id }}"
-                                            data-show-url="{{ route('clients.show', $client) }}"
-                                            data-client-photo="{{ $clientPhoto }}"
-                                            data-client-name="{{ $client->full_name }}"
-                                            data-client-suffix="{{ $client->suffix ?? '' }}"
-                                            data-client-birth-date="{{ optional($client->birth_date)->format('m/d/Y') ?? '' }}"
-                                            data-client-age="{{ $client->age ?? '' }}"
-                                            data-client-gender="{{ $client->gender ?? '' }}"
-                                            data-client-civil-status="{{ $client->civil_status ?? '' }}"
-                                            data-client-email="{{ $client->email ?? '' }}"
-                                            data-client-contact="{{ $client->contact ?? '' }}"
-                                            data-client-contact-2="{{ $client->contact_2 ?? '' }}"
-                                            data-client-address="{{ $client->address ?? '' }}"
-                                            data-client-birthplace="{{ $client->birthplace ?? '' }}"
-                                            data-client-education="{{ $client->education ?? '' }}"
-                                            data-client-course="{{ $client->course ?? '' }}"
-                                            data-client-sector="{{ $client->sector ?? '' }}"
-                                            data-client-position-organization="{{ $client->position_organization ?? '' }}"
-                                            data-client-province="{{ $client->province ?? '' }}"
-                                            data-client-city="{{ $client->city ?? '' }}"
-                                            data-client-barangay="{{ $client->barangay ?? '' }}"
-                                            role="button"
-                                            tabindex="0"
-                                            title="Open {{ $clientName }} details"
-                                            data-search-name="{{ strtolower($clientName) }}"
-                                            data-search-email="{{ strtolower($client->email ?? '') }}"
-                                            data-search-contact="{{ strtolower($client->contact ?? '') }}"
-                                            data-search-contact-2="{{ strtolower($client->contact_2 ?? '') }}"
-                                            data-search-address="{{ strtolower($client->address ?? '') }}"
-                                            data-search-birthplace="{{ strtolower($client->birthplace ?? '') }}"
-                                            data-search-education="{{ strtolower($client->education ?? '') }}"
-                                            data-search-course="{{ strtolower($client->course ?? '') }}"
-                                            data-search-sector="{{ strtolower($client->sector ?? '') }}"
-                                            data-search-position-organization="{{ strtolower($client->position_organization ?? '') }}"
-                                            data-search-gender="{{ strtolower($client->gender ?? '') }}"
-                                            data-search-civil-status="{{ strtolower($client->civil_status ?? '') }}"
-                                            data-search-province="{{ strtolower($client->province ?? '') }}"
-                                            data-search-city="{{ strtolower($client->city ?? '') }}"
-                                            data-search-barangay="{{ strtolower($client->barangay ?? '') }}"
-                                            data-search-created-at="{{ optional($client->created_at)->format('Y-m-d') }}"
-                                            data-search-all="{{ strtolower($clientName . ' ' . ($client->suffix ?? '') . ' ' . ($client->email ?? '') . ' ' . ($client->contact ?? '') . ' ' . ($client->contact_2 ?? '') . ' ' . ($client->gender ?? '') . ' ' . ($client->civil_status ?? '') . ' ' . ($client->birthplace ?? '') . ' ' . ($client->education ?? '') . ' ' . ($client->course ?? '') . ' ' . ($client->sector ?? '') . ' ' . ($client->position_organization ?? '') . ' ' . ($client->address ?? '') . ' ' . ($client->province ?? '') . ' ' . ($client->city ?? '') . ' ' . ($client->barangay ?? '')) }}">
-                                            <td>{{ $loop->iteration }}</td>
+                                        ?>
+                                        <tr data-client-row="<?php echo e($client->id); ?>"
+                                            data-show-url="<?php echo e(route('clients.show', $client)); ?>"
+                                            data-client-photo="<?php echo e($clientPhoto); ?>"
+                                            data-client-name="<?php echo e($client->full_name); ?>"
+                                            data-client-suffix="<?php echo e($client->suffix ?? ''); ?>"
+                                            data-client-birth-date="<?php echo e(optional($client->birth_date)->format('m/d/Y') ?? ''); ?>"
+                                            data-client-age="<?php echo e($client->age ?? ''); ?>"
+                                            data-client-gender="<?php echo e($client->gender ?? ''); ?>"
+                                            data-client-civil-status="<?php echo e($client->civil_status ?? ''); ?>"
+                                            data-client-email="<?php echo e($client->email ?? ''); ?>"
+                                            data-client-contact="<?php echo e($client->contact ?? ''); ?>"
+                                            data-client-contact-2="<?php echo e($client->contact_2 ?? ''); ?>"
+                                            data-client-address="<?php echo e($client->address ?? ''); ?>"
+                                            data-client-birthplace="<?php echo e($client->birthplace ?? ''); ?>"
+                                            data-client-education="<?php echo e($client->education ?? ''); ?>"
+                                            data-client-course="<?php echo e($client->course ?? ''); ?>"
+                                            data-client-sector="<?php echo e($client->sector ?? ''); ?>"
+                                            data-client-position-organization="<?php echo e($client->position_organization ?? ''); ?>"
+                                            data-client-province="<?php echo e($client->province ?? ''); ?>"
+                                            data-client-city="<?php echo e($client->city ?? ''); ?>"
+                                            data-client-barangay="<?php echo e($client->barangay ?? ''); ?>" role="button"
+                                            tabindex="0" title="Open <?php echo e($clientName); ?> details"
+                                            data-search-name="<?php echo e(strtolower($clientName)); ?>"
+                                            data-search-email="<?php echo e(strtolower($client->email ?? '')); ?>"
+                                            data-search-contact="<?php echo e(strtolower($client->contact ?? '')); ?>"
+                                            data-search-contact-2="<?php echo e(strtolower($client->contact_2 ?? '')); ?>"
+                                            data-search-address="<?php echo e(strtolower($client->address ?? '')); ?>"
+                                            data-search-birthplace="<?php echo e(strtolower($client->birthplace ?? '')); ?>"
+                                            data-search-education="<?php echo e(strtolower($client->education ?? '')); ?>"
+                                            data-search-course="<?php echo e(strtolower($client->course ?? '')); ?>"
+                                            data-search-sector="<?php echo e(strtolower($client->sector ?? '')); ?>"
+                                            data-search-position-organization="<?php echo e(strtolower($client->position_organization ?? '')); ?>"
+                                            data-search-gender="<?php echo e(strtolower($client->gender ?? '')); ?>"
+                                            data-search-civil-status="<?php echo e(strtolower($client->civil_status ?? '')); ?>"
+                                            data-search-province="<?php echo e(strtolower($client->province ?? '')); ?>"
+                                            data-search-city="<?php echo e(strtolower($client->city ?? '')); ?>"
+                                            data-search-barangay="<?php echo e(strtolower($client->barangay ?? '')); ?>"
+                                            data-search-created-at="<?php echo e(optional($client->created_at)->format('Y-m-d')); ?>"
+                                            data-search-all="<?php echo e(strtolower($clientName . ' ' . ($client->suffix ?? '') . ' ' . ($client->email ?? '') . ' ' . ($client->contact ?? '') . ' ' . ($client->contact_2 ?? '') . ' ' . ($client->gender ?? '') . ' ' . ($client->civil_status ?? '') . ' ' . ($client->birthplace ?? '') . ' ' . ($client->education ?? '') . ' ' . ($client->course ?? '') . ' ' . ($client->sector ?? '') . ' ' . ($client->position_organization ?? '') . ' ' . ($client->address ?? '') . ' ' . ($client->province ?? '') . ' ' . ($client->city ?? '') . ' ' . ($client->barangay ?? ''))); ?>">
+                                            <td><?php echo e($client->client_id ?? '-'); ?></td>
                                             <td>
                                                 <button type="button" class="btn p-0 border-0 bg-transparent"
                                                     data-bs-toggle="modal" data-bs-target="#clientPhotoModal"
-                                                    data-client-photo="{{ $clientPhoto }}"
-                                                    data-client-name="{{ trim($client->first_name . ' ' . ($client->middle_name ? $client->middle_name . ' ' : '') . $client->last_name) }}">
-                                                    <img src="{{ $clientPhoto }}" alt="Client Photo"
-                                                        onerror="this.onerror=null;this.src='{{ $defaultClientPhoto }}';"
+                                                    data-client-photo="<?php echo e($clientPhoto); ?>"
+                                                    data-client-name="<?php echo e(trim($client->first_name . ' ' . ($client->middle_name ? $client->middle_name . ' ' : '') . $client->last_name)); ?>">
+                                                    <img src="<?php echo e($clientPhoto); ?>" alt="Client Photo"
+                                                        onerror="this.onerror=null;this.src='<?php echo e($defaultClientPhoto); ?>';"
                                                         class="rounded-3 border object-fit-cover"
                                                         style="width: 72px; height: 72px;">
                                                 </button>
                                             </td>
                                             <td>
-                                                <button type="button"
-                                                    class="client-name-link btn btn-link p-0 fw-semibold text-decoration-none">
-                                                    {{ $client->full_name }}
-                                                </button>
+                                                <?php echo e($client->full_name); ?>
+
                                             </td>
-                                            <td>{{ $client->suffix ?? '-' }}</td>
-                                            <td>{{ $client->gender ?? '-' }}</td>
-                                            <td>{{ $client->civil_status ?? '-' }}</td>
-                                            <td>{{ $client->contact ?? '-' }}</td>
+                                            <td><?php echo e($client->gender ?? '-'); ?></td>
+                                            <td><?php echo e($client->civil_status ?? '-'); ?></td>
+                                            <td><?php echo e($client->contact ?? '-'); ?></td>
                                             <td class="text-start">
                                                 <div class="small lh-sm">
-                                                    <div>{{ $client->address ?? '-' }}</div>
+                                                    <div><?php echo e($client->address ?? '-'); ?></div>
                                                     <div class="text-muted">
-                                                        {{ collect([$client->barangay, $client->city, $client->province])->filter()->implode(', ') ?:'-' }}
+                                                        <?php echo e(collect([$client->barangay, $client->city, $client->province])->filter()->implode(', ') ?:'-'); ?>
+
                                                     </div>
                                                 </div>
                                             </td>
                                             <td>
                                                 <div class="d-flex gap-2 text-center justify-content-center">
-                                                    <a href="{{ route('clients.show', $client) }}"
+                                                    <a href="<?php echo e(route('clients.show', $client)); ?>"
                                                         class="btn btn-sm btn-soft-info">
                                                         View
                                                     </a>
-                                                    <button type="button" class="btn btn-sm btn-soft-primary"
-                                                        data-bs-toggle="modal" data-bs-target="#editClientModal"
-                                                        data-update-url="{{ route('clients.update', $client) }}"
-                                                        data-client-id="{{ $client->id }}"
-                                                        data-first-name="{{ $client->first_name }}"
-                                                        data-middle-name="{{ $client->middle_name }}"
-                                                        data-last-name="{{ $client->last_name }}"
-                                                        data-suffix="{{ $client->suffix }}"
-                                                        data-age="{{ $client->age }}"
-                                                        data-birth-date="{{ optional($client->birth_date)->format('Y-m-d') }}"
-                                                        data-gender="{{ $client->gender }}"
-                                                        data-civil-status="{{ $client->civil_status }}"
-                                                        data-birthplace="{{ $client->birthplace }}"
-                                                        data-education="{{ $client->education }}"
-                                                        data-course="{{ $client->course }}"
-                                                        data-sector="{{ $client->sector }}"
-                                                        data-position-organization="{{ $client->position_organization }}"
-                                                        data-email="{{ $client->email }}"
-                                                        data-contact="{{ $client->contact }}"
-                                                        data-contact-2="{{ $client->contact_2 }}"
-                                                        data-address="{{ $client->address }}"
-                                                        data-province="{{ $client->province }}"
-                                                        data-city="{{ $client->city }}"
-                                                        data-barangay="{{ $client->barangay }}"
-                                                        data-client-name="{{ $client->full_name }}"
-                                                        data-client-photo="{{ $clientPhoto }}"
-                                                        data-client-fingerprint="{{ $client->fingerprint_url }}">
+                                                    <a href="<?php echo e(route('clients.edit', $client)); ?>"
+                                                        class="btn btn-sm btn-soft-primary">
                                                         Edit
-                                                    </button>
-                                                    <form action="{{ route('clients.archive', $client) }}" method="POST"
+                                                    </a>
+                                                    <form action="<?php echo e(route('clients.archive', $client)); ?>" method="POST"
                                                         onsubmit="return confirm('Are you sure you want to archive this client?');">
-                                                        @csrf
+                                                        <?php echo csrf_field(); ?>
                                                         <button type="submit" class="btn btn-sm btn-soft-warning">
                                                             Archive
                                                         </button>
@@ -523,20 +469,21 @@
                                                 </div>
                                             </td>
                                         </tr>
-                                    @empty
+                                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                                         <tr id="clientSearchEmptyRow">
-                                            <td colspan="9" class="text-center text-muted py-4">
-                                                {{ $matchedClientId ? 'No matching client found.' : 'No clients found.' }}
+                                            <td colspan="8" class="text-center text-muted py-4">
+                                                <?php echo e($matchedClientId ? 'No matching client found.' : 'No clients found.'); ?>
+
                                             </td>
                                         </tr>
-                                    @endforelse
-                                    @if ($clients->count())
+                                    <?php endif; ?>
+                                    <?php if($clients->count()): ?>
                                         <tr id="clientSearchNoResultsRow" class="d-none">
-                                            <td colspan="9" class="text-center text-muted py-4">
+                                            <td colspan="8" class="text-center text-muted py-4">
                                                 No matching clients found.
                                             </td>
                                         </tr>
-                                    @endif
+                                    <?php endif; ?>
                                 </tbody>
                             </table>
                         </div>
@@ -573,7 +520,7 @@
                 <div class="modal-body">
                     <div class="row g-4 align-items-start">
                         <div class="col-12 col-lg-4 text-center">
-                            <img id="clientViewPhoto" src="{{ asset('assets/images/profile.png') }}" alt="Client Photo"
+                            <img id="clientViewPhoto" src="<?php echo e(asset('assets/images/profile.png')); ?>" alt="Client Photo"
                                 class="rounded-4 border object-fit-cover bg-light"
                                 style="width: 100%; max-width: 320px; height: 320px;">
                         </div>
@@ -666,8 +613,6 @@
         </div>
     </div>
 
-    @include('pages.clientEdit')
-
     <div class="modal fade" id="fingerprintSearchModal" tabindex="-1" aria-labelledby="fingerprintSearchModalLabel"
         aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-lg">
@@ -691,7 +636,7 @@
                             Waiting to start fingerprint search.
                         </div>
                         <div class="mt-3 text-center">
-                            <img id="fingerprintSearchPreview" src="{{ asset('assets/images/fingerprint.png') }}"
+                            <img id="fingerprintSearchPreview" src="<?php echo e(asset('assets/images/fingerprint.png')); ?>"
                                 alt="Fingerprint Search Preview" class="rounded-3 border object-fit-cover bg-white"
                                 style="width: 100%; max-width: 420px; height: 280px;">
                         </div>
@@ -705,9 +650,9 @@
             </div>
         </div>
     </div>
-@endsection
+<?php $__env->stopSection(); ?>
 
-@section('script')
+<?php $__env->startSection('script'); ?>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const modalEl = document.getElementById('clientPhotoModal');
@@ -734,56 +679,7 @@
             const clientViewCity = document.getElementById('clientViewCity');
             const clientViewBarangay = document.getElementById('clientViewBarangay');
             const clientViewPageLink = document.getElementById('clientViewPageLink');
-            const editModalEl = document.getElementById('editClientModal');
-            const editForm = document.getElementById('editClientForm');
-            const editTitle = document.getElementById('editClientModalLabel');
-            const editPhoto = document.getElementById('editClientPhoto');
-            const editName = document.getElementById('editClientName');
-            const editFirstName = document.getElementById('editFirstName');
-            const editMiddleName = document.getElementById('editMiddleName');
-            const editLastName = document.getElementById('editLastName');
-            const editSuffix = document.getElementById('editSuffix');
-            const editAge = document.getElementById('editAge');
-            const editBirthDate = document.getElementById('editBirthDate');
-            const editGender = document.getElementById('editGender');
-            const editCivilStatus = document.getElementById('editCivilStatus');
-            const editContact = document.getElementById('editContact');
-            const editContact2 = document.getElementById('editContact2');
-            const editEmail = document.getElementById('editEmail');
-            const editAddress = document.getElementById('editAddress');
-            const editBirthplace = document.getElementById('editBirthplace');
-            const editEducation = document.getElementById('editEducation');
-            const editCourse = document.getElementById('editCourse');
-            const editSector = document.getElementById('editSector');
-            const editPositionOrganization = document.getElementById('editPositionOrganization');
-            const editProvince = document.getElementById('editProvince');
-            const editCity = document.getElementById('editCity');
-            const editBarangay = document.getElementById('editBarangay');
-            const editProvinceManual = document.getElementById('editProvinceManual');
-            const editCityManual = document.getElementById('editCityManual');
-            const editBarangayManual = document.getElementById('editBarangayManual');
-            const sameAsHomeAddress = document.getElementById('sameAsHomeAddress');
-            const editOpenCameraBtn = document.getElementById('editOpenCameraBtn');
-            const editCapturePhotoBtn = document.getElementById('editCapturePhotoBtn');
-            const editRetakePhotoBtn = document.getElementById('editRetakePhotoBtn');
-            const editCameraWrapper = document.getElementById('editCameraWrapper');
-            const editCameraView = document.getElementById('editCameraView');
-            const editCameraCanvas = document.getElementById('editCameraCanvas');
-            const editPhotoData = document.getElementById('editPhotoData');
-            const editOpenFingerprintBtn = document.getElementById('editOpenFingerprintBtn');
-            const editClearFingerprintBtn = document.getElementById('editClearFingerprintBtn');
-            const editFingerprintPreview = document.getElementById('editFingerprintPreview');
-            const editFingerprintData = document.getElementById('editFingerprintData');
-            const editFingerprintTemplate = document.getElementById('editFingerprintTemplate');
-            const editFingerprintStatus = document.getElementById('editFingerprintStatus');
-            const editScanAgainBtn = document.getElementById('editScanAgainBtn');
-            const defaultClientPhoto = (editPhoto && editPhoto.dataset.defaultSrc) ||
-                @json(asset('assets/images/profile.png'));
-            const fingerprintPlaceholderPreview = @json(asset('assets/images/fingerprint.png'));
-            const oldEditClientId = @json(old('edit_client_id', ''));
-            const oldEditPhotoData = @json(old('photo_data', ''));
-            const oldEditFingerprintData = @json(old('fingerprint_data', ''));
-            const oldEditFingerprintTemplate = @json(old('fingerprint_template', ''));
+            const fingerprintPlaceholderPreview = <?php echo json_encode(asset('assets/images/fingerprint.png'), 15, 512) ?>;
             const searchFingerprintBtn = document.getElementById('searchFingerprintBtn');
             const fingerprintSearchModalEl = document.getElementById('fingerprintSearchModal');
             const fingerprintSearchPreview = document.getElementById('fingerprintSearchPreview');
@@ -805,7 +701,7 @@
             const clientDateApplyBtn = document.getElementById('clientDateApplyBtn');
             const clientFiltersCountBadge = document.getElementById('clientFiltersCountBadge');
             const fingerprintBridgeBase = 'http://127.0.0.1:38654';
-            const clientListSearchUrl = @json(route('client.search.fingerprint'));
+            const clientListSearchUrl = <?php echo json_encode(route('client.search.fingerprint'), 15, 512) ?>;
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
             if (!modalEl || !modalImage || !modalTitle || !clientViewModalEl || !clientViewPhoto || !
@@ -813,16 +709,7 @@
                 clientViewGender || !clientViewCivilStatus || !clientViewEmail || !clientViewContact || !
                 clientViewContact2 || !clientViewAddress || !clientViewBirthplace || !clientViewEducation || !
                 clientViewCourse || !clientViewSector || !clientViewPositionOrganization || !clientViewProvince || !
-                clientViewCity || !clientViewBarangay || !clientViewPageLink || !editModalEl || !editForm || !
-                editFirstName || !editLastName || !editSuffix || !editBirthDate || !editAge || !editGender || !
-                editCivilStatus || !editContact || !editContact2 || !editEmail || !editAddress || !editBirthplace ||
-                !editEducation || !editCourse || !editSector || !editPositionOrganization || !editProvince || !
-                editCity || !editBarangay || !editProvinceManual || !editCityManual || !editBarangayManual || !
-                sameAsHomeAddress || !editPhoto || !editName || !editTitle || !editOpenCameraBtn || !
-                editCapturePhotoBtn || !editRetakePhotoBtn || !editCameraWrapper || !editCameraView || !
-                editCameraCanvas || !editPhotoData || !editOpenFingerprintBtn || !editClearFingerprintBtn || !
-                editScanAgainBtn || !editFingerprintPreview || !editFingerprintData || !editFingerprintTemplate || !
-                editFingerprintStatus || !searchFingerprintBtn || !
+                clientViewCity || !clientViewBarangay || !clientViewPageLink || !searchFingerprintBtn || !
                 fingerprintSearchModalEl || !fingerprintSearchPreview || !fingerprintSearchStatus || !
                 fingerprintScanAgainBtn || !clientKeywordInput || !clientSexFilter || !clientCivilStatusFilter || !
                 clientCityFilter || !clientBarangayFilter || !clientRecordTypeFilter || !clientFiltersResetBtn || !
@@ -832,288 +719,13 @@
                 return;
             }
 
-            let editStream = null;
-            const editDefaultFingerprint = editFingerprintPreview.dataset.defaultSrc || fingerprintPlaceholderPreview;
-            let editHasFingerprint = false;
-            let editOriginalFingerprintPreview = editDefaultFingerprint;
-            let editFingerprintDataUrl = '';
-            let editFingerprintTemplateXml = '';
+
             const fingerprintSearchModal = bootstrap.Modal.getOrCreateInstance(fingerprintSearchModalEl);
             const clientViewModal = bootstrap.Modal.getOrCreateInstance(clientViewModalEl);
             const clientRows = Array.from(document.querySelectorAll('[data-client-row]'));
             const clientRowInteractiveSelector = 'a, button, input, select, textarea, label, form';
             let filtersVisible = true;
-            const psgcProvincesUrl = @json(route('psgc.provinces'));
-            const psgcCitiesBaseUrl = @json(url('psgc/provinces'));
-            const psgcBarangaysBaseUrl = @json(url('psgc/cities'));
-            const calabarzonProvinces = ['Batangas', 'Cavite', 'Laguna', 'Quezon', 'Rizal'];
-            const normalizeLocationText = (value) => upperValue((value || '').toString().trim());
-            const editUppercaseTextFields = [
-                editFirstName,
-                editMiddleName,
-                editLastName,
-                editSuffix,
-                editBirthplace,
-                editAddress,
-                editCourse,
-                editPositionOrganization,
-                editProvinceManual,
-                editCityManual,
-                editBarangayManual,
-                editEmail,
-            ];
-            const normalizePsgcItems = (payload) => {
-                const items = Array.isArray(payload) ? payload : (payload?.data ?? payload?.result ?? payload?.items ?? []);
 
-                if (!Array.isArray(items)) {
-                    return [];
-                }
-
-                return items.map((item) => ({
-                    code: item?.code || item?.psgcCode || item?.id || '',
-                    name: item?.name || item?.label || item?.description || '',
-                })).filter((item) => item.name);
-            };
-
-            const upperValue = (value) => (value || '').toString().toUpperCase();
-
-            const calculateAgeFromBirthDate = (birthDateValue) => {
-                if (!birthDateValue) {
-                    return '';
-                }
-
-                const birthDate = new Date(`${birthDateValue}T00:00:00`);
-                if (Number.isNaN(birthDate.getTime())) {
-                    return '';
-                }
-
-                const today = new Date();
-                let age = today.getFullYear() - birthDate.getFullYear();
-                const monthDifference = today.getMonth() - birthDate.getMonth();
-
-                if (monthDifference < 0 || (monthDifference === 0 && today.getDate() < birthDate.getDate())) {
-                    age--;
-                }
-
-                return age >= 0 ? String(age) : '';
-            };
-
-            const syncEditAgeFromBirthDate = (force = false) => {
-                const computedAge = calculateAgeFromBirthDate(editBirthDate.value);
-
-                if (!computedAge) {
-                    if (force) {
-                        editAge.value = '';
-                    }
-
-                    return;
-                }
-
-                if (force || !editAge.value) {
-                    editAge.value = computedAge;
-                }
-            };
-
-            const setUppercaseValue = (element, value = '') => {
-                if (!element) {
-                    return;
-                }
-
-                element.value = upperValue(value);
-            };
-
-            editUppercaseTextFields.forEach((field) => {
-                if (!field) {
-                    return;
-                }
-
-                field.addEventListener('input', function() {
-                    const start = this.selectionStart;
-                    const end = this.selectionEnd;
-                    this.value = upperValue(this.value);
-
-                    if (typeof start === 'number' && typeof end === 'number') {
-                        this.setSelectionRange(start, end);
-                    }
-                });
-            });
-
-            editBirthDate.addEventListener('input', function () {
-                syncEditAgeFromBirthDate(true);
-            });
-
-            editBirthDate.addEventListener('change', function () {
-                syncEditAgeFromBirthDate(true);
-            });
-
-            const selectOptionByLabel = (select, desiredValue) => {
-                if (!desiredValue) {
-                    select.value = '';
-                    return;
-                }
-
-                const match = Array.from(select.options).find((option) =>
-                    (option.value || '').toLowerCase() === desiredValue.toLowerCase() ||
-                    (option.textContent || '').toLowerCase() === desiredValue.toLowerCase()
-                );
-
-                select.value = match ? match.value : desiredValue;
-            };
-
-            const fillPsgcSelect = (select, placeholder, items, selectedValue = '') => {
-                select.innerHTML = '';
-
-                const placeholderOption = document.createElement('option');
-                placeholderOption.value = '';
-                placeholderOption.textContent = upperValue(placeholder);
-                placeholderOption.selected = !selectedValue;
-                select.appendChild(placeholderOption);
-
-                items.forEach((item) => {
-                    const option = document.createElement('option');
-                    option.value = upperValue(item.name);
-                    option.textContent = upperValue(item.name);
-                    option.dataset.code = item.code || '';
-                    select.appendChild(option);
-                });
-
-                if (selectedValue) {
-                    const match = Array.from(select.options).find((option) =>
-                        (option.value || '').toLowerCase() === selectedValue.toLowerCase() ||
-                        (option.textContent || '').toLowerCase() === selectedValue.toLowerCase()
-                    );
-
-                    if (match) {
-                        match.selected = true;
-                    } else {
-                        const fallbackOption = document.createElement('option');
-                        fallbackOption.value = upperValue(selectedValue);
-                        fallbackOption.textContent = upperValue(selectedValue);
-                        fallbackOption.selected = true;
-                        select.appendChild(fallbackOption);
-                    }
-                }
-            };
-
-            const setEditLocationMode = (outsideImus) => {
-                sameAsHomeAddress.checked = !!outsideImus;
-
-                editProvince.classList.remove('d-none');
-                editCity.classList.remove('d-none');
-                editBarangay.classList.remove('d-none');
-                editProvince.disabled = false;
-                editCity.disabled = false;
-                editBarangay.disabled = false;
-
-                editProvinceManual.classList.add('d-none');
-                editCityManual.classList.add('d-none');
-                editBarangayManual.classList.add('d-none');
-                editProvinceManual.disabled = true;
-                editCityManual.disabled = true;
-                editBarangayManual.disabled = true;
-
-                editProvince.name = 'province';
-                editCity.name = 'city';
-                editBarangay.name = 'barangay';
-                editProvinceManual.name = 'province_manual';
-                editCityManual.name = 'city_manual';
-                editBarangayManual.name = 'barangay_manual';
-            };
-
-            const enableEditManualLocations = (provinceValue = '', cityValue = '', barangayValue = '', message = '') => {
-                setEditLocationMode(sameAsHomeAddress.checked);
-
-                if (message) {
-                    alert(message);
-                }
-            };
-
-            const disableEditManualLocations = () => {
-                setEditLocationMode(sameAsHomeAddress.checked);
-            };
-
-            const loadEditProvinces = async (selectedProvince = '') => {
-                const response = await fetch(psgcProvincesUrl);
-                if (!response.ok) {
-                    throw new Error('Failed to load provinces.');
-                }
-
-                const provinces = normalizePsgcItems(await response.json())
-                    .filter((province) => calabarzonProvinces.some((name) =>
-                        normalizeLocationText(name) === normalizeLocationText(province.name)
-                    ));
-                fillPsgcSelect(editProvince, 'Select province', provinces, selectedProvince);
-            };
-
-            const loadEditCities = async (provinceCode, selectedCity = '') => {
-                if (!provinceCode) {
-                    fillPsgcSelect(editCity, 'Select city', [], '');
-                    fillPsgcSelect(editBarangay, 'Select barangay', [], '');
-                    return;
-                }
-
-                const response = await fetch(`${psgcCitiesBaseUrl}/${encodeURIComponent(provinceCode)}/cities`);
-                if (!response.ok) {
-                    throw new Error('Failed to load cities.');
-                }
-
-                const cities = normalizePsgcItems(await response.json());
-                fillPsgcSelect(editCity, 'Select city', cities, selectedCity);
-            };
-
-            const loadEditBarangays = async (cityCode, selectedBarangay = '') => {
-                if (!cityCode) {
-                    fillPsgcSelect(editBarangay, 'Select barangay', [], '');
-                    return;
-                }
-
-                const response = await fetch(`${psgcBarangaysBaseUrl}/${encodeURIComponent(cityCode)}/barangays`);
-                if (!response.ok) {
-                    throw new Error('Failed to load barangays.');
-                }
-
-                const barangays = normalizePsgcItems(await response.json());
-                fillPsgcSelect(editBarangay, 'Select barangay', barangays, selectedBarangay);
-            };
-
-            const restoreEditLocations = async (provinceName, cityName, barangayName) => {
-                disableEditManualLocations();
-                await loadEditProvinces(provinceName);
-
-                const provinceOption = Array.from(editProvince.options).find((option) =>
-                    normalizeLocationText(option.value || option.textContent || '') === normalizeLocationText(provinceName)
-                );
-                const provinceCode = provinceOption?.dataset.code || '';
-
-                if (!provinceCode) {
-                    if (cityName) {
-                        fillPsgcSelect(editCity, 'Select city', [], cityName);
-                    }
-                    if (barangayName) {
-                        fillPsgcSelect(editBarangay, 'Select barangay', [], barangayName);
-                    }
-                    setEditLocationMode(sameAsHomeAddress.checked);
-                    return;
-                }
-
-                await loadEditCities(provinceCode, cityName);
-
-                const cityOption = Array.from(editCity.options).find((option) =>
-                    normalizeLocationText(option.value || option.textContent || '') === normalizeLocationText(cityName)
-                );
-                const cityCode = cityOption?.dataset.code || '';
-
-                if (!cityCode) {
-                    if (barangayName) {
-                        fillPsgcSelect(editBarangay, 'Select barangay', [], barangayName);
-                    }
-                    setEditLocationMode(sameAsHomeAddress.checked);
-                    return;
-                }
-
-                await loadEditBarangays(cityCode, barangayName);
-                setEditLocationMode(sameAsHomeAddress.checked);
-            };
 
             const setFiltersVisibility = (visible) => {
                 filtersVisible = visible;
@@ -1185,64 +797,6 @@
                         `Showing ${visibleCount} of ${totalCount} clients`);
             };
 
-            const stopEditCamera = () => {
-                if (editStream) {
-                    editStream.getTracks().forEach((track) => track.stop());
-                    editStream = null;
-                }
-                editCameraView.srcObject = null;
-                editCapturePhotoBtn.disabled = true;
-                editRetakePhotoBtn.disabled = false;
-                editCameraWrapper.classList.add('d-none');
-            };
-
-            const applyEditValidationMedia = (clientId) => {
-                if (!oldEditClientId || oldEditClientId !== clientId) {
-                    return;
-                }
-
-                if (oldEditPhotoData) {
-                    editPhoto.src = oldEditPhotoData;
-                    editPhotoData.value = oldEditPhotoData;
-                    editRetakePhotoBtn.disabled = false;
-                }
-
-                if (oldEditFingerprintData) {
-                    editFingerprintDataUrl = oldEditFingerprintData;
-                    editFingerprintTemplateXml = oldEditFingerprintTemplate || '';
-                    editFingerprintData.value = oldEditFingerprintData;
-                    editFingerprintTemplate.value = oldEditFingerprintTemplate || '';
-                    editFingerprintPreview.src = oldEditFingerprintData;
-                    editFingerprintStatus.textContent = 'Fingerprint captured and ready to save.';
-                    editClearFingerprintBtn.disabled = false;
-                    editScanAgainBtn.classList.remove('d-none');
-                }
-            };
-
-            const setEditFingerprintPreview = (imageData, statusText, templateXml = '') => {
-                editFingerprintDataUrl = imageData || '';
-                editFingerprintTemplateXml = templateXml || editFingerprintTemplateXml;
-                editFingerprintData.value = editFingerprintDataUrl;
-                editFingerprintTemplate.value = editFingerprintTemplateXml;
-                editFingerprintPreview.src = editFingerprintDataUrl || editDefaultFingerprint;
-                editFingerprintStatus.textContent = statusText || (editFingerprintDataUrl ?
-                    'Fingerprint captured and ready to save.' : 'No fingerprint captured yet.');
-                editClearFingerprintBtn.disabled = !editFingerprintDataUrl && !editHasFingerprint;
-                editScanAgainBtn.classList.toggle('d-none', !editFingerprintDataUrl && !editHasFingerprint);
-            };
-
-            const clearEditFingerprintCapture = () => {
-                editFingerprintDataUrl = '';
-                editFingerprintTemplateXml = '';
-                editFingerprintData.value = '';
-                editFingerprintTemplate.value = '';
-                editFingerprintPreview.src = editOriginalFingerprintPreview;
-                editFingerprintStatus.textContent = editHasFingerprint ?
-                    'Existing fingerprint on file.' : 'No fingerprint captured yet.';
-                editClearFingerprintBtn.disabled = !editHasFingerprint;
-                editScanAgainBtn.classList.toggle('d-none', !editHasFingerprint);
-            };
-
             const captureEditFingerprintFromBridge = async () => {
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 45000);
@@ -1283,7 +837,7 @@
                 }
             };
 
-            const postFingerprintSearch = async (templateXml) => {
+            const postFingerprintSearch = async (templateXml, imageDataUrl = '') => {
                 const response = await fetch(clientListSearchUrl, {
                     method: 'POST',
                     headers: {
@@ -1292,7 +846,8 @@
                         'X-CSRF-TOKEN': csrfToken
                     },
                     body: JSON.stringify({
-                        fingerprint_template: templateXml
+                        fingerprint_template: templateXml,
+                        fingerprint_data: imageDataUrl
                     })
                 });
 
@@ -1322,7 +877,7 @@
             };
 
             const buildClientViewPayloadFromRow = (row) => ({
-                photo_url: row?.dataset.clientPhoto || @json(asset('assets/images/profile.png')),
+                photo_url: row?.dataset.clientPhoto || <?php echo json_encode(asset('assets/images/profile.png'), 15, 512) ?>,
                 name: row?.dataset.clientName || 'Client',
                 suffix: row?.dataset.clientSuffix || '-',
                 birth_date: row?.dataset.clientBirthDate || '-',
@@ -1345,7 +900,7 @@
             });
 
             const showClientViewModal = (client) => {
-                clientViewPhoto.src = client.photo_url || @json(asset('assets/images/profile.png'));
+                clientViewPhoto.src = client.photo_url || <?php echo json_encode(asset('assets/images/profile.png'), 15, 512) ?>;
                 clientViewName.textContent = client.name || 'Client';
                 clientViewSuffix.textContent = client.suffix || '-';
                 clientViewBirthDate.textContent = client.birth_date || '-';
@@ -1386,8 +941,10 @@
                     fingerprintSearchPreview.src = captureResult.imageDataUrl;
                     fingerprintSearchStatus.textContent = 'Searching for a matching client...';
 
-                    const searchResult = await postFingerprintSearch(captureResult.fingerprintTemplateXml ||
-                        '');
+                    const searchResult = await postFingerprintSearch(
+                        captureResult.fingerprintTemplateXml || '',
+                        captureResult.imageDataUrl || ''
+                    );
                     if (searchResult.matched && searchResult.client) {
                         fingerprintSearchStatus.textContent = `Match found: ${searchResult.client.name}`;
                         fingerprintScanAgainBtn.classList.add('d-none');
@@ -1403,32 +960,6 @@
                 } catch (error) {
                     fingerprintSearchStatus.textContent = 'Fingerprint search failed.';
                     fingerprintScanAgainBtn.classList.remove('d-none');
-                }
-            };
-
-            const startEditCamera = async () => {
-                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                    alert('Camera capture is not supported in this browser.');
-                    return;
-                }
-
-                try {
-                    editStream = await navigator.mediaDevices.getUserMedia({
-                        video: {
-                            facingMode: 'environment'
-                        },
-                        audio: false
-                    });
-
-                    editCameraView.srcObject = editStream;
-                    if (typeof editCameraView.play === 'function') {
-                        await editCameraView.play().catch(() => {});
-                    }
-                    editCameraWrapper.classList.remove('d-none');
-                    editCapturePhotoBtn.disabled = false;
-                    editRetakePhotoBtn.disabled = true;
-                } catch (error) {
-                    alert('Unable to access the camera. Please allow camera permissions and try again.');
                 }
             };
 
@@ -1449,117 +980,6 @@
             modalEl.addEventListener('hidden.bs.modal', function() {
                 modalImage.src = '';
                 modalTitle.textContent = 'Client Photo';
-            });
-
-            editModalEl.addEventListener('show.bs.modal', function(event) {
-                const trigger = event.relatedTarget;
-
-                if (!trigger) {
-                    return;
-                }
-
-                const clientId = trigger.getAttribute('data-client-id') || '';
-                editForm.action = trigger.getAttribute('data-update-url') || editForm.action;
-                editClientId.value = clientId;
-                editTitle.textContent = `Edit ${trigger.getAttribute('data-client-name') || 'Client'}`;
-                editName.textContent = trigger.getAttribute('data-client-name') || 'Client';
-                const clientPhotoPreview = trigger.getAttribute('data-client-photo') || defaultClientPhoto;
-                editPhoto.src = clientPhotoPreview;
-                setUppercaseValue(editFirstName, trigger.getAttribute('data-first-name') || '');
-                setUppercaseValue(editMiddleName, trigger.getAttribute('data-middle-name') || '');
-                setUppercaseValue(editLastName, trigger.getAttribute('data-last-name') || '');
-                setUppercaseValue(editSuffix, trigger.getAttribute('data-suffix') || '');
-                editAge.value = trigger.getAttribute('data-age') || '';
-                editBirthDate.value = trigger.getAttribute('data-birth-date') || '';
-                syncEditAgeFromBirthDate();
-                setUppercaseValue(editGender, trigger.getAttribute('data-gender') || '');
-                setUppercaseValue(editCivilStatus, trigger.getAttribute('data-civil-status') || '');
-                editContact.value = trigger.getAttribute('data-contact') || '';
-                editContact2.value = trigger.getAttribute('data-contact-2') || '';
-                setUppercaseValue(editEmail, trigger.getAttribute('data-email') || '');
-                setUppercaseValue(editAddress, trigger.getAttribute('data-address') || '');
-                setUppercaseValue(editBirthplace, trigger.getAttribute('data-birthplace') || '');
-                setUppercaseValue(editEducation, trigger.getAttribute('data-education') || '');
-                setUppercaseValue(editCourse, trigger.getAttribute('data-course') || '');
-                setUppercaseValue(editSector, trigger.getAttribute('data-sector') || '');
-                setUppercaseValue(editPositionOrganization, trigger.getAttribute('data-position-organization') || '');
-                editPhoto.dataset.original = clientPhotoPreview;
-                editPhotoData.value = '';
-                editHasFingerprint = (trigger.getAttribute('data-client-fingerprint') || editDefaultFingerprint) !== editDefaultFingerprint;
-                editOriginalFingerprintPreview = trigger.getAttribute('data-client-fingerprint') ||
-                    editDefaultFingerprint;
-                editFingerprintPreview.src = editOriginalFingerprintPreview;
-                editFingerprintData.value = '';
-                editFingerprintTemplate.value = '';
-                editFingerprintDataUrl = '';
-                editFingerprintTemplateXml = '';
-                editFingerprintStatus.textContent = editHasFingerprint ? 'Existing fingerprint on file.' :
-                    'No fingerprint captured yet.';
-                editClearFingerprintBtn.disabled = !editHasFingerprint;
-                editScanAgainBtn.classList.toggle('d-none', !editHasFingerprint);
-                editCameraWrapper.classList.add('d-none');
-                editCapturePhotoBtn.disabled = true;
-                editRetakePhotoBtn.disabled = true;
-                editCameraView.srcObject = null;
-
-                const provinceName = trigger.getAttribute('data-province') || '';
-                const cityName = trigger.getAttribute('data-city') || '';
-                const barangayName = trigger.getAttribute('data-barangay') || '';
-
-                sameAsHomeAddress.checked = false;
-                restoreEditLocations(provinceName, cityName, barangayName).catch(() => {
-                    enableEditManualLocations(provinceName, cityName, barangayName, 'Unable to load location data. You can enter it manually.');
-                });
-
-                applyEditValidationMedia(clientId);
-            });
-
-            editModalEl.addEventListener('hidden.bs.modal', function() {
-                editForm.action = '';
-                editClientId.value = '';
-                editTitle.textContent = 'Edit Client';
-                editName.textContent = '';
-                editPhoto.src = defaultClientPhoto;
-                editPhotoData.value = '';
-                editFingerprintPreview.src = editDefaultFingerprint;
-                editOriginalFingerprintPreview = editDefaultFingerprint;
-                editFingerprintData.value = '';
-                editFingerprintTemplate.value = '';
-                editFingerprintDataUrl = '';
-                editFingerprintTemplateXml = '';
-                editFingerprintStatus.textContent = 'No fingerprint captured yet.';
-                editClearFingerprintBtn.disabled = true;
-                editScanAgainBtn.classList.add('d-none');
-                editHasFingerprint = false;
-                sameAsHomeAddress.checked = false;
-                disableEditManualLocations();
-                stopEditCamera();
-                editForm.reset();
-            });
-
-            sameAsHomeAddress.addEventListener('change', function() {
-                setEditLocationMode(this.checked);
-            });
-
-            editProvince.addEventListener('change', function() {
-                const provinceCode = this.selectedOptions[0]?.dataset.code || '';
-
-                loadEditCities(provinceCode, '').catch(() => {
-                    fillPsgcSelect(editCity, 'Select city', [], '');
-                    fillPsgcSelect(editBarangay, 'Select barangay', [], '');
-                });
-            });
-
-            editCity.addEventListener('change', function() {
-                const cityCode = this.selectedOptions[0]?.dataset.code || '';
-
-                loadEditBarangays(cityCode, '').catch(() => {
-                    fillPsgcSelect(editBarangay, 'Select barangay', [], '');
-                });
-            });
-
-            editOpenCameraBtn.addEventListener('click', function() {
-                startEditCamera();
             });
 
             clientRows.forEach((row) => {
@@ -1642,7 +1062,7 @@
             });
 
             clientViewModalEl.addEventListener('hidden.bs.modal', function() {
-                clientViewPhoto.src = @json(asset('assets/images/profile.png'));
+                clientViewPhoto.src = <?php echo json_encode(asset('assets/images/profile.png'), 15, 512) ?>;
                 clientViewName.textContent = 'Client';
                 clientViewSuffix.textContent = '-';
                 clientViewBirthDate.textContent = '-';
@@ -1664,75 +1084,12 @@
                 clientViewPageLink.href = '#';
             });
 
-            editOpenFingerprintBtn.addEventListener('click', function() {
-                (async () => {
-                    try {
-                        editFingerprintStatus.textContent = 'Checking fingerprint scanner bridge...';
-                        const bridgeOnline = await isFingerprintBridgeOnline();
-                        if (!bridgeOnline) {
-                            throw new Error(
-                                'DigitalPersona bridge is not running. Start the FingerprintBridge app first.'
-                            );
-                        }
-
-                        editFingerprintStatus.textContent = 'Place your finger on the scanner...';
-                        const captureResult = await captureEditFingerprintFromBridge();
-                        setEditFingerprintPreview(captureResult.imageDataUrl,
-                            'Fingerprint captured from device. Save the client to keep it.',
-                            captureResult.fingerprintTemplateXml || '');
-                    } catch (error) {
-                        editFingerprintStatus.textContent =
-                            'Scanner bridge is not available. Make sure the bridge app is running.';
-                        alert(
-                            `Unable to capture from the scanner bridge.\n\n${error.message || error}`
-                        );
-                    }
-                })();
-            });
-
-            editScanAgainBtn.addEventListener('click', function() {
-                editOpenFingerprintBtn.click();
-            });
-
-            editClearFingerprintBtn.addEventListener('click', function() {
-                clearEditFingerprintCapture();
-            });
-
-            editCapturePhotoBtn.addEventListener('click', function() {
-                const context = editCameraCanvas.getContext('2d');
-                editCameraCanvas.width = editCameraView.videoWidth || 200;
-                editCameraCanvas.height = editCameraView.videoHeight || 200;
-                context.save();
-                context.translate(editCameraCanvas.width, 0);
-                context.scale(-1, 1);
-                context.drawImage(editCameraView, 0, 0, editCameraCanvas.width, editCameraCanvas.height);
-                context.restore();
-
-                const imageData = editCameraCanvas.toDataURL('image/png');
-                editPhoto.src = imageData;
-                editPhotoData.value = imageData;
-
-                stopEditCamera();
-                editRetakePhotoBtn.disabled = false;
-            });
-
-            editRetakePhotoBtn.addEventListener('click', function() {
-                editPhotoData.value = '';
-                editPhoto.src = editPhoto.dataset.original || defaultClientPhoto;
-                editOpenCameraBtn.click();
-            });
-
-            if (oldEditClientId) {
-                const editTrigger = document.querySelector(`[data-client-id="${oldEditClientId}"]`);
-                if (editTrigger) {
-                    editTrigger.click();
-                }
-            }
-
             const matchedClientId = new URLSearchParams(window.location.search).get('matched_client');
             if (matchedClientId) {
                 highlightMatchedClient(matchedClientId);
             }
         });
     </script>
-@endsection
+<?php $__env->stopSection(); ?>
+
+<?php echo $__env->make('layouts.master', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH C:\xampp\htdocs\E-Reg-System\resources\views/pages/clients/clientList.blade.php ENDPATH**/ ?>

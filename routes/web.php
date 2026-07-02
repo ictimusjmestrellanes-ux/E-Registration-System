@@ -1,11 +1,21 @@
 <?php
 
+use App\Http\Controllers\ActivityLogsController;
+use App\Http\Controllers\ArchiveController;
 use App\Http\Controllers\Auth\ForgotPasswordController;
 use App\Http\Controllers\Auth\LockScreenController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\Auth\ResetPasswordController;
+use App\Http\Controllers\CameraController;
+use App\Http\Controllers\ClientEditController;
+use App\Http\Controllers\ClientListController;
+use App\Http\Controllers\ClientsController;
+use App\Http\Controllers\FingerprintController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\SettingsController;
+use App\Http\Controllers\TransactionController;
+use App\Http\Controllers\TransactionRequirementController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -17,30 +27,20 @@ Auth::routes();
 Route::group(['namespace' => 'App\Http\Controllers\Auth'],function()
 {
     // ----------------------------- login ------------------------------------//
-    Route::controller(LoginController::class)->group(function () {
-        Route::get('/login', 'login')->name('login');
-        Route::post('/login', 'authenticate');
-        Route::get('/logout', 'logout')->name('logout');
-        Route::get('logout/page', 'logoutPage')->name('logout/page');
-    });
+    Route::get('/login', [LoginController::class, 'login'])->name('login');
+    Route::post('/login', [LoginController::class, 'authenticate']);
+    Route::get('auth/google/redirect', [LoginController::class, 'redirectToGoogle'])->name('google.redirect');
+    Route::get('auth/google/callback', [LoginController::class, 'handleGoogleCallback'])->name('google.callback');
+    Route::get('/logout', [LoginController::class, 'logout'])->name('logout');
+    Route::get('logout/page', [LoginController::class, 'logout'])->name('logout/page');
 
     // ----------------------------- register -------------------------------//
-    Route::controller(RegisterController::class)->group(function () {
-        Route::get('/register', 'register')->name('register');
-        Route::post('/register','storeUser')->name('register');    
-    });
+    Route::get('/register', [RegisterController::class, 'register'])->name('register');
+    Route::post('/register', [RegisterController::class, 'storeUser'])->name('register');
 
     // ----------------------------- Forget Password --------------------------//
-    Route::controller(ForgotPasswordController::class)->group(function () {
-        Route::get('forget-password', 'showLinkRequestForm')->name('forget-password');    
-        Route::post('forget-password', 'sendResetLinkEmail')->name('forget-password');    
-    });
-
-    // ---------------------------- Reset Password ----------------------------//
-    Route::controller(ResetPasswordController::class)->group(function () {
-        Route::get('reset-password/{token}', 'getPassword');
-        Route::post('reset-password', 'updatePassword')->name('reset-password');    
-    });
+    Route::get('forget-password', [ForgotPasswordController::class, 'showLinkRequestForm'])->name('forget-password');    
+    Route::post('forget-password', [ForgotPasswordController::class, 'sendResetLinkEmail'])->name('forget-password');
 
     // Lock the screen
     Route::get('/lock', function () {
@@ -50,37 +50,69 @@ Route::group(['namespace' => 'App\Http\Controllers\Auth'],function()
 
     Route::controller(LockScreenController::class)->group(function () {
         // ---------------------------- Lock Screen ---------------------------//
-        Route::get('lockscreen', 'lockscreen')->name('lockscreen');
-        Route::post('unlock',  'unlock')->name('unlock-screen');
+        Route::get('lockscreen', [LockScreenController::class, 'lockscreen'])->name('lockscreen');
+        Route::post('unlock', [LockScreenController::class, 'unlock'])->name('unlock-screen');
     });
 
 });
 
 Route::group(['namespace' => 'App\Http\Controllers'], function () {
     Route::middleware('auth')->group(function () {
+        // --------------------- Dashboard ------------------//
         Route::get('dashboard', [ProfileController::class, 'dashboard'])->name('dashboard');
-        Route::get('activity-logs', [ProfileController::class, 'activityLogs'])->name('activity.logs');
-        Route::get('clients', [ProfileController::class, 'clients'])->name('clients');
-        Route::get('client-list', [ProfileController::class, 'clientList'])->name('client.list');
-        Route::post('client-list/fingerprint-search', [ProfileController::class, 'searchClientByFingerprint'])->name('client.search.fingerprint');
-        Route::get('archive', [ProfileController::class, 'archiveList'])->name('archive.list');
-        Route::post('archive/{archivedClient}/restore', [ProfileController::class, 'restoreArchivedClient'])->name('archive.restore');
-        Route::get('psgc/provinces', [ProfileController::class, 'psgcProvinces'])->name('psgc.provinces');
-        Route::get('psgc/provinces/{provinceCode}/cities', [ProfileController::class, 'psgcCities'])->name('psgc.cities');
-        Route::get('psgc/cities/{cityCode}/barangays', [ProfileController::class, 'psgcBarangays'])->name('psgc.barangays');
-        Route::get('clients/{client}', [ProfileController::class, 'viewClient'])->name('clients.show');
-        Route::get('clients/{client}/edit', [ProfileController::class, 'editClient'])->name('clients.edit');
-        Route::put('clients/{client}', [ProfileController::class, 'updateClient'])->name('clients.update');
-        Route::post('clients/{client}/archive', [ProfileController::class, 'archiveClient'])->name('clients.archive');
-        Route::delete('clients/{client}', [ProfileController::class, 'destroyClient'])->name('clients.destroy');
-        Route::post('clients', [ProfileController::class, 'storeClient'])->name('clients.store');
+
+        // --------------------- Activity Logs ------------------//
+        Route::get('activity-logs', [ActivityLogsController::class, 'index'])->name('activity.logs');
+
+        // --------------------- Clients (Create) ------------------//
+        Route::get('clients', [ClientsController::class, 'create'])->name('clients');
+        Route::post('clients', [ClientsController::class, 'store'])->name('clients.store');
+
+        // --------------------- Client View/Delete/Archive ------------------//
+        Route::get('clients/{client}', [ClientsController::class, 'show'])->name('clients.show');
+        Route::delete('clients/{client}', [ClientsController::class, 'destroy'])->name('clients.destroy');
+        Route::post('clients/{client}/archive', [ClientsController::class, 'archive'])->name('clients.archive');
+
+        // --------------------- Client Edit ------------------//
+        Route::get('clients/{client}/edit', [ClientEditController::class, 'edit'])->name('clients.edit');
+        Route::put('clients/{client}', [ClientEditController::class, 'update'])->name('clients.update');
+
+        // --------------------- Client List ------------------//
+        Route::get('client-list', [ClientListController::class, 'index'])->name('client.list');
+
+        // --------------------- Fingerprint ------------------//
+        Route::post('client-list/fingerprint-search', [FingerprintController::class, 'search'])->name('client.search.fingerprint');
+        Route::get('fingerprint/health', [FingerprintController::class, 'health'])->name('fingerprint.health');
+        Route::post('fingerprint/capture', [FingerprintController::class, 'capture'])->name('fingerprint.capture');
+
+        // --------------------- Archive ------------------//
+        Route::get('archive', [ArchiveController::class, 'index'])->name('archive.list');
+        Route::post('archive/{archivedClient}/restore', [ArchiveController::class, 'restore'])->name('archive.restore');
+
+        // --------------------- PSGC Data ------------------//
+        Route::get('psgc/provinces', [ClientsController::class, 'psgcProvinces'])->name('psgc.provinces');
+        Route::get('psgc/provinces/{provinceCode}/cities', [ClientsController::class, 'psgcCities'])->name('psgc.cities');
+        Route::get('psgc/cities/{cityCode}/barangays', [ClientsController::class, 'psgcBarangays'])->name('psgc.barangays');
+
+        // --------------------- Camera ------------------//
+        Route::post('camera/upload', [CameraController::class, 'upload'])->name('camera.upload');
 
         // --------------------- Profile ------------------//
-        Route::controller(ProfileController::class)->group(function () {
-            Route::get('profile', 'profile')->name('profile');
-            Route::get('settings', 'profileSettings')->name('settings');
-            Route::put('profile/update', 'updateProfile')->name('profile.update');
-            Route::get('faqs', 'faqs')->name('faqs');
-        });
+        Route::get('profile', [ProfileController::class, 'profile'])->name('profile');
+
+        // --------------------- Settings ------------------//
+        Route::get('settings', [SettingsController::class, 'index'])->name('settings');
+        Route::put('profile/update', [SettingsController::class, 'update'])->name('profile.update');
+
+        // --------------------- Transactions ------------------//
+        Route::post('transactions', [TransactionController::class, 'store'])->name('transactions.store');
+        Route::get('transactions/{id}', [TransactionController::class, 'show'])->name('transactions.show');
+
+        // --------------------- Transaction Requirements ------------------//
+        Route::post('transaction-requirements', [TransactionRequirementController::class, 'store'])->name('transaction-requirements.store');
+        Route::get('transaction-requirements/{transactionId}', [TransactionRequirementController::class, 'show'])->name('transaction-requirements.show');
+        Route::delete('transaction-requirements/{requirementId}', [TransactionRequirementController::class, 'destroy'])->name('transaction-requirements.destroy');
+        Route::get('transaction-requirements/{requirementId}/download', [TransactionRequirementController::class, 'download'])->name('transaction-requirements.download');
+    
     });
 });

@@ -10,6 +10,7 @@
     <meta content="E-Registration System" name="author">
     <!-- App favicon -->
     {{-- <link rel="shortcut icon" href="{{ asset('assets/images/favicon.ico') }}"> --}}
+    @vite(['resources/sass/app.scss', 'resources/js/app.js'])
     <!-- Layout config Js -->
     <script src="{{ asset('assets/js/layout.js') }}"></script>
     <!-- Bootstrap Css -->
