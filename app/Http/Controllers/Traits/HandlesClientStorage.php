@@ -38,9 +38,19 @@ trait HandlesClientStorage
             'city' => ['nullable', 'string', 'max:255'],
             'barangay' => ['nullable', 'string', 'max:255'],
             'photo_data' => $client ? ['nullable', 'string'] : ['required', 'string'],
-            'fingerprint_data' => $client ? ['nullable', 'string'] : ['required', 'string'],
+            'fingerprint_data' => ['nullable', 'string'],
             'fingerprint_template' => ['nullable', 'string'],
+            'skip_fingerprint' => ['sometimes', 'boolean'],
         ]);
+
+        $skipFingerprint = filter_var($validated['skip_fingerprint'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
+        if (!$client && !$skipFingerprint && !filled($validated['fingerprint_data'] ?? null)) {
+            throw ValidationException::withMessages([
+                'fingerprint_data' => 'Client fingerprint is required before saving.',
+                'fingerprint_template' => 'Client fingerprint is required before saving.',
+            ]);
+        }
 
         if (!$client) {
             return $validated;
@@ -57,7 +67,7 @@ trait HandlesClientStorage
 
         if (!$hasIncomingFingerprintData && $hasIncomingFingerprintTemplate) {
             $errors['fingerprint_data'] = 'Fingerprint capture must include an image.';
-        } elseif (!$hasIncomingFingerprintData && !$hasIncomingFingerprintTemplate && !$this->clientHasStoredFingerprint($client)) {
+        } elseif (!$hasIncomingFingerprintData && !$hasIncomingFingerprintTemplate && !$this->clientHasStoredFingerprint($client) && !$skipFingerprint) {
             $errors['fingerprint_data'] = 'Client fingerprint is required before saving.';
             $errors['fingerprint_template'] = 'Client fingerprint is required before saving.';
         }
@@ -81,6 +91,10 @@ trait HandlesClientStorage
 
     private function ensureFingerprintForDuplicateClientIdentity(array $validated): void
     {
+        if (filter_var($validated['skip_fingerprint'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+            return;
+        }
+
         if (empty($validated['birth_date']) || !empty($validated['fingerprint_data'])) {
             return;
         }

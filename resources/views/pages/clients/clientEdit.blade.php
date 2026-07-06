@@ -1,6 +1,6 @@
 <div class="modal fade" id="editClientModal" tabindex="-1" aria-labelledby="editClientModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-scrollable modal-xl modal-fullscreen-lg-down">
-        <div class="modal-content" style="max-height: calc(100vh - 2rem); overflow: hidden;">
+        <div class="modal-content" style="max-height: calc(100vh - 2rem); overflow: visible;">
             <div class="modal-header">
                 <h5 class="modal-title" id="editClientModalLabel">Edit Client</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -70,6 +70,14 @@
                                         <div class="client-details-muted small">Fingerprint capture is required before saving.</div>
                                         <div class="client-details-muted small" id="editFingerprintStatus">No
                                             fingerprint captured yet.</div>
+                                        <div class="form-check mb-2 mt-2">
+                                            <input class="form-check-input" type="checkbox"
+                                                id="editSkipFingerprintCheckbox" name="skip_fingerprint"
+                                                value="1">
+                                            <label class="form-check-label" for="editSkipFingerprintCheckbox">
+                                                Skip fingerprint capture
+                                            </label>
+                                        </div>
                                         <button type="button"
                                             class="btn btn-soft-primary btn-sm d-none align-self-start"
                                             id="editScanAgainBtn">Capture Again</button>
@@ -258,20 +266,16 @@
                                                 array_map('trim', explode(',', (string) $editSelectedSectors)),
                                             );
                                     @endphp
-                                    <div class="border rounded-3 p-2 bg-light-subtle">
-                                        <div class="d-flex flex-column gap-2">
+                                    <div>
+                                        <label for="editSectorSelect" class="visually-hidden">Sector</label>
+                                        <select id="editSectorSelect" name="sectors[]" class="form-select" multiple>
                                             @foreach ($sectorOptions as $sectorOption)
-                                                <div class="form-check mb-0">
-                                                    <input type="checkbox" class="form-check-input edit-sector-checkbox"
-                                                        id="editSector{{ $loop->index }}" name="sectors[]"
-                                                        value="{{ $sectorOption }}"
-                                                        {{ in_array($sectorOption, $editSelectedSectorsArr) ? 'checked' : '' }}>
-                                                    <label class="form-check-label" for="editSector{{ $loop->index }}">
-                                                        {{ $sectorOption }}
-                                                    </label>
-                                                </div>
+                                                <option value="{{ $sectorOption }}"
+                                                    {{ in_array($sectorOption, $editSelectedSectorsArr) ? 'selected' : '' }}>
+                                                    {{ $sectorOption }}
+                                                </option>
                                             @endforeach
-                                        </div>
+                                        </select>
                                     </div>
                                     <input type="hidden" id="editSector" name="sector"
                                         value="{{ old('sector', $client->sector ?? '') }}">
@@ -295,12 +299,67 @@
     </div>
 </div>
 
+<!-- Choices.js for compact searchable multi-select -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/choices.js/public/assets/styles/choices.min.css" />
+<style>
+    /* Render Choices dropdown in-flow so it expands the modal content instead of overlaying */
+    .choices__list--dropdown {
+        position: static !important;
+        display: none !important;
+        box-shadow: none !important;
+        max-width: 100% !important;
+        width: auto !important;
+        min-width: 100px;
+    }
+
+    .choices.is-open .choices__list--dropdown {
+        display: block !important;
+    }
+
+    .choices__list--dropdown .choices__list {
+        max-height: 240px !important;
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+    }
+
+    .choices__list--dropdown .choices__item {
+        white-space: normal !important;
+        word-break: break-word;
+    }
+
+    .choices[data-type*=select-multiple] .choices__inner {
+        min-height: 44px;
+        padding: .35rem .5rem;
+        box-sizing: border-box;
+    }
+
+    /* Fix clipped/trimmed first letters by removing extra list padding
+       and ensuring each item has its own inner padding. Also ensure
+       dropdown has visible background and border so text isn't cut off. */
+    .choices__list--dropdown {
+        padding-left: 0 !important;
+        background: #ffffff !important;
+        border: 1px solid rgba(0,0,0,0.08) !important;
+        border-radius: .375rem !important;
+        box-sizing: border-box !important;
+    }
+
+    .choices__list--dropdown .choices__list {
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    .choices__list--dropdown .choices__item {
+        padding: .375rem .75rem !important;
+    }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         const editSectorHidden = document.getElementById('editSector');
-        const editSectorCheckboxes = document.querySelectorAll('.edit-sector-checkbox');
+        const editSectorSelect = document.getElementById('editSectorSelect');
 
-        if (!editSectorHidden || !editSectorCheckboxes.length) {
+        if (!editSectorHidden || !editSectorSelect) {
             return;
         }
 
@@ -310,30 +369,81 @@
             .filter(Boolean);
 
         const syncEditSectorHidden = () => {
-            editSectorHidden.value = Array.from(editSectorCheckboxes)
-                .filter(checkbox => checkbox.checked)
-                .map(checkbox => checkbox.value)
+            editSectorHidden.value = Array.from(editSectorSelect.selectedOptions || [])
+                .map(opt => opt.value)
                 .join(',');
         };
 
-        const syncEditSectorCheckboxes = () => {
+        const syncEditSectorSelect = () => {
             const selectedValues = selectedSectorValues();
-            editSectorCheckboxes.forEach(checkbox => {
-                checkbox.checked = selectedValues.includes(checkbox.value);
+            Array.from(editSectorSelect.options).forEach(opt => {
+                opt.selected = selectedValues.includes(opt.value);
             });
         };
 
-        editSectorCheckboxes.forEach(checkbox => {
-            checkbox.addEventListener('change', syncEditSectorHidden);
-        });
+        try {
+            new Choices(editSectorSelect, {
+                removeItemButton: true,
+                placeholderValue: 'Select sectors',
+                searchPlaceholderValue: 'Search sectors',
+                shouldSort: false,
+                itemSelectText: '',
+                position: 'bottom',
+                silent: true,
+            });
+        } catch (e) {
+            // Choices not available; continue
+        }
 
-        syncEditSectorCheckboxes();
+        editSectorSelect.addEventListener('change', syncEditSectorHidden);
+
+        syncEditSectorSelect();
         syncEditSectorHidden();
 
         const editClientModal = document.getElementById('editClientModal');
         if (editClientModal) {
-            editClientModal.addEventListener('shown.bs.modal', syncEditSectorCheckboxes);
+            editClientModal.addEventListener('shown.bs.modal', syncEditSectorSelect);
             editClientModal.addEventListener('hide.bs.modal', syncEditSectorHidden);
+        }
+
+        // Edit fingerprint skip behavior
+        const editOpenFingerprintBtn = document.getElementById('editOpenFingerprintBtn');
+        const editClearFingerprintBtn = document.getElementById('editClearFingerprintBtn');
+        const editFingerprintPreview = document.getElementById('editFingerprintPreview');
+        const editFingerprintStatus = document.getElementById('editFingerprintStatus');
+        const editFingerprintData = document.getElementById('editFingerprintData');
+        const editFingerprintTemplate = document.getElementById('editFingerprintTemplate');
+        const editRetryFingerprintCaptureBtn = document.getElementById('editScanAgainBtn');
+        const editSaveFingerprintBtn = document.getElementById('editCapturePhotoBtn');
+        const editSkipFingerprintCheckbox = document.getElementById('editSkipFingerprintCheckbox');
+
+        const updateEditFingerprintMode = () => {
+            if (!editSkipFingerprintCheckbox) return;
+            const skip = editSkipFingerprintCheckbox.checked;
+            editOpenFingerprintBtn.disabled = skip;
+            editClearFingerprintBtn.disabled = skip || !editFingerprintData.value;
+            if (skip) {
+                editFingerprintStatus.textContent = 'Fingerprint capture skipped.';
+            } else if (!editFingerprintData.value) {
+                editFingerprintStatus.textContent = (editFingerprintPreview && editFingerprintPreview.dataset && editFingerprintPreview.dataset.defaultSrc && editFingerprintPreview.src !== editFingerprintPreview.dataset.defaultSrc) ? 'Existing fingerprint on file.' : 'No fingerprint captured yet.';
+            } else {
+                editFingerprintStatus.textContent = 'Fingerprint captured and ready to save.';
+            }
+        };
+
+        if (editSkipFingerprintCheckbox) {
+            // Default: check if there is no fingerprint data and preview is placeholder
+            const hasEditFingerprint = (editFingerprintData && editFingerprintData.value) || (editFingerprintPreview && editFingerprintPreview.dataset && editFingerprintPreview.dataset.defaultSrc && editFingerprintPreview.src !== editFingerprintPreview.dataset.defaultSrc);
+            if (!hasEditFingerprint) {
+                editSkipFingerprintCheckbox.checked = true;
+            }
+            editSkipFingerprintCheckbox.addEventListener('change', updateEditFingerprintMode);
+            // ensure mode is applied when modal shown/hidden
+            if (editClientModal) {
+                editClientModal.addEventListener('shown.bs.modal', updateEditFingerprintMode);
+                editClientModal.addEventListener('hide.bs.modal', updateEditFingerprintMode);
+            }
+            updateEditFingerprintMode();
         }
     });
 </script>

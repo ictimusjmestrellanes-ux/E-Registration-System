@@ -1,4 +1,4 @@
-@if (true)
+<?php if(true): ?>
 <div class="modal fade" id="transactionInfoModal" tabindex="-1" aria-labelledby="transactionInfoModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">
@@ -96,7 +96,7 @@
         </div>
     </div>
 </div>
-@endif
+<?php endif; ?>
 
         <script>
             /**
@@ -245,4 +245,4 @@
                         });
                     });
             }
-        </script>
+        </script><?php /**PATH C:\xampp\htdocs\E-Reg-System\resources\views/pages/client_transaction/transactionInfo.blade.php ENDPATH**/ ?>

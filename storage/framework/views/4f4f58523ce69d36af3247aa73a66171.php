@@ -5,8 +5,8 @@
                 <h5 class="modal-title" id="newTransactionModalLabel">New Transaction</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form id="newTransactionForm" action="{{ route('transactions.store') }}" method="POST">
-                @csrf
+            <form id="newTransactionForm" action="<?php echo e(route('transactions.store')); ?>" method="POST">
+                <?php echo csrf_field(); ?>
                 <div class="modal-body p-0">
                     <div class="bg-light text-white px-4 py-3 mb-3">
                         <h6 class="mb-0">Transaction Details</h6>
@@ -16,19 +16,19 @@
                         <div class="row gx-3 align-items-center mb-3">
                             <div class="col-auto text-uppercase text-muted small fw-semibold">Applicant ID</div>
                             <div class="col-auto flex-fill">
-                                <input type="text" class="form-control form-control-sm border-0 bg-light text-uppercase fw-bold" name="client_id" value="{{ $client->client_id ?? '' }}" readonly>
+                                <input type="text" class="form-control form-control-sm border-0 bg-light text-uppercase fw-bold" name="client_id" value="<?php echo e($client->client_id ?? ''); ?>" readonly>
                             </div>
                             <div class="col-auto text-uppercase text-muted small fw-semibold">Transaction Date</div>
                             <div class="col-auto flex-fill">
-                                <input type="text" class="form-control form-control-sm border-0 bg-light fw-bold" value="{{ now()->format('m/d/Y') }}" readonly>
-                                <input type="hidden" name="transaction_date" value="{{ now()->format('Y-m-d') }}">
+                                <input type="text" class="form-control form-control-sm border-0 bg-light fw-bold" value="<?php echo e(now()->format('m/d/Y')); ?>" readonly>
+                                <input type="hidden" name="transaction_date" value="<?php echo e(now()->format('Y-m-d')); ?>">
                             </div>
                         </div>
 
                         <div class="row gx-3 align-items-center mb-3">
                             <div class="col-auto text-uppercase text-muted small fw-semibold">Client</div>
                             <div class="col">
-                                <input type="text" class="form-control form-control-sm border-0 bg-light text-uppercase fw-bold" name="client_name" value="{{ $client->full_name ?? '' }}" readonly>
+                                <input type="text" class="form-control form-control-sm border-0 bg-light text-uppercase fw-bold" name="client_name" value="<?php echo e($client->full_name ?? ''); ?>" readonly>
                             </div>
                         </div>
 
@@ -200,4 +200,4 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 });
-</script>
+</script><?php /**PATH C:\xampp\htdocs\E-Reg-System\resources\views/pages/client_transaction/newTransaction.blade.php ENDPATH**/ ?>

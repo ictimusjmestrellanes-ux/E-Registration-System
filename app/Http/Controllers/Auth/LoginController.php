@@ -24,7 +24,6 @@ class LoginController extends Controller
     public function login()
     {
         return view('auth.login', [
-            'localAuthEnabled' => (bool) config('authentication.local_auth_enabled'),
             'googleConfigured' => $this->providerIsConfigured('google'),
             'azureConfigured' => $this->providerIsConfigured('azure'),
         ]);

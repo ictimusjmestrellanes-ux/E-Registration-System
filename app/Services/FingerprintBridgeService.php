@@ -118,6 +118,8 @@ class FingerprintBridgeService
             return false;
         }
 
+        $this->installAutostartShortcut();
+
         for ($i = 0; $i < 50; $i++) {
             if ($this->isHealthy()) {
                 return true;
@@ -192,6 +194,28 @@ class FingerprintBridgeService
             'exe_path' => $built ? $this->exePath : null,
             'bridge_url' => self::BRIDGE_BASE,
         ];
+    }
+
+    private function installAutostartShortcut(): bool
+    {
+        $installScript = $this->bridgeDir . DIRECTORY_SEPARATOR . 'install-autostart.bat';
+
+        if (!file_exists($installScript)) {
+            Log::warning('Fingerprint bridge autostart script not found.', ['path' => $installScript]);
+            return false;
+        }
+
+        exec(sprintf('"%s" 2>&1', $installScript), $output, $exitCode);
+
+        if ($exitCode !== 0) {
+            Log::warning('Fingerprint bridge autostart installation failed.', [
+                'output' => implode("\n", $output),
+                'script' => $installScript,
+            ]);
+            return false;
+        }
+
+        return true;
     }
 
     private function killZombie(): void

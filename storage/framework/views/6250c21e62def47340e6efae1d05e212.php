@@ -137,40 +137,53 @@
                                                         class="rounded-3 img-thumbnail material-shadow object-fit-cover"
                                                         style="width: 250px; height: 250px;">
                                                 </div>
-<div class="col-md d-flex flex-column justify-content-center">
-<div class="d-flex flex-wrap gap-2 mb-2">
-                                                              <button type="button" class="btn btn-soft-primary"
-                                                                  id="openFingerprintBtn" data-bs-toggle="modal"
-                                                                  data-bs-target="#fingerprintModal">Open Scanner</button>
-                                                              <button type="button" class="btn btn-soft-success"
-                                                                  id="clearFingerprintBtn" disabled>Clear</button>
-                                                          </div>
-                                                     <p class="text-muted small mb-2">
-                                                         Capture a fingerprint image from the scanner or biometric device.
-                                                     </p>
-<p class="text-warning small mb-2">
-                                                          Fingerprint is required when the client name and birth date already
-                                                          exist.
-                                                      </p>
-                                                      <input type="hidden" id="clientFingerprintData" name="fingerprint_data"
-                                                         value="<?php echo e(old('fingerprint_data', '')); ?>">
-                                                     <input type="hidden" id="clientFingerprintTemplate"
-                                                         name="fingerprint_template"
-                                                         value="<?php echo e(old('fingerprint_template', '')); ?>">
-                                                     <div class="small text-muted" id="fingerprintStatus">No fingerprint
-                                                         captured yet.</div>
-                                                     <div id="fingerprintCaptureError" class="text-danger small mt-1 d-none"></div>
-                                                     <?php $__errorArgs = ['fingerprint_template'];
+                                                <div class="col-md d-flex flex-column justify-content-center">
+                                                    <div class="d-flex flex-wrap gap-2 mb-2">
+                                                        <button type="button" class="btn btn-soft-primary"
+                                                            id="openFingerprintBtn" data-bs-toggle="modal"
+                                                            data-bs-target="#fingerprintModal">Open Scanner</button>
+                                                        <button type="button" class="btn btn-soft-success"
+                                                            id="clearFingerprintBtn" disabled>Clear</button>
+                                                    </div>
+                                                    <p class="text-muted small mb-2">
+                                                        Capture a fingerprint image from the scanner or biometric device.
+                                                    </p>
+                                                    <p class="text-warning small mb-2">
+                                                        Fingerprint is required when the client name and birth date already
+                                                        exist.
+                                                    </p>
+                                                    <div class="form-check mb-2">
+                                                        <input class="form-check-input" type="checkbox"
+                                                            id="skipFingerprintCheckbox" name="skip_fingerprint"
+                                                            value="1" <?php echo e(old('skip_fingerprint') ? 'checked' : ''); ?>>
+                                                        <label class="form-check-label" for="skipFingerprintCheckbox">
+                                                            Skip fingerprint capture
+                                                        </label>
+                                                    </div>
+                                                    <input type="hidden" id="clientFingerprintData" name="fingerprint_data"
+                                                        value="<?php echo e(old('fingerprint_data', '')); ?>">
+                                                    <input type="hidden" id="clientFingerprintTemplate"
+                                                        name="fingerprint_template"
+                                                        value="<?php echo e(old('fingerprint_template', '')); ?>">
+                                                    <input type="file" id="fingerprintFileInput" class="d-none"
+                                                        accept="image/*">
+                                                    <button type="button" id="uploadFingerprintBtn"
+                                                        class="d-none"></button>
+                                                    <div class="small text-muted" id="fingerprintStatus">No fingerprint
+                                                        captured yet.</div>
+                                                    <div id="fingerprintCaptureError" class="text-danger small mt-1 d-none">
+                                                    </div>
+                                                    <?php $__errorArgs = ['fingerprint_template'];
 $__bag = $errors->getBag($__errorArgs[1] ?? 'default');
 if ($__bag->has($__errorArgs[0])) :
 if (isset($message)) { $__messageOriginal = $message; }
 $message = $__bag->first($__errorArgs[0]); ?>
-                                                         <div class="text-danger small mt-1"><?php echo e($message); ?></div>
-                                                     <?php unset($message);
+                                                        <div class="text-danger small mt-1"><?php echo e($message); ?></div>
+                                                    <?php unset($message);
 if (isset($__messageOriginal)) { $message = $__messageOriginal; }
 endif;
 unset($__errorArgs, $__bag); ?>
-                                                 </div>
+                                                </div>
                                             </div>
                                         </div>
 
@@ -179,18 +192,20 @@ unset($__errorArgs, $__bag); ?>
 
                                 <div class="col-12">
                                     <div class="border rounded-4 p-3 bg-light-subtle">
-                                        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+                                        <div
+                                            class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
                                             <div>
                                                 <h5 class="mb-1">Personal Information</h5>
-                                                <p class="text-muted mb-0 small">Basic identity and demographic details.</p>
+                                                <p class="text-muted mb-0 small">Basic identity and demographic details.
+                                                </p>
                                             </div>
                                         </div>
 
                                         <div class="row g-3">
                                             <div class="col-lg-3">
                                                 <label for="firstName" class="form-label">First Name</label>
-                                                <input type="text" class="form-control" id="firstName" name="first_name"
-                                                    placeholder="Enter first name"
+                                                <input type="text" class="form-control" id="firstName"
+                                                    name="first_name" placeholder="Enter first name"
                                                     value="<?php echo e(old('first_name', optional($editingClient)->first_name ?? '')); ?>"
                                                     required>
                                             </div>
@@ -238,8 +253,7 @@ unset($__errorArgs, $__bag); ?>
                                             <div class="col-lg-2">
                                                 <label for="birthDate" class="form-label">Birth Date</label>
                                                 <input type="date" class="form-control" id="birthDate"
-                                                    name="birth_date" required
-                                                value="<?php echo e($selectedBirthDate); ?>">
+                                                    name="birth_date" required value="<?php echo e($selectedBirthDate); ?>">
                                             </div>
 
                                             <div class="col-lg-3">
@@ -253,9 +267,8 @@ unset($__errorArgs, $__bag); ?>
                                             <div class="col-lg-2">
                                                 <label for="age" class="form-label">Age</label>
                                                 <input type="number" class="form-control" id="age" name="age"
-                                                    placeholder="Enter age" required
-                                                min="0"
-                                                value="<?php echo e(old('age', optional($editingClient)->age ?? '')); ?>">
+                                                    placeholder="Enter age" required min="0"
+                                                    value="<?php echo e(old('age', optional($editingClient)->age ?? '')); ?>">
                                             </div>
 
                                             <div class="col-lg-3">
@@ -315,7 +328,8 @@ unset($__errorArgs, $__bag); ?>
 
                                             <div class="col-lg-4">
                                                 <label for="province" class="form-label">Province</label>
-                                                <select class="form-select" id="province" name="province_select" disabled>
+                                                <select class="form-select" id="province" name="province_select"
+                                                    disabled>
                                                     <option value="">Select province</option>
                                                 </select>
                                                 <input type="hidden" id="provinceHidden" name="province"
@@ -428,21 +442,17 @@ unset($__errorArgs, $__bag); ?>
                                                             array_map('trim', explode(',', (string) $selectedSectors)),
                                                         );
                                                 ?>
-                                                <div class="border rounded-3 p-2 bg-light-subtle">
-                                                    <div class="d-flex flex-column gap-2">
+                                                <div>
+                                                    <label for="sectorSelect" class="visually-hidden">Sector</label>
+                                                    <select id="sectorSelect" name="sectors[]" class="form-select" multiple>
                                                         <?php $__currentLoopData = $sectorOptions; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $sectorOption): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                                            <div class="form-check mb-0">
-                                                                <input type="checkbox" class="form-check-input sector-checkbox"
-                                                                    id="sector<?php echo e($loop->index); ?>" name="sectors[]"
-                                                                    value="<?php echo e($sectorOption); ?>"
-                                                                    <?php echo e(in_array($sectorOption, $selectedSectorsArr) ? 'checked' : ''); ?>>
-                                                                <label class="form-check-label" for="sector<?php echo e($loop->index); ?>">
-                                                                    <?php echo e($sectorOption); ?>
+                                                            <option value="<?php echo e($sectorOption); ?>"
+                                                                <?php echo e(in_array($sectorOption, $selectedSectorsArr) ? 'selected' : ''); ?>>
+                                                                <?php echo e($sectorOption); ?>
 
-                                                                </label>
-                                                            </div>
+                                                            </option>
                                                         <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
-                                                    </div>
+                                                    </select>
                                                 </div>
                                                 <input type="hidden" name="sector" id="sectorHidden"
                                                     value="<?php echo e(old('sector', optional($editingClient)->sector ?? '')); ?>">
@@ -485,7 +495,8 @@ unset($__errorArgs, $__bag); ?>
                     <div id="cameraWrapper" class="border rounded p-2 bg-light" style="min-height: 300px;">
                         <video id="cameraView" class="rounded w-100" autoplay playsinline
                             style="max-height: 1000px; object-fit: cover; transform: scaleX(-1);"></video>
-                        <div id="cameraUnsupportedMessage" class="d-none d-flex flex-column justify-content-center align-items-center text-center text-muted h-100">
+                        <div id="cameraUnsupportedMessage"
+                            class="d-none d-flex flex-column justify-content-center align-items-center text-center text-muted h-100">
                             <div class="fw-semibold mb-2">Camera is unavailable.</div>
                             <div>Please allow camera permissions or use the Upload Photo button.</div>
                         </div>
@@ -544,6 +555,64 @@ unset($__errorArgs, $__bag); ?>
 <?php $__env->stopSection(); ?>
 
 <?php $__env->startSection('script'); ?>
+    <!-- Choices.js for compact searchable multi-select -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/choices.js/public/assets/styles/choices.min.css" />
+    <style>
+        /* Make Choices dropdown render in-flow instead of absolutely positioned
+           so it expands the layout (pushes content) rather than overlaying it. */
+        .choices__list--dropdown {
+            position: static !important;
+            display: none !important;
+            box-shadow: none !important;
+            max-width: 100% !important;
+            width: auto !important;
+            min-width: 100px;
+        }
+
+        /* When open, show the dropdown as a block element (in-flow) */
+        .choices.is-open .choices__list--dropdown {
+            display: block !important;
+        }
+
+        /* The actual scrollable list inside the dropdown */
+        .choices__list--dropdown .choices__list {
+            max-height: 240px !important;
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
+        }
+
+        .choices__list--dropdown .choices__item {
+            white-space: normal !important;
+            word-break: break-word;
+        }
+
+        .choices[data-type*=select-multiple] .choices__inner {
+            min-height: 44px;
+            padding: .35rem .5rem;
+            box-sizing: border-box;
+        }
+
+        /* Fix clipped/trimmed first letters by removing extra list padding
+           and ensuring each item has its own inner padding. Also ensure
+           dropdown has visible background and border so text isn't cut off. */
+        .choices__list--dropdown {
+            padding-left: 0 !important;
+            background: #ffffff !important;
+            border: 1px solid rgba(0,0,0,0.08) !important;
+            border-radius: .375rem !important;
+            box-sizing: border-box !important;
+        }
+
+        .choices__list--dropdown .choices__list {
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+
+        .choices__list--dropdown .choices__item {
+            padding: .375rem .75rem !important;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const openCameraBtn = document.getElementById('openCameraBtn');
@@ -571,6 +640,9 @@ unset($__errorArgs, $__bag); ?>
             const clearFingerprintCaptureBtn = document.getElementById('clearFingerprintCaptureBtn');
             const clientFingerprintData = document.getElementById('clientFingerprintData');
             const clientFingerprintTemplate = document.getElementById('clientFingerprintTemplate');
+            const uploadFingerprintBtn = document.getElementById('uploadFingerprintBtn');
+            const fingerprintFileInput = document.getElementById('fingerprintFileInput');
+            const skipFingerprintCheckbox = document.getElementById('skipFingerprintCheckbox');
             const preview = document.getElementById('clientPhotoPreview');
             const photoCaptureError = document.getElementById('photoCaptureError');
             const fingerprintCaptureError = document.getElementById('fingerprintCaptureError');
@@ -603,9 +675,12 @@ unset($__errorArgs, $__bag); ?>
             if (!openCameraBtn || !capturePhotoBtn || !retakePhotoBtn || !cameraWrapper || !cameraView || !
                 cameraCanvas || !clientPhotoData || !birthDateInput || !ageInput || !preview || !form || !
                 contactInput || !contactError || !contact2Input || !contact2Error || !cameraModalEl || !
-                uploadPhotoBtn || !clientPhotoFileInput || !provinceSelect || !citySelect || !barangaySelect || !provinceHidden || !cityHidden || !
-                provinceManual || !cityManual || !barangayManual || !sameAsHomeAddress || !openFingerprintBtn || !clearFingerprintBtn || !
-                fingerprintPreview || !fingerprintStatus || !fingerprintModalEl || !fingerprintModalPreview
+                uploadPhotoBtn || !clientPhotoFileInput || !provinceSelect || !citySelect || !barangaySelect || !
+                provinceHidden || !cityHidden || !
+                provinceManual || !cityManual || !barangayManual || !sameAsHomeAddress || !openFingerprintBtn || !
+                clearFingerprintBtn || !
+                fingerprintPreview || !fingerprintStatus || !fingerprintModalEl || !fingerprintModalPreview || !
+                uploadFingerprintBtn || !fingerprintFileInput || !skipFingerprintCheckbox
             ) {
                 return;
             }
@@ -885,6 +960,26 @@ unset($__errorArgs, $__bag); ?>
                 fingerprintStatus.textContent = statusText || (fingerprintDataUrl ?
                     'Fingerprint captured and ready to save.' : 'No fingerprint captured yet.');
                 clearFingerprintBtn.disabled = !fingerprintDataUrl;
+                updateFingerprintMode();
+            };
+
+            const updateFingerprintMode = () => {
+                const skip = skipFingerprintCheckbox.checked;
+
+                openFingerprintBtn.disabled = skip;
+                clearFingerprintBtn.disabled = skip || !fingerprintDataUrl;
+                retryFingerprintCaptureBtn.disabled = skip;
+                saveFingerprintBtn.disabled = skip;
+
+                if (skip) {
+                    fingerprintStatus.textContent = 'Fingerprint capture skipped.';
+                    fingerprintCaptureError.classList.add('d-none');
+                } else if (!fingerprintDataUrl) {
+                    fingerprintStatus.textContent = existingFingerprint ? 'Existing fingerprint on file.' :
+                        'No fingerprint captured yet.';
+                } else {
+                    fingerprintStatus.textContent = 'Fingerprint captured and ready to save.';
+                }
             };
 
             const clearFingerprintModalError = () => {
@@ -939,7 +1034,7 @@ unset($__errorArgs, $__bag); ?>
                     if (!bridgeOnline) {
                         throw new Error(
                             'Unable to connect to the fingerprint scanner. Ensure the scanner is connected via USB.'
-                            );
+                        );
                     }
                 }
 
@@ -988,11 +1083,10 @@ unset($__errorArgs, $__bag); ?>
                 clientFingerprintTemplate.value = '';
                 fingerprintPreview.src = originalFingerprintPreview;
                 fingerprintModalPreview.src = originalFingerprintPreview;
-                fingerprintStatus.textContent = existingFingerprint ? 'Existing fingerprint on file.' :
-                    'No fingerprint captured yet.';
                 clearFingerprintBtn.disabled = !existingFingerprint;
                 retryFingerprintCaptureBtn.classList.add('d-none');
                 fingerprintFileInput.value = '';
+                updateFingerprintMode();
             };
 
             const captureFingerprintFromBridge = async () => {
@@ -1293,25 +1387,41 @@ unset($__errorArgs, $__bag); ?>
                 contact2Error.classList.toggle('d-none', !hasInvalidChars);
             });
 
-            const sectorCheckboxes = document.querySelectorAll('.sector-checkbox');
+            const sectorSelect = document.getElementById('sectorSelect');
             const sectorHidden = document.getElementById('sectorHidden');
 
             const updateSectorDisplay = () => {
-                if (!sectorHidden) {
+                if (!sectorHidden || !sectorSelect) {
                     return;
                 }
 
-                const labels = Array.from(sectorCheckboxes)
-                    .filter(cb => cb.checked)
-                    .map(cb => cb.value);
+                const labels = Array.from(sectorSelect.selectedOptions || [])
+                    .map(opt => opt.value);
                 sectorHidden.value = labels.join(',');
             };
 
-            sectorCheckboxes.forEach(cb => {
-                cb.addEventListener('change', updateSectorDisplay);
-            });
+            if (sectorSelect) {
+                // initialize Choices.js for a compact, searchable multi-select dropdown
+                try {
+                    new Choices(sectorSelect, {
+                            removeItemButton: true,
+                            placeholderValue: 'Select sectors',
+                            searchPlaceholderValue: 'Search sectors',
+                            shouldSort: false,
+                            itemSelectText: '',
+                            position: 'bottom',
+                            silent: true,
+                        });
+                } catch (e) {
+                    // Choices not available; fall back to native multi-select
+                }
+
+                sectorSelect.addEventListener('change', updateSectorDisplay);
+            }
 
             updateSectorDisplay();
+            skipFingerprintCheckbox.addEventListener('change', updateFingerprintMode);
+            updateFingerprintMode();
 
             form.addEventListener('submit', function(event) {
                 syncLocationHiddenFields();
@@ -1321,13 +1431,15 @@ unset($__errorArgs, $__bag); ?>
                 fingerprintCaptureError.classList.add('d-none');
 
                 if (!clientPhotoData.value) {
-                    photoCaptureError.textContent = 'Please capture or upload a client photo before saving.';
+                    photoCaptureError.textContent =
+                    'Please capture or upload a client photo before saving.';
                     photoCaptureError.classList.remove('d-none');
                     hasError = true;
                 }
 
-                if (!clientFingerprintData.value) {
-                    fingerprintCaptureError.textContent = 'Please capture a client fingerprint before saving.';
+                if (!clientFingerprintData.value && !skipFingerprintCheckbox.checked) {
+                    fingerprintCaptureError.textContent =
+                        'Please capture a client fingerprint before saving.';
                     fingerprintCaptureError.classList.remove('d-none');
                     hasError = true;
                 }
@@ -1343,7 +1455,7 @@ unset($__errorArgs, $__bag); ?>
                 if (!this.checked) {
                     restoreLocations().catch(() => enableManualLocations(
                         'Unable to load location data from the API. You can enter the address manually.'
-                        ));
+                    ));
                 }
             });
 

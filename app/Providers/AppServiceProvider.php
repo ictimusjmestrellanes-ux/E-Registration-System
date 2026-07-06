@@ -32,7 +32,7 @@ class AppServiceProvider extends ServiceProvider
 
     private function autoStartFingerprintBridge(): void
     {
-        if (!$this->app->environment('local')) {
+        if (!config('fingerprint.auto_start', true)) {
             return;
         }
 

@@ -1,7 +1,6 @@
-@extends('layouts.master')
-@section('title', 'Client Details')
-@section('content')
-    @php
+<?php $__env->startSection('title', 'Client Details'); ?>
+<?php $__env->startSection('content'); ?>
+    <?php
         $defaultClientPhoto = asset('assets/images/profile.png');
         $defaultFingerprint = asset('assets/images/fingerprint.png');
         $clientPhoto = $client->photo_url ?: $defaultClientPhoto;
@@ -17,7 +16,7 @@
             '-';
         $hasFingerprint = filled($client->fingerprint_path) || filled($client->fingerprint_template);
         $fingerprintStatus = $hasFingerprint ? 'Registered' : 'Not registered';
-    @endphp
+    ?>
 
     <div class="container-fluid">
         <div class="row">
@@ -27,7 +26,7 @@
                         <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-4">
                             <div>
                                 <h4 class="mb-1">Client Details</h4>
-                                <p class="text-muted mb-0">View full profile and transaction history for {{ $fullName }}.
+                                <p class="text-muted mb-0">View full profile and transaction history for <?php echo e($fullName); ?>.
                                 </p>
                             </div>
                         </div>
@@ -36,7 +35,7 @@
                             <button type="button" class="btn btn-primary flex-fill text-uppercase" data-bs-toggle="modal"
                                 data-bs-target="#newTransactionModal">New Transaction</button>
 
-                            <a href="{{ route('clients.edit', $client) }}"
+                            <a href="<?php echo e(route('clients.edit', $client)); ?>"
                                 class="btn btn-primary flex-fill text-uppercase">Update Client Information</a>
 
                             <a href="#clientTransactionHistory" class="btn btn-primary flex-fill text-uppercase">View
@@ -46,13 +45,13 @@
                                 Transaction</button>
 
                             <button type="button" class="btn btn-primary flex-fill text-uppercase" data-bs-toggle="modal"
-                                data-bs-target="#verifyFingerprintModal" @disabled(!$hasFingerprint)>Verify Client
+                                data-bs-target="#verifyFingerprintModal" <?php if(!$hasFingerprint): echo 'disabled'; endif; ?>>Verify Client
                                 Fingerprint</button>
 
-                            <form action="{{ route('clients.archive', $client) }}" method="POST"
+                            <form action="<?php echo e(route('clients.archive', $client)); ?>" method="POST"
                                 class="m-0 d-inline-flex flex-fill"
                                 onsubmit="return confirm('Deactivate this client and move the record to archive?');">
-                                @csrf
+                                <?php echo csrf_field(); ?>
                                 <button type="submit" class="btn btn-primary w-100 text-uppercase">Deactivate
                                     Client</button>
                             </form>
@@ -60,15 +59,15 @@
                             <button type="button" class="btn btn-primary flex-fill text-uppercase" disabled>Merge
                                 Account</button>
 
-                            <a href="{{ route('client.list') }}" class="btn btn-primary flex-fill text-uppercase">Back to
+                            <a href="<?php echo e(route('client.list')); ?>" class="btn btn-primary flex-fill text-uppercase">Back to
                                 List</a>
                         </div>
 
                         <div class="border rounded-4 p-3 mb-2 bg-light-subtle">
                             <div class="row g-4 align-items-start">
                                 <div class="col-12 col-lg-4 text-center">
-                                    <img src="{{ $clientPhoto }}" alt="Client Photo"
-                                        onerror="this.onerror=null;this.src='{{ $defaultClientPhoto }}';"
+                                    <img src="<?php echo e($clientPhoto); ?>" alt="Client Photo"
+                                        onerror="this.onerror=null;this.src='<?php echo e($defaultClientPhoto); ?>';"
                                         class="img-fluid border bg-light"
                                         style="width: 320px; height: 320px; object-fit: cover;">
                                 </div>
@@ -79,19 +78,19 @@
                                             <div class="col-md-6">
                                                 <div class="text-muted small text-uppercase fw-semibold">Full Name
                                                 </div>
-                                                <div class="fs-4 fw-bold">{{ $fullName }}</div>
+                                                <div class="fs-4 fw-bold"><?php echo e($fullName); ?></div>
                                             </div>
 
                                             <div class="col-md-3">
                                                 <div class="text-muted small text-uppercase fw-semibold">Client ID
                                                 </div>
-                                                <div class="fs-4 fw-bold">{{ $client->client_id ?? '-' }}</div>
+                                                <div class="fs-4 fw-bold"><?php echo e($client->client_id ?? '-'); ?></div>
                                             </div>
                                             <div class="col-md-3">
                                                 <div class="text-muted small text-uppercase fw-semibold">
                                                     Date
                                                     Registered</div>
-                                                <div class="fs-4 fw-bold">{{ $registrationDate }}</div>
+                                                <div class="fs-4 fw-bold"><?php echo e($registrationDate); ?></div>
                                             </div>
                                         </div>
 
@@ -100,90 +99,90 @@
                                                 <div class="text-muted small text-uppercase fw-semibold">
                                                     Birth
                                                     Date</div>
-                                                <div class="fw-semibold">{{ $birthDate }}</div>
+                                                <div class="fw-semibold"><?php echo e($birthDate); ?></div>
                                             </div>
                                             <div class="col-md-3">
                                                 <div class="text-muted small text-uppercase fw-semibold">
                                                     Age</div>
-                                                <div class="fw-semibold">{{ $age }}</div>
+                                                <div class="fw-semibold"><?php echo e($age); ?></div>
                                             </div>
                                             <div class="col-md-3">
                                                 <div class="text-muted small text-uppercase fw-semibold">
                                                     Birthplace</div>
-                                                <div class="fw-semibold">{{ strtoupper($client->birthplace ?: '-') }}</div>
+                                                <div class="fw-semibold"><?php echo e(strtoupper($client->birthplace ?: '-')); ?></div>
                                             </div>
                                             <div class="col-md-6">
                                                 <div class="text-muted small text-uppercase fw-semibold">
                                                     Civil
                                                     Status</div>
-                                                <div class="fw-semibold">{{ strtoupper($client->civil_status ?: '-') }}
+                                                <div class="fw-semibold"><?php echo e(strtoupper($client->civil_status ?: '-')); ?>
+
                                                 </div>
                                             </div>
                                             <div class="col-md-3">
                                                 <div class="text-muted small text-uppercase fw-semibold">
                                                     Gender
                                                 </div>
-                                                <div class="fw-semibold">{{ strtoupper($client->gender ?: '-') }}</div>
+                                                <div class="fw-semibold"><?php echo e(strtoupper($client->gender ?: '-')); ?></div>
                                             </div>
                                             <div class="col-md-3">
                                                 <div class="text-muted small text-uppercase fw-semibold">
                                                     Email
                                                 </div>
-                                                <div class="fw-semibold text-break">{{ strtoupper($client->email ?: '-') }}
+                                                <div class="fw-semibold text-break"><?php echo e(strtoupper($client->email ?: '-')); ?>
+
                                                 </div>
                                             </div>
                                             <div class="col-md-6">
                                                 <div class="text-muted small text-uppercase fw-semibold">
                                                     Contact 1
                                                 </div>
-                                                <div class="fw-semibold">{{ $client->contact ?: '-' }}</div>
+                                                <div class="fw-semibold"><?php echo e($client->contact ?: '-'); ?></div>
                                             </div>
                                             <div class="col-md-3">
                                                 <div class="text-muted small text-uppercase fw-semibold">
                                                     Contact 2
                                                 </div>
-                                                <div class="fw-semibold">{{ $client->contact_2 ?: '-' }}</div>
+                                                <div class="fw-semibold"><?php echo e($client->contact_2 ?: '-'); ?></div>
                                             </div>
                                             <div class="col-md-3">
                                                 <div class="text-muted small text-uppercase fw-semibold">
                                                     Education
                                                 </div>
-                                                <div class="fw-semibold">{{ strtoupper($client->education ?: '-') }}</div>
+                                                <div class="fw-semibold"><?php echo e(strtoupper($client->education ?: '-')); ?></div>
                                             </div>
                                             <div class="col-md-6">
                                                 <div class="text-muted small text-uppercase fw-semibold">
                                                     Course
                                                 </div>
-                                                <div class="fw-semibold">{{ strtoupper($client->course ?: '-') }}</div>
+                                                <div class="fw-semibold"><?php echo e(strtoupper($client->course ?: '-')); ?></div>
                                             </div>
                                             <div class="col-md-3">
                                                 <div class="text-muted small text-uppercase fw-semibold">
                                                     Sector
                                                 </div>
-                                                <div class="fw-semibold">{{ $client->sector ? strtoupper(str_replace(',', ', ', $client->sector)) : '-' }}</div>
+                                                <div class="fw-semibold"><?php echo e($client->sector ? strtoupper(str_replace(',', ', ', $client->sector)) : '-'); ?></div>
                                             </div>
                                             <div class="col-md-3">
                                                 <div class="text-muted small text-uppercase fw-semibold">
                                                     Position
                                                     / Organization</div>
                                                 <div class="fw-semibold">
-                                                    {{ strtoupper($client->position_organization ?: '-') }}</div>
+                                                    <?php echo e(strtoupper($client->position_organization ?: '-')); ?></div>
                                             </div>
                                             <div class="col-6">
                                                 <div class="text-muted small text-uppercase fw-semibold">
                                                     Address
                                                 </div>
-                                                <div class="fw-semibold">{{ strtoupper($location ?: '-') }}</div>
+                                                <div class="fw-semibold"><?php echo e(strtoupper($location ?: '-')); ?></div>
                                             </div>
 
                                             <div class="col-4">
                                                 <div class="text-muted small text-uppercase fw-semibold">
                                                     Fingerprint</div>
                                                 <div class="d-inline-flex align-items-center gap-2 fw-semibold">
-                                                    {{-- <img src="{{ $clientFingerprint }}" alt="Client Fingerprint"
-                                                        class="avatar-sm rounded-3 border object-fit-cover bg-white"
-                                                        onerror="this.onerror=null;this.src='{{ $defaultFingerprint }}';"> --}}
-                                                    <span>{{ strtoupper($fingerprintStatus ?: '-') }}</span>
+                                                    
+                                                    <span><?php echo e(strtoupper($fingerprintStatus ?: '-')); ?></span>
                                                 </div>
                                             </div>
                                         </div>
@@ -217,35 +216,35 @@
                                         </tr>
                                     </thead>
                                     <tbody class="text-center">
-                                        @forelse ($transactions as $transaction)
-                                            <tr class="transaction-row" style="cursor: pointer;" data-transaction-id="{{ $transaction->id }}">
-                                                <td>{{ $transaction->transaction_id }}</td>
-                                                <td>{{ $transaction->transaction_date->format('m/d/Y') }}</td>
+                                        <?php $__empty_1 = true; $__currentLoopData = $transactions; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $transaction): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
+                                            <tr class="transaction-row" style="cursor: pointer;" data-transaction-id="<?php echo e($transaction->id); ?>">
+                                                <td><?php echo e($transaction->transaction_id); ?></td>
+                                                <td><?php echo e($transaction->transaction_date->format('m/d/Y')); ?></td>
                                                 <td class="text-uppercase">E-Registration</td>
-                                                <td class="text-uppercase">{{ $transaction->category_label }}</td>
-                                                <td class="text-uppercase">{{ $transaction->clerk ?? auth()->user()->name ?? 'System' }}</td>
+                                                <td class="text-uppercase"><?php echo e($transaction->category_label); ?></td>
+                                                <td class="text-uppercase"><?php echo e($transaction->clerk ?? auth()->user()->name ?? 'System'); ?></td>
                                                 <td>
-                                                    @php
+                                                    <?php
                                                         $txStatus = $transaction->status ?? 'Completed';
-                                                    @endphp
-                                                    @if (strtolower($txStatus) === 'pending')
-                                                        <span class="badge bg-warning-subtle text-warning">{{ $txStatus }}</span>
-                                                    @else
-                                                        <span class="badge bg-success-subtle text-success">{{ $txStatus }}</span>
-                                                    @endif
+                                                    ?>
+                                                    <?php if(strtolower($txStatus) === 'pending'): ?>
+                                                        <span class="badge bg-warning-subtle text-warning"><?php echo e($txStatus); ?></span>
+                                                    <?php else: ?>
+                                                        <span class="badge bg-success-subtle text-success"><?php echo e($txStatus); ?></span>
+                                                    <?php endif; ?>
                                                 </td>
-                                                <td>{{ $transaction->description ?? 'N/A' }}</td>
-                                                <td>{{ $transaction->actions_taken ?? 'N/A' }}</td>
-                                                <td>{{ $transaction->remarks ?? 'N/A' }}</td>
-                                                <td>{{ $transaction->amount > 0 ? '₱' . number_format($transaction->amount, 2) : 'PHP 0.00' }}</td>
+                                                <td><?php echo e($transaction->description ?? 'N/A'); ?></td>
+                                                <td><?php echo e($transaction->actions_taken ?? 'N/A'); ?></td>
+                                                <td><?php echo e($transaction->remarks ?? 'N/A'); ?></td>
+                                                <td><?php echo e($transaction->amount > 0 ? '₱' . number_format($transaction->amount, 2) : 'PHP 0.00'); ?></td>
                                             </tr>
-                                        @empty
+                                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                                             <tr>
                                                 <td colspan="10" class="text-center text-muted py-4">
                                                     No transactions recorded for this client.
                                                 </td>
                                             </tr>
-                                        @endforelse
+                                        <?php endif; ?>
                                     </tbody>
                                 </table>
                             </div>
@@ -256,7 +255,7 @@
         </div>
     </div>
 
-    @include('pages.client_transaction.transactionInfo')
+    <?php echo $__env->make('pages.client_transaction.transactionInfo', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
 
     <div class="modal fade" id="verifyFingerprintModal" tabindex="-1" aria-labelledby="verifyFingerprintModalLabel"
         aria-hidden="true">
@@ -272,7 +271,7 @@
                             Ready to verify fingerprint.
                         </div>
                         <div class="text-center">
-                            <img id="verifyFingerprintPreview" src="{{ $defaultFingerprint }}"
+                            <img id="verifyFingerprintPreview" src="<?php echo e($defaultFingerprint); ?>"
                                 alt="Fingerprint Verification Preview"
                                 class="img-fluid rounded-3 border object-fit-cover bg-white">
                         </div>
@@ -287,9 +286,9 @@
         </div>
     </div>
 
-    @include('pages.client_transaction.newTransaction')
+    <?php echo $__env->make('pages.client_transaction.newTransaction', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
 
-    @if (session('show_created_modal'))
+    <?php if(session('show_created_modal')): ?>
         <div class="modal fade" id="clientCreatedModal" tabindex="-1" aria-labelledby="clientCreatedModalLabel"
             aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
             <div class="modal-dialog modal-dialog-centered">
@@ -301,27 +300,27 @@
                         <div class="mb-3">
                             <i class="bi bi-check-circle-fill text-success" style="font-size: 4rem;"></i>
                         </div>
-                        <p class="fs-5 fw-semibold mb-1">{{ $fullName }} has been saved successfully.</p>
+                        <p class="fs-5 fw-semibold mb-1"><?php echo e($fullName); ?> has been saved successfully.</p>
                         <p class="text-muted mb-0">Would you like to add another client?</p>
                     </div>
                     <div class="modal-footer border-0 justify-content-center gap-3 pt-0">
-                        <a href="{{ route('clients') }}" class="btn btn-primary px-4">Continue</a>
+                        <a href="<?php echo e(route('clients')); ?>" class="btn btn-primary px-4">Continue</a>
                         <button type="button" class="btn btn-outline-secondary px-4"
                             data-bs-dismiss="modal">Cancel</button>
                     </div>
                 </div>
             </div>
         </div>
-    @endif
+    <?php endif; ?>
 
     <style>
         .transaction-row:hover {
             background-color: rgba(0, 0, 0, 0.075) !important;
         }
     </style>
-@endsection
+<?php $__env->stopSection(); ?>
 
-@section('script')
+<?php $__env->startSection('script'); ?>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const verifyModalEl = document.getElementById('verifyFingerprintModal');
@@ -350,11 +349,11 @@
             };
 
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-            const currentClientId = Number(@json($client->id));
-            const currentClientName = @json($fullName);
-            const fingerprintPlaceholder = @json($defaultFingerprint);
-            const fingerprintCaptureUrl = @json(route('fingerprint.capture'));
-            const fingerprintSearchUrl = @json(route('client.search.fingerprint'));
+            const currentClientId = Number(<?php echo json_encode($client->id, 15, 512) ?>);
+            const currentClientName = <?php echo json_encode($fullName, 15, 512) ?>;
+            const fingerprintPlaceholder = <?php echo json_encode($defaultFingerprint, 15, 512) ?>;
+            const fingerprintCaptureUrl = <?php echo json_encode(route('fingerprint.capture'), 15, 512) ?>;
+            const fingerprintSearchUrl = <?php echo json_encode(route('client.search.fingerprint'), 15, 512) ?>;
 
             if (createdModalEl) {
                 const createdModal = bootstrap.Modal.getOrCreateInstance(createdModalEl);
@@ -365,7 +364,7 @@
             let currentTransactionId = null;
 
             const transactionInfoModalEl = document.getElementById('transactionInfoModal');
-            const showTransactionId = @json(session('show_transaction'));
+            const showTransactionId = <?php echo json_encode(session('show_transaction'), 15, 512) ?>;
 
             // Only auto-show if there's a new transaction from session flash
             if (transactionInfoModalEl && showTransactionId) {
@@ -382,7 +381,7 @@
             // Function to populate modal with transaction data
             async function loadTransactionData(transactionId) {
                 try {
-                    const response = await fetch(`{{ route('transactions.show', ['id' => 'REPLACE']) }}`.replace('REPLACE', transactionId));
+                    const response = await fetch(`<?php echo e(route('transactions.show', ['id' => 'REPLACE'])); ?>`.replace('REPLACE', transactionId));
                     if (!response.ok) {
                         throw new Error('Failed to load transaction');
                     }
@@ -418,7 +417,7 @@
 
                         // Load any saved requirement files for this transaction
                         try {
-                            const reqResp = await fetch(`{{ route('transaction-requirements.show', ['transactionId' => 'REPLACE']) }}`.replace('REPLACE', transactionId));
+                            const reqResp = await fetch(`<?php echo e(route('transaction-requirements.show', ['transactionId' => 'REPLACE'])); ?>`.replace('REPLACE', transactionId));
                             if (reqResp.ok) {
                                 const json = await reqResp.json();
                                 if (json.success && Array.isArray(json.data)) {
@@ -495,7 +494,7 @@
                                 formData.append('requirement_type', req.type);
                                 formData.append('file', fileInput.files[0]);
 
-                                const response = await fetch(@json(route('transaction-requirements.store')), {
+                                const response = await fetch(<?php echo json_encode(route('transaction-requirements.store'), 15, 512) ?>, {
                                     method: 'POST',
                                     headers: {
                                         'X-CSRF-TOKEN': csrfToken,
@@ -600,4 +599,6 @@
             verifyScanAgainBtn.addEventListener('click', verifyClientFingerprint);
         });
     </script>
-@endsection
+<?php $__env->stopSection(); ?>
+
+<?php echo $__env->make('layouts.master', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH C:\xampp\htdocs\E-Reg-System\resources\views/pages/clients/clientShow.blade.php ENDPATH**/ ?>

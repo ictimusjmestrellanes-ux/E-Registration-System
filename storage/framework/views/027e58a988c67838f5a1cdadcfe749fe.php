@@ -1,7 +1,6 @@
-@extends('layouts.app')
-@section('title', 'Login')
+<?php $__env->startSection('title', 'Login'); ?>
 
-@section('content')
+<?php $__env->startSection('content'); ?>
     <style>
         html,
         body {
@@ -366,7 +365,7 @@
         <section class="login-hero">
             <div class="login-hero-inner">
                 <div class="brand-lockup">
-                    {{-- <img src="{{ asset('assets/images/logo-dark.png') }}" alt="PESO logo"> --}}
+                    
                     <div class="brand-copy">
                         E-REGISTRATION SYSTEM
                     </div>
@@ -382,7 +381,7 @@
                 <p class="lead">Sign in to your account to continue</p>
 
                 <div class="oauth-buttons">
-                    <a href="{{ route('azure.redirect') }}" class="microsoft-btn" aria-label="Sign in with Microsoft">
+                    <a href="<?php echo e(route('azure.redirect')); ?>" class="microsoft-btn" aria-label="Sign in with Microsoft">
                         <span class="microsoft-logo" aria-hidden="true">
                             <span class="c1"></span>
                             <span class="c2"></span>
@@ -391,7 +390,7 @@
                         </span>
                         Sign in with Microsoft
                     </a>
-                    <a href="{{ route('google.redirect') }}" class="google-btn" aria-label="Sign in with Google">
+                    <a href="<?php echo e(route('google.redirect')); ?>" class="google-btn" aria-label="Sign in with Google">
                         <i class="ri-google-fill fs-18" aria-hidden="true"></i>
                         Sign in with Google
                     </a>
@@ -399,29 +398,43 @@
 
                 <div class="divider">Local access</div>
 
-                <form class="login-form" action="{{ route('login') }}" method="POST">
-                    @csrf
+                <form class="login-form" action="<?php echo e(route('login')); ?>" method="POST">
+                    <?php echo csrf_field(); ?>
                     <div class="mb-3">
                         <label for="email" class="form-label">Username</label>
                         <input
                             type="text"
-                            class="form-control @error('email') is-invalid @enderror"
+                            class="form-control <?php $__errorArgs = ['email'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?> is-invalid <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>"
                             id="email"
                             name="email"
                             placeholder="Enter username"
-                            value="{{ old('email') }}"
+                            value="<?php echo e(old('email')); ?>"
                         >
                     </div>
 
                     <div class="mb-2">
                         <div class="d-flex justify-content-between align-items-center gap-3">
                             <label class="form-label mb-0" for="password-input">Password</label>
-                            <a href="{{ route('forget-password') }}" class="forgot-link">Forgot password?</a>
+                            <a href="<?php echo e(route('forget-password')); ?>" class="forgot-link">Forgot password?</a>
                         </div>
                         <div class="position-relative mt-2">
                             <input
                                 type="password"
-                                class="form-control pe-5 password-input @error('password') is-invalid @enderror"
+                                class="form-control pe-5 password-input <?php $__errorArgs = ['password'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?> is-invalid <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>"
                                 id="password-input"
                                 name="password"
                                 placeholder="Enter password"
@@ -446,4 +459,6 @@
             </div>
         </section>
     </div>
-@endsection
+<?php $__env->stopSection(); ?>
+
+<?php echo $__env->make('layouts.app', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH C:\xampp\htdocs\E-Reg-System\resources\views/auth/login.blade.php ENDPATH**/ ?>

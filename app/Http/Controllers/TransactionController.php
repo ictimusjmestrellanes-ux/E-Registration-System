@@ -29,7 +29,8 @@ class TransactionController extends Controller
         $lastToday = TransactionHistory::whereDate('created_at', today())->count();
         $validated['transaction_id'] = $validated['client_id'] . '-' . $year . '-' . str_pad($lastToday + 1, 4, '0', STR_PAD_LEFT);
         $validated['source'] = 'E-Registration';
-        $validated['status'] = 'Completed';
+        // New transactions should start in a pending state until processed
+        $validated['status'] = 'Pending';
 
         $transaction = TransactionHistory::create($validated);
 
@@ -64,7 +65,7 @@ class TransactionController extends Controller
             'type' => $transaction->type_label,
             'category' => $transaction->category_label,
             'clerk' => $transaction->clerk ?? auth()->user()->name ?? 'System',
-            'status' => $transaction->status ?? 'Completed',
+            'status' => $transaction->status ?? 'Pending',
             'description' => $transaction->description ?? 'N/A',
             'actions_taken' => $transaction->actions_taken ?? 'N/A',
             'remarks' => $transaction->remarks ?? 'N/A',

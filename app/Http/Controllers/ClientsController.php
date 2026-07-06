@@ -32,10 +32,14 @@ class ClientsController extends Controller
 
         $this->ensureFingerprintForDuplicateClientIdentity($validated);
 
-        $this->ensureFingerprintIsUnique(
-            $validated['fingerprint_template'] ?? null,
-            $validated['fingerprint_data'] ?? null
-        );
+        $skipFingerprint = filter_var($validated['skip_fingerprint'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
+        if (!$skipFingerprint) {
+            $this->ensureFingerprintIsUnique(
+                $validated['fingerprint_template'] ?? null,
+                $validated['fingerprint_data'] ?? null
+            );
+        }
 
         $photoPath = $this->storeClientPhoto($validated['photo_data'] ?? null);
         if (empty($photoPath)) {
@@ -44,15 +48,20 @@ class ClientsController extends Controller
             ]);
         }
 
-        $fingerprintPath = $this->storeClientFingerprint($validated['fingerprint_data'] ?? null);
-        if (empty($fingerprintPath)) {
-            throw ValidationException::withMessages([
-                'fingerprint_data' => 'A valid fingerprint capture is required.',
-                'fingerprint_template' => 'A valid fingerprint capture is required.',
-            ]);
-        }
+        if ($skipFingerprint) {
+            $fingerprintPath = null;
+            $fingerprintTemplate = null;
+        } else {
+            $fingerprintPath = $this->storeClientFingerprint($validated['fingerprint_data'] ?? null);
+            if (empty($fingerprintPath)) {
+                throw ValidationException::withMessages([
+                    'fingerprint_data' => 'A valid fingerprint capture is required.',
+                    'fingerprint_template' => 'A valid fingerprint capture is required.',
+                ]);
+            }
 
-        $fingerprintTemplate = $validated['fingerprint_template'] ?? null;
+            $fingerprintTemplate = $validated['fingerprint_template'] ?? null;
+        }
 
         $client = Client::create([
             'client_id' => Client::generateClientId(),
@@ -95,9 +104,14 @@ class ClientsController extends Controller
 
     public function show(Client $client)
     {
-        $transactions = \App\Models\TransactionHistory::where('transaction_id', 'LIKE', $client->client_id . '-%')
-            ->latest()
-            ->get();
+        try {
+            $transactions = \App\Models\TransactionHistory::where('transaction_id', 'LIKE', $client->client_id . '-%')
+                ->latest()
+                ->get();
+        } catch (\Exception $e) {
+            report($e);
+            $transactions = collect();
+        }
 
         $transaction = null;
         $transactionId = session('show_transaction') ?? request()->query('show_transaction');

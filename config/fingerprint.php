@@ -11,4 +11,5 @@ return [
         'trim',
         explode(',', (string) env('FINGERPRINT_BRIDGE_ALLOWED_ORIGINS', 'http://localhost,http://127.0.0.1'))
     ))),
+    'auto_start' => filter_var(env('FINGERPRINT_BRIDGE_AUTO_START', true), FILTER_VALIDATE_BOOLEAN),
 ];
