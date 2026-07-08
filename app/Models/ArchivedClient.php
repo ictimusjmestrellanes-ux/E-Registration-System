@@ -12,7 +12,6 @@ class ArchivedClient extends Model
 
     protected $fillable = [
         'original_client_id',
-        'client_id',
         'first_name',
         'middle_name',
         'last_name',
@@ -64,11 +63,11 @@ class ArchivedClient extends Model
 
     public function getFullNameAttribute(): string
     {
-        return mb_strtoupper(trim(implode(' ', array_filter([
+        return trim(implode(' ', array_filter([
             $this->first_name,
             $this->middle_name,
             $this->last_name,
             $this->suffix,
-        ]))));
+        ])));
     }
 }

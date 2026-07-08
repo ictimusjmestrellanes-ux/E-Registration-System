@@ -10,6 +10,14 @@
     <meta content="E-Registration System" name="author">
     <!-- App favicon -->
     
+    <!-- jsvectormap css -->
+    <link href="<?php echo e(asset('assets/css/jsvectormap.min.css')); ?>" rel="stylesheet" type="text/css">
+    <!-- Include Grid.js CSS and JS -->
+    <link href="https://unpkg.com/gridjs/dist/theme/mermaid.min.css" rel="stylesheet" />
+    <script src="https://unpkg.com/gridjs/dist/gridjs.umd.js"></script>
+
+    <!--Swiper slider css-->
+    <link href="<?php echo e(asset('assets/css/swiper-bundle.min.css')); ?>" rel="stylesheet" type="text/css">
     <!-- Layout config Js -->
     <script src="<?php echo e(asset('assets/js/layout.js')); ?>"></script>
     <!-- Bootstrap Css -->
@@ -22,7 +30,6 @@
     <link href="<?php echo e(asset('assets/css/app.min.css')); ?>" rel="stylesheet" type="text/css">
     <!-- custom Css-->
     <link href="<?php echo e(asset('assets/css/custom.min.css')); ?>" rel="stylesheet" type="text/css">
-    <?php echo $__env->yieldPushContent('styles'); ?>
     <style>
         #page-topbar,
         #page-topbar .navbar-header {
@@ -168,7 +175,7 @@
                             <button type="button" class="btn material-shadow-none" id="topbar-user-dropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                                 <span class="d-flex align-items-center">
                                     <?php
-                                        $headerAvatar = auth()->user()?->avatar_url ?? asset('assets/images/avatar-1.jpg');
+                                        $headerAvatar = auth()->user()?->avatar ? asset('storage/' . auth()->user()->avatar) : asset('assets/images/avatar-1.jpg');
                                     ?>
                                     <img class="rounded-circle header-profile-user" src="<?php echo e($headerAvatar); ?>" alt="Header Avatar">
                                     <span class="text-start ms-xl-2">
@@ -182,13 +189,7 @@
                                 <div class="dropdown-divider"></div>
                                 <a class="dropdown-item" href="<?php echo e(route('settings')); ?>"><i class="mdi mdi-cog-outline text-muted fs-16 align-middle me-1"></i> <span class="align-middle">Settings</span></a>
                                 <a class="dropdown-item" href="<?php echo e(route('lock-activate')); ?>"><i class="mdi mdi-lock text-muted fs-16 align-middle me-1"></i> <span class="align-middle">Lock screen</span></a>
-                                <form method="POST" action="<?php echo e(route('logout')); ?>" class="m-0">
-                                    <?php echo csrf_field(); ?>
-                                    <button type="submit" class="dropdown-item">
-                                        <i class="mdi mdi-logout text-muted fs-16 align-middle me-1"></i>
-                                        <span class="align-middle" data-key="t-logout">Logout</span>
-                                    </button>
-                                </form>
+                                <a class="dropdown-item" href="<?php echo e(route('logout')); ?>"><i class="mdi mdi-logout text-muted fs-16 align-middle me-1"></i> <span class="align-middle" data-key="t-logout">Logout</span></a>
                             </div>
                         </div>
                     </div>
@@ -205,7 +206,7 @@
                     </div>
                     <div class="modal-body">
                         <div class="mt-2 text-center">
-                            <i class="ri-notification-off-line display-1 text-warning"></i>
+                            <lord-icon src="https://cdn.lordicon.com/gsqxdxog.json" trigger="loop" colors="primary:#f7b84b,secondary:#f06548" style="width:100px;height:100px"></lord-icon>
                             <div class="mt-4 pt-2 fs-15 mx-4 mx-sm-5">
                                 <h4>Are you sure ?</h4>
                                 <p class="text-muted mx-4 mb-0">Are you sure you want to remove this Notification ?</p>
@@ -1217,30 +1218,17 @@
     <script src="<?php echo e(asset('assets/js/simplebar.min.js')); ?>"></script>
     <script src="<?php echo e(asset('assets/js/waves.min.js')); ?>"></script>
     <script src="<?php echo e(asset('assets/js/feather.min.js')); ?>"></script>
+    <script src="<?php echo e(asset('assets/js/lord-icon-2.1.0.js')); ?>"></script>
+    <script src="<?php echo e(asset('assets/js/plugins.js')); ?>"></script>
+    <!-- apexcharts -->
+    <script src="<?php echo e(asset('assets/js/apexcharts.min.js')); ?>"></script>
+    <!-- Vector map-->
+    <script src="<?php echo e(asset('assets/js/jsvectormap.min.js')); ?>"></script>
+    <script src="<?php echo e(asset('assets/js/world-merc.js')); ?>"></script>
+    <!--Swiper slider js-->
+    <script src="<?php echo e(asset('assets/js/swiper-bundle.min.js')); ?>"></script>
     <!-- App js -->
     <script src="<?php echo e(asset('assets/js/app.js')); ?>"></script>
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const sidebarPages = document.getElementById('sidebarPages');
-            const sidebarDashboard = document.getElementById('sidebarDashboard');
-
-            if (!sidebarPages || !sidebarDashboard) {
-                return;
-            }
-
-            const keepDashboardOpen = () => {
-                sidebarDashboard.classList.add('show');
-            };
-
-            keepDashboardOpen();
-
-            document.addEventListener('shown.bs.collapse', function(event) {
-                if (event.target && event.target.id === 'sidebarPages') {
-                    keepDashboardOpen();
-                }
-            });
-        });
-    </script>
     <!-- imessage -->
     <script src="<?php echo e(asset('assets/js/imessage.js')); ?>"></script>
 
@@ -1322,8 +1310,8 @@
         });
     </script>
 
-    <?php echo $__env->yieldPushContent('scripts'); ?>
     <?php echo $__env->yieldContent('script'); ?>
+    <?php echo app('Illuminate\Foundation\Vite')(['resources/js/app.js']); ?>
 </body>
 </html>
 <?php /**PATH C:\xampp\htdocs\E-Reg-System\resources\views/layouts/master.blade.php ENDPATH**/ ?>

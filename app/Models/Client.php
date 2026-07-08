@@ -11,7 +11,6 @@ class Client extends Model
     use HasFactory;
 
     protected $fillable = [
-        'client_id',
         'first_name',
         'middle_name',
         'last_name',
@@ -37,25 +36,6 @@ class Client extends Model
         'fingerprint_template',
     ];
 
-    public static function generateClientId(): string
-    {
-        $year = now()->format('y');
-        $prefix = $year;
-
-        $latest = self::query()
-            ->where('client_id', 'like', "{$prefix}%")
-            ->orderBy('client_id', 'desc')
-            ->value('client_id');
-
-        if ($latest) {
-            $num = (int) substr($latest, -6) + 1;
-        } else {
-            $num = 1;
-        }
-
-        return $prefix . str_pad((string) $num, 6, '0', STR_PAD_LEFT);
-    }
-
     protected $casts = [
         'birth_date' => 'date',
     ];
@@ -80,16 +60,11 @@ class Client extends Model
 
     public function getFullNameAttribute(): string
     {
-        return mb_strtoupper(trim(implode(' ', array_filter([
+        return trim(implode(' ', array_filter([
             $this->first_name,
             $this->middle_name,
             $this->last_name,
             $this->suffix,
-        ]))));
-    }
-
-    public function transactions()
-    {
-        return $this->hasMany(Transaction::class, 'client_id', 'client_id');
+        ])));
     }
 }
