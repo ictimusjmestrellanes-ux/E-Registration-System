@@ -17,7 +17,7 @@
             'N/A',
             'POST-GRADUATE STUDIES',
             'SENIOR HS (IN SCHOOL)',
-            'SENIOR HS GRADUATE',
+            'SENIOR HS GRADUATEs',
         ];
         $sectorOptions = [
             'COMMON CITIZEN',
