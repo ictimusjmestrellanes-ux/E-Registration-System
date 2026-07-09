@@ -1,7 +1,6 @@
 <?php
 
 use App\Http\Controllers\Auth\ForgotPasswordController;
-use App\Http\Controllers\Auth\GoogleController;
 use App\Http\Controllers\Auth\LockScreenController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\RegisterController;
@@ -23,11 +22,6 @@ Route::group(['namespace' => 'App\Http\Controllers\Auth'],function()
         Route::post('/login', 'authenticate');
         Route::get('/logout', 'logout')->name('logout');
         Route::get('logout/page', 'logoutPage')->name('logout/page');
-    });
-
-    Route::controller(GoogleController::class)->group(function () {
-        Route::get('/auth/google', 'redirect')->name('google.login');
-        Route::get('/auth/google/callback', 'callback')->name('google.callback');
     });
 
     // ----------------------------- register -------------------------------//

@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Auth;
 use App\Models\Client;
 use App\Models\ArchivedClient;
 use App\Models\ActivityLog;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Storage;
@@ -85,6 +86,12 @@ class ProfileController extends Controller
 
     public function restoreArchivedClient(ArchivedClient $archivedClient)
     {
+        if (!$this->clientHasStoredPhoto($archivedClient) || !$this->clientHasStoredFingerprint($archivedClient)) {
+            return redirect()
+                ->route('archive.list')
+                ->with('error', 'Archived clients must have both a photo and fingerprint before they can be restored.');
+        }
+
         $client = Client::create([
             'first_name' => $archivedClient->first_name,
             'middle_name' => $archivedClient->middle_name,
@@ -128,7 +135,16 @@ class ProfileController extends Controller
 
     public function viewClient(Client $client)
     {
-        return view('pages.clientShow', compact('client'));
+        $transactionLogs = ActivityLog::with('user')
+            ->where(function ($query) use ($client) {
+                $query->where('subject_type', 'Client')
+                    ->where('subject_id', $client->id);
+            })
+            ->latest()
+            ->take(10)
+            ->get();
+
+        return view('pages.clientShow', compact('client', 'transactionLogs'));
     }
 
     public function psgcProvinces()
@@ -150,13 +166,28 @@ class ProfileController extends Controller
     {
         $validated = $this->validateClientPayload($request);
 
+        $this->ensureFingerprintForDuplicateClientIdentity($validated);
+
         $this->ensureFingerprintIsUnique(
             $validated['fingerprint_template'] ?? null,
             $validated['fingerprint_data'] ?? null
         );
 
         $photoPath = $this->storeClientPhoto($validated['photo_data'] ?? null);
+        if (empty($photoPath)) {
+            throw ValidationException::withMessages([
+                'photo_data' => 'A valid client photo is required.',
+            ]);
+        }
+
         $fingerprintPath = $this->storeClientFingerprint($validated['fingerprint_data'] ?? null);
+        if (empty($fingerprintPath)) {
+            throw ValidationException::withMessages([
+                'fingerprint_data' => 'A valid fingerprint capture is required.',
+                'fingerprint_template' => 'A valid fingerprint capture is required.',
+            ]);
+        }
+
         $fingerprintTemplate = $validated['fingerprint_template'] ?? null;
 
         $client = Client::create([
@@ -197,36 +228,45 @@ class ProfileController extends Controller
 
     public function updateClient(Request $request, Client $client)
     {
-        $validated = $this->validateClientPayload($request);
+        $validated = $this->validateClientPayload($request, $client);
 
         $photoPath = $client->photo_path;
         if (!empty($validated['photo_data'])) {
+            $photoPath = $this->storeClientPhoto($validated['photo_data']);
+            if (empty($photoPath)) {
+                throw ValidationException::withMessages([
+                    'photo_data' => 'A valid client photo is required.',
+                ]);
+            }
+
             if ($client->photo_path) {
                 Storage::disk('public')->delete($client->photo_path);
             }
-
-            $photoPath = $this->storeClientPhoto($validated['photo_data']);
         }
 
         $fingerprintPath = $client->fingerprint_path;
         $fingerprintTemplate = $client->fingerprint_template;
-        if (!empty($validated['fingerprint_data'])) {
+        if (!empty($validated['fingerprint_data']) && !empty($validated['fingerprint_template'])) {
             $this->ensureFingerprintIsUnique(
                 $validated['fingerprint_template'] ?? null,
                 $validated['fingerprint_data'] ?? null,
                 $client->id
             );
 
+            $storedFingerprintPath = $this->storeClientFingerprint($validated['fingerprint_data']);
+            if (empty($storedFingerprintPath)) {
+                throw ValidationException::withMessages([
+                    'fingerprint_data' => 'A valid fingerprint capture is required.',
+                    'fingerprint_template' => 'A valid fingerprint capture is required.',
+                ]);
+            }
+
             if ($client->fingerprint_path) {
                 Storage::disk('public')->delete($client->fingerprint_path);
             }
 
-            $fingerprintPath = $this->storeClientFingerprint($validated['fingerprint_data']);
+            $fingerprintPath = $storedFingerprintPath;
             $fingerprintTemplate = $validated['fingerprint_template'] ?? null;
-        } elseif ($request->boolean('fingerprint_remove') && $client->fingerprint_path) {
-            Storage::disk('public')->delete($client->fingerprint_path);
-            $fingerprintPath = null;
-            $fingerprintTemplate = null;
         }
 
         $client->update([
@@ -329,9 +369,9 @@ class ProfileController extends Controller
         return redirect()->route('client.list')->with('success', 'Client archived successfully.');
     }
 
-    private function validateClientPayload(Request $request): array
+    private function validateClientPayload(Request $request, ?Client $client = null): array
     {
-        return $request->validate([
+        $validated = $request->validate([
             'first_name' => ['required', 'string', 'max:255'],
             'middle_name' => ['nullable', 'string', 'max:255'],
             'last_name' => ['required', 'string', 'max:255'],
@@ -352,11 +392,121 @@ class ProfileController extends Controller
             'province' => ['nullable', 'string', 'max:255'],
             'city' => ['nullable', 'string', 'max:255'],
             'barangay' => ['nullable', 'string', 'max:255'],
-            'photo_data' => ['nullable', 'string'],
-            'fingerprint_data' => ['nullable', 'string'],
-            'fingerprint_template' => ['nullable', 'string'],
-            'fingerprint_remove' => ['nullable'],
+            'photo_data' => $client ? ['nullable', 'string'] : ['required', 'string'],
+            'fingerprint_data' => $client ? ['nullable', 'string'] : ['required', 'string'],
+            'fingerprint_template' => $client ? ['nullable', 'string'] : ['required', 'string'],
         ]);
+
+        if (!$client) {
+            return $validated;
+        }
+
+        $errors = [];
+        $hasIncomingPhoto = filled($validated['photo_data'] ?? null);
+        $hasIncomingFingerprintData = filled($validated['fingerprint_data'] ?? null);
+        $hasIncomingFingerprintTemplate = filled($validated['fingerprint_template'] ?? null);
+
+        if (!$hasIncomingPhoto && !$this->clientHasStoredPhoto($client)) {
+            $errors['photo_data'] = 'Client photo is required before saving.';
+        }
+
+        if ($hasIncomingFingerprintData xor $hasIncomingFingerprintTemplate) {
+            $errors['fingerprint_data'] = 'Fingerprint capture must include both the image and template.';
+            $errors['fingerprint_template'] = 'Fingerprint capture must include both the image and template.';
+        } elseif (!$hasIncomingFingerprintData && !$hasIncomingFingerprintTemplate && !$this->clientHasStoredFingerprint($client)) {
+            $errors['fingerprint_data'] = 'Client fingerprint is required before saving.';
+            $errors['fingerprint_template'] = 'Client fingerprint is required before saving.';
+        }
+
+        if (!empty($errors)) {
+            throw ValidationException::withMessages($errors);
+        }
+
+        return $validated;
+    }
+
+    private function clientHasStoredPhoto(Client|ArchivedClient $client): bool
+    {
+        return !empty($client->photo_path) && Storage::disk('public')->exists($client->photo_path);
+    }
+
+    private function clientHasStoredFingerprint(Client|ArchivedClient $client): bool
+    {
+        if (!empty($client->fingerprint_template)) {
+            return true;
+        }
+
+        return !empty($client->fingerprint_path) && Storage::disk('public')->exists($client->fingerprint_path);
+    }
+
+    private function ensureFingerprintForDuplicateClientIdentity(array $validated): void
+    {
+        if (empty($validated['birth_date']) || !empty($validated['fingerprint_data'])) {
+            return;
+        }
+
+        if (!$this->clientIdentityAlreadyExists($validated)) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'fingerprint_template' => 'Fingerprint is required when a client with the same name and birth date already exists.',
+        ]);
+    }
+
+    private function clientIdentityAlreadyExists(array $validated): bool
+    {
+        $birthDate = $validated['birth_date'] ?? null;
+        if (empty($birthDate)) {
+            return false;
+        }
+
+        foreach ([Client::class, ArchivedClient::class] as $modelClass) {
+            $matches = $modelClass::query()
+                ->whereDate('birth_date', $birthDate)
+                ->get(['first_name', 'middle_name', 'last_name', 'suffix'])
+                ->contains(function ($client) use ($validated) {
+                    return $this->clientIdentityMatches($validated, $client);
+                });
+
+            if ($matches) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function clientIdentityMatches(array $validated, Client|ArchivedClient $client): bool
+    {
+        $targetFirstName = $this->normalizeClientNamePart($validated['first_name'] ?? null);
+        $targetMiddleName = $this->normalizeClientNamePart($validated['middle_name'] ?? null);
+        $targetLastName = $this->normalizeClientNamePart($validated['last_name'] ?? null);
+        $targetSuffix = $this->normalizeClientNamePart($validated['suffix'] ?? null);
+
+        $clientFirstName = $this->normalizeClientNamePart($client->first_name ?? null);
+        $clientMiddleName = $this->normalizeClientNamePart($client->middle_name ?? null);
+        $clientLastName = $this->normalizeClientNamePart($client->last_name ?? null);
+        $clientSuffix = $this->normalizeClientNamePart($client->suffix ?? null);
+
+        if ($targetFirstName !== $clientFirstName || $targetLastName !== $clientLastName) {
+            return false;
+        }
+
+        if ($targetMiddleName !== '' && $clientMiddleName !== '' && $targetMiddleName !== $clientMiddleName) {
+            return false;
+        }
+
+        if ($targetSuffix !== '' && $clientSuffix !== '' && $targetSuffix !== $clientSuffix) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private function normalizeClientNamePart(?string $value): string
+    {
+        return Str::of((string) $value)->squish()->lower()->toString();
     }
 
     private function storeClientPhoto(?string $photoData): ?string
@@ -495,7 +645,38 @@ class ProfileController extends Controller
             return response()->json(['message' => 'Unable to load PSGC data.'], 503);
         }
 
-        return response()->json($response->json());
+        return response()->json($this->normalizePsgcItems($response->json()));
+    }
+
+    private function normalizePsgcItems(mixed $payload): array
+    {
+        $items = data_get($payload, 'data', $payload);
+
+        if ($items instanceof \Traversable) {
+            $items = iterator_to_array($items);
+        }
+
+        if (!is_array($items)) {
+            return [];
+        }
+
+        return collect($items)
+            ->map(function ($item) {
+                $name = data_get($item, 'name')
+                    ?? data_get($item, 'label')
+                    ?? data_get($item, 'description');
+                if (blank($name)) {
+                    return null;
+                }
+
+                return [
+                    'code' => data_get($item, 'code') ?? data_get($item, 'psgcCode') ?? data_get($item, 'id') ?? '',
+                    'name' => $name,
+                ];
+            })
+            ->filter()
+            ->values()
+            ->all();
     }
 
     public function searchClientByFingerprint(Request $request)

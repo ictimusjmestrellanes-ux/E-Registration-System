@@ -24,16 +24,7 @@ class User extends Authenticatable
     protected $table = 'users'; // Specify the table name if it's not pluralized
 
     protected $fillable = [
-        'name',
-        'email',
-        'google_id',
-        'auth_provider',
-        'avatar',
-        'join_date',
-        'last_login',
-        'role_name',
-        'status',
-        'password',
+        'last_login', // Ensure this is included
     ];
 
 

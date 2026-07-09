@@ -4,8 +4,8 @@
     "type": "module",
     "scripts": {
         "build": "vite build",
-        "dev": "npm run dev:bridge && vite",
-        "dev:vite": "vite",
+        "dev": "concurrently -n VITE,BRIDGE \"vite --host 127.0.0.1\" \"cmd /c fingerprint-bridge\\run-bridge.bat\"",
+        "dev:vite": "vite --host 127.0.0.1",
         "dev:bridge": "cmd /c fingerprint-bridge\\run-bridge.bat"
     },
     "devDependencies": {

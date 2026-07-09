@@ -74,65 +74,6 @@ namespace FingerprintBridge
 
         private Task<CaptureResult> CaptureSingleFingerprintAsync(Reader reader, CancellationToken cancellationToken)
         {
-            try
-            {
-                return Task.Run(() => CaptureSingleFingerprint(reader, cancellationToken), cancellationToken);
-            }
-            catch
-            {
-                SafeDisposeReaderOnUiThread(reader, null);
-                throw;
-            }
-        }
-
-        private CaptureResult CaptureSingleFingerprint(Reader reader, CancellationToken cancellationToken)
-        {
-            try
-            {
-                return InvokeOnUiThread(() =>
-                {
-                    var openResult = OpenReaderWithRecovery(reader);
-                    if (openResult != Constants.ResultCode.DP_SUCCESS)
-                    {
-                        throw new InvalidOperationException("Unable to open reader: " + openResult);
-                    }
-
-                    EnsureReady(reader);
-
-                    var resolution = reader.Capabilities.Resolutions != null && reader.Capabilities.Resolutions.Length > 0
-                        ? reader.Capabilities.Resolutions[0]
-                        : 500;
-                    var deadline = DateTime.UtcNow.AddSeconds(90);
-
-                    while (DateTime.UtcNow < deadline)
-                    {
-                        cancellationToken.ThrowIfCancellationRequested();
-
-                        var captureResult = reader.Capture(
-                            Constants.Formats.Fid.ANSI,
-                            Constants.CaptureProcessing.DP_IMG_PROC_DEFAULT,
-                            resolution,
-                            5000);
-
-                        if (captureResult.Data != null && CheckCaptureResult(captureResult))
-                        {
-                            return captureResult;
-                        }
-
-                        EnsureReady(reader);
-                    }
-
-                    throw new TimeoutException("Fingerprint capture timed out. Make sure the reader light is on, then lift and place your finger flat on the scanner until the capture completes.");
-                });
-            }
-            finally
-            {
-                SafeDisposeReaderOnUiThread(reader, null);
-            }
-        }
-
-        private Task<CaptureResult> CaptureSingleFingerprintWithCallbackAsync(Reader reader, CancellationToken cancellationToken)
-        {
             var tcs = new TaskCompletionSource<CaptureResult>(TaskCreationOptions.RunContinuationsAsynchronously);
             Reader.CaptureCallback? callback = null;
 
@@ -178,12 +119,12 @@ namespace FingerprintBridge
             {
                 using (var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
                 {
-                    timeoutCts.CancelAfter(TimeSpan.FromSeconds(90));
+                    timeoutCts.CancelAfter(TimeSpan.FromSeconds(45));
                     var completed = await Task.WhenAny(tcs.Task, Task.Delay(Timeout.Infinite, timeoutCts.Token)).ConfigureAwait(false);
 
                     if (completed != tcs.Task)
                     {
-                        throw new TimeoutException("Fingerprint capture timed out. Make sure the reader light is on, then lift and place your finger flat on the scanner until the capture completes.");
+                        throw new TimeoutException("Fingerprint capture timed out.");
                     }
 
                     return await tcs.Task.ConfigureAwait(false);
@@ -456,43 +397,6 @@ namespace FingerprintBridge
             {
                 throw captured;
             }
-        }
-
-        private T InvokeOnUiThread<T>(Func<T> func)
-        {
-            if (!_uiInvoker.InvokeRequired)
-            {
-                return func();
-            }
-
-            Exception? captured = null;
-            T? result = default;
-            var done = new ManualResetEventSlim(false);
-
-            _uiInvoker.BeginInvoke(new Action(() =>
-            {
-                try
-                {
-                    result = func();
-                }
-                catch (Exception ex)
-                {
-                    captured = ex;
-                }
-                finally
-                {
-                    done.Set();
-                }
-            }), Array.Empty<object>());
-
-            done.Wait();
-
-            if (captured != null)
-            {
-                throw captured;
-            }
-
-            return result!;
         }
 
         private Task<T> InvokeOnUiThreadAsync<T>(Func<T> func)

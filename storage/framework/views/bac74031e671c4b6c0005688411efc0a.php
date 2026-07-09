@@ -20,11 +20,19 @@
                                         <th>#</th>
                                         <th>Photo</th>
                                         <th>Full Name</th>
+                                        <th>Suffix</th>
+                                        <th>Birth Date</th>
                                         <th>Age</th>
                                         <th>Gender</th>
                                         <th>Civil Status</th>
+                                        <th>Birthplace</th>
+                                        <th>Education</th>
+                                        <th>Course</th>
+                                        <th>Sector</th>
+                                        <th>Position / Organization</th>
                                         <th>Email</th>
-                                        <th>Contact</th>
+                                        <th>Contact 1</th>
+                                        <th>Contact 2</th>
                                         <th>Address</th>
                                         <th>Province</th>
                                         <th>City</th>
@@ -48,12 +56,20 @@
                                                     style="width: 72px; height: 72px;"
                                                 >
                                             </td>
-                                            <td><?php echo e(trim($client->first_name . ' ' . ($client->middle_name ? $client->middle_name . ' ' : '') . $client->last_name)); ?></td>
+                                            <td><?php echo e($client->full_name); ?></td>
+                                            <td><?php echo e($client->suffix ?? '-'); ?></td>
+                                            <td><?php echo e($client->birth_date?->format('M d, Y') ?? '-'); ?></td>
                                             <td><?php echo e($client->age ?? '-'); ?></td>
                                             <td><?php echo e($client->gender ?? '-'); ?></td>
                                             <td><?php echo e($client->civil_status ?? '-'); ?></td>
+                                            <td><?php echo e($client->birthplace ?? '-'); ?></td>
+                                            <td><?php echo e($client->education ?? '-'); ?></td>
+                                            <td><?php echo e($client->course ?? '-'); ?></td>
+                                            <td><?php echo e($client->sector ?? '-'); ?></td>
+                                            <td><?php echo e($client->position_organization ?? '-'); ?></td>
                                             <td><?php echo e($client->email ?? '-'); ?></td>
                                             <td><?php echo e($client->contact ?? '-'); ?></td>
+                                            <td><?php echo e($client->contact_2 ?? '-'); ?></td>
                                             <td><?php echo e($client->address ?? '-'); ?></td>
                                             <td><?php echo e($client->province ?? '-'); ?></td>
                                             <td><?php echo e($client->city ?? '-'); ?></td>
@@ -70,7 +86,7 @@
                                         </tr>
                                     <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                                         <tr>
-                                            <td colspan="14" class="text-center text-muted py-4">
+                                            <td colspan="22" class="text-center text-muted py-4">
                                                 No archived clients found.
                                             </td>
                                         </tr>
