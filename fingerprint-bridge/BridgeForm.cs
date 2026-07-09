@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Windows.Forms;
 
 namespace FingerprintBridge
@@ -25,9 +26,11 @@ namespace FingerprintBridge
             try
             {
                 _server.Start();
+                File.AppendAllText(GetLogPath(), DateTime.Now.ToString("s") + " Bridge started." + Environment.NewLine);
             }
             catch (Exception ex)
             {
+                File.AppendAllText(GetLogPath(), DateTime.Now.ToString("s") + " Bridge failed to start: " + ex + Environment.NewLine);
                 MessageBox.Show(
                     "Fingerprint bridge failed to start.\n\n" + ex.Message,
                     "Fingerprint Bridge",
@@ -40,6 +43,11 @@ namespace FingerprintBridge
         private void OnFormClosing(object? sender, FormClosingEventArgs e)
         {
             _server.Stop();
+        }
+
+        private static string GetLogPath()
+        {
+            return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "FingerprintBridge.log");
         }
     }
 }

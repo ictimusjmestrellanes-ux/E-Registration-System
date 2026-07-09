@@ -4,7 +4,7 @@
     "type": "module",
     "scripts": {
         "build": "vite build",
-        "dev": "concurrently -k -n VITE,BRIDGE \"vite\" \"cmd /c fingerprint-bridge\\run-bridge.bat\"",
+        "dev": "npm run dev:bridge && vite",
         "dev:vite": "vite",
         "dev:bridge": "cmd /c fingerprint-bridge\\run-bridge.bat"
     },

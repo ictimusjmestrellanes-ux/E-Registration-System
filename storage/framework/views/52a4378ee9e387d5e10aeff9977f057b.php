@@ -328,23 +328,8 @@
                                         <th>#</th>
                                         <th>Photo</th>
                                         <th>Full Name</th>
-                                        <th>Suffix</th>
-                                        <th>Birth Date</th>
-                                        <th>Age</th>
-                                        <th>Gender</th>
-                                        <th>Civil Status</th>
-                                        <th>Birthplace</th>
-                                        <th>Education</th>
-                                        <th>Course</th>
-                                        <th>Sector</th>
-                                        <th>Position / Organization</th>
-                                        <th>Email</th>
-                                        <th>Contact 1</th>
-                                        <th>Contact 2</th>
+                                        <th>Gender</th>                                        
                                         <th>Address</th>
-                                        <th>Province</th>
-                                        <th>City</th>
-                                        <th>Barangay</th>
                                         <th>Actions</th>
                                     </tr>
                                 </thead>
@@ -395,23 +380,9 @@
                                                 </button>
                                             </td>
                                             <td><?php echo e($client->full_name); ?></td>
-                                            <td><?php echo e($client->suffix ?? '-'); ?></td>
-                                            <td><?php echo e($client->birth_date?->format('M d, Y') ?? '-'); ?></td>
-                                            <td><?php echo e($client->age ?? '-'); ?></td>
                                             <td><?php echo e($client->gender ?? '-'); ?></td>
                                             <td><?php echo e($client->civil_status ?? '-'); ?></td>
-                                            <td><?php echo e($client->birthplace ?? '-'); ?></td>
-                                            <td><?php echo e($client->education ?? '-'); ?></td>
-                                            <td><?php echo e($client->course ?? '-'); ?></td>
-                                            <td><?php echo e($client->sector ?? '-'); ?></td>
-                                            <td><?php echo e($client->position_organization ?? '-'); ?></td>
-                                            <td><?php echo e($client->email ?? '-'); ?></td>
-                                            <td><?php echo e($client->contact ?? '-'); ?></td>
-                                            <td><?php echo e($client->contact_2 ?? '-'); ?></td>
-                                            <td><?php echo e($client->address ?? '-'); ?></td>
-                                            <td><?php echo e($client->province ?? '-'); ?></td>
-                                            <td><?php echo e($client->city ?? '-'); ?></td>
-                                            <td><?php echo e($client->barangay ?? '-'); ?></td>
+                                            <td><?php echo e($client->address . ', '.$client->barangay . ', ' . $client->city . ', ' . $client->province); ?></td>
                                             <td>
                                                 <div class="d-flex gap-2 text-center justify-content-center">
                                                     <a href="<?php echo e(route('clients.show', $client)); ?>" class="btn btn-sm btn-soft-info">
@@ -509,7 +480,7 @@
                         <div class="col-12 col-lg-4 text-center">
                             <img
                                 id="clientViewPhoto"
-                                src="<?php echo e(asset('assets/images/avatar-1.jpg')); ?>"
+                                src="<?php echo e(asset('assets/images/profile.png')); ?>"
                                 alt="Client Photo"
                                 class="rounded-4 border object-fit-cover bg-light"
                                 style="width: 100%; max-width: 320px; height: 320px;"
@@ -815,7 +786,7 @@
                             Waiting to start fingerprint search.
                         </div>
                         <div class="mt-3 text-center">
-                            <img id="fingerprintSearchPreview" src="<?php echo e(asset('assets/images/fingerprint-placeholder.svg')); ?>" alt="Fingerprint Search Preview" class="rounded-3 border object-fit-cover bg-white" style="width: 100%; max-width: 420px; height: 280px;">
+                            <img id="fingerprintSearchPreview" src="<?php echo e(asset('assets/images/fingerprint.png')); ?>" alt="Fingerprint Search Preview" class="rounded-3 border object-fit-cover bg-white" style="width: 100%; max-width: 420px; height: 280px;">
                         </div>
                     </div>
                 </div>
@@ -900,7 +871,7 @@
             const fingerprintSearchPreview = document.getElementById('fingerprintSearchPreview');
             const fingerprintSearchStatus = document.getElementById('fingerprintSearchStatus');
             const fingerprintScanAgainBtn = document.getElementById('fingerprintScanAgainBtn');
-            const fingerprintPlaceholderPreview = <?php echo json_encode(asset('assets/images/fingerprint-placeholder.svg'), 15, 512) ?>;
+            const fingerprintPlaceholderPreview = <?php echo json_encode(asset('assets/images/fingerprint.png'), 15, 512) ?>;
             const clientKeywordInput = document.getElementById('clientKeywordInput');
             const clientSexFilter = document.getElementById('clientSexFilter');
             const clientCivilStatusFilter = document.getElementById('clientCivilStatusFilter');
@@ -1040,7 +1011,7 @@
 
             const captureEditFingerprintFromBridge = async () => {
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 45000);
+                const timeoutId = setTimeout(() => controller.abort(), 95000);
 
                 try
                 {
@@ -1059,9 +1030,29 @@
                     }
 
                     return payload;
+                } catch (error) {
+                    if (error?.name === 'AbortError') {
+                        throw new Error('Fingerprint capture timed out. Make sure the reader light is on, then lift and place your finger flat on the scanner until the capture completes.');
+                    }
+
+                    throw error;
                 } finally {
                     clearTimeout(timeoutId);
                 }
+            };
+
+            const getFingerprintErrorMessage = (error) => error?.message || String(error || 'Scanner capture failed.');
+
+            const isFingerprintBridgeAvailabilityError = (message) => {
+                return message.includes('Failed to fetch') || message.includes('DigitalPersona bridge is not running');
+            };
+
+            const setFingerprintErrorStatus = (target, error) => {
+                const message = getFingerprintErrorMessage(error);
+                target.textContent = isFingerprintBridgeAvailabilityError(message)
+                    ? 'Scanner bridge is not available. Make sure the bridge app is running.'
+                    : message;
+                return message;
             };
 
             const isFingerprintBridgeOnline = async () => {
@@ -1161,7 +1152,7 @@
                     fingerprintSearchStatus.textContent = searchResult.message || 'No matching client found.';
                     fingerprintScanAgainBtn.classList.remove('d-none');
                 } catch (error) {
-                    fingerprintSearchStatus.textContent = 'Fingerprint search failed.';
+                    fingerprintSearchStatus.textContent = getFingerprintErrorMessage(error);
                     fingerprintScanAgainBtn.classList.remove('d-none');
                 }
             };
@@ -1367,8 +1358,8 @@
                         const captureResult = await captureEditFingerprintFromBridge();
                         setEditFingerprintPreview(captureResult.imageDataUrl, 'Fingerprint captured from device. Save the client to keep it.', captureResult.fingerprintTemplateXml || '');
                     } catch (error) {
-                        editFingerprintStatus.textContent = 'Scanner bridge is not available. Make sure the bridge app is running.';
-                        alert(`Unable to capture from the scanner bridge.\n\n${error.message || error}`);
+                        const message = setFingerprintErrorStatus(editFingerprintStatus, error);
+                        alert(`Unable to capture from the scanner bridge.\n\n${message}`);
                     }
                 })();
             });

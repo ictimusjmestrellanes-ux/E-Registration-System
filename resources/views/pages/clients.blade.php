@@ -741,6 +741,21 @@
                 fingerprintModalError.classList.remove('d-none');
             };
 
+            const getFingerprintErrorMessage = (error) => error?.message || String(error || 'Scanner capture failed.');
+
+            const isFingerprintBridgeAvailabilityError = (message) => {
+                return message.includes('Failed to fetch') || message.includes('DigitalPersona bridge is not running');
+            };
+
+            const handleFingerprintCaptureError = (error) => {
+                const message = getFingerprintErrorMessage(error);
+                fingerprintStatus.textContent = isFingerprintBridgeAvailabilityError(message)
+                    ? 'Scanner bridge is not available. Make sure the bridge app is running.'
+                    : message;
+                retryFingerprintCaptureBtn.classList.remove('d-none');
+                alert(`Unable to capture from the scanner bridge.\n\n${message}`);
+            };
+
             const scanFingerprintAgain = async () => {
                 clearFingerprintModalError();
                 retryFingerprintCaptureBtn.classList.add('d-none');
@@ -800,7 +815,7 @@
 
             const captureFingerprintFromBridge = async () => {
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 45000);
+                const timeoutId = setTimeout(() => controller.abort(), 95000);
 
                 try {
                     const response = await fetch(`${fingerprintBridgeBase}/api/capture`, {
@@ -818,6 +833,12 @@
                     }
 
                     return payload;
+                } catch (error) {
+                    if (error?.name === 'AbortError') {
+                        throw new Error('Fingerprint capture timed out. Make sure the reader light is on, then lift and place your finger flat on the scanner until the capture completes.');
+                    }
+
+                    throw error;
                 } finally {
                     clearTimeout(timeoutId);
                 }
@@ -876,9 +897,7 @@
                     try {
                         await scanFingerprintAgain();
                     } catch (error) {
-                        fingerprintStatus.textContent = 'Scanner bridge is not available. Make sure the bridge app is running.';
-                        retryFingerprintCaptureBtn.classList.remove('d-none');
-                        alert(`Unable to capture from the scanner bridge.\n\n${error.message || error}`);
+                        handleFingerprintCaptureError(error);
                     }
                 })();
             });
@@ -924,9 +943,7 @@
                     try {
                         await scanFingerprintAgain();
                     } catch (error) {
-                        fingerprintStatus.textContent = 'Scanner bridge is not available. Make sure the bridge app is running.';
-                        retryFingerprintCaptureBtn.classList.remove('d-none');
-                        alert(`Unable to capture from the scanner bridge.\n\n${error.message || error}`);
+                        handleFingerprintCaptureError(error);
                     }
                 })();
             });
