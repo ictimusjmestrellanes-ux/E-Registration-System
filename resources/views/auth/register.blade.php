@@ -29,11 +29,21 @@
                                 @csrf
                                 <div class="mb-3">
                                     <label for="name" class="form-label">Name <span class="text-danger">*</span></label>
-                                    <input type="text" class="form-control @error('name') is-invalid @enderror" id="name" name="name" placeholder="Enter name">
+                                    <input type="text" class="form-control @error('name') is-invalid @enderror" id="name" name="name" value="{{ old('name') }}" placeholder="Enter name">
                                 </div>
                                 <div class="mb-3">
                                     <label for="email" class="form-label">Email <span class="text-danger">*</span></label>
-                                    <input type="email" class="form-control @error('email') is-invalid @enderror" id="email" name="email" placeholder="Enter email address">
+                                    <input type="email" class="form-control @error('email') is-invalid @enderror" id="email" name="email" value="{{ old('email') }}" placeholder="Enter email address">
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="role_name" class="form-label">Role <span class="text-danger">*</span></label>
+                                    <select class="form-select @error('role_name') is-invalid @enderror" id="role_name" name="role_name" required>
+                                        <option value="">Select role</option>
+                                        @foreach ($roles as $role)
+                                            <option value="{{ $role }}" @selected(old('role_name') === $role)>{{ $role }}</option>
+                                        @endforeach
+                                    </select>
                                 </div>
 
                                 <div class="mb-3">

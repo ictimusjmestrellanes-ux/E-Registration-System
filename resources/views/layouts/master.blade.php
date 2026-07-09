@@ -34,8 +34,47 @@
             z-index: 1100;
         }
 
+        .topbar-user > .btn {
+            align-items: center;
+            background-color: var(--vz-topbar-user-bg);
+            border: 0;
+            border-radius: 0;
+            display: flex;
+            height: 70px;
+            max-width: 280px;
+            padding: 0 16px;
+        }
+
+        .topbar-user > .btn:focus,
+        .topbar-user > .btn.show {
+            box-shadow: none;
+        }
+
+        .topbar-user .user-name-text {
+            display: inline-block;
+            max-width: 180px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            vertical-align: middle;
+            white-space: nowrap;
+        }
+
+        .topbar-user .header-profile-user {
+            object-fit: cover;
+        }
+
         .topbar-user .dropdown-menu {
+            margin-top: 0;
+            min-width: 190px;
             z-index: 1200;
+        }
+
+        @media (max-width: 575.98px) {
+            .topbar-user > .btn {
+                height: 70px;
+                max-width: 72px;
+                padding: 0 12px;
+            }
         }
     </style>
     
@@ -165,15 +204,16 @@
                         </div>
 
                         <div class="dropdown ms-sm-3 header-item topbar-user">
-                            <button type="button" class="btn material-shadow-none" id="topbar-user-dropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                            <button type="button" class="btn material-shadow-none" id="topbar-user-dropdown" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-haspopup="true" aria-expanded="false">
                                 <span class="d-flex align-items-center">
                                     @php
                                         $headerAvatar = auth()->user()?->avatar_url ?? asset('assets/images/avatar-1.jpg');
                                     @endphp
                                     <img class="rounded-circle header-profile-user" src="{{ $headerAvatar }}" alt="Header Avatar">
-                                    <span class="text-start ms-xl-2">
-                                        <span class="d-none d-xl-inline-block ms-1 fw-medium user-name-text">{{ auth()->user()->name ?? 'User' }}</span>
+                                    <span class="text-start ms-2 d-none d-xl-block">
+                                        <span class="fw-medium user-name-text">{{ auth()->user()->name ?? 'User' }}</span>
                                     </span>
+                                    <i class="mdi mdi-chevron-down d-none d-xl-inline-block ms-2 fs-16"></i>
                                 </span>
                             </button>
                             <div class="dropdown-menu dropdown-menu-end" aria-labelledby="topbar-user-dropdown">
@@ -1256,67 +1296,6 @@
             Object.keys(messages).forEach(type => {
                 if (messages[type]) {
                     new Message('imessage').show(messages[type], type === "error" ? "fail" : type, "top-center");
-                }
-            });
-        });
-    </script>
-
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            const trigger = document.getElementById('topbar-user-dropdown');
-
-            if (!trigger) {
-                return;
-            }
-
-            const dropdown = trigger.closest('.dropdown');
-            const menu = dropdown ? dropdown.querySelector('.dropdown-menu') : null;
-
-            if (!dropdown || !menu) {
-                return;
-            }
-
-            const closeMenu = () => {
-                dropdown.classList.remove('show');
-                menu.classList.remove('show');
-                trigger.setAttribute('aria-expanded', 'false');
-            };
-
-            const openMenu = () => {
-                dropdown.classList.add('show');
-                menu.classList.add('show');
-                trigger.setAttribute('aria-expanded', 'true');
-            };
-
-            trigger.addEventListener('click', function (event) {
-                event.preventDefault();
-                event.stopPropagation();
-
-                if (window.bootstrap && bootstrap.Dropdown) {
-                    try {
-                        bootstrap.Dropdown.getOrCreateInstance(trigger).toggle();
-                        return;
-                    } catch (error) {
-                        // Fall back to manual toggle below.
-                    }
-                }
-
-                if (dropdown.classList.contains('show')) {
-                    closeMenu();
-                } else {
-                    openMenu();
-                }
-            });
-
-            document.addEventListener('click', function (event) {
-                if (!dropdown.contains(event.target)) {
-                    closeMenu();
-                }
-            });
-
-            document.addEventListener('keydown', function (event) {
-                if (event.key === 'Escape') {
-                    closeMenu();
                 }
             });
         });

@@ -48,12 +48,12 @@ class Client extends Model
             ->value('client_id');
 
         if ($latest) {
-            $num = (int) substr($latest, -6) + 1;
+            $num = (int) substr($latest, -5) + 1;
         } else {
             $num = 1;
         }
 
-        return $prefix . str_pad((string) $num, 6, '0', STR_PAD_LEFT);
+        return $prefix . str_pad((string) $num, 5, '0', STR_PAD_LEFT);
     }
 
     protected $casts = [

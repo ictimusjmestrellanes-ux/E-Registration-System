@@ -42,7 +42,7 @@ class OAuthUserService
             $user->email = $email;
             $user->join_date = now()->toDayDateTimeString();
             $user->status = 'Active';
-            $user->role_name = 'User';
+            $user->role_name = User::ROLE_DSWD;
             $user->password = Hash::make(Str::random(48));
         }
 

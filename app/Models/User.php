@@ -14,6 +14,18 @@ class User extends Authenticatable
 {
     use HasFactory, Notifiable;
 
+    public const ROLE_DSWD = 'DSWD';
+    public const ROLE_CONG_STAFF = 'Cong Staff';
+    public const ROLE_ADMIN = 'Admin';
+    public const ROLE_SUPER_ADMIN = 'Super Admin';
+
+    public const ROLES = [
+        self::ROLE_DSWD,
+        self::ROLE_CONG_STAFF,
+        self::ROLE_ADMIN,
+        self::ROLE_SUPER_ADMIN,
+    ];
+
     /**
      * The attributes that are mass assignable.
      *
@@ -105,6 +117,7 @@ class User extends Authenticatable
         $validator = Validator::make($request->all(), [
             'name'      => 'required|string|max:255',
             'email'     => 'required|string|email|max:255|unique:users,email',
+            'role_name' => 'required|string|in:' . implode(',', self::ROLES),
             'password'  => 'required|string|min:8|confirmed',
         ], [
             'email.unique' => 'This email is already registered. Please use another.',
@@ -121,7 +134,7 @@ class User extends Authenticatable
             $save->avatar     = $request->image;
             $save->email      = $request->email;
             $save->join_date  = $todayDate;
-            $save->role_name  = 'User';
+            $save->role_name  = $request->role_name;
             $save->status     = 'Active';
             $save->password   = Hash::make($request->password);
             $save->save();

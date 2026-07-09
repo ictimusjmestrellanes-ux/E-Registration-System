@@ -13,7 +13,9 @@ class RegisterController extends Controller
     {
         abort_unless(config('authentication.local_auth_enabled'), 404);
 
-        return view('auth.register');
+        return view('auth.register', [
+            'roles' => User::ROLES,
+        ]);
     }
 
     /** Store New User */

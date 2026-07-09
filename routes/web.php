@@ -16,6 +16,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\TransactionRequirementController;
+use App\Http\Controllers\UsersController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -63,6 +64,10 @@ Route::group(['namespace' => 'App\Http\Controllers'], function () {
 
         // --------------------- Activity Logs ------------------//
         Route::get('activity-logs', [ActivityLogsController::class, 'index'])->name('activity.logs');
+
+        // --------------------- Users ------------------//
+        Route::get('users', [UsersController::class, 'index'])->name('users.index');
+        Route::put('users/{user}/role', [UsersController::class, 'updateRole'])->name('users.updateRole');
 
         // --------------------- Clients (Create) ------------------//
         Route::get('clients', [ClientsController::class, 'create'])->name('clients');

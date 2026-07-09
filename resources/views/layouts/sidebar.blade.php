@@ -103,10 +103,18 @@
                     </li>
 
                     <li class="menu-title"><i class="ri-more-fill"></i> <span data-key="t-pages">Pages</span></li>
+                    @if(auth()->user()?->role_name !== 'DSWD' && auth()->user()?->role_name !== 'Cong Staff')
                     <li class="nav-item">
-                        <a class="nav-link menu-link {{ set_active(['profile', 'settings']) }}" href="#sidebarPages"
+                        <a class="nav-link menu-link {{ set_active(['users.index']) }}"
+                            href="{{ route('users.index') }}">
+                            <i class="ri-user-line"></i> <span data-key="t-users">Users</span>
+                        </a>
+                    </li>
+                    @endif
+                    <li class="nav-item">
+                        <a class="nav-link menu-link {{ set_active(['activity.logs', 'profile', 'settings']) }}" href="#sidebarPages"
                             data-bs-toggle="collapse" role="button"
-                            aria-expanded="{{ set_expanded(['profile', 'settings']) }}" aria-controls="sidebarPages">
+                            aria-expanded="{{ set_expanded(['activity.logs', 'profile', 'settings']) }}" aria-controls="sidebarPages">
                             <i class="ri-pages-line"></i> <span data-key="t-pages">Profile Page</span>
                         </a>
                         <div class="collapse menu-dropdown {{ set_show(['activity.logs', 'profile', 'settings']) }}"
@@ -136,7 +144,6 @@
                                 </li>
                             </ul>
                         </div>
-
                     </li>
 
                 </ul>

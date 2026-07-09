@@ -201,7 +201,7 @@
 
                             <div class="table-responsive" style="max-height: 650px; overflow-y: auto;">
                                 <table class="table table-bordered table-hover align-middle mb-0">
-                                    <thead class="table-light text-center" style="position: sticky; top: 0; z-index: 1; background: #f8f9fa;">
+                                    <thead class="table-light text-center" style="position: sticky; top: 0; background: #f8f9fa;">
                                         <tr>
                                             <th>Transaction ID</th>
                                             <th>Transaction Date</th>
@@ -288,6 +288,8 @@
 
     <?php echo $__env->make('pages.client_transaction.newTransaction', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
 
+    <?php echo $__env->make('pages.client_transaction.requirementModal', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
+
     <?php if(session('show_created_modal')): ?>
         <div class="modal fade" id="clientCreatedModal" tabindex="-1" aria-labelledby="clientCreatedModalLabel"
             aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
@@ -360,9 +362,7 @@
                 createdModal.show();
             }
 
-            // Global variable to track current transaction ID for modal
             let currentTransactionId = null;
-
             const transactionInfoModalEl = document.getElementById('transactionInfoModal');
             const showTransactionId = <?php echo json_encode(session('show_transaction'), 15, 512) ?>;
 
@@ -407,47 +407,6 @@
                     document.getElementById('modalTransactionActionsTaken').value = data.actions_taken;
                     document.getElementById('modalTransactionRemarks').value = data.remarks;
 
-                    // Clear file inputs and previews
-                    document.getElementById('reqUpload1').value = '';
-                    document.getElementById('reqUpload2').value = '';
-                    document.getElementById('reqUpload3').value = '';
-                    document.getElementById('reqPreview1').classList.add('d-none');
-                    document.getElementById('reqPreview2').classList.add('d-none');
-                    document.getElementById('reqPreview3').classList.add('d-none');
-
-                        // Load any saved requirement files for this transaction
-                        try {
-                            const reqResp = await fetch(`<?php echo e(route('transaction-requirements.show', ['transactionId' => 'REPLACE'])); ?>`.replace('REPLACE', transactionId));
-                            if (reqResp.ok) {
-                                const json = await reqResp.json();
-                                if (json.success && Array.isArray(json.data)) {
-                                    json.data.forEach(item => {
-                                        // Map requirement_type to preview element
-                                        let previewId = null;
-                                        let previewBtnId = null;
-                                        if (item.requirement_type === 'valid_id') { previewId = 'reqPreview1'; previewBtnId = 'reqPreviewBtn1'; }
-                                        if (item.requirement_type === 'death_certificate') { previewId = 'reqPreview2'; previewBtnId = 'reqPreviewBtn2'; }
-                                        if (item.requirement_type === 'funeral_contract') { previewId = 'reqPreview3'; previewBtnId = 'reqPreviewBtn3'; }
-                                        if (previewId) {
-                                            const imgEl = document.getElementById(previewId);
-                                            if (imgEl) {
-                                                imgEl.src = item.file_path || ('/storage/' + (item.file_path || ''));
-                                                imgEl.classList.remove('d-none');
-                                            }
-                                        }
-                                        if (previewBtnId) {
-                                            const btn = document.getElementById(previewBtnId);
-                                            if (btn) {
-                                                btn.dataset.requirementId = item.id;
-                                            }
-                                        }
-                                    });
-                                }
-                            }
-                        } catch (err) {
-                            console.error('Failed to load transaction requirements', err);
-                        }
-
                     // Store transaction ID for confirm button
                     currentTransactionId = data.id;
 
@@ -459,6 +418,21 @@
                 }
             }
 
+            // Transaction info confirm button - opens requirements modal
+            document.getElementById('transactionInfoConfirmBtn')?.addEventListener('click', function() {
+                if (!currentTransactionId) {
+                    alert('No transaction selected.');
+                    return;
+                }
+                const reqModal = document.getElementById('requirementModal');
+                const reqConfirmBtn = document.getElementById('requirementConfirmBtn');
+                if (reqConfirmBtn) reqConfirmBtn.setAttribute('data-transaction-id', currentTransactionId);
+                if (reqModal) {
+                    bootstrap.Modal.getInstance(transactionInfoModalEl)?.hide();
+                    bootstrap.Modal.getOrCreateInstance(reqModal).show();
+                }
+            });
+
             // Add click handlers to transaction rows
             document.querySelectorAll('.transaction-row').forEach(row => {
                 row.addEventListener('click', function() {
@@ -466,62 +440,6 @@
                     loadTransactionData(transactionId);
                 });
             });
-
-            // Handle transaction requirement confirm button
-            const confirmBtn = document.getElementById('transactionInfoConfirmBtn');
-            if (confirmBtn) {
-                confirmBtn.addEventListener('click', async function() {
-                    if (!currentTransactionId) {
-                        alert('No transaction selected');
-                        return;
-                    }
-
-                    const requirements = [
-                        { id: 'reqUpload1', type: 'valid_id' },
-                        { id: 'reqUpload2', type: 'death_certificate' },
-                        { id: 'reqUpload3', type: 'funeral_contract' }
-                    ];
-
-                    try {
-                        confirmBtn.disabled = true;
-                        confirmBtn.textContent = 'Uploading...';
-
-                        for (const req of requirements) {
-                            const fileInput = document.getElementById(req.id);
-                            if (fileInput && fileInput.files.length > 0) {
-                                const formData = new FormData();
-                                formData.append('transaction_id', currentTransactionId);
-                                formData.append('requirement_type', req.type);
-                                formData.append('file', fileInput.files[0]);
-
-                                const response = await fetch(<?php echo json_encode(route('transaction-requirements.store'), 15, 512) ?>, {
-                                    method: 'POST',
-                                    headers: {
-                                        'X-CSRF-TOKEN': csrfToken,
-                                        'Accept': 'application/json'
-                                    },
-                                    body: formData
-                                });
-
-                                const result = await response.json();
-                                if (!result.success) {
-                                    throw new Error(result.message || 'Upload failed');
-                                }
-                            }
-                        }
-
-                        // Close the modal and show success
-                        bootstrap.Modal.getInstance(transactionInfoModalEl)?.hide();
-                        alert('Requirements uploaded successfully!');
-
-                    } catch (error) {
-                        alert('Error uploading files: ' + error.message);
-                    } finally {
-                        confirmBtn.disabled = false;
-                        confirmBtn.textContent = 'Confirm';
-                    }
-                });
-            }
 
             if (!verifyModalEl || !verifyPreview || !verifyStatus || !verifyScanAgainBtn) {
                 return;

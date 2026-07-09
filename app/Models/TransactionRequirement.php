@@ -20,9 +20,16 @@ class TransactionRequirement extends Model
         'file_size',
     ];
 
+    protected $appends = ['file_url'];
+
     protected $casts = [
         'file_size' => 'integer',
     ];
+
+    public function getFileUrlAttribute()
+    {
+        return $this->file_path ? asset('storage/' . $this->file_path) : null;
+    }
 
     /**
      * Get the transaction that owns the requirement.
