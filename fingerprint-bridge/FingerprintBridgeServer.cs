@@ -43,6 +43,11 @@ namespace FingerprintBridge
             _loopTask = Task.Run(() => ListenLoop(_cts.Token));
         }
 
+        public bool IsHealthy()
+        {
+            return _listener.IsListening && (_loopTask?.IsCompleted ?? false) == false;
+        }
+
         public void Stop()
         {
             try

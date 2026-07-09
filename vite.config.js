@@ -15,6 +15,33 @@ export default defineConfig({
                 'resources/js/app.js',
             ],
             refresh: true,
+            detectTint: false,
         }),
     ],
+    css: {
+        preprocessorOptions: {
+            scss: {
+                quietDeps: true,
+            },
+        },
+    },
+    build: {
+        sourcemap: false,
+        minify: 'esbuild',
+        rollupOptions: {
+            output: {
+                manualChunks(id) {
+                    if (id.includes('node_modules/bootstrap')) {
+                        return 'vendor-bootstrap';
+                    }
+                    if (id.includes('node_modules/axios')) {
+                        return 'vendor-axios';
+                    }
+                    if (id.includes('node_modules/@popperjs')) {
+                        return 'vendor-popper';
+                    }
+                },
+            },
+        },
+    },
 });

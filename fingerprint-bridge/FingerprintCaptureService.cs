@@ -15,6 +15,7 @@ namespace FingerprintBridge
     public sealed class FingerprintCaptureService
     {
         private readonly ISynchronizeInvoke _uiInvoker;
+        private readonly SemaphoreSlim _captureLock = new SemaphoreSlim(1, 1);
 
         public FingerprintCaptureService(ISynchronizeInvoke uiInvoker)
         {
@@ -38,37 +39,46 @@ namespace FingerprintBridge
 
         public async Task<object> CaptureAsync(CancellationToken cancellationToken)
         {
-            var readers = await InvokeOnUiThreadAsync(() => ReaderCollection.GetReaders()).ConfigureAwait(false);
-            if (readers.Count == 0)
+            await _captureLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+
+            try
             {
-                throw new InvalidOperationException("No DigitalPersona readers were detected.");
-            }
-
-            var reader = readers[0];
-            var captureResult = await CaptureSingleFingerprintAsync(reader, cancellationToken).ConfigureAwait(false);
-            var bitmap = CreateBitmapFromCapture(captureResult);
-            var fingerprintTemplateXml = CreateFingerprintTemplateXml(captureResult);
-
-            if (bitmap == null)
-            {
-                throw new InvalidOperationException("Fingerprint capture returned no image.");
-            }
-
-            using (bitmap)
-            using (var stream = new MemoryStream())
-            {
-                bitmap.Save(stream, ImageFormat.Png);
-                string base64 = Convert.ToBase64String(stream.ToArray());
-
-                return new
+                var readers = await InvokeOnUiThreadAsync(() => ReaderCollection.GetReaders()).ConfigureAwait(false);
+                if (readers.Count == 0)
                 {
-                    success = true,
-                    message = "Fingerprint captured successfully.",
-                    imageDataUrl = "data:image/png;base64," + base64,
-                    fingerprintTemplateXml = fingerprintTemplateXml,
-                    reader = reader.Description.SerialNumber,
-                    capturedAt = DateTime.UtcNow.ToString("o")
-                };
+                    throw new InvalidOperationException("No DigitalPersona readers were detected.");
+                }
+
+                var reader = readers[0];
+                var captureResult = await CaptureSingleFingerprintAsync(reader, cancellationToken).ConfigureAwait(false);
+                var bitmap = CreateBitmapFromCapture(captureResult);
+                var fingerprintTemplateXml = CreateFingerprintTemplateXml(captureResult);
+
+                if (bitmap == null)
+                {
+                    throw new InvalidOperationException("Fingerprint capture returned no image.");
+                }
+
+                using (bitmap)
+                using (var stream = new MemoryStream())
+                {
+                    bitmap.Save(stream, ImageFormat.Png);
+                    string base64 = Convert.ToBase64String(stream.ToArray());
+
+                    return new
+                    {
+                        success = true,
+                        message = "Fingerprint captured successfully.",
+                        imageDataUrl = "data:image/png;base64," + base64,
+                        fingerprintTemplateXml = fingerprintTemplateXml,
+                        reader = reader.Description.SerialNumber,
+                        capturedAt = DateTime.UtcNow.ToString("o")
+                    };
+                }
+            }
+            finally
+            {
+                _captureLock.Release();
             }
         }
 
@@ -98,7 +108,7 @@ namespace FingerprintBridge
                     }
                 };
 
-                StartCaptureOnUiThread(reader, callback);
+                reader = StartCaptureOnUiThread(reader, callback);
             }
             catch
             {
@@ -117,21 +127,20 @@ namespace FingerprintBridge
         {
             try
             {
-                using (var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+                var timeoutTask = Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
+                var completed = await Task.WhenAny(tcs.Task, timeoutTask).ConfigureAwait(false);
+
+                if (completed != tcs.Task)
                 {
-                    timeoutCts.CancelAfter(TimeSpan.FromSeconds(45));
-                    var completed = await Task.WhenAny(tcs.Task, Task.Delay(Timeout.Infinite, timeoutCts.Token)).ConfigureAwait(false);
-
-                    if (completed != tcs.Task)
-                    {
-                        throw new TimeoutException("Fingerprint capture timed out.");
-                    }
-
-                    return await tcs.Task.ConfigureAwait(false);
+                    TryCancelCapture(reader);
+                    throw new TimeoutException("Fingerprint capture timed out. Place your finger flat on the reader and try again.");
                 }
+
+                return await tcs.Task.ConfigureAwait(false);
             }
             finally
             {
+                TryCancelCapture(reader);
                 SafeDisposeReaderOnUiThread(reader, callback);
             }
         }
@@ -245,46 +254,49 @@ namespace FingerprintBridge
             return bitmap;
         }
 
-        private void StartCaptureOnUiThread(Reader reader, Reader.CaptureCallback callback)
+        private Reader StartCaptureOnUiThread(Reader reader, Reader.CaptureCallback callback)
         {
+            Reader activeReader = reader;
+
             InvokeOnUiThread(() =>
             {
-                var openResult = OpenReaderWithRecovery(reader);
-                if (openResult != Constants.ResultCode.DP_SUCCESS)
-                {
-                    throw new InvalidOperationException("Unable to open reader: " + openResult);
-                }
+                activeReader = OpenReaderWithRecovery(reader);
 
-                reader.On_Captured += callback;
+                activeReader.On_Captured += callback;
 
-                EnsureReady(reader);
+                EnsureReady(activeReader);
 
-                var captureStatus = reader.CaptureAsync(
+                var captureStatus = activeReader.CaptureAsync(
                     Constants.Formats.Fid.ANSI,
                     Constants.CaptureProcessing.DP_IMG_PROC_DEFAULT,
-                    reader.Capabilities.Resolutions[0]);
+                    activeReader.Capabilities.Resolutions[0]);
 
                 if (captureStatus != Constants.ResultCode.DP_SUCCESS)
                 {
                     throw new InvalidOperationException("Unable to start capture: " + captureStatus);
                 }
             });
+
+            return activeReader;
         }
 
-        private Constants.ResultCode OpenReaderWithRecovery(Reader reader)
+        private Reader OpenReaderWithRecovery(Reader reader)
         {
+            string serial = reader.Description.SerialNumber;
             var openResult = reader.Open(Constants.CapturePriority.DP_PRIORITY_COOPERATIVE);
             if (openResult == Constants.ResultCode.DP_SUCCESS)
             {
-                return openResult;
+                return reader;
             }
+
+            var attempts = new List<string> { "cooperative=" + openResult };
 
             if (openResult == Constants.ResultCode.DP_DEVICE_BUSY || openResult == Constants.ResultCode.DP_DEVICE_FAILURE)
             {
                 try
                 {
                     // Ensure the reader is closed before attempting reset/reopen.
-                    reader.Dispose();
+                    TryCancelCapture(reader);
                 }
                 catch
                 {
@@ -292,46 +304,92 @@ namespace FingerprintBridge
                 }
 
                 TryResetReader(reader);
-                Thread.Sleep(250);
+                SafeDisposeReader(reader);
+                Thread.Sleep(500);
 
+                reader = GetFreshReader(serial) ?? reader;
                 openResult = reader.Open(Constants.CapturePriority.DP_PRIORITY_EXCLUSIVE);
+                attempts.Add("exclusive=" + openResult);
                 if (openResult == Constants.ResultCode.DP_SUCCESS)
                 {
-                    return openResult;
+                    return reader;
                 }
 
                 if (openResult == Constants.ResultCode.DP_DEVICE_BUSY || openResult == Constants.ResultCode.DP_DEVICE_FAILURE)
                 {
-                    try
-                    {
-                        reader.Dispose();
-                    }
-                    catch
-                    {
-                        // ignore
-                    }
+                    TryResetReader(reader);
+                    SafeDisposeReader(reader);
+                    Thread.Sleep(500);
 
-                    Thread.Sleep(250);
+                    reader = GetFreshReader(serial) ?? reader;
                     openResult = reader.Open(Constants.CapturePriority.DP_PRIORITY_COOPERATIVE);
+                    attempts.Add("cooperative_retry=" + openResult);
+                    if (openResult == Constants.ResultCode.DP_SUCCESS)
+                    {
+                        return reader;
+                    }
                 }
             }
 
-            return openResult;
+            throw new InvalidOperationException(BuildOpenReaderFailureMessage(openResult, attempts));
+        }
+
+        private Reader? GetFreshReader(string serial)
+        {
+            try
+            {
+                var readers = ReaderCollection.GetReaders();
+                return readers
+                    .Cast<Reader>()
+                    .FirstOrDefault(candidate => candidate.Description.SerialNumber == serial)
+                    ?? readers.Cast<Reader>().FirstOrDefault();
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private string BuildOpenReaderFailureMessage(Constants.ResultCode resultCode, IReadOnlyCollection<string> attempts)
+        {
+            string message = "Unable to open reader: " + resultCode + " (" + string.Join(", ", attempts) + ").";
+
+            if (resultCode == Constants.ResultCode.DP_DEVICE_FAILURE || resultCode == Constants.ResultCode.DP_DEVICE_BUSY)
+            {
+                message += " Unplug and reconnect the scanner, close other fingerprint apps, then restart FingerprintBridge.";
+            }
+
+            return message;
+        }
+
+        private void SafeDisposeReader(Reader reader)
+        {
+            try
+            {
+                reader.Dispose();
+            }
+            catch
+            {
+                // Ignore cleanup errors.
+            }
+        }
+
+        private void TryCancelCapture(Reader reader)
+        {
+            try
+            {
+                reader.CancelCapture();
+            }
+            catch
+            {
+                // Ignore cancellation errors and continue cleanup.
+            }
         }
 
         private void TryResetReader(Reader reader)
         {
             try
             {
-                try
-                {
-                    reader.Dispose();
-                }
-                catch
-                {
-                    // Ignore close errors - reset may still help.
-                }
-
                 var resetResult = reader.Reset();
                 if (resetResult != Constants.ResultCode.DP_SUCCESS)
                 {

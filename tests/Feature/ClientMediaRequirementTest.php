@@ -23,7 +23,6 @@ class ClientMediaRequirementTest extends TestCase
         $response->assertSessionHasErrors([
             'photo_data',
             'fingerprint_data',
-            'fingerprint_template',
         ]);
         $this->assertDatabaseCount('clients', 0);
     }
@@ -39,14 +38,36 @@ class ClientMediaRequirementTest extends TestCase
             'fingerprint_template' => '<FingerprintTemplate>valid</FingerprintTemplate>',
         ]));
 
-        $response->assertRedirect(route('clients'));
         $response->assertSessionHas('success', 'Client saved successfully.');
 
         $client = Client::query()->firstOrFail();
 
+        $response->assertRedirect(route('clients.show', $client));
         $this->assertNotEmpty($client->photo_path);
         $this->assertNotEmpty($client->fingerprint_path);
         $this->assertNotEmpty($client->fingerprint_template);
+        Storage::disk('public')->assertExists($client->photo_path);
+        Storage::disk('public')->assertExists($client->fingerprint_path);
+    }
+
+    public function test_store_client_accepts_fingerprint_image_without_template(): void
+    {
+        Storage::fake('public');
+        $this->actingAs(User::factory()->create());
+
+        $response = $this->post(route('clients.store'), $this->clientPayload([
+            'photo_data' => $this->dataUri('photo-capture'),
+            'fingerprint_data' => $this->dataUri('fingerprint-capture'),
+        ]));
+
+        $response->assertSessionHas('success', 'Client saved successfully.');
+
+        $client = Client::query()->firstOrFail();
+
+        $response->assertRedirect(route('clients.show', $client));
+        $this->assertNotEmpty($client->photo_path);
+        $this->assertNotEmpty($client->fingerprint_path);
+        $this->assertNull($client->fingerprint_template);
         Storage::disk('public')->assertExists($client->photo_path);
         Storage::disk('public')->assertExists($client->fingerprint_path);
     }

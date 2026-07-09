@@ -2,15 +2,13 @@
 
 namespace App\Models;
 
-use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
-use Illuminate\Support\Facades\Validator;
-use Illuminate\Notifications\Notifiable;
 use Illuminate\Http\Request;
+use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Validator;
 use Carbon\Carbon;
-use Hash;
-use DB;
 
 class User extends Authenticatable
 {
@@ -24,7 +22,17 @@ class User extends Authenticatable
     protected $table = 'users'; // Specify the table name if it's not pluralized
 
     protected $fillable = [
-        'last_login', // Ensure this is included
+        'name',
+        'email',
+        'last_login',
+        'phone_number',
+        'status',
+        'role_name',
+        'avatar',
+        'provider_avatar',
+        'google_id',
+        'azure_id',
+        'auth_provider',
     ];
 
 
@@ -46,6 +54,32 @@ class User extends Authenticatable
     protected $casts = [
         'email_verified_at' => 'datetime',
     ];
+
+    public function getAvatarUrlAttribute()
+    {
+        if (!$this->avatar && $this->provider_avatar) {
+            return $this->provider_avatar;
+        }
+
+        if (!$this->avatar) {
+            return asset('assets/images/avatar-1.jpg');
+        }
+        if (str_starts_with($this->avatar, 'http://') || str_starts_with($this->avatar, 'https://')) {
+            return $this->avatar;
+        }
+        return asset('storage/' . $this->avatar);
+    }
+
+    public function getCoverUrlAttribute()
+    {
+        if (!$this->cover_photo) {
+            return null;
+        }
+        if (str_starts_with($this->cover_photo, 'http://') || str_starts_with($this->cover_photo, 'https://')) {
+            return $this->cover_photo;
+        }
+        return asset('storage/' . $this->cover_photo);
+    }
 
     /** generate id */
     protected static function boot()
