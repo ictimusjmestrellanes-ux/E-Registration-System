@@ -24,11 +24,18 @@ class TransactionRequirementController extends Controller
             $validated = $request->validate([
                 'transaction_id' => 'required|exists:transaction_history,id',
                 'requirement_type' => 'required|in:valid_id,death_certificate,funeral_contract',
-                'file' => 'required|file|max:10240|mimes:pdf,jpg,jpeg,png,gif',
+                'no_file' => 'sometimes|boolean',
+                'file' => 'nullable|file|max:10240|mimes:pdf,jpg,jpeg,png,gif',
             ]);
 
             $transaction = TransactionHistory::findOrFail($validated['transaction_id']);
-            $file = $request->file('file');
+            $noFile = $request->boolean('no_file');
+
+            if (!$noFile && !$request->hasFile('file')) {
+                throw ValidationException::withMessages([
+                    'file' => ['Please upload a file or check the no-file option.'],
+                ]);
+            }
 
             // Delete existing file if present
             $existing = TransactionRequirement::where('transaction_id', $validated['transaction_id'])
@@ -39,7 +46,33 @@ class TransactionRequirementController extends Controller
                 Storage::disk('public')->delete($existing->file_path);
             }
 
+            if ($noFile) {
+                $requirement = TransactionRequirement::updateOrCreate(
+                    [
+                        'transaction_id' => $validated['transaction_id'],
+                        'requirement_type' => $validated['requirement_type'],
+                    ],
+                    [
+                        'file_path' => null,
+                        'file_name' => null,
+                        'mime_type' => null,
+                        'file_size' => 0,
+                    ]
+                );
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Requirement saved without a file.',
+                    'data' => [
+                        'id' => $requirement->id,
+                        'file_path' => null,
+                        'file_name' => null,
+                    ],
+                ]);
+            }
+
             // Store the new file
+            $file = $request->file('file');
             $fileName = "{$transaction->transaction_id}_{$validated['requirement_type']}_" . time() . '.' . $file->getClientOriginalExtension();
             $filePath = $file->storeAs('transaction_requirements', $fileName, 'public');
 

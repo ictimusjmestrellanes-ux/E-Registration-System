@@ -210,6 +210,7 @@
                                             <th>Clerk</th>
                                             <th>Status</th>
                                             <th>Description of Request</th>
+                                            <th>Subject Information</th>
                                             <th>Actions Taken</th>
                                             <th>Remarks</th>
                                             <th>Amount</th>
@@ -234,13 +235,17 @@
                                                     <?php endif; ?>
                                                 </td>
                                                 <td><?php echo e($transaction->description ?? 'N/A'); ?></td>
+                                                <td class="text-uppercase subject-summary-cell" id="transactionSubjectSummary<?php echo e($transaction->id); ?>">
+                                                    <?php echo e($transaction->subject_summary ?? 'N/A'); ?>
+
+                                                </td>
                                                 <td><?php echo e($transaction->actions_taken ?? 'N/A'); ?></td>
                                                 <td><?php echo e($transaction->remarks ?? 'N/A'); ?></td>
                                                 <td><?php echo e($transaction->amount > 0 ? '₱' . number_format($transaction->amount, 2) : 'PHP 0.00'); ?></td>
                                             </tr>
                                         <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                                             <tr>
-                                                <td colspan="10" class="text-center text-muted py-4">
+                                                <td colspan="11" class="text-center text-muted py-4">
                                                     No transactions recorded for this client.
                                                 </td>
                                             </tr>
@@ -335,18 +340,20 @@
                 const preview = document.getElementById(previewId);
                 const file = input.files[0];
                 if (!file) {
-                    preview.classList.add('d-none');
+                    if (preview) preview.classList.add('d-none');
                     return;
                 }
                 if (file.type.startsWith('image/')) {
                     const reader = new FileReader();
                     reader.onload = function(e) {
-                        preview.src = e.target.result;
-                        preview.classList.remove('d-none');
+                        if (preview) {
+                            preview.src = e.target.result;
+                            preview.classList.remove('d-none');
+                        }
                     };
                     reader.readAsDataURL(file);
                 } else {
-                    preview.classList.add('d-none');
+                    if (preview) preview.classList.add('d-none');
                 }
             };
 
@@ -426,7 +433,9 @@
                 }
                 const reqModal = document.getElementById('requirementModal');
                 const reqConfirmBtn = document.getElementById('requirementConfirmBtn');
+                const reqContinueBtn = document.getElementById('requirementContinueBtn');
                 if (reqConfirmBtn) reqConfirmBtn.setAttribute('data-transaction-id', currentTransactionId);
+                if (reqContinueBtn) reqContinueBtn.setAttribute('data-transaction-id', currentTransactionId);
                 if (reqModal) {
                     bootstrap.Modal.getInstance(transactionInfoModalEl)?.hide();
                     bootstrap.Modal.getOrCreateInstance(reqModal).show();

@@ -113,6 +113,7 @@ Route::group(['namespace' => 'App\Http\Controllers'], function () {
         // --------------------- Transactions ------------------//
         Route::post('transactions', [TransactionController::class, 'store'])->name('transactions.store');
         Route::get('transactions/{id}', [TransactionController::class, 'show'])->name('transactions.show');
+        Route::post('transactions/{id}/subject', [TransactionController::class, 'storeSubject'])->name('transactions.subject.store');
 
         // --------------------- Transaction Requirements ------------------//
         Route::post('transaction-requirements', [TransactionRequirementController::class, 'store'])->name('transaction-requirements.store');

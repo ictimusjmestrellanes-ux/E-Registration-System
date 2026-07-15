@@ -23,10 +23,22 @@ class TransactionHistory extends Model
         'actions_taken',
         'remarks',
         'amount',
+        'subject_first_name',
+        'subject_middle_name',
+        'subject_last_name',
+        'subject_name_ext',
+        'subject_gender',
+        'subject_birthdate',
+        'subject_age',
+        'subject_barangay',
+        'subject_municipality',
+        'subject_client_relation',
     ];
 
     protected $casts = [
         'transaction_date' => 'date',
+        'subject_birthdate' => 'date',
+        'subject_age' => 'integer',
         'amount' => 'decimal:2',
     ];
 
@@ -63,6 +75,31 @@ class TransactionHistory extends Model
     public function getTypeLabelAttribute(): string
     {
         return self::TYPES[$this->type] ?? strtoupper(str_replace('_', ' ', $this->type));
+    }
+
+    public function getSubjectFullNameAttribute(): string
+    {
+        return trim(implode(' ', array_filter([
+            $this->subject_first_name,
+            $this->subject_middle_name,
+            $this->subject_last_name,
+            $this->subject_name_ext,
+        ])));
+    }
+
+    public function getSubjectSummaryAttribute(): ?string
+    {
+        if (!$this->subject_full_name) {
+            return null;
+        }
+
+        return collect([
+            $this->subject_full_name,
+            $this->subject_client_relation ? 'Relation: ' . $this->subject_client_relation : null,
+            $this->subject_age !== null ? 'Age: ' . $this->subject_age : null,
+            $this->subject_gender ? 'Gender: ' . $this->subject_gender : null,
+            collect([$this->subject_barangay, $this->subject_municipality])->filter()->implode(', ') ?: null,
+        ])->filter()->implode(' | ');
     }
 
     /**

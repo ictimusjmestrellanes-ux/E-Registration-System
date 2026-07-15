@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Client;
+use App\Models\TransactionHistory;
 
 class ProfileController extends Controller
 {
@@ -20,6 +21,13 @@ class ProfileController extends Controller
     {
         $totalClients = Client::count();
 
-        return view('pages.dashboard', compact('totalClients'));
+        $categoryCounts = TransactionHistory::selectRaw('category, count(*) as total')
+            ->groupBy('category')
+            ->pluck('total', 'category')
+            ->toArray();
+
+        $categories = TransactionHistory::CATEGORIES;
+
+        return view('pages.dashboard', compact('totalClients', 'categoryCounts', 'categories'));
     }
 }

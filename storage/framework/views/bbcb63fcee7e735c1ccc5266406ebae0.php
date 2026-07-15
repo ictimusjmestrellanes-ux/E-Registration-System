@@ -1,8 +1,7 @@
-@extends('layouts.master')
-@section('title', 'Activity Logs')
+<?php $__env->startSection('title', 'Activity Logs'); ?>
 
-@section('content')
-    @php
+<?php $__env->startSection('content'); ?>
+    <?php
         $user = auth()->user();
         $profileAvatar = $user?->avatar_url;
         $profileCover = $user?->cover_url ?? asset('assets/images/profile-bg.jpg');
@@ -63,7 +62,7 @@
                 ';
             })->implode('');
         };
-    @endphp
+    ?>
 
     <style>
         .activity-hero {
@@ -87,7 +86,7 @@
             content: "";
             position: absolute;
             inset: 0;
-            background-image: url('{{ $profileCover }}');
+            background-image: url('<?php echo e($profileCover); ?>');
             background-size: cover;
             background-position: center;
             opacity: 0.28;
@@ -191,35 +190,35 @@
         <div class="activity-hero p-3 p-lg-4 mb-4">
             <div class="d-flex flex-column flex-lg-row justify-content-between gap-4">
                 <div class="d-flex align-items-center gap-3 gap-lg-4">
-                    <img src="{{ $profileAvatar }}" alt="User Avatar" class="rounded-circle activity-avatar">
+                    <img src="<?php echo e($profileAvatar); ?>" alt="User Avatar" class="rounded-circle activity-avatar">
                     <div>
-                        <h2 class="text-white mb-1 fw-bold text-uppercase">{{ $user?->name ?? 'User' }}</h2>
+                        <h2 class="text-white mb-1 fw-bold text-uppercase"><?php echo e($user?->name ?? 'User'); ?></h2>
                         <p class="text-white-50 mb-0">Track every meaningful action recorded in the system.</p>
                     </div>
                 </div>
                 <div class="d-flex align-items-start align-items-lg-center gap-2">
-                    <a href="{{ route('dashboard') }}" class="btn btn-success">Back to Dashboard</a>
+                    <a href="<?php echo e(route('dashboard')); ?>" class="btn btn-success">Back to Dashboard</a>
                 </div>
             </div>
 
             <div class="d-flex flex-column flex-md-row align-items-md-end justify-content-between gap-3 mt-4">
                 <ul class="nav nav-pills activity-hero-tabs gap-2" role="tablist">
                     <li class="nav-item">
-                        <a class="nav-link {{ !request()->hasAny(['period', 'action', 'search']) ? 'active' : '' }}" data-bs-toggle="tab" href="#overview-tab" role="tab">Overview</a>
+                        <a class="nav-link <?php echo e(!request()->hasAny(['period', 'action', 'search']) ? 'active' : ''); ?>" data-bs-toggle="tab" href="#overview-tab" role="tab">Overview</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {{ request()->hasAny(['period', 'action', 'search']) ? 'active' : '' }}" data-bs-toggle="tab" href="#activities-tab" role="tab">Activities</a>
+                        <a class="nav-link <?php echo e(request()->hasAny(['period', 'action', 'search']) ? 'active' : ''); ?>" data-bs-toggle="tab" href="#activities-tab" role="tab">Activities</a>
                     </li>
                 </ul>
                 <div class="d-flex flex-wrap gap-2">
-                    <div class="badge rounded-pill bg-light text-primary px-3 py-2">{{ $totalLogs }} total logs</div>
-                    <div class="badge rounded-pill bg-light text-primary px-3 py-2">{{ $todayCount }} today</div>
+                    <div class="badge rounded-pill bg-light text-primary px-3 py-2"><?php echo e($totalLogs); ?> total logs</div>
+                    <div class="badge rounded-pill bg-light text-primary px-3 py-2"><?php echo e($todayCount); ?> today</div>
                 </div>
             </div>
         </div>
 
         <div class="tab-content">
-            <div class="tab-pane fade {{ !request()->hasAny(['period', 'action', 'search']) ? 'show active' : '' }}" id="overview-tab" role="tabpanel">
+            <div class="tab-pane fade <?php echo e(!request()->hasAny(['period', 'action', 'search']) ? 'show active' : ''); ?>" id="overview-tab" role="tabpanel">
                 <div class="row g-4">
                     <div class="col-xxl-3">
                         <div class="card activity-summary-card shadow-sm h-100">
@@ -227,8 +226,8 @@
                                 <h5 class="card-title mb-3">Info</h5>
                                 <div class="activity-stat mb-3">
                                     <div class="text-muted small text-uppercase mb-1">Logged In User</div>
-                                    <div class="fw-semibold">{{ $user?->name ?? 'User' }}</div>
-                                    <div class="text-muted small">{{ $user?->email ?? 'No email set' }}</div>
+                                    <div class="fw-semibold"><?php echo e($user?->name ?? 'User'); ?></div>
+                                    <div class="text-muted small"><?php echo e($user?->email ?? 'No email set'); ?></div>
                                 </div>
 
                                 <div class="table-responsive">
@@ -236,23 +235,23 @@
                                         <tbody>
                                             <tr>
                                                 <th class="ps-0" scope="row">Total Logs :</th>
-                                                <td class="text-muted">{{ $totalLogs }}</td>
+                                                <td class="text-muted"><?php echo e($totalLogs); ?></td>
                                             </tr>
                                             <tr>
                                                 <th class="ps-0" scope="row">Today :</th>
-                                                <td class="text-muted">{{ $todayCount }}</td>
+                                                <td class="text-muted"><?php echo e($todayCount); ?></td>
                                             </tr>
                                             <tr>
                                                 <th class="ps-0" scope="row">Weekly :</th>
-                                                <td class="text-muted">{{ $weeklyCount }}</td>
+                                                <td class="text-muted"><?php echo e($weeklyCount); ?></td>
                                             </tr>
                                             <tr>
                                                 <th class="ps-0" scope="row">Monthly :</th>
-                                                <td class="text-muted">{{ $monthlyCount }}</td>
+                                                <td class="text-muted"><?php echo e($monthlyCount); ?></td>
                                             </tr>
                                             <tr>
                                                 <th class="ps-0" scope="row">Joining Date :</th>
-                                                <td class="text-muted">{{ $user?->created_at?->format('d M Y') ?? '-' }}</td>
+                                                <td class="text-muted"><?php echo e($user?->created_at?->format('d M Y') ?? '-'); ?></td>
                                             </tr>
                                         </tbody>
                                     </table>
@@ -282,13 +281,16 @@
                             <div class="card-body">
                                 <div class="tab-content text-muted">
                                     <div class="tab-pane fade show active" id="today-tab" role="tabpanel">
-                                        {!! $renderActivityList($todayActivities) !!}
+                                        <?php echo $renderActivityList($todayActivities); ?>
+
                                     </div>
                                     <div class="tab-pane fade" id="weekly-tab" role="tabpanel">
-                                        {!! $renderActivityList($weeklyActivities) !!}
+                                        <?php echo $renderActivityList($weeklyActivities); ?>
+
                                     </div>
                                     <div class="tab-pane fade" id="monthly-tab" role="tabpanel">
-                                        {!! $renderActivityList($monthlyActivities) !!}
+                                        <?php echo $renderActivityList($monthlyActivities); ?>
+
                                     </div>
                                 </div>
                             </div>
@@ -297,7 +299,7 @@
                 </div>
             </div>
 
-            <div class="tab-pane fade {{ request()->hasAny(['period', 'action', 'search']) ? 'show active' : '' }}" id="activities-tab" role="tabpanel">
+            <div class="tab-pane fade <?php echo e(request()->hasAny(['period', 'action', 'search']) ? 'show active' : ''); ?>" id="activities-tab" role="tabpanel">
                 <div class="card shadow-sm">
                     <div class="card-body">
                         <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
@@ -306,52 +308,54 @@
                                 <p class="text-muted mb-0">Filter and search through system actions.</p>
                             </div>
                             <div class="badge rounded-pill bg-primary-subtle text-primary px-3 py-2">
-                                Showing {{ $activities->firstItem() ?? 0 }} - {{ $activities->lastItem() ?? 0 }} of {{ $filteredTotal }}
+                                Showing <?php echo e($activities->firstItem() ?? 0); ?> - <?php echo e($activities->lastItem() ?? 0); ?> of <?php echo e($filteredTotal); ?>
+
                             </div>
                         </div>
 
-                        <form method="GET" action="{{ route('activity.logs') }}" id="activityFilterForm">
+                        <form method="GET" action="<?php echo e(route('activity.logs')); ?>" id="activityFilterForm">
                             <div class="row g-3 mb-4">
                                 <div class="col-md-4">
                                     <label class="form-label fw-semibold small text-muted">Search</label>
                                     <div class="input-group">
                                         <span class="input-group-text"><i class="ri-search-line"></i></span>
-                                        <input type="text" name="search" class="form-control" placeholder="Search description, action, IP..." value="{{ $search }}">
+                                        <input type="text" name="search" class="form-control" placeholder="Search description, action, IP..." value="<?php echo e($search); ?>">
                                     </div>
                                 </div>
                                 <div class="col-md-3">
                                     <label class="form-label fw-semibold small text-muted">Time Period</label>
                                     <select name="period" class="form-select">
-                                        <option value="all" {{ $period === 'all' ? 'selected' : '' }}>All Time</option>
-                                        <option value="today" {{ $period === 'today' ? 'selected' : '' }}>Today</option>
-                                        <option value="this_week" {{ $period === 'this_week' ? 'selected' : '' }}>This Week</option>
-                                        <option value="this_month" {{ $period === 'this_month' ? 'selected' : '' }}>This Month</option>
-                                        <option value="7days" {{ $period === '7days' ? 'selected' : '' }}>Past 7 Days</option>
-                                        <option value="14days" {{ $period === '14days' ? 'selected' : '' }}>Past 14 Days</option>
-                                        <option value="30days" {{ $period === '30days' ? 'selected' : '' }}>Past 30 Days</option>
-                                        <option value="3months" {{ $period === '3months' ? 'selected' : '' }}>Past 3 Months</option>
-                                        <option value="6months" {{ $period === '6months' ? 'selected' : '' }}>Past 6 Months</option>
-                                        <option value="1year" {{ $period === '1year' ? 'selected' : '' }}>Past 1 Year</option>
-                                        <option value="2years" {{ $period === '2years' ? 'selected' : '' }}>Past 2 Years</option>
-                                        <option value="3years" {{ $period === '3years' ? 'selected' : '' }}>Past 3 Years</option>
+                                        <option value="all" <?php echo e($period === 'all' ? 'selected' : ''); ?>>All Time</option>
+                                        <option value="today" <?php echo e($period === 'today' ? 'selected' : ''); ?>>Today</option>
+                                        <option value="this_week" <?php echo e($period === 'this_week' ? 'selected' : ''); ?>>This Week</option>
+                                        <option value="this_month" <?php echo e($period === 'this_month' ? 'selected' : ''); ?>>This Month</option>
+                                        <option value="7days" <?php echo e($period === '7days' ? 'selected' : ''); ?>>Past 7 Days</option>
+                                        <option value="14days" <?php echo e($period === '14days' ? 'selected' : ''); ?>>Past 14 Days</option>
+                                        <option value="30days" <?php echo e($period === '30days' ? 'selected' : ''); ?>>Past 30 Days</option>
+                                        <option value="3months" <?php echo e($period === '3months' ? 'selected' : ''); ?>>Past 3 Months</option>
+                                        <option value="6months" <?php echo e($period === '6months' ? 'selected' : ''); ?>>Past 6 Months</option>
+                                        <option value="1year" <?php echo e($period === '1year' ? 'selected' : ''); ?>>Past 1 Year</option>
+                                        <option value="2years" <?php echo e($period === '2years' ? 'selected' : ''); ?>>Past 2 Years</option>
+                                        <option value="3years" <?php echo e($period === '3years' ? 'selected' : ''); ?>>Past 3 Years</option>
                                     </select>
                                 </div>
                                 <div class="col-md-3">
                                     <label class="form-label fw-semibold small text-muted">Action Type</label>
                                     <select name="action" class="form-select">
                                         <option value="">All Actions</option>
-                                        @foreach ($uniqueActions as $act)
-                                            <option value="{{ $act }}" {{ $actionFilter === $act ? 'selected' : '' }}>
-                                                {{ ucfirst(str_replace('_', ' ', $act)) }}
+                                        <?php $__currentLoopData = $uniqueActions; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $act): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                            <option value="<?php echo e($act); ?>" <?php echo e($actionFilter === $act ? 'selected' : ''); ?>>
+                                                <?php echo e(ucfirst(str_replace('_', ' ', $act))); ?>
+
                                             </option>
-                                        @endforeach
+                                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                     </select>
                                 </div>
                                 <div class="col-md-2 d-flex align-items-end gap-2">
                                     <button type="submit" class="btn btn-primary flex-grow-1">
                                         <i class="ri-filter-3-line me-1"></i>Filter
                                     </button>
-                                    <a href="{{ route('activity.logs') }}" class="btn btn-outline-secondary" title="Reset">
+                                    <a href="<?php echo e(route('activity.logs')); ?>" class="btn btn-outline-secondary" title="Reset">
                                         <i class="ri-refresh-line"></i>
                                     </a>
                                 </div>
@@ -371,50 +375,53 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    @forelse ($activities as $activity)
-                                        @php
+                                    <?php $__empty_1 = true; $__currentLoopData = $activities; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $activity): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
+                                        <?php
                                             [$label, $badgeClass] = $actionMeta($activity->action);
                                             $subjectLabel = $activity->subject_type
                                                 ? class_basename($activity->subject_type) . ($activity->subject_id ? ' #' . $activity->subject_id : '')
                                                 : '-';
-                                        @endphp
+                                        ?>
                                         <tr>
                                             <td>
-                                                <div class="fw-semibold">{{ $activity->created_at?->format('M d, Y') }}</div>
-                                                <div class="text-muted small">{{ $activity->created_at?->format('h:i A') }}</div>
+                                                <div class="fw-semibold"><?php echo e($activity->created_at?->format('M d, Y')); ?></div>
+                                                <div class="text-muted small"><?php echo e($activity->created_at?->format('h:i A')); ?></div>
                                             </td>
                                             <td>
-                                                <div class="fw-semibold">{{ $activity->user?->name ?? 'System' }}</div>
-                                                <div class="text-muted small">{{ $activity->user?->email ?? 'No linked user' }}</div>
+                                                <div class="fw-semibold"><?php echo e($activity->user?->name ?? 'System'); ?></div>
+                                                <div class="text-muted small"><?php echo e($activity->user?->email ?? 'No linked user'); ?></div>
                                             </td>
                                             <td>
-                                                <span class="badge rounded-pill {{ $badgeClass }} px-3 py-2">{{ $label }}</span>
+                                                <span class="badge rounded-pill <?php echo e($badgeClass); ?> px-3 py-2"><?php echo e($label); ?></span>
                                             </td>
-                                            <td>{{ $activity->description }}</td>
-                                            <td>{{ $subjectLabel }}</td>
-                                            <td>{{ $activity->ip_address ?? '-' }}</td>
+                                            <td><?php echo e($activity->description); ?></td>
+                                            <td><?php echo e($subjectLabel); ?></td>
+                                            <td><?php echo e($activity->ip_address ?? '-'); ?></td>
                                         </tr>
-                                    @empty
+                                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                                         <tr>
                                             <td colspan="6" class="text-center text-muted py-5">
-                                                @if ($search || $period !== 'all' || $actionFilter)
-                                                    No activity logs match your filters. <a href="{{ route('activity.logs') }}">Clear filters</a>
-                                                @else
+                                                <?php if($search || $period !== 'all' || $actionFilter): ?>
+                                                    No activity logs match your filters. <a href="<?php echo e(route('activity.logs')); ?>">Clear filters</a>
+                                                <?php else: ?>
                                                     No activity logs found yet.
-                                                @endif
+                                                <?php endif; ?>
                                             </td>
                                         </tr>
-                                    @endforelse
+                                    <?php endif; ?>
                                 </tbody>
                             </table>
                         </div>
 
                         <div class="d-flex justify-content-end mt-3">
-                            {{ $activities->links('pagination::bootstrap-5') }}
+                            <?php echo e($activities->links('pagination::bootstrap-5')); ?>
+
                         </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-@endsection
+<?php $__env->stopSection(); ?>
+
+<?php echo $__env->make('layouts.master', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH C:\xampp\htdocs\E-Reg-System\resources\views/pages/activity_logs/activityLogs.blade.php ENDPATH**/ ?>
