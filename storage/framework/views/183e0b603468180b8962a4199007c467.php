@@ -102,6 +102,13 @@
                         </div>
                     </li>
 
+                    <li class="nav-item">
+                        <a class="nav-link menu-link <?php echo e(set_active(['transaction-events.*'])); ?>"
+                            href="<?php echo e(route('transaction-events.index')); ?>">
+                            <i class="ri-calendar-event-line"></i> <span>Transaction Events</span>
+                        </a>
+                    </li>
+
                     <li class="menu-title"><i class="ri-more-fill"></i> <span data-key="t-pages">Pages</span></li>
                     <?php if(auth()->user()?->role_name !== 'DSWD' && auth()->user()?->role_name !== 'Cong Staff'): ?>
                     <li class="nav-item">

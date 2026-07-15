@@ -15,6 +15,7 @@ use App\Http\Controllers\FingerprintController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\TransactionController;
+use App\Http\Controllers\TransactionEventsController;
 use App\Http\Controllers\TransactionRequirementController;
 use App\Http\Controllers\UsersController;
 use Illuminate\Support\Facades\Route;
@@ -120,6 +121,11 @@ Route::group(['namespace' => 'App\Http\Controllers'], function () {
         Route::get('transaction-requirements/{transactionId}', [TransactionRequirementController::class, 'show'])->name('transaction-requirements.show');
         Route::delete('transaction-requirements/{requirementId}', [TransactionRequirementController::class, 'destroy'])->name('transaction-requirements.destroy');
         Route::get('transaction-requirements/{requirementId}/download', [TransactionRequirementController::class, 'download'])->name('transaction-requirements.download');
+
+        // --------------------- Transaction Events ------------------//
+        Route::get('transaction-events', [TransactionEventsController::class, 'index'])->name('transaction-events.index');
+        Route::post('transaction-events/import', [TransactionEventsController::class, 'import'])->name('transaction-events.import');
+        Route::delete('transaction-events/{transactionEvent}', [TransactionEventsController::class, 'destroy'])->name('transaction-events.destroy');
     
     });
 });

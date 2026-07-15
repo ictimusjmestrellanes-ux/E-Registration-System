@@ -25,7 +25,7 @@ class ClientListController extends Controller
                 'education', 'course', 'sector', 'position_organization',
                 'photo_path', 'created_at',
             ])
-            ->latest()
+            ->orderBy('client_id', 'desc')
             ->when($matchedClientId, function ($query, $matchedClientId) {
                 $query->where('id', $matchedClientId);
             })
