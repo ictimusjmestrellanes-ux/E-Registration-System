@@ -148,65 +148,6 @@
             color: #7686a8;
         }
 
-        .login-form {
-            text-align: left;
-            margin-top: 40px;
-        }
-
-        .login-form .form-label {
-            color: #44516f;
-            font-weight: 700;
-            margin-bottom: 8px;
-        }
-
-        .login-form .form-control {
-            min-height: 52px;
-            border-radius: 12px;
-            border-color: #d7dfec;
-            box-shadow: none;
-            padding-left: 16px;
-            padding-right: 16px;
-        }
-
-        .login-form .form-control:focus {
-            border-color: #1784ec;
-            box-shadow: 0 0 0 0.18rem rgba(23, 132, 236, 0.12);
-        }
-
-        .login-form .form-check-label,
-        .login-form .forgot-link {
-            color: #6f7f9f;
-            font-size: 0.95rem;
-        }
-
-        .login-form .forgot-link {
-            text-decoration: none;
-        }
-
-        .login-form .forgot-link:hover {
-            color: #1269d9;
-            text-decoration: underline;
-        }
-
-        .login-submit {
-            margin-top: 28px;
-            width: 100%;
-            border: 0;
-            border-radius: 14px;
-            padding: 15px 24px;
-            background: linear-gradient(180deg, #1784ec 0%, #0f75d9 100%);
-            color: #ffffff;
-            font-size: 1.02rem;
-            font-weight: 700;
-            box-shadow: 0 16px 28px rgba(22, 120, 219, 0.22);
-        }
-
-        .login-submit:hover,
-        .login-submit:focus {
-            color: #ffffff;
-            filter: brightness(1.02);
-        }
-
         .oauth-buttons {
             margin: 56px auto 42px;
             width: 100%;
@@ -282,26 +223,6 @@
         .microsoft-logo .c2 { background: #7fba00; }
         .microsoft-logo .c3 { background: #00a4ef; }
         .microsoft-logo .c4 { background: #ffb900; }
-
-        .divider {
-            display: flex;
-            align-items: center;
-            gap: 16px;
-            margin: 0 0 42px;
-            color: #c3cad8;
-            font-size: 0.72rem;
-            font-weight: 800;
-            letter-spacing: 0.18em;
-            text-transform: uppercase;
-        }
-
-        .divider::before,
-        .divider::after {
-            content: "";
-            flex: 1;
-            height: 1px;
-            background: #d9e1ef;
-        }
 
         .support-copy {
             color: #7e8eae;
@@ -395,63 +316,6 @@
                         Sign in with Google
                     </a>
                 </div>
-
-                <div class="divider">Local access</div>
-
-                <form class="login-form" action="<?php echo e(route('login')); ?>" method="POST">
-                    <?php echo csrf_field(); ?>
-                    <div class="mb-3">
-                        <label for="email" class="form-label">Username</label>
-                        <input
-                            type="text"
-                            class="form-control <?php $__errorArgs = ['email'];
-$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
-if ($__bag->has($__errorArgs[0])) :
-if (isset($message)) { $__messageOriginal = $message; }
-$message = $__bag->first($__errorArgs[0]); ?> is-invalid <?php unset($message);
-if (isset($__messageOriginal)) { $message = $__messageOriginal; }
-endif;
-unset($__errorArgs, $__bag); ?>"
-                            id="email"
-                            name="email"
-                            placeholder="Enter username"
-                            value="<?php echo e(old('email')); ?>"
-                        >
-                    </div>
-
-                    <div class="mb-2">
-                        <div class="d-flex justify-content-between align-items-center gap-3">
-                            <label class="form-label mb-0" for="password-input">Password</label>
-                            <a href="<?php echo e(route('forget-password')); ?>" class="forgot-link">Forgot password?</a>
-                        </div>
-                        <div class="position-relative mt-2">
-                            <input
-                                type="password"
-                                class="form-control pe-5 password-input <?php $__errorArgs = ['password'];
-$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
-if ($__bag->has($__errorArgs[0])) :
-if (isset($message)) { $__messageOriginal = $message; }
-$message = $__bag->first($__errorArgs[0]); ?> is-invalid <?php unset($message);
-if (isset($__messageOriginal)) { $message = $__messageOriginal; }
-endif;
-unset($__errorArgs, $__bag); ?>"
-                                id="password-input"
-                                name="password"
-                                placeholder="Enter password"
-                            >
-                            <button class="btn btn-link position-absolute end-0 top-0 text-decoration-none text-muted password-addon material-shadow-none" type="button" id="password-addon" aria-label="Toggle password visibility">
-                                <i class="ri-eye-fill align-middle"></i>
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="form-check mt-3">
-                        <input class="form-check-input" type="checkbox" value="1" id="auth-remember-check" name="remember">
-                        <label class="form-check-label" for="auth-remember-check">Remember me</label>
-                    </div>
-
-                    <button type="submit" class="login-submit">Sign In</button>
-                </form>
 
                 <p class="support-copy mt-4">
                     Need assistance? Contact the <strong>IT Support Team</strong> for help accessing your account.

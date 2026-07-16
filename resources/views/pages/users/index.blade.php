@@ -12,9 +12,6 @@
                                 <h4 class="mb-1">Users</h4>
                                 <p class="text-muted mb-0">Manage system accounts and roles.</p>
                             </div>
-                            <a href="{{ route('register') }}" class="btn btn-primary">
-                                <i class="ri-user-add-line align-bottom me-1"></i> Add User
-                            </a>
                         </div>
                     </div>
                 </div>
