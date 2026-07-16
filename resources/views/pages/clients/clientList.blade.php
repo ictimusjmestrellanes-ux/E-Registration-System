@@ -18,16 +18,6 @@
             color: #64748b;
         }
 
-        html[data-bs-theme="dark"] .client-details-panel {
-            background: #1f2329;
-            border-color: #2f353d;
-            color: #f8fafc;
-        }
-
-        html[data-bs-theme="dark"] .client-details-panel .client-details-muted {
-            color: #a7b0bf;
-        }
-
         #editClientModal .form-control,
         #editClientModal .form-select {
             text-transform: uppercase;
@@ -120,68 +110,6 @@
             border-color: transparent;
         }
 
-        html[data-bs-theme="dark"] #clientFiltersCard {
-            background: #1f2329;
-            border-color: #2f353d;
-            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.24);
-        }
-
-        html[data-bs-theme="dark"] #clientFiltersCard .form-label,
-        html[data-bs-theme="dark"] #clientFiltersCard .small,
-        html[data-bs-theme="dark"] #clientFiltersCard .fw-bold,
-        html[data-bs-theme="dark"] #clientFiltersCard .fw-semibold {
-            color: #d7dbe3 !important;
-        }
-
-        html[data-bs-theme="dark"] #clientFiltersCard .input-group-text,
-        html[data-bs-theme="dark"] #clientFiltersCard .form-control,
-        html[data-bs-theme="dark"] #clientFiltersCard .form-select {
-            background-color: #2a2f36;
-            color: #f8fafc;
-            border-color: #3a4049;
-        }
-
-        html[data-bs-theme="dark"] #clientFiltersCard .input-group-text {
-            color: #c9ced8;
-        }
-
-        html[data-bs-theme="dark"] #clientFiltersCard .form-control::placeholder {
-            color: #95a0b2;
-        }
-
-        html[data-bs-theme="dark"] #clientFiltersCard .btn-outline-primary {
-            color: #b9c7ff;
-            border-color: #5a68d6;
-        }
-
-        html[data-bs-theme="dark"] #clientFiltersCard .client-filters-toggle-btn:hover,
-        html[data-bs-theme="dark"] #clientFiltersCard .client-filters-toggle-btn:focus,
-        html[data-bs-theme="dark"] #clientFiltersCard .client-filters-toggle-btn:active {
-            background: rgba(77, 99, 214, 0.18);
-            color: #d9e1ff;
-            border-color: #7f90ef;
-            box-shadow: 0 0 0 0.2rem rgba(77, 99, 214, 0.18);
-        }
-
-        html[data-bs-theme="dark"] #clientFiltersCard .btn-soft-secondary {
-            background: rgba(255, 255, 255, 0.08);
-            color: #edf1ff;
-            border-color: rgba(255, 255, 255, 0.08);
-        }
-
-        html[data-bs-theme="dark"] #clientFiltersCard .badge {
-            background: rgba(255, 255, 255, 0.08) !important;
-            color: #e8ecf5 !important;
-        }
-
-        html[data-bs-theme="dark"] #clientFiltersCard .text-primary {
-            color: #8aa0ff !important;
-        }
-
-        html[data-bs-theme="dark"] #clientFiltersCard .bg-primary-subtle {
-            background: rgba(77, 99, 214, 0.16) !important;
-        }
-
         #clientListTable tbody tr[data-show-url] {
             cursor: pointer;
             transition: background-color 0.18s ease, box-shadow 0.18s ease;
@@ -199,15 +127,6 @@
         #clientListTable .client-name-link:focus {
             color: #3551d5;
             text-decoration: underline;
-        }
-
-        html[data-bs-theme="dark"] #clientListTable tbody tr[data-show-url]:hover {
-            background-color: rgba(255, 255, 255, 0.04);
-        }
-
-        html[data-bs-theme="dark"] #clientListTable .client-name-link:hover, 
-        html[data-bs-theme="dark"] #clientListTable .client-name-link:focus {
-            color: #b9c7ff; 
         }
     </style>
     @php
