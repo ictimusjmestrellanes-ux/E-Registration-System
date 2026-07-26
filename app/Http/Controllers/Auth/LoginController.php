@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Services\ActivityLogger;
 use App\Services\OAuthUserService;
 use Carbon\Carbon;
+use GuzzleHttp\Client as GuzzleClient;
 use Illuminate\Foundation\Auth\AuthenticatesUsers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -78,7 +79,7 @@ class LoginController extends Controller
             return redirect('login')->with('error', ucfirst($provider) . ' login is not configured yet.');
         }
 
-        $driver = Socialite::driver($provider);
+        $driver = $this->socialiteDriver($provider);
 
         if ($provider === 'google') {
             $driver->scopes(['openid', 'profile', 'email']);
@@ -98,7 +99,7 @@ class LoginController extends Controller
         }
 
         try {
-            $socialiteUser = Socialite::driver($provider)->user();
+            $socialiteUser = $this->socialiteDriver($provider)->user();
             $user = $users->findOrCreateUser($provider, $socialiteUser);
 
             Auth::login($user);
@@ -134,6 +135,20 @@ class LoginController extends Controller
         return filled($config['client_id'] ?? null)
             && filled($config['client_secret'] ?? null)
             && filled($config['redirect'] ?? null);
+    }
+
+    private function socialiteDriver(string $provider)
+    {
+        $driver = Socialite::driver($provider);
+
+        if (method_exists($driver, 'setHttpClient')) {
+            $driver->setHttpClient(new GuzzleClient([
+                'timeout' => (float) config('authentication.oauth_timeout', 15),
+                'connect_timeout' => (float) config('authentication.oauth_connect_timeout', 5),
+            ]));
+        }
+
+        return $driver;
     }
 
     private function getUserSessionData($user): array

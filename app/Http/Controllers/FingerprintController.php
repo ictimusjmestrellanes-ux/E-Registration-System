@@ -68,11 +68,22 @@ class FingerprintController extends Controller
             ]);
         }
 
-        $response = Http::timeout(60)->post($this->fingerprintBridgeUrl('api/match'), [
-            'fingerprintTemplateXml' => $validated['fingerprint_template'] ?? '',
-            'fingerprintImageDataUrl' => $validated['fingerprint_data'] ?? '',
-            'clients' => $clients,
-        ]);
+        try {
+            $response = Http::connectTimeout((float) config('fingerprint.connect_timeout', 5))
+                ->timeout((float) config('fingerprint.match_timeout', 45))
+                ->post($this->fingerprintBridgeUrl('api/match'), [
+                    'fingerprintTemplateXml' => $validated['fingerprint_template'] ?? '',
+                    'fingerprintImageDataUrl' => $validated['fingerprint_data'] ?? '',
+                    'clients' => $clients,
+                ]);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Fingerprint search timed out. Please check the fingerprint bridge and try again.',
+            ], 503);
+        }
 
         if (!$response->successful()) {
             return response()->json([
@@ -160,7 +171,9 @@ class FingerprintController extends Controller
     public function health()
     {
         try {
-            $response = Http::timeout(5)->get($this->fingerprintBridgeUrl('api/health'));
+            $response = Http::connectTimeout((float) config('fingerprint.connect_timeout', 5))
+                ->timeout(5)
+                ->get($this->fingerprintBridgeUrl('api/health'));
 
             return response()->json($response->json());
         } catch (\Exception $e) {
@@ -174,9 +187,11 @@ class FingerprintController extends Controller
     public function capture(Request $request)
     {
         try {
-            $response = Http::timeout(45)->post($this->fingerprintBridgeUrl('api/capture'), [
-                'source' => 'laravel',
-            ]);
+            $response = Http::connectTimeout((float) config('fingerprint.connect_timeout', 5))
+                ->timeout(45)
+                ->post($this->fingerprintBridgeUrl('api/capture'), [
+                    'source' => 'laravel',
+                ]);
 
             if (!$response->successful()) {
                 return response()->json([

@@ -77,7 +77,7 @@
             }
         }
     </style>
-    
+    <?php echo app('Illuminate\Foundation\Vite')(['resources/js/app.js']); ?>
 </head>
 
 <body>
@@ -354,7 +354,6 @@
             });
         });
     </script>
-
     <?php echo $__env->yieldPushContent('scripts'); ?>
     <?php echo $__env->yieldContent('script'); ?>
 </body>

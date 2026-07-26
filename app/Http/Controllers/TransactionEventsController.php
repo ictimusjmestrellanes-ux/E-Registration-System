@@ -41,7 +41,24 @@ class TransactionEventsController extends Controller
             $query->whereDate('created_at', '<=', $dateTo);
         }
 
-        $events = $query->orderBy('id', 'desc')->paginate(15)->withQueryString();
+        if ($request->boolean('duplicate_names')) {
+            $duplicateNames = TransactionEvent::query()
+                ->select('full_name')
+                ->whereNotNull('full_name')
+                ->where('full_name', '<>', '')
+                ->groupBy('full_name')
+                ->havingRaw('COUNT(*) > 1');
+
+            $query->whereIn('full_name', $duplicateNames);
+        }
+
+        if ($request->boolean('duplicate_names')) {
+            $query->orderBy('full_name')->orderBy('id', 'desc');
+        } else {
+            $query->orderBy('id', 'desc');
+        }
+
+        $events = $query->paginate(15)->withQueryString();
 
         return view('pages.transaction_events.transactionEvents', compact('events'));
     }
@@ -91,12 +108,18 @@ class TransactionEventsController extends Controller
 
         while (($row = fgetcsv($handle)) !== false) {
             $row = array_map('trim', $row);
-            $row = array_values(array_filter($row));
+            $row = array_slice(array_pad($row, count($header), ''), 0, count($header));
 
-            $data = array_combine($header, array_pad($row, count($header), ''));
+            $data = array_combine($header, $row);
             $fullName = $data['full_name'] ?? '';
 
             if (empty($fullName)) {
+                $skipped++;
+                continue;
+            }
+
+            $age = $this->parseImportedAge($data['age'] ?? null);
+            if (($data['age'] ?? '') !== '' && $age === null) {
                 $skipped++;
                 continue;
             }
@@ -105,7 +128,7 @@ class TransactionEventsController extends Controller
                 'full_name'  => $fullName,
                 'contact_no' => $data['contact_no'] ?? '',
                 'address'    => $data['address'] ?? '',
-                'age'        => !empty($data['age']) ? (int) $data['age'] : null,
+                'age'        => $age,
                 'created_at' => now(),
                 'updated_at' => now(),
             ];
@@ -153,6 +176,22 @@ class TransactionEventsController extends Controller
         }
     }
 
+    private function parseImportedAge(?string $age): ?int
+    {
+        if ($age === null || $age === '') {
+            return null;
+        }
+
+        $age = filter_var($age, FILTER_VALIDATE_INT, [
+            'options' => [
+                'min_range' => 0,
+                'max_range' => 120,
+            ],
+        ]);
+
+        return $age === false ? null : $age;
+    }
+
     private function splitFullName(string $fullName): array
     {
         $suffixes = ['jr', 'sr', 'ii', 'iii', 'iv', 'v'];
@@ -190,11 +229,4 @@ class TransactionEventsController extends Controller
         ];
     }
 
-    public function destroy(TransactionEvent $transactionEvent)
-    {
-        $transactionEvent->delete();
-
-        return redirect()->route('transaction-events.index')
-            ->with('success', 'Transaction event deleted successfully.');
-    }
 }

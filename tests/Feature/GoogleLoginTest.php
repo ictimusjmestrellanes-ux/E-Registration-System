@@ -35,7 +35,7 @@ class GoogleLoginTest extends TestCase
             'email' => 'new.user@example.com',
             'google_id' => 'google-123',
             'status' => 'Active',
-            'role_name' => 'User',
+            'role_name' => User::ROLE_DSWD,
         ]);
     }
 

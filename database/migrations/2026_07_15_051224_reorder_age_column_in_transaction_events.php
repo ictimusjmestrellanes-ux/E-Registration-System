@@ -11,11 +11,19 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (Schema::getConnection()->getDriverName() !== 'mysql' || !Schema::hasColumn('transaction_events', 'age')) {
+            return;
+        }
+
         DB::statement('ALTER TABLE transaction_events MODIFY COLUMN age INT UNSIGNED NULL AFTER full_name');
     }
 
     public function down(): void
     {
+        if (Schema::getConnection()->getDriverName() !== 'mysql' || !Schema::hasColumn('transaction_events', 'age')) {
+            return;
+        }
+
         DB::statement('ALTER TABLE transaction_events MODIFY COLUMN age INT UNSIGNED NULL AFTER address');
     }
 };

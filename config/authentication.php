@@ -5,6 +5,9 @@ return [
 
     'azure_allowed_domain' => strtolower((string) env('AZURE_ALLOWED_DOMAIN', 'cityofimus.gov.ph')),
 
+    'oauth_timeout' => (float) env('OAUTH_HTTP_TIMEOUT', 15),
+    'oauth_connect_timeout' => (float) env('OAUTH_HTTP_CONNECT_TIMEOUT', 5),
+
     'oauth_providers' => [
         'google' => [
             'label' => 'Google',

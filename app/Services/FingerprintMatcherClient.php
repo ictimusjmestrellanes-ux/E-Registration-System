@@ -24,7 +24,8 @@ class FingerprintMatcherClient
         }
 
         $response = $this->http()
-            ->timeout(60)
+            ->connectTimeout((float) config('fingerprint.connect_timeout', 5))
+            ->timeout((float) config('fingerprint.match_timeout', 45))
             ->post($this->url((string) config('fingerprint.matcher_match_path', '/api/match')), [
                 'fingerprintTemplateXml' => $templateXml ?? '',
                 'fingerprintImageDataUrl' => $imageDataUrl ?? '',
@@ -41,6 +42,7 @@ class FingerprintMatcherClient
     public function health(): array
     {
         $response = $this->http()
+            ->connectTimeout((float) config('fingerprint.connect_timeout', 5))
             ->timeout(5)
             ->get($this->url((string) config('fingerprint.matcher_health_path', '/api/health')));
 

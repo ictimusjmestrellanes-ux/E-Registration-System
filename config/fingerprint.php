@@ -7,6 +7,8 @@ return [
     'matcher_match_path' => env('FINGERPRINT_MATCHER_MATCH_PATH', '/api/match'),
     'matcher_health_path' => env('FINGERPRINT_MATCHER_HEALTH_PATH', '/api/health'),
     'matcher_token' => env('FINGERPRINT_MATCHER_TOKEN'),
+    'match_timeout' => (float) env('FINGERPRINT_MATCH_TIMEOUT', 45),
+    'connect_timeout' => (float) env('FINGERPRINT_CONNECT_TIMEOUT', 5),
     'bridge_allowed_origins' => array_values(array_filter(array_map(
         'trim',
         explode(',', (string) env('FINGERPRINT_BRIDGE_ALLOWED_ORIGINS', 'http://localhost,http://127.0.0.1'))

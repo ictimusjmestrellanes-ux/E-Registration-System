@@ -37,7 +37,7 @@ trait HandlesClientStorage
             'province' => ['nullable', 'string', 'max:255'],
             'city' => ['nullable', 'string', 'max:255'],
             'barangay' => ['nullable', 'string', 'max:255'],
-            'photo_data' => $client ? ['nullable', 'string'] : ['required', 'string'],
+            'photo_data' => ['nullable', 'string'],
             'fingerprint_data' => ['nullable', 'string'],
             'fingerprint_template' => ['nullable', 'string'],
             'skip_fingerprint' => ['sometimes', 'boolean'],
@@ -45,11 +45,21 @@ trait HandlesClientStorage
 
         $skipFingerprint = filter_var($validated['skip_fingerprint'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
-        if (!$client && !$skipFingerprint && !filled($validated['fingerprint_data'] ?? null)) {
-            throw ValidationException::withMessages([
-                'fingerprint_data' => 'Client fingerprint is required before saving.',
-                'fingerprint_template' => 'Client fingerprint is required before saving.',
-            ]);
+        if (!$client) {
+            $errors = [];
+
+            if (!filled($validated['photo_data'] ?? null)) {
+                $errors['photo_data'] = 'Client photo is required before saving.';
+            }
+
+            if (!$skipFingerprint && !filled($validated['fingerprint_data'] ?? null)) {
+                $errors['fingerprint_data'] = 'Client fingerprint is required before saving.';
+                $errors['fingerprint_template'] = 'Client fingerprint is required before saving.';
+            }
+
+            if (!empty($errors)) {
+                throw ValidationException::withMessages($errors);
+            }
         }
 
         if (!$client) {

@@ -77,7 +77,7 @@
             }
         }
     </style>
-    
+    @vite(['resources/js/app.js'])
 </head>
 
 <body>
@@ -354,7 +354,6 @@
             });
         });
     </script>
-
     @stack('scripts')
     @yield('script')
 </body>
