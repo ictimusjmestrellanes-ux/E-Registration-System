@@ -29,8 +29,12 @@ class ClientListController extends Controller
             ->when($matchedClientId, function ($query, $matchedClientId) {
                 $query->where('id', $matchedClientId);
             })
-            ->get();
+            ->paginate(25);
 
-        return view('pages.clients.clientList', compact('clients', 'matchedClientId'));
+        $clientCities = Client::whereNotNull('city')->distinct()->orderBy('city')->pluck('city');
+        $clientBarangays = Client::whereNotNull('barangay')->distinct()->orderBy('barangay')->pluck('barangay');
+        $clientCivilStatuses = Client::whereNotNull('civil_status')->distinct()->orderBy('civil_status')->pluck('civil_status');
+
+        return view('pages.clients.clientList', compact('clients', 'matchedClientId', 'clientCities', 'clientBarangays', 'clientCivilStatuses'));
     }
 }

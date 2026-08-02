@@ -75,7 +75,7 @@
                                     <option value="">SELECT ADDRESSED TO</option>
                                     <option value="mayor">MAYOR ALEX L. ADVINCULA</option>
                                     <option value="cong">CONG. ADRIAN JAY C. ADVINCULA</option>
-                                    <option value="vice_mayor">VICE MAYOR HOMER T. SAQUILAYAN</option>
+                                    <option value="vice_mayor">Others</option>
                                 </select>
                             </div>
                         </div>

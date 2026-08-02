@@ -105,12 +105,15 @@ class ClientsController extends Controller
     public function show(Client $client)
     {
         try {
-            $transactions = \App\Models\TransactionHistory::where('transaction_id', 'LIKE', $client->client_id . '-%')
+            $transactions = \App\Models\TransactionHistory::where(function ($query) use ($client) {
+                    $query->where('client_id', $client->client_id)
+                        ->orWhere('transaction_id', 'LIKE', $client->client_id . '-%');
+                })
                 ->latest()
-                ->get();
+                ->paginate(25);
         } catch (\Exception $e) {
             report($e);
-            $transactions = collect();
+            $transactions = new \Illuminate\Pagination\LengthAwarePaginator([], 0, 25);
         }
 
         $transaction = null;

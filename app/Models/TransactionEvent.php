@@ -16,5 +16,16 @@ class TransactionEvent extends Model
         'contact_no',
         'address',
         'age',
+        'birth_date',
+        'client_category',
+        'transaction_category',
+        'transaction_type',
+        'transferred_at',
+    ];
+
+    protected $casts = [
+        'birth_date' => 'date',
+        'transferred_at' => 'datetime',
+        'age' => 'integer',
     ];
 }

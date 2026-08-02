@@ -17,7 +17,7 @@ class ArchiveController extends Controller
 
     public function index()
     {
-        $archivedClients = ArchivedClient::latest('archived_at')->get();
+        $archivedClients = ArchivedClient::latest('archived_at')->paginate(25);
 
         return view('pages.archive.archive', compact('archivedClients'));
     }

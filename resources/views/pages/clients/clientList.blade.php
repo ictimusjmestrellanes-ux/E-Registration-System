@@ -169,17 +169,6 @@
                             </div>
                         @endif
 
-                        @php
-                            $clientCities = $clients->pluck('city')->filter()->unique()->sort()->values();
-                            $clientBarangays = $clients->pluck('barangay')->filter()->unique()->sort()->values();
-                            $clientCivilStatuses = $clients
-                                ->pluck('civil_status')
-                                ->filter()
-                                ->unique()
-                                ->sort()
-                                ->values();
-                        @endphp
-
                         <div class="border rounded-4 p-3 mb-3" id="clientFiltersCard">
                             <div class="d-flex flex-wrap gap-3 align-items-start justify-content-between mb-3">
                                 <div>
@@ -402,6 +391,9 @@
                                     @endif
                                 </tbody>
                             </table>
+                        </div>
+                        <div class="d-flex justify-content-end mt-3">
+                            {{ $clients->links('pagination::bootstrap-5') }}
                         </div>
                     </div>
                 </div>

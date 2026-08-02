@@ -12,6 +12,8 @@ class TransactionHistory extends Model
     protected $table = 'transaction_history';
 
     protected $fillable = [
+        'client_id',
+        'client_category',
         'transaction_id',
         'transaction_date',
         'category',

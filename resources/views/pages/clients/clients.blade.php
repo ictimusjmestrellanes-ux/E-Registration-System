@@ -437,7 +437,8 @@
                                                 @endphp
                                                 <div>
                                                     <label for="sectorSelect" class="visually-hidden">Sector</label>
-                                                    <select id="sectorSelect" name="sectors[]" class="form-select" multiple>
+                                                    <select id="sectorSelect" name="sectors[]" class="form-select"
+                                                        multiple>
                                                         @foreach ($sectorOptions as $sectorOption)
                                                             <option value="{{ $sectorOption }}"
                                                                 {{ in_array($sectorOption, $selectedSectorsArr) ? 'selected' : '' }}>
@@ -446,7 +447,7 @@
                                                         @endforeach
                                                     </select>
                                                 </div>
-                                                <input type="hidden" name="sector" id="sectorHidden"
+                                                <input type="hidden" name="sector" id="sectorHidden" class="form-control"
                                                     value="{{ old('sector', optional($editingClient)->sector ?? '') }}">
                                             </div>
 
@@ -551,7 +552,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/choices.js/public/assets/styles/choices.min.css" />
     <style>
         /* Make Choices dropdown render in-flow instead of absolutely positioned
-           so it expands the layout (pushes content) rather than overlaying it. */
+               so it expands the layout (pushes content) rather than overlaying it. */
         .choices__list--dropdown {
             position: static !important;
             display: none !important;
@@ -585,12 +586,12 @@
         }
 
         /* Fix clipped/trimmed first letters by removing extra list padding
-           and ensuring each item has its own inner padding. Also ensure
-           dropdown has visible background and border so text isn't cut off. */
+               and ensuring each item has its own inner padding. Also ensure
+               dropdown has visible background and border so text isn't cut off. */
         .choices__list--dropdown {
             padding-left: 0 !important;
             background: #ffffff !important;
-            border: 1px solid rgba(0,0,0,0.08) !important;
+            border: 1px solid rgba(0, 0, 0, 0.08) !important;
             border-radius: .375rem !important;
             box-sizing: border-box !important;
         }
@@ -1396,14 +1397,14 @@
                 // initialize Choices.js for a compact, searchable multi-select dropdown
                 try {
                     new Choices(sectorSelect, {
-                            removeItemButton: true,
-                            placeholderValue: 'Select sectors',
-                            searchPlaceholderValue: 'Search sectors',
-                            shouldSort: false,
-                            itemSelectText: '',
-                            position: 'bottom',
-                            silent: true,
-                        });
+                        removeItemButton: true,
+                        placeholderValue: 'Select sectors',
+                        searchPlaceholderValue: 'Search sectors',
+                        shouldSort: false,
+                        itemSelectText: '',
+                        position: 'bottom',
+                        silent: true,
+                    });
                 } catch (e) {
                     // Choices not available; fall back to native multi-select
                 }
@@ -1424,7 +1425,7 @@
 
                 if (!clientPhotoData.value) {
                     photoCaptureError.textContent =
-                    'Please capture or upload a client photo before saving.';
+                        'Please capture or upload a client photo before saving.';
                     photoCaptureError.classList.remove('d-none');
                     hasError = true;
                 }

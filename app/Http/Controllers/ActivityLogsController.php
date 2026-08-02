@@ -14,20 +14,21 @@ class ActivityLogsController extends Controller
 
     public function index(Request $request)
     {
-        $activityQuery = ActivityLog::with('user')->latest();
+        $now = now();
+        $baseQuery = ActivityLog::with('user')->latest();
 
-        $todayActivities = (clone $activityQuery)
-            ->whereDate('created_at', now()->toDateString())
+        $monthlyActivities = (clone $baseQuery)
+            ->whereBetween('created_at', [$now->copy()->startOfMonth(), $now->copy()->endOfMonth()])
             ->take(8)
             ->get();
-        $weeklyActivities = (clone $activityQuery)
-            ->whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()])
-            ->take(8)
-            ->get();
-        $monthlyActivities = (clone $activityQuery)
-            ->whereBetween('created_at', [now()->startOfMonth(), now()->endOfMonth()])
-            ->take(8)
-            ->get();
+
+        $todayActivities = $monthlyActivities->filter(function ($a) use ($now) {
+            return $a->created_at && $a->created_at->isToday();
+        })->values();
+
+        $weeklyActivities = $monthlyActivities->filter(function ($a) use ($now) {
+            return $a->created_at && $a->created_at->between($now->copy()->startOfWeek(), $now->copy()->endOfWeek());
+        })->values();
 
         $activitiesQuery = ActivityLog::with('user')->latest();
 
@@ -36,7 +37,6 @@ class ActivityLogsController extends Controller
         $search = $request->input('search', '');
 
         if ($period !== 'all') {
-            $now = now();
             $periodMap = [
                 '7days'  => 7,
                 '14days' => 14,
@@ -51,9 +51,9 @@ class ActivityLogsController extends Controller
             if (isset($periodMap[$period])) {
                 $activitiesQuery->where('created_at', '>=', $now->copy()->subDays($periodMap[$period]));
             } elseif ($period === 'this_month') {
-                $activitiesQuery->whereBetween('created_at', [$now->startOfMonth(), $now->endOfMonth()]);
+                $activitiesQuery->whereBetween('created_at', [$now->copy()->startOfMonth(), $now->copy()->endOfMonth()]);
             } elseif ($period === 'this_week') {
-                $activitiesQuery->whereBetween('created_at', [$now->startOfWeek(), $now->endOfWeek()]);
+                $activitiesQuery->whereBetween('created_at', [$now->copy()->startOfWeek(), $now->copy()->endOfWeek()]);
             } elseif ($period === 'today') {
                 $activitiesQuery->whereDate('created_at', $now->toDateString());
             }

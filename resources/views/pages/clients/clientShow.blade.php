@@ -209,9 +209,9 @@
                                             <th>Source</th>
                                             <th>Category Type</th>
                                             <th>Clerk</th>
+                                            <th>Client Category</th>
+                                            <th>Transaction Type</th>
                                             <th>Status</th>
-                                            <th>Description of Request</th>
-                                            <th>Subject Information</th>
                                             <th>Actions Taken</th>
                                             <th>Remarks</th>
                                             <th>Amount</th>
@@ -219,25 +219,28 @@
                                     </thead>
                                     <tbody class="text-center">
                                         @forelse ($transactions as $transaction)
-                                            <tr class="transaction-row" style="cursor: pointer;" data-transaction-id="{{ $transaction->id }}">
+                                            @php
+                                                $txStatus = $transaction->status ?? 'Completed';
+                                                $isApproved = strtolower($txStatus) === 'approved';
+                                            @endphp
+                                            <tr class="{{ $isApproved ? 'transaction-row-disabled' : 'transaction-row' }}"
+                                                @unless ($isApproved)
+                                                    style="cursor: pointer;"
+                                                    data-transaction-id="{{ $transaction->id }}"
+                                                @endunless>
                                                 <td>{{ $transaction->transaction_id }}</td>
                                                 <td>{{ $transaction->transaction_date->format('m/d/Y') }}</td>
                                                 <td class="text-uppercase">E-Registration</td>
                                                 <td class="text-uppercase">{{ $transaction->category_label }}</td>
                                                 <td class="text-uppercase">{{ $transaction->clerk ?? auth()->user()->name ?? 'System' }}</td>
+                                                <td class="text-uppercase">{{ filled($transaction->client_category) ? $transaction->client_category : ($client->sector ?? 'N/A') }}</td>
+                                                <td class="text-uppercase">{{ $transaction->type_label ?? 'N/A' }}</td>
                                                 <td>
-                                                    @php
-                                                        $txStatus = $transaction->status ?? 'Completed';
-                                                    @endphp
                                                     @if (strtolower($txStatus) === 'pending')
                                                         <span class="badge bg-warning-subtle text-warning">{{ $txStatus }}</span>
                                                     @else
                                                         <span class="badge bg-success-subtle text-success">{{ $txStatus }}</span>
                                                     @endif
-                                                </td>
-                                                <td>{{ $transaction->description ?? 'N/A' }}</td>
-                                                <td class="text-uppercase subject-summary-cell" id="transactionSubjectSummary{{ $transaction->id }}">
-                                                    {{ $transaction->subject_summary ?? 'N/A' }}
                                                 </td>
                                                 <td>{{ $transaction->actions_taken ?? 'N/A' }}</td>
                                                 <td>{{ $transaction->remarks ?? 'N/A' }}</td>
@@ -252,6 +255,9 @@
                                         @endforelse
                                     </tbody>
                                 </table>
+                            </div>
+                            <div class="d-flex justify-content-end mt-3">
+                                {{ $transactions->links('pagination::bootstrap-5') }}
                             </div>
                         </div>
                     </div>
@@ -323,6 +329,10 @@
     <style>
         .transaction-row:hover {
             background-color: rgba(0, 0, 0, 0.075) !important;
+        }
+
+        .transaction-row-disabled {
+            cursor: default;
         }
     </style>
 @endsection
@@ -446,6 +456,10 @@
             document.querySelectorAll('.transaction-row').forEach(row => {
                 row.addEventListener('click', function() {
                     const transactionId = this.getAttribute('data-transaction-id');
+                    if (!transactionId) {
+                        return;
+                    }
+
                     loadTransactionData(transactionId);
                 });
             });

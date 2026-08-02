@@ -208,9 +208,9 @@
                                             <th>Source</th>
                                             <th>Category Type</th>
                                             <th>Clerk</th>
+                                            <th>Client Category</th>
+                                            <th>Transaction Type</th>
                                             <th>Status</th>
-                                            <th>Description of Request</th>
-                                            <th>Subject Information</th>
                                             <th>Actions Taken</th>
                                             <th>Remarks</th>
                                             <th>Amount</th>
@@ -218,26 +218,28 @@
                                     </thead>
                                     <tbody class="text-center">
                                         <?php $__empty_1 = true; $__currentLoopData = $transactions; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $transaction): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
-                                            <tr class="transaction-row" style="cursor: pointer;" data-transaction-id="<?php echo e($transaction->id); ?>">
+                                            <?php
+                                                $txStatus = $transaction->status ?? 'Completed';
+                                                $isApproved = strtolower($txStatus) === 'approved';
+                                            ?>
+                                            <tr class="<?php echo e($isApproved ? 'transaction-row-disabled' : 'transaction-row'); ?>"
+                                                <?php if (! ($isApproved)): ?>
+                                                    style="cursor: pointer;"
+                                                    data-transaction-id="<?php echo e($transaction->id); ?>"
+                                                <?php endif; ?>>
                                                 <td><?php echo e($transaction->transaction_id); ?></td>
                                                 <td><?php echo e($transaction->transaction_date->format('m/d/Y')); ?></td>
                                                 <td class="text-uppercase">E-Registration</td>
                                                 <td class="text-uppercase"><?php echo e($transaction->category_label); ?></td>
                                                 <td class="text-uppercase"><?php echo e($transaction->clerk ?? auth()->user()->name ?? 'System'); ?></td>
+                                                <td class="text-uppercase"><?php echo e(filled($transaction->client_category) ? $transaction->client_category : ($client->sector ?? 'N/A')); ?></td>
+                                                <td class="text-uppercase"><?php echo e($transaction->type_label ?? 'N/A'); ?></td>
                                                 <td>
-                                                    <?php
-                                                        $txStatus = $transaction->status ?? 'Completed';
-                                                    ?>
                                                     <?php if(strtolower($txStatus) === 'pending'): ?>
                                                         <span class="badge bg-warning-subtle text-warning"><?php echo e($txStatus); ?></span>
                                                     <?php else: ?>
                                                         <span class="badge bg-success-subtle text-success"><?php echo e($txStatus); ?></span>
                                                     <?php endif; ?>
-                                                </td>
-                                                <td><?php echo e($transaction->description ?? 'N/A'); ?></td>
-                                                <td class="text-uppercase subject-summary-cell" id="transactionSubjectSummary<?php echo e($transaction->id); ?>">
-                                                    <?php echo e($transaction->subject_summary ?? 'N/A'); ?>
-
                                                 </td>
                                                 <td><?php echo e($transaction->actions_taken ?? 'N/A'); ?></td>
                                                 <td><?php echo e($transaction->remarks ?? 'N/A'); ?></td>
@@ -252,6 +254,10 @@
                                         <?php endif; ?>
                                     </tbody>
                                 </table>
+                            </div>
+                            <div class="d-flex justify-content-end mt-3">
+                                <?php echo e($transactions->links('pagination::bootstrap-5')); ?>
+
                             </div>
                         </div>
                     </div>
@@ -323,6 +329,10 @@
     <style>
         .transaction-row:hover {
             background-color: rgba(0, 0, 0, 0.075) !important;
+        }
+
+        .transaction-row-disabled {
+            cursor: default;
         }
     </style>
 <?php $__env->stopSection(); ?>
@@ -446,6 +456,10 @@
             document.querySelectorAll('.transaction-row').forEach(row => {
                 row.addEventListener('click', function() {
                     const transactionId = this.getAttribute('data-transaction-id');
+                    if (!transactionId) {
+                        return;
+                    }
+
                     loadTransactionData(transactionId);
                 });
             });

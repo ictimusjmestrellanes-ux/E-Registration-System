@@ -19,6 +19,13 @@
             </div>
         @endif
 
+        @if (session('error'))
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                {{ session('error') }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        @endif
+
         @if ($errors->any())
             <div class="alert alert-danger alert-dismissible fade show" role="alert">
                 @foreach ($errors->all() as $error)
@@ -103,28 +110,59 @@
                                         </th>
                                         <th>Full Name</th>
                                         <th>Age</th>
+                                        <th>Birth Date</th>
                                         <th>Contact No.</th>
                                         <th>Address</th>
+                                        <th>Client Category</th>
+                                        <th>Transaction Category</th>
+                                        <th>Transaction Type</th>
                                         <th style="width: 100px;">Date</th>
+                                        <th style="width: 100px; text-align: center;">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     @forelse ($events as $event)
-                                        <tr>
+                                        @php
+                                            $isTransferred = !is_null($event->transferred_at);
+                                        @endphp
+                                        <tr class="{{ $isTransferred ? 'table-secondary text-muted' : '' }}">
                                             <td class="text-center">
                                                 <input type="checkbox" class="form-check-input transaction-event-checkbox"
                                                     value="{{ $event->id }}"
-                                                    aria-label="Select transaction event {{ $event->id }}">
+                                                    aria-label="Select transaction event {{ $event->id }}"
+                                                    {{ $isTransferred ? 'disabled' : '' }}>
                                             </td>
                                             <td class="fw-semibold">{{ $event->full_name }}</td>
                                             <td>{{ $event->age ?? '-' }}</td>
+                                            <td>{{ $event->birth_date ? $event->birth_date->format('M d, Y') : '-' }}</td>
                                             <td>{{ str_replace('-', '', $event->contact_no) }}</td>
                                             <td>{{ $event->address ?? '-' }}</td>
-                                            <td class="text-muted small">{{ $event->created_at?->format('M d, Y') }}</td>
+                                            <td class="small">{{ $event->client_category ?? '-' }}</td>
+                                            <td class="small">{{ $event->transaction_category ?? '-' }}</td>
+                                            <td class="small">{{ $event->transaction_type ?? '-' }}</td>
+                                            <td class="small">{{ $event->created_at?->format('M d, Y') }}</td>
+                                            <td class="text-center">
+                                                @if ($isTransferred)
+                                                    <span class="badge bg-success-subtle text-success px-3 py-2">
+                                                        <i class="ri-check-line me-1"></i>Approved
+                                                    </span>
+                                                @else
+                                                    <form action="{{ route('transaction-events.transfer', $event) }}" method="POST"
+                                                        class="transaction-transfer-form"
+                                                        data-event-name="{{ $event->full_name }}">
+                                                        @csrf
+                                                        <button type="submit" class="btn btn-sm btn-soft-success"
+                                                            {{ empty($event->transaction_category) && empty($event->transaction_type) ? 'disabled' : '' }}
+                                                            title="{{ empty($event->transaction_category) && empty($event->transaction_type) ? 'No transaction category or type to transfer' : 'Transfer to transaction' }}">
+                                                            <i class="ri-exchange-line"></i> Transfer
+                                                        </button>
+                                                    </form>
+                                                @endif
+                                            </td>
                                         </tr>
                                     @empty
                                         <tr>
-                                            <td colspan="7" class="text-center text-muted py-5">
+                                            <td colspan="11" class="text-center text-muted py-5">
                                                 No transaction events found.
                                             </td>
                                         </tr>
@@ -141,40 +179,134 @@
             </div>
         </div>
 
-        <!-- Import Modal -->
+        <!-- Transfer Confirmation Modal -->
+        <div class="modal fade" id="transferConfirmModal" tabindex="-1" aria-labelledby="transferConfirmModalLabel"
+            aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered modal-sm">
+                <div class="modal-content">
+                    <div class="modal-body text-center py-4">
+                        <div class="mb-3">
+                            <i class="ri-exchange-line text-success" style="font-size: 3rem;"></i>
+                        </div>
+                        <p class="fs-5 fw-semibold mb-1">Confirm Transfer</p>
+                        <p class="text-muted mb-0">
+                            Create a transaction from this event for
+                            <span class="fw-semibold" id="transferConfirmName">this client</span>?
+                        </p>
+                    </div>
+                    <div class="modal-footer border-0 justify-content-center gap-3 pt-0">
+                        <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-success px-4" id="confirmTransferBtn">
+                            <i class="ri-check-line me-1"></i> Continue
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Import form (hidden, used by both modals) -->
+        <form id="importForm" action="{{ route('transaction-events.import') }}" method="POST"
+            enctype="multipart/form-data" class="d-none">
+            @csrf
+            <input type="file" id="csv_file" name="csv_file" accept=".csv">
+        </form>
+
+        <!-- Import Modal (Step 1: Select File) -->
         <div class="modal fade" id="importModal" tabindex="-1" aria-labelledby="importModalLabel" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content">
-                    <form action="{{ route('transaction-events.import') }}" method="POST"
-                        enctype="multipart/form-data">
-                        @csrf
-                        <div class="modal-header">
-                            <h5 class="modal-title" id="importModalLabel">Import Transaction Events</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal"
-                                aria-label="Close"></button>
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="importModalLabel">Import Transaction Events</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"
+                            aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="csv_file_visible" class="form-label">Select CSV File</label>
+                            <input type="file" class="form-control" id="csv_file_visible" accept=".csv" required>
+                            <div id="csvFileError" class="invalid-feedback d-none"></div>
                         </div>
-                        <div class="modal-body">
-                            <div class="mb-3">
-                                <label for="csv_file" class="form-label">Select CSV File</label>
-                                <input type="file" class="form-control @error('csv_file') is-invalid @enderror"
-                                    id="csv_file" name="csv_file" accept=".csv" required>
-                                @error('csv_file')
-                                    <div class="invalid-feedback">{{ $message }}</div>
-                                @enderror
-                            </div>
                             <div class="alert alert-info mb-0">
                                 <strong>CSV Format:</strong> The file should have the following columns (with header
                                 row):<br>
-                                <code>full_name, contact_no, address, age</code>
+                                <code>full_name, contact_no, address, age, birth_date, client_category, transaction_category, transaction_type</code>
+                            </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-primary" id="previewCsvBtn">
+                            <i class="ri-eye-line me-1"></i> Preview
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Preview Modal (Step 2: Review & Confirm) -->
+        <div class="modal fade" id="previewModal" tabindex="-1" aria-labelledby="previewModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered modal-xl modal-fullscreen-lg-down">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="previewModalLabel">Review Import Data</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"
+                            aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div id="previewLoading" class="text-center py-4">
+                            <div class="spinner-border text-primary mb-2" role="status"></div>
+                            <div>Parsing CSV file...</div>
+                        </div>
+                        <div id="previewContent" class="d-none">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <div>
+                                    <span class="fw-semibold" id="previewTotalRows"></span> rows found
+                                    (<span id="previewSkippedRows"></span> skipped)
+                                </div>
+                            </div>
+                            <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                                <table class="table table-bordered table-hover align-middle mb-0">
+                                    <thead class="table-light" style="position: sticky; top: 0;">
+                                        <tr>
+                                            <th>#</th>
+                                            <th>Full Name</th>
+                                            <th>Age</th>
+                                            <th>Birth Date</th>
+                                            <th>Client Category</th>
+                                            <th>Transaction Category</th>
+                                            <th>Transaction Type</th>
+                                            <th>Contact No.</th>
+                                            <th>Address</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="previewTableBody"></tbody>
+                                </table>
+                            </div>
+                            <div id="previewSkippedSection" class="d-none mt-3">
+                                <h6 class="text-danger mb-2">Skipped Rows</h6>
+                                <div class="table-responsive">
+                                    <table class="table table-bordered table-sm align-middle mb-0">
+                                        <thead class="table-danger">
+                                            <tr>
+                                                <th>CSV Line</th>
+                                                <th>Reason</th>
+                                                <th>Data</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="previewSkippedBody"></tbody>
+                                    </table>
+                                </div>
                             </div>
                         </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-                            <button type="submit" class="btn btn-primary">
-                                <i class="ri-upload-2-line me-1"></i> Import
-                            </button>
+                        <div id="previewError" class="d-none">
+                            <div class="alert alert-danger mb-0" id="previewErrorMessage"></div>
                         </div>
-                    </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-primary" id="confirmImportBtn">
+                            <i class="ri-upload-2-line me-1"></i> Confirm Import
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -186,32 +318,208 @@
         document.addEventListener('DOMContentLoaded', function() {
             const selectAll = document.getElementById('selectAllTransactionEvents');
             const eventCheckboxes = Array.from(document.querySelectorAll('.transaction-event-checkbox'));
+            const transferConfirmModalEl = document.getElementById('transferConfirmModal');
+            const transferConfirmName = document.getElementById('transferConfirmName');
+            const confirmTransferBtn = document.getElementById('confirmTransferBtn');
+            let selectedTransferForm = null;
 
-            if (!selectAll) {
-                return;
-            }
+            if (selectAll) {
+                const syncSelectAllState = () => {
+                    const checkedCount = eventCheckboxes.filter((checkbox) => checkbox.checked).length;
+                    selectAll.checked = eventCheckboxes.length > 0 && checkedCount === eventCheckboxes.length;
+                    selectAll.indeterminate = checkedCount > 0 && checkedCount < eventCheckboxes.length;
+                    selectAll.disabled = eventCheckboxes.length === 0;
+                };
 
-            const syncSelectAllState = () => {
-                const checkedCount = eventCheckboxes.filter((checkbox) => checkbox.checked).length;
+                selectAll.addEventListener('change', function() {
+                    eventCheckboxes.forEach((checkbox) => {
+                        checkbox.checked = selectAll.checked;
+                    });
+                    syncSelectAllState();
+                });
 
-                selectAll.checked = eventCheckboxes.length > 0 && checkedCount === eventCheckboxes.length;
-                selectAll.indeterminate = checkedCount > 0 && checkedCount < eventCheckboxes.length;
-                selectAll.disabled = eventCheckboxes.length === 0;
-            };
-
-            selectAll.addEventListener('change', function() {
                 eventCheckboxes.forEach((checkbox) => {
-                    checkbox.checked = selectAll.checked;
+                    checkbox.addEventListener('change', syncSelectAllState);
                 });
 
                 syncSelectAllState();
+            }
+
+            if (transferConfirmModalEl && confirmTransferBtn) {
+                const transferConfirmModal = bootstrap.Modal.getOrCreateInstance(transferConfirmModalEl);
+
+                document.querySelectorAll('.transaction-transfer-form').forEach((form) => {
+                    form.addEventListener('submit', function(event) {
+                        event.preventDefault();
+                        selectedTransferForm = this;
+
+                        if (transferConfirmName) {
+                            transferConfirmName.textContent = this.dataset.eventName || 'this client';
+                        }
+
+                        transferConfirmModal.show();
+                    });
+                });
+
+                confirmTransferBtn.addEventListener('click', function() {
+                    if (!selectedTransferForm) {
+                        return;
+                    }
+
+                    confirmTransferBtn.disabled = true;
+                    selectedTransferForm.submit();
+                });
+
+                transferConfirmModalEl.addEventListener('hidden.bs.modal', function() {
+                    selectedTransferForm = null;
+                    confirmTransferBtn.disabled = false;
+                });
+            }
+
+            // CSV Import preview flow
+            const importModalEl = document.getElementById('importModal');
+            const previewModalEl = document.getElementById('previewModal');
+            const csvFileVisible = document.getElementById('csv_file_visible');
+            const csvFileHidden = document.getElementById('csv_file');
+            const csvFileError = document.getElementById('csvFileError');
+            const previewBtn = document.getElementById('previewCsvBtn');
+            const confirmBtn = document.getElementById('confirmImportBtn');
+            const importForm = document.getElementById('importForm');
+            const previewLoading = document.getElementById('previewLoading');
+            const previewContent = document.getElementById('previewContent');
+            const previewError = document.getElementById('previewError');
+            const previewErrorMessage = document.getElementById('previewErrorMessage');
+            const previewTableBody = document.getElementById('previewTableBody');
+            const previewTotalRows = document.getElementById('previewTotalRows');
+            const previewSkippedRows = document.getElementById('previewSkippedRows');
+            const previewSkippedSection = document.getElementById('previewSkippedSection');
+            const previewSkippedBody = document.getElementById('previewSkippedBody');
+
+            if (!importModalEl || !previewModalEl || !csvFileVisible || !previewBtn || !confirmBtn) {
+                return;
+            }
+
+            const importModal = bootstrap.Modal.getOrCreateInstance(importModalEl);
+            const previewModal = bootstrap.Modal.getOrCreateInstance(previewModalEl);
+
+            // Sync visible file input to hidden one
+            csvFileVisible.addEventListener('change', function() {
+                if (this.files.length > 0) {
+                    const dt = new DataTransfer();
+                    dt.items.add(this.files[0]);
+                    csvFileHidden.files = dt.files;
+                }
             });
 
-            eventCheckboxes.forEach((checkbox) => {
-                checkbox.addEventListener('change', syncSelectAllState);
+            previewBtn.addEventListener('click', async function() {
+                const file = csvFileVisible.files[0];
+                if (!file) {
+                    csvFileError.textContent = 'Please select a CSV file.';
+                    csvFileError.classList.remove('d-none');
+                    csvFileVisible.classList.add('is-invalid');
+                    return;
+                }
+
+                csvFileError.classList.add('d-none');
+                csvFileVisible.classList.remove('is-invalid');
+
+                const formData = new FormData();
+                formData.append('csv_file', file);
+
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+                importModal.hide();
+                previewModal.show();
+                previewLoading.classList.remove('d-none');
+                previewContent.classList.add('d-none');
+                previewError.classList.add('d-none');
+                previewTableBody.innerHTML = '';
+
+                try {
+                    const response = await fetch('{{ route("transaction-events.preview") }}', {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRF-TOKEN': csrfToken,
+                            'Accept': 'application/json',
+                        },
+                        body: formData,
+                    });
+
+                    const data = await response.json();
+
+                    if (!response.ok || !data.success) {
+                        throw new Error(data.message || 'Failed to parse CSV file.');
+                    }
+
+                    previewTotalRows.textContent = data.total;
+                    previewSkippedRows.textContent = data.skipped;
+
+                    if (data.rows && data.rows.length > 0) {
+                        data.rows.forEach(function(row, index) {
+                            const tr = document.createElement('tr');
+                            tr.innerHTML = `
+                                <td>${index + 1}</td>
+                                <td class="fw-semibold">${escapeHtml(row.full_name)}</td>
+                                <td>${row.age ?? '-'}</td>
+                                <td>${escapeHtml(row.birth_date || '-')}</td>
+                                <td>${escapeHtml(row.client_category || '-')}</td>
+                                <td>${escapeHtml(row.transaction_category || '-')}</td>
+                                <td>${escapeHtml(row.transaction_type || '-')}</td>
+                                <td>${escapeHtml(row.contact_no || '-')}</td>
+                                <td>${escapeHtml(row.address || '-')}</td>
+                            `;
+                            previewTableBody.appendChild(tr);
+                        });
+                    } else {
+                        previewTableBody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-4">No valid rows found in the CSV file.</td></tr>';
+                    }
+
+                    if (data.skipped_rows && data.skipped_rows.length > 0) {
+                        data.skipped_rows.forEach(function(row) {
+                            const cellData = Object.entries(row.data || {}).map(function(kv) {
+                                return kv[0] + ': ' + escapeHtml(String(kv[1] || ''));
+                            }).join(', ');
+                            const tr = document.createElement('tr');
+                            tr.innerHTML = `
+                                <td>${row.line}</td>
+                                <td>${escapeHtml(row.reason)}</td>
+                                <td class="small">${cellData}</td>
+                            `;
+                            previewSkippedBody.appendChild(tr);
+                        });
+                        previewSkippedSection.classList.remove('d-none');
+                    }
+
+                    previewLoading.classList.add('d-none');
+                    previewContent.classList.remove('d-none');
+
+                } catch (error) {
+                    previewLoading.classList.add('d-none');
+                    previewError.classList.remove('d-none');
+                    previewErrorMessage.textContent = error.message || 'An unexpected error occurred.';
+                }
             });
 
-            syncSelectAllState();
+            confirmBtn.addEventListener('click', function() {
+                if (csvFileHidden.files.length === 0) {
+                    return;
+                }
+                importForm.submit();
+            });
+
+            previewModalEl.addEventListener('hidden.bs.modal', function() {
+                previewTableBody.innerHTML = '';
+                previewLoading.classList.remove('d-none');
+                previewContent.classList.add('d-none');
+                previewError.classList.add('d-none');
+            });
+
+            function escapeHtml(str) {
+                if (!str) return '';
+                const div = document.createElement('div');
+                div.textContent = str;
+                return div.innerHTML;
+            }
         });
     </script>
 @endpush

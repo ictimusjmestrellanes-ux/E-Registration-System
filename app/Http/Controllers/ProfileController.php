@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Client;
 use App\Models\TransactionHistory;
+use Illuminate\Support\Facades\Cache;
 
 class ProfileController extends Controller
 {
@@ -19,12 +20,16 @@ class ProfileController extends Controller
 
     public function dashboard()
     {
-        $totalClients = Client::count();
+        $totalClients = Cache::remember('dashboard.total_clients', 300, function () {
+            return Client::count();
+        });
 
-        $categoryCounts = TransactionHistory::selectRaw('category, count(*) as total')
-            ->groupBy('category')
-            ->pluck('total', 'category')
-            ->toArray();
+        $categoryCounts = Cache::remember('dashboard.category_counts', 300, function () {
+            return TransactionHistory::selectRaw('category, count(*) as total')
+                ->groupBy('category')
+                ->pluck('total', 'category')
+                ->toArray();
+        });
 
         $categories = TransactionHistory::CATEGORIES;
 
