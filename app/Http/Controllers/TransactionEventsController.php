@@ -7,6 +7,7 @@ use App\Models\Client;
 use App\Models\TransactionEvent;
 use App\Models\TransactionHistory;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class TransactionEventsController extends Controller
 {
@@ -65,6 +66,38 @@ class TransactionEventsController extends Controller
         return view('pages.transaction_events.transactionEvents', compact('events'));
     }
 
+    public function archives()
+    {
+        $directory = 'transaction-events-archive';
+        $files = Storage::disk('local')->files($directory);
+
+        $archiveFiles = collect($files)
+            ->map(function ($path) use ($directory) {
+                return [
+                    'name' => basename($path),
+                    'path' => $path,
+                    'download_url' => route('transaction-events.archives.download', ['filename' => basename($path)]),
+                    'size' => Storage::disk('local')->size($path),
+                    'modified_at' => Storage::disk('local')->lastModified($path),
+                ];
+            })
+            ->sortByDesc('modified_at')
+            ->values();
+
+        return view('pages.transaction_events.transactionEventArchives', ['files' => $archiveFiles]);
+    }
+
+    public function downloadArchive(string $filename)
+    {
+        $path = 'transaction-events-archive/' . $filename;
+
+        if (!Storage::disk('local')->exists($path)) {
+            abort(404);
+        }
+
+        return Storage::disk('local')->download($path, $filename);
+    }
+
     public function preview(Request $request)
     {
         $request->validate([
@@ -99,41 +132,22 @@ class TransactionEventsController extends Controller
         }
 
         $rows = $result['rows'];
-        $imported = 0;
-        $batch = [];
+        $archiveFile = '';
+        $imported = count($rows);
 
-        foreach ($rows as $data) {
-            $batch[] = [
-                'full_name'           => $data['full_name'],
-                'contact_no'          => $data['contact_no'],
-                'address'             => $data['address'],
-                'age'                 => $data['age'],
-                'birth_date'          => $data['birth_date'],
-                'client_category'     => $data['client_category'],
-                'transaction_category' => $data['transaction_category'],
-                'transaction_type'    => $data['transaction_type'],
-                'created_at'          => now(),
-                'updated_at'          => now(),
-            ];
-
-            if (count($batch) >= 500) {
-                TransactionEvent::insert($batch);
-                $this->createClientsFromEvents($batch);
-                $imported += count($batch);
-                $batch = [];
-            }
-        }
-
-        if (!empty($batch)) {
-            TransactionEvent::insert($batch);
-            $this->createClientsFromEvents($batch);
-            $imported += count($batch);
+        if ($imported > 0) {
+            $this->processImportedEvents($rows);
+            $archiveFile = $this->storeImportedEventArchive($rows, $request->file('csv_file')->getClientOriginalName());
         }
 
         $skipped = $result['skipped'];
         $message = "Successfully imported {$imported} event(s).";
         if ($skipped > 0) {
             $message .= " Skipped {$skipped} invalid row(s).";
+        }
+
+        if (!empty($archiveFile)) {
+            $message .= " Archived CSV as {$archiveFile}.";
         }
 
         return redirect()->route('transaction-events.index')->with('success', $message);
@@ -157,7 +171,7 @@ class TransactionEventsController extends Controller
                 ->with('error', 'Event #' . $event->id . ' has no transaction category or type to transfer.');
         }
 
-        $transactionId = $this->nextTransferredTransactionId();
+        $transactionId = $this->nextTransferredTransactionId($client->client_id);
         $clientCategory = $event->client_category ?: $client->sector;
 
         $transaction = TransactionHistory::create([
@@ -192,9 +206,9 @@ class TransactionEventsController extends Controller
             ->with('success', 'Transaction ' . $transactionId . ' created successfully for ' . $client->full_name . '.');
     }
 
-    private function nextTransferredTransactionId(): string
+    private function nextTransferredTransactionId(string $clientId): string
     {
-        $prefix = '2600000-' . now()->format('y') . '-';
+        $prefix = $clientId . '-' . now()->format('y') . '-';
 
         $maxSequence = TransactionHistory::query()
             ->where('transaction_id', 'like', $prefix . '%')
@@ -203,7 +217,7 @@ class TransactionEventsController extends Controller
                 $suffix = substr($transactionId, strlen($prefix));
 
                 return ctype_digit($suffix) ? max($max, (int) $suffix) : $max;
-            }, -1);
+            }, 0);
 
         $sequence = $maxSequence + 1;
 
@@ -298,61 +312,202 @@ class TransactionEventsController extends Controller
         ];
     }
 
-    private function createClientsFromEvents(array $events): void
+    private function processImportedEvents(array $events): void
     {
-        $existingNames = [];
+        $existingClients = $this->loadExistingClientsForImportedEvents($events);
+        $clientMap = [];
 
         foreach ($events as $event) {
-            $nameParts = $this->splitFullName($event['full_name']);
-            $nameKey = strtolower(trim($nameParts['first_name'] . '|' . $nameParts['last_name']));
-            $existingNames[$nameKey] = true;
-        }
+            $clientKey = $this->importedEventClientKey($event);
 
-        $existing = [];
-        if (!empty($existingNames)) {
-            $nameKeys = array_keys($existingNames);
-            $existing = Client::where(function ($q) use ($nameKeys) {
-                foreach ($nameKeys as $key) {
-                    [$first, $last] = explode('|', $key);
-                    $q->orWhere(function ($q) use ($first, $last) {
-                        $q->whereRaw('LOWER(first_name) = ?', [$first])
-                          ->whereRaw('LOWER(last_name) = ?', [$last]);
-                    });
+            if ($clientKey !== null && isset($clientMap[$clientKey])) {
+                $client = $clientMap[$clientKey];
+            } else {
+                $client = $this->findExistingClientForImportedEvent($event, $existingClients);
+
+                if (!$client) {
+                    $client = $this->createClientFromImportedEvent($event);
                 }
-            })->get()->keyBy(function ($c) {
-                return strtolower(trim($c->first_name . '|' . $c->last_name));
-            })->toArray();
+
+                if ($clientKey !== null) {
+                    $clientMap[$clientKey] = $client;
+                }
+            }
+
+            if (!empty($event['client_category']) && $client->sector !== $event['client_category']) {
+                $client->update(['sector' => $event['client_category']]);
+            }
+
+            $this->createTransactionHistoryFromImportedEvent($client, $event);
         }
+    }
+
+    private function loadExistingClientsForImportedEvents(array $events): array
+    {
+        $searchKeys = [];
 
         foreach ($events as $event) {
             $nameParts = $this->splitFullName($event['full_name']);
-            $nameKey = strtolower(trim($nameParts['first_name'] . '|' . $nameParts['last_name']));
-
-            if (isset($existing[$nameKey])) {
+            if (empty($nameParts['first_name']) || empty($nameParts['last_name'])) {
                 continue;
             }
 
-            $clientData = [
-                'client_id'   => Client::generateClientId(),
-                'first_name'  => $nameParts['first_name'],
-                'middle_name' => $nameParts['middle_name'],
-                'last_name'   => $nameParts['last_name'],
-                'suffix'      => $nameParts['suffix'],
-                'age'         => $event['age'],
-                'contact'     => $event['contact_no'],
-                'address'     => $event['address'],
+            $searchKeys[] = [
+                'first'      => strtolower($nameParts['first_name']),
+                'last'       => strtolower($nameParts['last_name']),
+                'birth_date' => $event['birth_date'],
             ];
-
-            if (!empty($event['birth_date'])) {
-                $clientData['birth_date'] = $event['birth_date'];
-            }
-
-            if (!empty($event['client_category'])) {
-                $clientData['sector'] = $event['client_category'];
-            }
-
-            Client::create($clientData);
         }
+
+        if (empty($searchKeys)) {
+            return [];
+        }
+
+        $clients = Client::where(function ($query) use ($searchKeys) {
+            foreach ($searchKeys as $key) {
+                $query->orWhere(function ($query) use ($key) {
+                    $query->whereRaw('LOWER(first_name) = ?', [$key['first']])
+                        ->whereRaw('LOWER(last_name) = ?', [$key['last']]);
+
+                    if ($key['birth_date'] !== null && $key['birth_date'] !== '') {
+                        $query->whereDate('birth_date', $key['birth_date']);
+                    } else {
+                        $query->whereNull('birth_date');
+                    }
+                });
+            }
+        })->get();
+
+        return $clients->keyBy(function ($client) {
+            return $this->normalizeImportedClientKey([
+                'first_name' => $client->first_name,
+                'last_name' => $client->last_name,
+                'birth_date' => $client->birth_date ? $client->birth_date->format('Y-m-d') : null,
+            ]);
+        })->all();
+    }
+
+    private function findExistingClientForImportedEvent(array $event, array $existingClients): ?Client
+    {
+        $key = $this->importedEventClientKey($event);
+
+        if ($key !== null && isset($existingClients[$key])) {
+            return $existingClients[$key];
+        }
+
+        return null;
+    }
+
+    private function importedEventClientKey(array $event): ?string
+    {
+        $nameParts = $this->splitFullName($event['full_name']);
+
+        if (empty($nameParts['first_name']) || empty($nameParts['last_name'])) {
+            return null;
+        }
+
+        return $this->normalizeImportedClientKey([
+            'first_name' => $nameParts['first_name'],
+            'last_name'  => $nameParts['last_name'],
+            'birth_date' => $event['birth_date'] ?? null,
+        ]);
+    }
+
+    private function normalizeImportedClientKey(array $data): string
+    {
+        return strtolower(trim($data['first_name'] . '|' . $data['last_name'] . '|' . ($data['birth_date'] ?? '')));
+    }
+
+    private function createClientFromImportedEvent(array $event): Client
+    {
+        $nameParts = $this->splitFullName($event['full_name']);
+
+        $clientData = [
+            'client_id'   => Client::generateClientId(),
+            'first_name'  => $nameParts['first_name'],
+            'middle_name' => $nameParts['middle_name'],
+            'last_name'   => $nameParts['last_name'],
+            'suffix'      => $nameParts['suffix'],
+            'age'         => $event['age'],
+            'contact'     => $event['contact_no'],
+            'address'     => $event['address'],
+        ];
+
+        if (!empty($event['birth_date'])) {
+            $clientData['birth_date'] = $event['birth_date'];
+        }
+
+        if (!empty($event['client_category'])) {
+            $clientData['sector'] = $event['client_category'];
+        }
+
+        return Client::create($clientData);
+    }
+
+    private function createTransactionHistoryFromImportedEvent(Client $client, array $event): void
+    {
+        TransactionHistory::create([
+            'client_id'        => $client->client_id,
+            'client_category'  => $event['client_category'] ?: $client->sector,
+            'transaction_id'   => $this->nextTransferredTransactionId($client->client_id),
+            'transaction_date' => now(),
+            'category'         => $event['transaction_category'] ?? '',
+            'type'             => $event['transaction_type'] ?? '',
+            'source'           => 'E-Registration',
+            'clerk'            => auth()->user()->name ?? 'System',
+            'status'           => 'Approved',
+            'description'      => 'Imported from transaction events CSV',
+        ]);
+    }
+
+    private function storeImportedEventArchive(array $events, string $originalFilename): string
+    {
+        $directory = 'transaction-events-archive';
+        Storage::disk('local')->makeDirectory($directory);
+
+        $safeFilename = $this->sanitizeArchiveFilename($originalFilename);
+        $archiveName = sprintf('transaction-events_%s_%s', now()->format('Ymd_His'), $safeFilename);
+        $archivePath = $directory . '/' . $archiveName;
+
+        $csvHeader = [
+            'full_name',
+            'contact_no',
+            'address',
+            'age',
+            'birth_date',
+            'client_category',
+            'transaction_category',
+            'transaction_type',
+        ];
+
+        $stream = fopen('php://temp', 'r+');
+        fputcsv($stream, $csvHeader);
+
+        foreach ($events as $event) {
+            fputcsv($stream, [
+                $event['full_name'],
+                $event['contact_no'],
+                $event['address'],
+                $event['age'],
+                $event['birth_date'],
+                $event['client_category'],
+                $event['transaction_category'],
+                $event['transaction_type'],
+            ]);
+        }
+
+        rewind($stream);
+        $csvContents = stream_get_contents($stream);
+        fclose($stream);
+
+        Storage::disk('local')->put($archivePath, $csvContents);
+
+        return $archiveName;
+    }
+
+    private function sanitizeArchiveFilename(string $filename): string
+    {
+        return preg_replace('/[^A-Za-z0-9_\-\.]/', '_', $filename);
     }
 
     private function parseImportedDate(?string $date): ?string

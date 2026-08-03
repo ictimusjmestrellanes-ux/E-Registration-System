@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Client;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class ClientListController extends Controller
 {
@@ -25,6 +26,23 @@ class ClientListController extends Controller
                 'education', 'course', 'sector', 'position_organization',
                 'photo_path', 'created_at',
             ])
+            ->when($request->boolean('duplicate_names'), function ($q) {
+                // find duplicate keys using first+middle+last name + birth_date
+                $duplicates = Client::query()
+                    ->selectRaw("CONCAT_WS('|', LOWER(TRIM(first_name)), LOWER(TRIM(COALESCE(middle_name,''))), LOWER(TRIM(last_name)), COALESCE(birth_date,'')) as keyval")
+                    ->groupBy('keyval')
+                    ->havingRaw('COUNT(*) > 1')
+                    ->pluck('keyval')
+                    ->map(fn($v) => (string) $v)
+                    ->toArray();
+
+                if (!empty($duplicates)) {
+                    $q->whereIn(DB::raw("CONCAT_WS('|', LOWER(TRIM(first_name)), LOWER(TRIM(COALESCE(middle_name,''))), LOWER(TRIM(last_name)), COALESCE(birth_date,''))"), $duplicates);
+                } else {
+                    // nothing matches — ensure no rows
+                    $q->whereRaw('0 = 1');
+                }
+            })
             ->orderBy('client_id', 'desc')
             ->when($matchedClientId, function ($query, $matchedClientId) {
                 $query->where('id', $matchedClientId);

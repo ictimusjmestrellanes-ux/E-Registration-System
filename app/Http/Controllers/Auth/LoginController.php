@@ -11,6 +11,8 @@ use Illuminate\Foundation\Auth\AuthenticatesUsers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Session;
+use Illuminate\Support\Facades\Log;
+use Laravel\Socialite\Two\InvalidStateException;
 use Laravel\Socialite\Facades\Socialite;
 
 class LoginController extends Controller
@@ -101,6 +103,25 @@ class LoginController extends Controller
 
         try {
             $socialiteUser = $this->socialiteDriver($provider)->user();
+        } catch (InvalidStateException $e) {
+            // State mismatch can occur when the session state is lost on callback.
+            // Retry with a stateless request as a fallback (keeps UX smooth).
+            Log::warning('Socialite InvalidStateException for provider ' . $provider . ': ' . $e->getMessage());
+
+            try {
+                $socialiteUser = $this->socialiteDriver($provider)->stateless()->user();
+            } catch (\Throwable $e2) {
+                report($e2);
+
+                return redirect('login')->with('error', ucfirst($provider) . ' login failed.');
+            }
+        } catch (\Throwable $e) {
+            report($e);
+
+            return redirect('login')->with('error', $e->getMessage() ?: ucfirst($provider) . ' login failed.');
+        }
+
+        try {
             $user = $users->findOrCreateUser($provider, $socialiteUser);
 
             Auth::login($user);

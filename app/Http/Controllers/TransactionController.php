@@ -25,9 +25,7 @@ class TransactionController extends Controller
             'addressed_to' => 'nullable|string',
         ]);
 
-        $year = now()->format('y');
-        $lastToday = TransactionHistory::whereDate('created_at', today())->count();
-        $validated['transaction_id'] = $validated['client_id'] . '-' . $year . '-' . str_pad($lastToday + 1, 4, '0', STR_PAD_LEFT);
+        $validated['transaction_id'] = $this->nextClientTransactionId($validated['client_id']);
         $validated['source'] = 'E-Registration';
         $validated['status'] = 'Pending';
 
@@ -46,6 +44,23 @@ class TransactionController extends Controller
 
         return redirect()->route('clients.show', $client)
             ->with('show_transaction', $transaction->id);
+    }
+
+    private function nextClientTransactionId(string $clientId): string
+    {
+        $year = now()->format('y');
+        $prefix = $clientId . '-' . $year . '-';
+
+        $maxSequence = TransactionHistory::query()
+            ->where('transaction_id', 'like', $prefix . '%')
+            ->pluck('transaction_id')
+            ->reduce(function (int $max, string $transactionId) use ($prefix) {
+                $suffix = substr($transactionId, strlen($prefix));
+
+                return ctype_digit($suffix) ? max($max, (int) $suffix) : $max;
+            }, 0);
+
+        return $prefix . str_pad((string) ($maxSequence + 1), 4, '0', STR_PAD_LEFT);
     }
 
     public function show($id)

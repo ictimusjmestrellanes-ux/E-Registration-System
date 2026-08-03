@@ -45,6 +45,9 @@
                                 class="btn btn-sm {{ request()->boolean('duplicate_names') ? 'btn-warning' : 'btn-outline-warning' }}">
                                 <i class="ri-file-copy-2-line me-1"></i> Duplicate Names
                             </a>
+                            <a href="{{ route('transaction-events.archives') }}" class="btn btn-outline-secondary btn-sm">
+                                <i class="ri-archive-line me-1"></i> View Archives
+                            </a>
                             <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal"
                                 data-bs-target="#importModal">
                                 <i class="ri-upload-2-line me-1"></i> Import CSV

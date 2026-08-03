@@ -198,7 +198,7 @@
                         </div>
 
                         <div class="dropdown ms-sm-3 header-item topbar-user">
-                            <button type="button" class="btn material-shadow-none" id="topbar-user-dropdown" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-haspopup="true" aria-expanded="false">
+                            <button type="button" class="btn material-shadow-none dropdown-toggle" id="topbar-user-dropdown" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-haspopup="true" aria-expanded="false">
                                 <span class="d-flex align-items-center">
                                     @php
                                         $headerAvatar = auth()->user()?->avatar_url ?? asset('assets/images/avatar-1.jpg');
@@ -207,7 +207,7 @@
                                     <span class="text-start ms-2 d-none d-xl-block">
                                         <span class="fw-medium user-name-text">{{ auth()->user()->name ?? 'User' }}</span>
                                     </span>
-                                    <i class="mdi mdi-chevron-down d-none d-xl-inline-block ms-2 fs-16"></i>
+                                    {{-- caret removed: bootstrap provides dropdown indicator --}}
                                 </span>
                             </button>
                             <div class="dropdown-menu dropdown-menu-end" aria-labelledby="topbar-user-dropdown">
@@ -333,6 +333,37 @@
                     keepDashboardOpen();
                 }
             });
+        });
+    </script>
+    <script>
+        // Ensure topbar user dropdown is initialized (fixes cases where data-bs state is lost)
+        document.addEventListener('DOMContentLoaded', function () {
+            try {
+                if (typeof bootstrap !== 'undefined' && document.getElementById('topbar-user-dropdown')) {
+                    var el = document.getElementById('topbar-user-dropdown');
+                    // initialize if not already
+                    if (!el.classList.contains('dropdown-toggle')) {
+                        el.classList.add('dropdown-toggle');
+                    }
+                    // create Dropdown instance to ensure it responds to clicks
+                    /* global bootstrap */
+                    var dd = new bootstrap.Dropdown(el);
+
+                    // Explicit click handler to toggle dropdown in case automatic binding is prevented
+                    el.addEventListener('click', function (ev) {
+                        try {
+                            ev.preventDefault();
+                            ev.stopPropagation();
+                            // toggle using the Dropdown API
+                            dd.toggle();
+                        } catch (ex) {
+                            console.warn('Topbar dropdown toggle failed:', ex);
+                        }
+                    });
+                }
+            } catch (e) {
+                console.warn('Dropdown init failed:', e);
+            }
         });
     </script>
     <!-- imessage -->
