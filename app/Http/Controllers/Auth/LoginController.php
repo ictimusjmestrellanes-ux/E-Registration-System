@@ -82,7 +82,8 @@ class LoginController extends Controller
         $driver = $this->socialiteDriver($provider);
 
         if ($provider === 'google') {
-            $driver->scopes(['openid', 'profile', 'email']);
+            $driver->scopes(['openid', 'profile', 'email'])
+                   ->with(['access_type' => 'offline', 'prompt' => 'consent']);
         }
 
         return $driver->redirect();
