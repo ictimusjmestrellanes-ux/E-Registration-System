@@ -49,7 +49,7 @@ stages:
     - task: NodeTool@0
       displayName: 'Use Node.js'
       inputs:
-        versionSpec: '18.x'
+        versionSpec: '20.x'
 
     - script: npm install
       workingDirectory: $(rootFolder)
