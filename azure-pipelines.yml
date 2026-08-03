@@ -46,6 +46,19 @@ stages:
       workingDirectory: $(rootFolder)
       displayName: 'Composer install'
 
+    - task: NodeTool@0
+      displayName: 'Use Node.js'
+      inputs:
+        versionSpec: '18.x'
+
+    - script: npm install
+      workingDirectory: $(rootFolder)
+      displayName: 'npm install'
+
+    - script: npm run build
+      workingDirectory: $(rootFolder)
+      displayName: 'Build frontend assets'
+
     - task: ArchiveFiles@2
       displayName: 'Archive files'
       inputs:
