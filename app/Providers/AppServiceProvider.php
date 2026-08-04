@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use SocialiteProviders\Manager\SocialiteWasCalled;
+use Illuminate\Support\Facades\URL;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -28,6 +29,10 @@ class AppServiceProvider extends ServiceProvider
         }
 
         $this->autoStartFingerprintBridge();
+
+        if (app()->environment('production')) {
+            URL::forceScheme('https');
+        }
     }
 
     private function autoStartFingerprintBridge(): void
