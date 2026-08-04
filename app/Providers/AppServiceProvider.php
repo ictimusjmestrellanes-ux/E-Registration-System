@@ -28,7 +28,9 @@ class AppServiceProvider extends ServiceProvider
             return;
         }
 
-        $this->autoStartFingerprintBridge();
+        if (!app()->environment('production')) {
+            $this->autoStartFingerprintBridge();
+        }
 
         if (app()->environment('production')) {
             URL::forceScheme('https');
