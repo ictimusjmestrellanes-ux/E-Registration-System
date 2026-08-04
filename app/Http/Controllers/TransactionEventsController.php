@@ -233,6 +233,99 @@ class TransactionEventsController extends Controller
             ->with('success', 'Transaction ' . $transactionId . ' created successfully for ' . $client->full_name . '.');
     }
 
+    public function transferSelected(Request $request)
+    {
+        $ids = array_values(array_filter(array_map('intval', (array) $request->input('event_ids', []))));
+
+        if (empty($ids)) {
+            return redirect()->route('transaction-events.index')
+                ->with('error', 'No transaction events selected for transfer.');
+        }
+
+        $events = TransactionEvent::query()
+            ->whereIn('id', $ids)
+            ->whereNull('transferred_at')
+            ->get();
+
+        if ($events->isEmpty()) {
+            return redirect()->route('transaction-events.index')
+                ->with('error', 'Selected transaction events are already transferred or no longer available.');
+        }
+
+        $successCount = 0;
+        $skippedCount = 0;
+        $archivedEvents = [];
+
+        foreach ($events as $event) {
+            if (empty($event->transaction_category) || empty($event->transaction_type)) {
+                $skippedCount++;
+                continue;
+            }
+
+            $nameParts = $this->splitFullName($event->full_name);
+            $client = Client::whereRaw('LOWER(first_name) = ?', [strtolower($nameParts['first_name'])])
+                ->whereRaw('LOWER(last_name) = ?', [strtolower($nameParts['last_name'])])
+                ->first();
+
+            if (!$client) {
+                $skippedCount++;
+                continue;
+            }
+
+            $transactionId = $this->nextTransferredTransactionId($client->client_id);
+            $clientCategory = $event->client_category ?: $client->sector;
+
+            $transaction = TransactionHistory::create([
+                'client_id'        => $client->client_id,
+                'client_category'  => $clientCategory,
+                'transaction_id'   => $transactionId,
+                'transaction_date' => now(),
+                'category'         => $event->transaction_category,
+                'type'             => $event->transaction_type,
+                'source'           => 'E-Registration',
+                'clerk'            => auth()->user()->name ?? 'System',
+                'status'           => 'Approved',
+                'description'      => 'Transferred from imported event for ' . $event->full_name,
+            ]);
+
+            ActivityLog::create([
+                'user_id'      => auth()->id(),
+                'action'       => 'transaction_created',
+                'description'  => 'Created transaction ' . $transactionId . ' from imported event.',
+                'subject_type' => 'TransactionHistory',
+                'subject_id'   => $transaction->id,
+                'properties'   => json_encode(['event_id' => $event->id]),
+            ]);
+
+            if (!empty($event->client_category)) {
+                $client->update(['sector' => $event->client_category]);
+            }
+
+            $event->update(['transferred_at' => now()]);
+            $archivedEvents[] = $event;
+            $successCount++;
+        }
+
+        $archiveFile = '';
+        if (!empty($archivedEvents)) {
+            $archiveFile = $this->storeArchivedTransactionEvents($archivedEvents);
+        }
+
+        $message = "Transferred {$successCount} event(s).";
+        if ($skippedCount > 0) {
+            $message .= " Skipped {$skippedCount} event(s) because no matching client or missing transaction details.";
+        }
+        if (!empty($archiveFile)) {
+            $message .= " Archived as {$archiveFile}.";
+        }
+
+        if ($successCount > 0) {
+            return redirect()->route('transaction-events.index')->with('success', $message);
+        }
+
+        return redirect()->route('transaction-events.index')->with('error', $message);
+    }
+
     private function nextTransferredTransactionId(string $clientId): string
     {
         $prefix = $clientId . '-' . now()->format('y') . '-';
@@ -564,6 +657,24 @@ class TransactionEventsController extends Controller
             'status'           => 'Approved',
             'description'      => 'Imported from transaction events CSV',
         ]);
+    }
+
+    private function storeArchivedTransactionEvents(array $events): string
+    {
+        $archiveRows = array_map(function (TransactionEvent $event) {
+            return [
+                'full_name' => $event->full_name,
+                'contact_no' => $event->contact_no,
+                'address' => $event->address,
+                'age' => $event->age,
+                'birth_date' => $event->birth_date?->format('Y-m-d'),
+                'client_category' => $event->client_category,
+                'transaction_category' => $event->transaction_category,
+                'transaction_type' => $event->transaction_type,
+            ];
+        }, $events);
+
+        return $this->storeImportedEventArchive($archiveRows, 'transferred_transaction_events.csv');
     }
 
     private function storeImportedEventArchive(array $events, string $originalFilename): string

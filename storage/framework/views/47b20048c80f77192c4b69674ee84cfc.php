@@ -46,6 +46,16 @@
                                 class="btn btn-sm <?php echo e(request()->boolean('duplicate_names') ? 'btn-warning' : 'btn-outline-warning'); ?>">
                                 <i class="ri-file-copy-2-line me-1"></i> Duplicate Names
                             </a>
+                            <div class="d-flex align-items-center gap-2">
+                                <button type="button" class="btn btn-success btn-sm" id="bulkTransferBtn" disabled>
+                                    <i class="ri-exchange-box-line me-1"></i> Transfer Selected
+                                </button>
+                            </div>
+
+                            <form id="bulkTransferForm" action="<?php echo e(route('transaction-events.transfer-selected')); ?>"
+                                method="POST" class="d-none">
+                                <?php echo csrf_field(); ?>
+                            </form>
                             <a href="<?php echo e(route('transaction-events.archives')); ?>" class="btn btn-outline-secondary btn-sm">
                                 <i class="ri-archive-line me-1"></i> View Archives
                             </a>
@@ -87,7 +97,8 @@
                                     <i class="ri-search-line"></i>
                                 </button>
                                 <?php if(request()->hasAny(['search', 'contact', 'age_from', 'age_to', 'date_from', 'date_to', 'duplicate_names'])): ?>
-                                    <a href="<?php echo e(route('transaction-events.index')); ?>" class="btn btn-light btn-sm flex-fill">
+                                    <a href="<?php echo e(route('transaction-events.index')); ?>"
+                                        class="btn btn-light btn-sm flex-fill">
                                         <i class="ri-close-line"></i>
                                     </a>
                                 <?php endif; ?>
@@ -105,8 +116,9 @@
                                 <thead class="table-light">
                                     <tr>
                                         <th style="width: 120px;" class="text-center">
-                                            <div class="d-inline-flex align-items-center justify-content-center gap-2 text-nowrap">
-                                                <input type="checkbox" class="form-check-input" 
+                                            <div
+                                                class="d-inline-flex align-items-center justify-content-center gap-2 text-nowrap">
+                                                <input type="checkbox" class="form-check-input"
                                                     id="selectAllTransactionEvents"
                                                     aria-label="Select all transaction events on this page">
                                                 <span>Select all</span>
@@ -151,8 +163,8 @@
                                                         <i class="ri-check-line me-1"></i>Approved
                                                     </span>
                                                 <?php else: ?>
-                                                    <form action="<?php echo e(route('transaction-events.transfer', $event)); ?>" method="POST"
-                                                        class="transaction-transfer-form"
+                                                    <form action="<?php echo e(route('transaction-events.transfer', $event)); ?>"
+                                                        method="POST" class="transaction-transfer-form"
                                                         data-event-name="<?php echo e($event->full_name); ?>">
                                                         <?php echo csrf_field(); ?>
                                                         <button type="submit" class="btn btn-sm btn-soft-success"
@@ -210,6 +222,31 @@
             </div>
         </div>
 
+        <!-- Bulk Transfer Confirmation Modal -->
+        <div class="modal fade" id="bulkTransferConfirmModal" tabindex="-1"
+            aria-labelledby="bulkTransferConfirmModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered modal-sm">
+                <div class="modal-content">
+                    <div class="modal-body text-center py-4">
+                        <div class="mb-3">
+                            <i class="ri-exchange-line text-success" style="font-size: 3rem;"></i>
+                        </div>
+                        <p class="fs-5 fw-semibold mb-1" id="bulkTransferConfirmModalLabel">Confirm Transfer</p>
+                        <p class="text-muted mb-0">
+                            Create transactions from <span class="fw-semibold" id="bulkTransferCount">0</span>
+                            selected event(s)?
+                        </p>
+                    </div>
+                    <div class="modal-footer border-0 justify-content-center gap-3 pt-0">
+                        <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-success px-4" id="confirmBulkTransferBtn">
+                            <i class="ri-check-line me-1"></i> Continue
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Import form (hidden, used by both modals) -->
         <form id="importForm" action="<?php echo e(route('transaction-events.import')); ?>" method="POST"
             enctype="multipart/form-data" class="d-none">
@@ -223,8 +260,7 @@
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title" id="importModalLabel">Import Transaction Events</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"
-                            aria-label="Close"></button>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body">
                         <div class="mb-3">
@@ -232,11 +268,12 @@
                             <input type="file" class="form-control" id="csv_file_visible" accept=".csv" required>
                             <div id="csvFileError" class="invalid-feedback d-none"></div>
                         </div>
-                            <div class="alert alert-info mb-0">
-                                <strong>CSV Format:</strong> The file should have the following columns (with header
-                                row):<br>
-                                <code>full_name, contact_no, address, age, birth_date, client_category, transaction_category, transaction_type</code>
-                            </div>
+                        <div class="alert alert-info mb-0">
+                            <strong>CSV Format:</strong> The file should have the following columns (with header
+                            row):<br>
+                            <code>full_name, contact_no, address, age, birth_date, client_category, transaction_category,
+                                transaction_type</code>
+                        </div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
@@ -249,13 +286,13 @@
         </div>
 
         <!-- Preview Modal (Step 2: Review & Confirm) -->
-        <div class="modal fade" id="previewModal" tabindex="-1" aria-labelledby="previewModalLabel" aria-hidden="true">
+        <div class="modal fade" id="previewModal" tabindex="-1" aria-labelledby="previewModalLabel"
+            aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered modal-xl modal-fullscreen-lg-down">
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title" id="previewModalLabel">Review Import Data</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"
-                            aria-label="Close"></button>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body">
                         <div id="previewLoading" class="text-center py-4">
@@ -330,12 +367,22 @@
             const confirmTransferBtn = document.getElementById('confirmTransferBtn');
             let selectedTransferForm = null;
 
+            const bulkTransferBtn = document.getElementById('bulkTransferBtn');
+            const bulkTransferForm = document.getElementById('bulkTransferForm');
+            const bulkTransferConfirmModalEl = document.getElementById('bulkTransferConfirmModal');
+            const bulkTransferCount = document.getElementById('bulkTransferCount');
+            const confirmBulkTransferBtn = document.getElementById('confirmBulkTransferBtn');
+            let selectedBulkTransferIds = [];
+
             if (selectAll) {
                 const syncSelectAllState = () => {
                     const checkedCount = eventCheckboxes.filter((checkbox) => checkbox.checked).length;
                     selectAll.checked = eventCheckboxes.length > 0 && checkedCount === eventCheckboxes.length;
                     selectAll.indeterminate = checkedCount > 0 && checkedCount < eventCheckboxes.length;
                     selectAll.disabled = eventCheckboxes.length === 0;
+                    if (bulkTransferBtn) {
+                        bulkTransferBtn.disabled = checkedCount === 0;
+                    }
                 };
 
                 selectAll.addEventListener('change', function() {
@@ -352,6 +399,50 @@
                 syncSelectAllState();
             }
 
+            if (bulkTransferBtn && bulkTransferForm && bulkTransferConfirmModalEl && confirmBulkTransferBtn) {
+                const bulkTransferConfirmModal = bootstrap.Modal.getOrCreateInstance(bulkTransferConfirmModalEl);
+
+                bulkTransferBtn.addEventListener('click', function() {
+                    selectedBulkTransferIds = eventCheckboxes
+                        .filter((checkbox) => checkbox.checked)
+                        .map((checkbox) => checkbox.value);
+
+                    if (selectedBulkTransferIds.length === 0) {
+                        return;
+                    }
+
+                    if (bulkTransferCount) {
+                        bulkTransferCount.textContent = selectedBulkTransferIds.length;
+                    }
+
+                    bulkTransferConfirmModal.show();
+                });
+
+                confirmBulkTransferBtn.addEventListener('click', function() {
+                    if (selectedBulkTransferIds.length === 0) {
+                        return;
+                    }
+
+                    confirmBulkTransferBtn.disabled = true;
+                    bulkTransferForm.querySelectorAll('input[name="event_ids[]"]').forEach((input) => input
+                        .remove());
+                    selectedBulkTransferIds.forEach((id) => {
+                        const input = document.createElement('input');
+                        input.type = 'hidden';
+                        input.name = 'event_ids[]';
+                        input.value = id;
+                        bulkTransferForm.appendChild(input);
+                    });
+
+                    bulkTransferForm.submit();
+                });
+
+                bulkTransferConfirmModalEl.addEventListener('hidden.bs.modal', function() {
+                    selectedBulkTransferIds = [];
+                    confirmBulkTransferBtn.disabled = false;
+                });
+            }
+
             if (transferConfirmModalEl && confirmTransferBtn) {
                 const transferConfirmModal = bootstrap.Modal.getOrCreateInstance(transferConfirmModalEl);
 
@@ -361,7 +452,8 @@
                         selectedTransferForm = this;
 
                         if (transferConfirmName) {
-                            transferConfirmName.textContent = this.dataset.eventName || 'this client';
+                            transferConfirmName.textContent = this.dataset.eventName ||
+                                'this client';
                         }
 
                         transferConfirmModal.show();
@@ -433,7 +525,8 @@
                 const formData = new FormData();
                 formData.append('csv_file', file);
 
-                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute(
+                    'content') || '';
 
                 importModal.hide();
                 previewModal.show();
@@ -443,7 +536,7 @@
                 previewTableBody.innerHTML = '';
 
                 try {
-                    const response = await fetch('<?php echo e(route("transaction-events.preview")); ?>', {
+                    const response = await fetch('<?php echo e(route('transaction-events.preview')); ?>', {
                         method: 'POST',
                         headers: {
                             'X-CSRF-TOKEN': csrfToken,
@@ -464,9 +557,9 @@
                     if (data.rows && data.rows.length > 0) {
                         data.rows.forEach(function(row, index) {
                             const tr = document.createElement('tr');
-                            const statusBadge = row.duplicate
-                                ? '<span class="badge bg-warning-subtle text-warning">Duplicate</span>'
-                                : '<span class="badge bg-success-subtle text-success">New</span>';
+                            const statusBadge = row.duplicate ?
+                                '<span class="badge bg-warning-subtle text-warning">Duplicate</span>' :
+                                '<span class="badge bg-success-subtle text-success">New</span>';
 
                             tr.innerHTML = `
                                 <td>${index + 1}</td>
@@ -483,7 +576,8 @@
                             previewTableBody.appendChild(tr);
                         });
                     } else {
-                        previewTableBody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-4">No valid rows found in the CSV file.</td></tr>';
+                        previewTableBody.innerHTML =
+                            '<tr><td colspan="9" class="text-center text-muted py-4">No valid rows found in the CSV file.</td></tr>';
                     }
 
                     if (data.skipped_rows && data.skipped_rows.length > 0) {
@@ -536,4 +630,4 @@
     </script>
 <?php $__env->stopPush(); ?>
 
-<?php echo $__env->make('layouts.master', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH C:\xampp\htdocs\E-Reg-System\resources\views/pages/transaction_events/transactionEvents.blade.php ENDPATH**/ ?>
+<?php echo $__env->make('layouts.master', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH C:\xampp\htdocs\E-Reg-System\resources\views\pages\transaction_events\transactionEvents.blade.php ENDPATH**/ ?>

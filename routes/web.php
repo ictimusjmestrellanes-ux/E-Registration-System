@@ -116,6 +116,7 @@ Route::group(['namespace' => 'App\Http\Controllers'], function () {
         Route::post('transaction-events/preview', [TransactionEventsController::class, 'preview'])->name('transaction-events.preview');
         Route::post('transaction-events/import', [TransactionEventsController::class, 'import'])->name('transaction-events.import');
         Route::post('transaction-events/{event}/transfer', [TransactionEventsController::class, 'transfer'])->name('transaction-events.transfer');
+        Route::post('transaction-events/transfer-selected', [TransactionEventsController::class, 'transferSelected'])->name('transaction-events.transfer-selected');
     
     });
 });
