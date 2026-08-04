@@ -197,6 +197,17 @@
                                     <h5 class="mb-1">Transaction History</h5>
                                     <p class="text-muted mb-0 small">Latest transactions for this client.</p>
                                 </div>
+                                <form method="GET" class="d-flex align-items-center gap-2">
+                                    <?php if(request()->query('show_transaction')): ?>
+                                        <input type="hidden" name="show_transaction" value="<?php echo e(request()->query('show_transaction')); ?>">
+                                    <?php endif; ?>
+                                    <label for="transactionPerPage" class="text-muted small fw-semibold mb-0">Per page</label>
+                                    <select id="transactionPerPage" name="per_page" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+                                        <?php $__currentLoopData = [5, 10, 15, 20, 25]; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $option): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                            <option value="<?php echo e($option); ?>" <?php echo e((string) $perPage === (string) $option ? 'selected' : ''); ?>><?php echo e($option); ?></option>
+                                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                                    </select>
+                                </form>
                             </div>
 
                             <div class="table-responsive" style="max-height: 650px; overflow-y: auto;">
@@ -255,9 +266,16 @@
                                     </tbody>
                                 </table>
                             </div>
-                            <div class="d-flex justify-content-end mt-3">
-                                <?php echo e($transactions->links('pagination::bootstrap-5')); ?>
 
+                            <div class="d-flex justify-content-between align-items-center mt-3 gap-2 flex-wrap">
+                                <div class="small text-muted">
+                                    Showing <?php echo e($transactions->firstItem() ?? 0); ?>-<?php echo e($transactions->lastItem() ?? 0); ?> of <?php echo e($transactions->total()); ?>
+
+                                </div>
+                                <div>
+                                    <?php echo e($transactions->links('pagination::bootstrap-5')); ?>
+
+                                </div>
                             </div>
                         </div>
                     </div>

@@ -104,16 +104,22 @@ class ClientsController extends Controller
 
     public function show(Client $client)
     {
+        $perPage = in_array((int) request()->query('per_page', 5), [5, 10, 15, 20, 25], true)
+            ? (int) request()->query('per_page', 5)
+            : 5;
+
         try {
             $transactions = \App\Models\TransactionHistory::where(function ($query) use ($client) {
                     $query->where('client_id', $client->client_id)
                         ->orWhere('transaction_id', 'LIKE', $client->client_id . '-%');
                 })
-                ->latest()
-                ->paginate(25);
+                ->orderByDesc('transaction_date')
+                ->orderByDesc('transaction_id')
+                ->paginate($perPage)
+                ->withQueryString();
         } catch (\Exception $e) {
             report($e);
-            $transactions = new \Illuminate\Pagination\LengthAwarePaginator([], 0, 25);
+            $transactions = new \Illuminate\Pagination\LengthAwarePaginator([], 0, $perPage, 1);
         }
 
         $transaction = null;
@@ -122,7 +128,7 @@ class ClientsController extends Controller
             $transaction = \App\Models\TransactionHistory::find($transactionId);
         }
 
-        return view('pages.clients.clientShow', compact('client', 'transactions', 'transaction'));
+        return view('pages.clients.clientShow', compact('client', 'transactions', 'transaction', 'perPage'));
     }
 
     public function destroy(Client $client)

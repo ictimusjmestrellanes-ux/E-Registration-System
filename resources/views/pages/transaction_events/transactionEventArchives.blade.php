@@ -39,7 +39,7 @@
                                         @foreach ($files as $file)
                                             <tr>
                                                 <td>{{ $file['name'] }}</td>
-                                                <td>{{ \Carbon\Carbon::createFromTimestamp($file['modified_at'])->format('M d, Y H:i:s') }}</td>
+                                                <td>{{ \Carbon\Carbon::createFromTimestamp($file['uploaded_at'])->format('M d, Y H:i:s') }}</td>
                                                 <td>{{ number_format($file['size'] / 1024, 2) }} KB</td>
                                                 <td class="text-center">
                                                     <a href="{{ $file['download_url'] }}" class="btn btn-sm btn-primary">

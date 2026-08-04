@@ -39,7 +39,7 @@
                                         <?php $__currentLoopData = $files; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $file): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                             <tr>
                                                 <td><?php echo e($file['name']); ?></td>
-                                                <td><?php echo e(\Carbon\Carbon::createFromTimestamp($file['modified_at'])->format('M d, Y H:i:s')); ?></td>
+                                                <td><?php echo e(\Carbon\Carbon::createFromTimestamp($file['uploaded_at'])->format('M d, Y H:i:s')); ?></td>
                                                 <td><?php echo e(number_format($file['size'] / 1024, 2)); ?> KB</td>
                                                 <td class="text-center">
                                                     <a href="<?php echo e($file['download_url']); ?>" class="btn btn-sm btn-primary">

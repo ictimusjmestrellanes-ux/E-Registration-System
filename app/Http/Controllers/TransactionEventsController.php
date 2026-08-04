@@ -73,18 +73,37 @@ class TransactionEventsController extends Controller
 
         $archiveFiles = collect($files)
             ->map(function ($path) use ($directory) {
+                $filename = basename($path);
+                $uploadedAt = $this->extractArchiveUploadedAt($filename);
+
                 return [
-                    'name' => basename($path),
+                    'name' => $filename,
                     'path' => $path,
-                    'download_url' => route('transaction-events.archives.download', ['filename' => basename($path)]),
+                    'download_url' => route('transaction-events.archives.download', ['filename' => $filename]),
                     'size' => Storage::disk('local')->size($path),
                     'modified_at' => Storage::disk('local')->lastModified($path),
+                    'uploaded_at' => $uploadedAt ?? Storage::disk('local')->lastModified($path),
                 ];
             })
-            ->sortByDesc('modified_at')
+            ->sortByDesc('uploaded_at')
             ->values();
 
         return view('pages.transaction_events.transactionEventArchives', ['files' => $archiveFiles]);
+    }
+
+    private function extractArchiveUploadedAt(string $filename): ?int
+    {
+        if (preg_match('/transaction-events_(\d{8})_(\d{6})/i', $filename, $matches)) {
+            $date = $matches[1];
+            $time = $matches[2];
+
+            $timestamp = \DateTime::createFromFormat('YmdHis', $date . $time, new \DateTimeZone('UTC'));
+            if ($timestamp !== false) {
+                return $timestamp->getTimestamp();
+            }
+        }
+
+        return null;
     }
 
     public function downloadArchive(string $filename)

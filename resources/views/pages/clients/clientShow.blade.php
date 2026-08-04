@@ -198,6 +198,17 @@
                                     <h5 class="mb-1">Transaction History</h5>
                                     <p class="text-muted mb-0 small">Latest transactions for this client.</p>
                                 </div>
+                                <form method="GET" class="d-flex align-items-center gap-2">
+                                    @if (request()->query('show_transaction'))
+                                        <input type="hidden" name="show_transaction" value="{{ request()->query('show_transaction') }}">
+                                    @endif
+                                    <label for="transactionPerPage" class="text-muted small fw-semibold mb-0">Per page</label>
+                                    <select id="transactionPerPage" name="per_page" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+                                        @foreach ([5, 10, 15, 20, 25] as $option)
+                                            <option value="{{ $option }}" {{ (string) $perPage === (string) $option ? 'selected' : '' }}>{{ $option }}</option>
+                                        @endforeach
+                                    </select>
+                                </form>
                             </div>
 
                             <div class="table-responsive" style="max-height: 650px; overflow-y: auto;">
@@ -256,8 +267,14 @@
                                     </tbody>
                                 </table>
                             </div>
-                            <div class="d-flex justify-content-end mt-3">
-                                {{ $transactions->links('pagination::bootstrap-5') }}
+
+                            <div class="d-flex justify-content-between align-items-center mt-3 gap-2 flex-wrap">
+                                <div class="small text-muted">
+                                    Showing {{ $transactions->firstItem() ?? 0 }}-{{ $transactions->lastItem() ?? 0 }} of {{ $transactions->total() }}
+                                </div>
+                                <div>
+                                    {{ $transactions->links('pagination::bootstrap-5') }}
+                                </div>
                             </div>
                         </div>
                     </div>
