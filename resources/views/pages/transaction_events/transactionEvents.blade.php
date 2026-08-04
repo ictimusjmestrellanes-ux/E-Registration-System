@@ -272,6 +272,7 @@
                                         <tr>
                                             <th>#</th>
                                             <th>Full Name</th>
+                                            <th>Status</th>
                                             <th>Age</th>
                                             <th>Birth Date</th>
                                             <th>Client Category</th>
@@ -460,9 +461,14 @@
                     if (data.rows && data.rows.length > 0) {
                         data.rows.forEach(function(row, index) {
                             const tr = document.createElement('tr');
+                            const statusBadge = row.duplicate
+                                ? '<span class="badge bg-warning-subtle text-warning">Duplicate</span>'
+                                : '<span class="badge bg-success-subtle text-success">New</span>';
+
                             tr.innerHTML = `
                                 <td>${index + 1}</td>
                                 <td class="fw-semibold">${escapeHtml(row.full_name)}</td>
+                                <td>${statusBadge}</td>
                                 <td>${row.age ?? '-'}</td>
                                 <td>${escapeHtml(row.birth_date || '-')}</td>
                                 <td>${escapeHtml(row.client_category || '-')}</td>

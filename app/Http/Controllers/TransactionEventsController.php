@@ -153,14 +153,22 @@ class TransactionEventsController extends Controller
         $rows = $result['rows'];
         $archiveFile = '';
         $imported = count($rows);
+        $hasDuplicateRows = collect($rows)->contains(fn ($row) => !empty($row['duplicate']));
 
         if ($imported > 0) {
-            $this->processImportedEvents($rows);
+            if ($hasDuplicateRows) {
+                $this->storeImportedEventsOnly($rows);
+            } else {
+                $this->processImportedEvents($rows);
+            }
             $archiveFile = $this->storeImportedEventArchive($rows, $request->file('csv_file')->getClientOriginalName());
         }
 
         $skipped = $result['skipped'];
-        $message = "Successfully imported {$imported} event(s).";
+        $message = $hasDuplicateRows
+            ? "Imported {$imported} event(s) to the event list because duplicate rows were found in the selected file."
+            : "Successfully imported {$imported} event(s).";
+
         if ($skipped > 0) {
             $message .= " Skipped {$skipped} invalid row(s).";
         }
@@ -279,6 +287,8 @@ class TransactionEventsController extends Controller
         $rows = [];
         $skippedRows = [];
         $lineNumber = 1;
+        $eventKeyCounts = [];
+        $tempRows = [];
 
         while (($row = fgetcsv($handle)) !== false) {
             $lineNumber++;
@@ -307,15 +317,37 @@ class TransactionEventsController extends Controller
                 continue;
             }
 
-            $rows[] = [
+            $birthDate = $this->parseImportedDate($data['birth_date'] ?? $data['birthdate'] ?? null);
+            $eventKey = $this->normalizeImportedEventKey($fullName, $birthDate);
+
+            $eventKeyCounts[$eventKey] = ($eventKeyCounts[$eventKey] ?? 0) + 1;
+
+            $tempRows[] = [
                 'full_name'           => $fullName,
                 'contact_no'          => $data['contact_no'] ?? '',
                 'address'             => $data['address'] ?? '',
                 'age'                 => $age,
-                'birth_date'          => $this->parseImportedDate($data['birth_date'] ?? $data['birthdate'] ?? null),
+                'birth_date'          => $birthDate,
                 'client_category'     => $data['client_category'] ?? '',
                 'transaction_category' => $data['transaction_category'] ?? '',
                 'transaction_type'    => $data['transaction_type'] ?? '',
+                'event_key'           => $eventKey,
+            ];
+        }
+
+        foreach ($tempRows as $tempRow) {
+            $duplicate = $eventKeyCounts[$tempRow['event_key']] > 1;
+
+            $rows[] = [
+                'full_name'           => $tempRow['full_name'],
+                'contact_no'          => $tempRow['contact_no'],
+                'address'             => $tempRow['address'],
+                'age'                 => $tempRow['age'],
+                'birth_date'          => $tempRow['birth_date'],
+                'client_category'     => $tempRow['client_category'],
+                'transaction_category' => $tempRow['transaction_category'],
+                'transaction_type'    => $tempRow['transaction_type'],
+                'duplicate'           => $duplicate,
             ];
         }
 
@@ -329,6 +361,45 @@ class TransactionEventsController extends Controller
             'skipped'      => count($skippedRows),
             'skipped_rows' => $skippedRows,
         ];
+    }
+
+    private function normalizeImportedEventKey(string $fullName, ?string $birthDate): string
+    {
+        $normalizedFullName = preg_replace('/\s+/', ' ', trim(strtolower($fullName)));
+        $normalizedBirthDate = $birthDate ? trim(strtolower($birthDate)) : '';
+
+        return $normalizedFullName . '|' . $normalizedBirthDate;
+    }
+
+    private function isDuplicateImportedEvent(string $fullName, ?string $birthDate): bool
+    {
+        if ($birthDate === null || trim($birthDate) === '') {
+            return false;
+        }
+
+        $normalizedName = preg_replace('/\s+/', ' ', trim($fullName));
+        if ($normalizedName === '') {
+            return false;
+        }
+
+        $nameParts = $this->splitFullName($normalizedName);
+
+        if (!empty($nameParts['first_name']) && !empty($nameParts['last_name'])) {
+            $clientMatch = Client::query()
+                ->whereRaw('LOWER(TRIM(first_name)) = ?', [strtolower($nameParts['first_name'])])
+                ->whereRaw('LOWER(TRIM(last_name)) = ?', [strtolower($nameParts['last_name'])])
+                ->whereDate('birth_date', $birthDate)
+                ->exists();
+
+            if ($clientMatch) {
+                return true;
+            }
+        }
+
+        return TransactionEvent::query()
+            ->whereRaw('LOWER(TRIM(full_name)) = ?', [strtolower($normalizedName)])
+            ->whereDate('birth_date', $birthDate)
+            ->exists();
     }
 
     private function processImportedEvents(array $events): void
@@ -358,6 +429,22 @@ class TransactionEventsController extends Controller
             }
 
             $this->createTransactionHistoryFromImportedEvent($client, $event);
+        }
+    }
+
+    private function storeImportedEventsOnly(array $events): void
+    {
+        foreach ($events as $event) {
+            TransactionEvent::create([
+                'full_name'           => $event['full_name'],
+                'contact_no'          => $event['contact_no'] ?? '',
+                'address'             => $event['address'] ?? '',
+                'age'                 => $event['age'] ?? null,
+                'birth_date'          => $event['birth_date'] ?? null,
+                'client_category'     => $event['client_category'] ?? '',
+                'transaction_category' => $event['transaction_category'] ?? '',
+                'transaction_type'    => $event['transaction_type'] ?? '',
+            ]);
         }
     }
 
