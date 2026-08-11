@@ -58,12 +58,8 @@ class OAuthUserService
 
     private function assertProviderAllowed(string $provider, SocialiteUserContract $socialiteUser, string $email): void
     {
-        if (!in_array($provider, ['google', 'azure'], true)) {
+        if (!in_array($provider, ['azure'], true)) {
             throw new RuntimeException('Unsupported identity provider.');
-        }
-
-        if ($provider === 'google' && !$this->googleEmailIsVerified($socialiteUser)) {
-            throw new RuntimeException('Google account email must be verified.');
         }
 
         if ($provider === 'azure') {
@@ -76,19 +72,9 @@ class OAuthUserService
         }
     }
 
-    private function googleEmailIsVerified(SocialiteUserContract $socialiteUser): bool
-    {
-        $raw = $socialiteUser->getRaw();
-
-        return array_key_exists('email_verified', $raw)
-            ? (bool) $raw['email_verified']
-            : false;
-    }
-
     private function providerColumn(string $provider): string
     {
         return match ($provider) {
-            'google' => 'google_id',
             'azure' => 'azure_id',
             default => throw new RuntimeException('Unsupported identity provider.'),
         };

@@ -26,8 +26,6 @@ Route::group(['namespace' => 'App\Http\Controllers\Auth'],function()
     // ----------------------------- login ------------------------------------//
     Route::get('/login', [LoginController::class, 'login'])->name('login');
     Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
-    Route::get('auth/google/redirect', [LoginController::class, 'redirectToGoogle'])->name('google.redirect');
-    Route::get('auth/google/callback', [LoginController::class, 'handleGoogleCallback'])->name('google.callback');
     Route::get('auth/azure/redirect', [LoginController::class, 'redirectToAzure'])->name('azure.redirect');
     Route::get('auth/azure/callback', [LoginController::class, 'handleAzureCallback'])->name('azure.callback');
 

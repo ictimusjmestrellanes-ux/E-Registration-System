@@ -27,7 +27,6 @@ class LoginController extends Controller
     public function login()
     {
         return view('auth.login', [
-            'googleConfigured' => $this->providerIsConfigured('google'),
             'azureConfigured' => $this->providerIsConfigured('azure'),
         ]);
     }
@@ -55,16 +54,6 @@ class LoginController extends Controller
         return redirect()->intended(route('dashboard'))->with('success', 'Login successfully :)');
     }
 
-    public function redirectToGoogle(Request $request)
-    {
-        return $this->redirectToProvider('google');
-    }
-
-    public function handleGoogleCallback(Request $request, OAuthUserService $users)
-    {
-        return $this->handleProviderCallback($request, $users, 'google');
-    }
-
     public function redirectToAzure(Request $request)
     {
         return $this->redirectToProvider('azure');
@@ -81,14 +70,7 @@ class LoginController extends Controller
             return redirect('login')->with('error', ucfirst($provider) . ' login is not configured yet.');
         }
 
-        $driver = $this->socialiteDriver($provider);
-
-        if ($provider === 'google') {
-            $driver->scopes(['openid', 'profile', 'email'])
-                   ->with(['access_type' => 'offline', 'prompt' => 'consent']);
-        }
-
-        return $driver->redirect();
+        return $this->socialiteDriver($provider)->redirect();
     }
 
     public function handleProviderCallback(Request $request, OAuthUserService $users, string $provider)

@@ -156,8 +156,7 @@
             gap: 12px;
         }
 
-        .microsoft-btn,
-        .google-btn {
+        .microsoft-btn {
             width: 100%;
             border: 0;
             border-radius: 14px;
@@ -170,38 +169,13 @@
             gap: 12px;
             cursor: pointer;
             text-decoration: none;
-        }
-
-        .microsoft-btn {
             background: linear-gradient(180deg, #1784ec 0%, #0f75d9 100%);
             color: #ffffff;
             box-shadow: 0 16px 28px rgba(22, 120, 219, 0.22);
         }
 
-        .google-btn {
-            background: #ffffff;
-            color: #24304a;
-            border: 1px solid #d7dfec;
-            box-shadow: 0 12px 22px rgba(36, 48, 74, 0.08);
-        }
-
-        .google-btn i {
-            color: #ea4335;
-        }
-
         .microsoft-btn:focus,
         .microsoft-btn:hover {
-            color: #ffffff;
-            filter: brightness(1.02);
-            transform: translateY(-1px);
-        }
-
-        .google-btn:focus,
-        .google-btn:hover {
-            color: #24304a;
-            border-color: #c3ccdc;
-            transform: translateY(-1px);
-        }
 
         .microsoft-logo {
             width: 20px;
@@ -310,10 +284,6 @@
                             <span class="c4"></span>
                         </span>
                         Sign in with Microsoft
-                    </a>
-                    <a href="<?php echo e(route('google.redirect')); ?>" class="google-btn" aria-label="Sign in with Google">
-                        <i class="ri-google-fill fs-18" aria-hidden="true"></i>
-                        Sign in with Google
                     </a>
                 </div>
 
