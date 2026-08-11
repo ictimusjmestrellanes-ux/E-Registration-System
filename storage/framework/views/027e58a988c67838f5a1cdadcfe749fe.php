@@ -85,39 +85,6 @@
             margin-bottom: 36px;
         }
 
-        .hero-list {
-            margin: 0;
-            padding: 0;
-            list-style: none;
-            display: grid;
-            gap: 18px;
-            max-width: 640px;
-        }
-
-        .hero-list li {
-            display: flex;
-            align-items: flex-start;
-            gap: 14px;
-            color: #50607f;
-            font-size: 1rem;
-            line-height: 1.45;
-        }
-
-        .hero-check {
-            width: 28px;
-            height: 28px;
-            border-radius: 50%;
-            background: rgba(48, 137, 239, 0.16);
-            color: #1f82f0;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            flex: 0 0 auto;
-            font-size: 1rem;
-            font-weight: 800;
-            margin-top: 1px;
-        }
-
         .login-panel {
             flex: 0 0 36%;
             background: #ffffff;
@@ -176,6 +143,11 @@
 
         .microsoft-btn:focus,
         .microsoft-btn:hover {
+            color: #ffffff;
+            filter: brightness(1.05);
+            transform: translateY(-1px);
+            box-shadow: 0 18px 32px rgba(22, 120, 219, 0.3);
+        }
 
         .microsoft-logo {
             width: 20px;
@@ -267,6 +239,11 @@
                 </div>
 
                 <h1 class="hero-title">Monitor clients in real time.</h1>
+                <p class="hero-copy">
+                    The E-Registration System streamlines client registration and
+                    monitoring for the City Government of Imus — faster, simpler, and
+                    more reliable than ever.
+                </p>
             </div>
         </section>
 
@@ -288,7 +265,7 @@
                 </div>
 
                 <p class="support-copy mt-4">
-                    Need assistance? Contact the <strong>IT Support Team</strong> for help accessing your account.
+                    Need assistance? Contact the <a href="mailto:citrmu@cityofimus.gov.ph">IT Support Team</a> for help accessing your account.
                 </p>
             </div>
         </section>

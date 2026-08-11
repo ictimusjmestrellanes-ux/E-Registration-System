@@ -116,8 +116,6 @@
                                                             id="openCameraBtn">Open Camera</button>
                                                         <button type="button" class="btn btn-soft-success"
                                                             id="retakePhotoBtn" disabled>Retake</button>
-                                                        <button type="button" class="btn btn-soft-secondary"
-                                                            id="uploadPhotoBtn">Upload Photo</button>
                                                     </div>
                                                     <input type="file" id="clientPhotoFileInput" class="d-none"
                                                         accept="image/*">
@@ -619,7 +617,6 @@ unset($__errorArgs, $__bag); ?>
             const openCameraBtn = document.getElementById('openCameraBtn');
             const capturePhotoBtn = document.getElementById('capturePhotoBtn');
             const retakePhotoBtn = document.getElementById('retakePhotoBtn');
-            const uploadPhotoBtn = document.getElementById('uploadPhotoBtn');
             const uploadPhotoModalBtn = document.getElementById('uploadPhotoModalBtn');
             const clientPhotoFileInput = document.getElementById('clientPhotoFileInput');
             const cameraWrapper = document.getElementById('cameraWrapper');
@@ -675,8 +672,7 @@ unset($__errorArgs, $__bag); ?>
 
             if (!openCameraBtn || !capturePhotoBtn || !retakePhotoBtn || !cameraWrapper || !cameraView || !
                 cameraCanvas || !clientPhotoData || !birthDateInput || !ageInput || !preview || !form || !
-                contactInput || !contactError || !contact2Input || !contact2Error || !cameraModalEl || !
-                uploadPhotoBtn || !clientPhotoFileInput || !provinceSelect || !citySelect || !barangaySelect || !
+                contactInput || !contactError || !contact2Input || !contact2Error || !cameraModalEl || !clientPhotoFileInput || !provinceSelect || !citySelect || !barangaySelect || !
                 provinceHidden || !cityHidden || !
                 provinceManual || !cityManual || !barangayManual || !sameAsHomeAddress || !openFingerprintBtn || !
                 clearFingerprintBtn || !
@@ -1240,10 +1236,6 @@ unset($__errorArgs, $__bag); ?>
 
             clearFingerprintCaptureBtn.addEventListener('click', function() {
                 clearFingerprintCapture();
-            });
-
-            uploadPhotoBtn.addEventListener('click', function() {
-                clientPhotoFileInput.click();
             });
 
             clientPhotoFileInput.addEventListener('change', function() {
