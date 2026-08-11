@@ -1,10 +1,10 @@
-@php
-    $isEditMode = $isEditMode ?? false;
+<?php
+    $isEditMode = isset($transaction);
     $wizTxReqs = $isEditMode ? $transaction->requirements->keyBy('requirement_type') : collect();
     $wizTxDate = $isEditMode ? $transaction->transaction_date->format('Y-m-d') : now()->format('Y-m-d');
-@endphp
+?>
 
-@if ($isEditMode)
+<?php if($isEditMode): ?>
     <div class="container-fluid">
         <div class="row">
             <div class="col-12">
@@ -14,18 +14,19 @@
                             <div>
                                 <h4 class="mb-1">Edit Transaction</h4>
                                 <p class="text-muted mb-0">
-                                    Transaction {{ $transaction->transaction_id }} &mdash; {{ strtoupper($client->full_name ?? 'Client') }}
+                                    Transaction <?php echo e($transaction->transaction_id); ?> &mdash; <?php echo e(strtoupper($client->full_name ?? 'Client')); ?>
+
                                 </p>
                             </div>
                             <div class="d-flex gap-2">
-                                <a href="{{ route('transactions.process', $transaction->id) }}" class="btn btn-outline-primary">View Process</a>
-                                <a href="{{ route('clients.show', $client) }}" class="btn btn-secondary">Back to Client</a>
+                                <a href="<?php echo e(route('transactions.process', $transaction->id)); ?>" class="btn btn-outline-primary">View Process</a>
+                                <a href="<?php echo e(route('clients.show', $client)); ?>" class="btn btn-secondary">Back to Client</a>
                             </div>
                         </div>
                         <form id="newTransactionForm">
-                            @csrf
+                            <?php echo csrf_field(); ?>
                             <div class="wizard-body border rounded-3">
-@else
+<?php else: ?>
 <div class="modal fade" id="newTransactionModal" tabindex="-1" aria-labelledby="newTransactionModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-xl">
         <div class="modal-content">
@@ -34,26 +35,26 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form id="newTransactionForm">
-                @csrf
+                <?php echo csrf_field(); ?>
                 <div class="modal-body p-0 wizard-body">
-@endif
-                    {{-- Progress indicator --}}
+<?php endif; ?>
+                    
                     <div class="px-4 pt-3 pb-2 wizard-progress">
-                        @foreach ([
+                        <?php $__currentLoopData = [
                             1 => 'Transaction Details',
                             2 => 'Transaction Information',
                             3 => 'Upload Requirements',
                             4 => 'Subject Information',
                             5 => 'Review',
-                        ] as $wizStep => $wizLabel)
-                            <span class="wizard-step-badge {{ $wizStep === 1 ? 'active' : '' }}" data-step="{{ $wizStep }}">
-                                <span class="wizard-step-num">{{ $wizStep }}</span>
-                                <span class="wizard-step-label">{{ $wizLabel }}</span>
+                        ]; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $wizStep => $wizLabel): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                            <span class="wizard-step-badge <?php echo e($wizStep === 1 ? 'active' : ''); ?>" data-step="<?php echo e($wizStep); ?>">
+                                <span class="wizard-step-num"><?php echo e($wizStep); ?></span>
+                                <span class="wizard-step-label"><?php echo e($wizLabel); ?></span>
                             </span>
-                        @endforeach
+                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                     </div>
 
-                    {{-- STEP 1: Transaction Details --}}
+                    
                     <div class="wizard-step" data-step="1">
                         <div class="bg-light text-white px-4 py-3">
                             <h6 class="mb-0">Transaction Details</h6>
@@ -62,16 +63,16 @@
                             <div class="row gx-3 align-items-center mb-3">
                                 <div class="col-auto text-uppercase text-muted small fw-semibold">Applicant ID</div>
                                 <div class="col-auto flex-fill">
-                                    <input type="text" id="clientIdInput" class="form-control form-control-sm border-0 bg-light text-uppercase fw-bold" name="client_id" value="{{ $client->client_id ?? '' }}" readonly>
+                                    <input type="text" id="clientIdInput" class="form-control form-control-sm border-0 bg-light text-uppercase fw-bold" name="client_id" value="<?php echo e($client->client_id ?? ''); ?>" readonly>
                                 </div>
                                 <div class="col-auto text-uppercase text-muted small fw-semibold">Client</div>
                                 <div class="col-auto flex-fill">
-                                    <input type="text" class="form-control form-control-sm border-0 bg-light text-uppercase fw-bold" value="{{ $client->full_name ?? '' }}" readonly>
+                                    <input type="text" class="form-control form-control-sm border-0 bg-light text-uppercase fw-bold" value="<?php echo e($client->full_name ?? ''); ?>" readonly>
                                 </div>
                                 <div class="col-auto text-uppercase text-muted small fw-semibold">Transaction Date</div>
                                 <div class="col-auto flex-fill">
-                                    <input type="text" class="form-control form-control-sm border-0 bg-light fw-bold" value="{{ $isEditMode ? $transaction->transaction_date->format('m/d/Y') : now()->format('m/d/Y') }}" readonly>
-                                    <input type="hidden" name="transaction_date" value="{{ $wizTxDate }}">
+                                    <input type="text" class="form-control form-control-sm border-0 bg-light fw-bold" value="<?php echo e($isEditMode ? $transaction->transaction_date->format('m/d/Y') : now()->format('m/d/Y')); ?>" readonly>
+                                    <input type="hidden" name="transaction_date" value="<?php echo e($wizTxDate); ?>">
                                 </div>
                             </div>
 
@@ -80,17 +81,17 @@
                                 <div class="col">
                                     <select class="form-select form-select-sm border-0 bg-light text-uppercase" name="category" id="categorySelect" required>
                                         <option value="">SELECT CATEGORY</option>
-                                        <option value="social_services_assistance" @selected($isEditMode && $transaction->category === 'social_services_assistance')>SOCIAL SERVICES ASSISTANCE</option>
-                                        <option value="solicitation" @selected($isEditMode && $transaction->category === 'solicitation')>SOLICITATION</option>
-                                        <option value="youth_sports" @selected($isEditMode && $transaction->category === 'youth_sports')>YOUTH & SPORTS</option>
-                                        <option value="appointments" @selected($isEditMode && $transaction->category === 'appointments')>APPOINTMENTS</option>
-                                        <option value="infrastructure" @selected($isEditMode && $transaction->category === 'infrastructure')>INFRASTRUCTURE</option>
-                                        <option value="scholarships" @selected($isEditMode && $transaction->category === 'scholarships')>SCHOLARSHIPS</option>
-                                        <option value="permits" @selected($isEditMode && $transaction->category === 'permits')>PERMITS</option>
-                                        <option value="events" @selected($isEditMode && $transaction->category === 'events')>EVENTS</option>
-                                        <option value="job_application" @selected($isEditMode && $transaction->category === 'job_application')>JOB APPLICATION</option>
-                                        <option value="hoa" @selected($isEditMode && $transaction->category === 'hoa')>HOA</option>
-                                        <option value="others" @selected($isEditMode && $transaction->category === 'others')>OTHERS</option>
+                                        <option value="social_services_assistance" <?php if($isEditMode && $transaction->category === 'social_services_assistance'): echo 'selected'; endif; ?>>SOCIAL SERVICES ASSISTANCE</option>
+                                        <option value="solicitation" <?php if($isEditMode && $transaction->category === 'solicitation'): echo 'selected'; endif; ?>>SOLICITATION</option>
+                                        <option value="youth_sports" <?php if($isEditMode && $transaction->category === 'youth_sports'): echo 'selected'; endif; ?>>YOUTH & SPORTS</option>
+                                        <option value="appointments" <?php if($isEditMode && $transaction->category === 'appointments'): echo 'selected'; endif; ?>>APPOINTMENTS</option>
+                                        <option value="infrastructure" <?php if($isEditMode && $transaction->category === 'infrastructure'): echo 'selected'; endif; ?>>INFRASTRUCTURE</option>
+                                        <option value="scholarships" <?php if($isEditMode && $transaction->category === 'scholarships'): echo 'selected'; endif; ?>>SCHOLARSHIPS</option>
+                                        <option value="permits" <?php if($isEditMode && $transaction->category === 'permits'): echo 'selected'; endif; ?>>PERMITS</option>
+                                        <option value="events" <?php if($isEditMode && $transaction->category === 'events'): echo 'selected'; endif; ?>>EVENTS</option>
+                                        <option value="job_application" <?php if($isEditMode && $transaction->category === 'job_application'): echo 'selected'; endif; ?>>JOB APPLICATION</option>
+                                        <option value="hoa" <?php if($isEditMode && $transaction->category === 'hoa'): echo 'selected'; endif; ?>>HOA</option>
+                                        <option value="others" <?php if($isEditMode && $transaction->category === 'others'): echo 'selected'; endif; ?>>OTHERS</option>
                                     </select>
                                 </div>
                             </div>
@@ -109,16 +110,16 @@
                                 <div class="col">
                                     <select class="form-select form-select-sm border-0 text-uppercase" name="addressed_to" id="addressedToSelect" required>
                                         <option value="">SELECT ADDRESSED TO</option>
-                                        <option value="mayor" @selected($isEditMode && str_contains($transaction->signatory ?? '', 'ALEX'))>MAYOR ALEX L. ADVINCULA</option>
-                                        <option value="cong" @selected($isEditMode && str_contains($transaction->signatory ?? '', 'ADRIAN'))>CONG. ADRIAN JAY C. ADVINCULA</option>
-                                        <option value="vice_mayor" @selected($isEditMode && !str_contains($transaction->signatory ?? '', 'ALEX') && !str_contains($transaction->signatory ?? '', 'ADRIAN'))>Others</option>
+                                        <option value="mayor" <?php if($isEditMode && str_contains($transaction->signatory ?? '', 'ALEX')): echo 'selected'; endif; ?>>MAYOR ALEX L. ADVINCULA</option>
+                                        <option value="cong" <?php if($isEditMode && str_contains($transaction->signatory ?? '', 'ADRIAN')): echo 'selected'; endif; ?>>CONG. ADRIAN JAY C. ADVINCULA</option>
+                                        <option value="vice_mayor" <?php if($isEditMode && !str_contains($transaction->signatory ?? '', 'ALEX') && !str_contains($transaction->signatory ?? '', 'ADRIAN')): echo 'selected'; endif; ?>>Others</option>
                                     </select>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    {{-- STEP 2: Transaction Information --}}
+                    
                     <div class="wizard-step d-none" data-step="2">
                         <div class="bg-light text-white px-4 py-3">
                             <h6 class="mb-0">Transaction Information</h6>
@@ -127,11 +128,11 @@
                             <div class="row gx-3 align-items-center mb-3">
                                 <div class="col-md-3 text-uppercase text-muted small fw-semibold">Transaction ID</div>
                                 <div class="col-md-3">
-                                    <input type="text" id="wizTransactionIdDisplay" class="form-control form-control-sm border-0 bg-light text-uppercase fw-bold" value="{{ $isEditMode ? $transaction->transaction_id : 'AUTO-GENERATED' }}" readonly>
+                                    <input type="text" id="wizTransactionIdDisplay" class="form-control form-control-sm border-0 bg-light text-uppercase fw-bold" value="<?php echo e($isEditMode ? $transaction->transaction_id : 'AUTO-GENERATED'); ?>" readonly>
                                 </div>
                                 <div class="col-md-3 text-uppercase text-muted small fw-semibold">Transaction Date</div>
                                 <div class="col-md-3">
-                                    <input type="text" id="wizTransactionDateDisplay" class="form-control form-control-sm border-0 bg-light fw-bold" value="{{ $isEditMode ? $transaction->transaction_date->format('m/d/Y') : now()->format('m/d/Y') }}" readonly>
+                                    <input type="text" id="wizTransactionDateDisplay" class="form-control form-control-sm border-0 bg-light fw-bold" value="<?php echo e($isEditMode ? $transaction->transaction_date->format('m/d/Y') : now()->format('m/d/Y')); ?>" readonly>
                                 </div>
                             </div>
 
@@ -142,50 +143,50 @@
                                 </div>
                                 <div class="col-md-3 text-uppercase text-muted small fw-semibold">Client ID</div>
                                 <div class="col-md-3">
-                                    <input type="text" id="wizClientIdDisplay" class="form-control form-control-sm border-0 bg-light text-uppercase fw-bold" value="{{ $client->client_id ?? '' }}" readonly>
+                                    <input type="text" id="wizClientIdDisplay" class="form-control form-control-sm border-0 bg-light text-uppercase fw-bold" value="<?php echo e($client->client_id ?? ''); ?>" readonly>
                                 </div>
                             </div>
 
                             <div class="row gx-3 align-items-center mb-3">
                                 <div class="col-md-3 text-uppercase text-muted small fw-semibold">Client</div>
                                 <div class="col-md-9">
-                                    <input type="text" class="form-control form-control-sm border-0 bg-light text-uppercase fw-bold" value="{{ strtoupper($client->full_name ?? '') }}" readonly>
+                                    <input type="text" class="form-control form-control-sm border-0 bg-light text-uppercase fw-bold" value="<?php echo e(strtoupper($client->full_name ?? '')); ?>" readonly>
                                 </div>
                             </div>
 
                             <div class="row gx-3 align-items-center mb-3">
                                 <div class="col-md-3 text-uppercase text-muted small fw-semibold">Client Address</div>
                                 <div class="col-md-9">
-                                    <input type="text" class="form-control form-control-sm border-0 bg-light text-uppercase fw-bold" value="{{ strtoupper(collect([$client->address, $client->barangay, $client->city, $client->province])->filter()->implode(', ') ?: '-') }}" readonly>
+                                    <input type="text" class="form-control form-control-sm border-0 bg-light text-uppercase fw-bold" value="<?php echo e(strtoupper(collect([$client->address, $client->barangay, $client->city, $client->province])->filter()->implode(', ') ?: '-')); ?>" readonly>
                                 </div>
                             </div>
 
                             <div class="row gx-3 align-items-center mb-3">
                                 <div class="col-md-3 text-uppercase text-muted small fw-semibold">Clerk</div>
                                 <div class="col-md-3">
-                                    <input type="text" class="form-control form-control-sm border-0 bg-light text-uppercase fw-bold" value="{{ strtoupper(auth()->user()->name ?? '') }}" readonly>
+                                    <input type="text" class="form-control form-control-sm border-0 bg-light text-uppercase fw-bold" value="<?php echo e(strtoupper(auth()->user()->name ?? '')); ?>" readonly>
                                 </div>
                                 <div class="col-md-3 text-uppercase text-muted small fw-semibold">Signatory</div>
                                 <div class="col-md-3">
-                                    <input type="text" class="form-control form-control-sm border-0 bg-light text-uppercase fw-bold" name="signatory" value="{{ $isEditMode ? $transaction->signatory : '' }}" readonly>
+                                    <input type="text" class="form-control form-control-sm border-0 bg-light text-uppercase fw-bold" name="signatory" value="<?php echo e($isEditMode ? $transaction->signatory : ''); ?>" readonly>
                                 </div>
                             </div>
 
                             <div class="row gx-3 align-items-center mb-3">
                                 <div class="col-md-3 text-uppercase text-muted small fw-semibold">Personnel Endorsed To</div>
                                 <div class="col-md-3">
-                                    <input type="text" class="form-control form-control-sm text-uppercase" name="personnel_endorsed_to" value="{{ $isEditMode ? $transaction->personnel_endorsed_to : '' }}" placeholder="Enter personnel">
+                                    <input type="text" class="form-control form-control-sm text-uppercase" name="personnel_endorsed_to" value="<?php echo e($isEditMode ? $transaction->personnel_endorsed_to : ''); ?>" placeholder="Enter personnel">
                                 </div>
                                 <div class="col-md-3 text-uppercase text-muted small fw-semibold">Responsible Office</div>
                                 <div class="col-md-3">
-                                    <input type="text" class="form-control form-control-sm text-uppercase" name="responsible_office" value="{{ $isEditMode ? $transaction->responsible_office : '' }}" placeholder="Enter office">
+                                    <input type="text" class="form-control form-control-sm text-uppercase" name="responsible_office" value="<?php echo e($isEditMode ? $transaction->responsible_office : ''); ?>" placeholder="Enter office">
                                 </div>
                             </div>
 
                             <div class="row gx-3 align-items-center mb-3">
                                 <div class="col-md-3 text-uppercase text-muted small fw-semibold">Amount Given</div>
                                 <div class="col-md-3">
-                                    <input type="number" class="form-control form-control-sm" name="amount" step="0.01" min="0" placeholder="0.00" value="{{ $isEditMode ? $transaction->amount : '' }}">
+                                    <input type="number" class="form-control form-control-sm" name="amount" step="0.01" min="0" placeholder="0.00" value="<?php echo e($isEditMode ? $transaction->amount : ''); ?>">
                                 </div>
                             </div>
 
@@ -194,21 +195,21 @@
                             <div class="row gx-3 gy-3">
                                 <div class="col-12">
                                     <label class="form-label text-uppercase text-muted small fw-semibold">Description of Request</label>
-                                    <textarea class="form-control form-control-sm text-uppercase" name="description" rows="3" placeholder="Enter description (optional)">{{ $isEditMode ? $transaction->description : '' }}</textarea>
+                                    <textarea class="form-control form-control-sm text-uppercase" name="description" rows="3" placeholder="Enter description (optional)"><?php echo e($isEditMode ? $transaction->description : ''); ?></textarea>
                                 </div>
                                 <div class="col-12">
                                     <label class="form-label text-uppercase text-muted small fw-semibold">Actions Taken</label>
-                                    <textarea class="form-control form-control-sm text-uppercase" name="actions_taken" rows="3" placeholder="Enter actions taken (optional)">{{ $isEditMode ? $transaction->actions_taken : '' }}</textarea>
+                                    <textarea class="form-control form-control-sm text-uppercase" name="actions_taken" rows="3" placeholder="Enter actions taken (optional)"><?php echo e($isEditMode ? $transaction->actions_taken : ''); ?></textarea>
                                 </div>
                                 <div class="col-12">
                                     <label class="form-label text-uppercase text-muted small fw-semibold">Remarks</label>
-                                    <textarea class="form-control form-control-sm text-uppercase" name="remarks" rows="3" placeholder="Enter remarks (optional)">{{ $isEditMode ? $transaction->remarks : '' }}</textarea>
+                                    <textarea class="form-control form-control-sm text-uppercase" name="remarks" rows="3" placeholder="Enter remarks (optional)"><?php echo e($isEditMode ? $transaction->remarks : ''); ?></textarea>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    {{-- STEP 3: Upload Requirements --}}
+                    
                     <div class="wizard-step d-none" data-step="3">
                         <div class="bg-light text-white px-4 py-3">
                             <h6 class="mb-0">Upload Requirements</h6>
@@ -222,18 +223,18 @@
                                         <input type="file" class="form-control form-control-sm" accept="image/*,.pdf" id="wizReqUpload1" onchange="previewRequirement(this, 'wizReqPreview1')">
                                         <img id="wizReqPreview1" src="" alt="Preview" class="img-thumbnail d-none mt-2" style="max-height: 120px; object-fit: cover;">
                                         <button type="button" class="btn btn-outline-secondary btn-sm mt-2 w-100" data-upload-id="wizReqUpload1" onclick="openRequirementPreview('wizReqPreview1')">Preview</button>
-                                        @php $wizCur1 = $wizTxReqs->get('valid_id'); @endphp
-                                        @if ($isEditMode && $wizCur1)
+                                        <?php $wizCur1 = $wizTxReqs->get('valid_id'); ?>
+                                        <?php if($isEditMode && $wizCur1): ?>
                                             <div class="small text-muted mt-2" id="wizReqCurrent1">
-                                                @if ($wizCur1->file_path)
-                                                    Current file: <a href="{{ route('transaction-requirements.download', $wizCur1->id) }}">{{ $wizCur1->file_name }}</a>
-                                                @else
+                                                <?php if($wizCur1->file_path): ?>
+                                                    Current file: <a href="<?php echo e(route('transaction-requirements.download', $wizCur1->id)); ?>"><?php echo e($wizCur1->file_name); ?></a>
+                                                <?php else: ?>
                                                     <span class="fst-italic">Currently marked: no file provided</span>
-                                                @endif
+                                                <?php endif; ?>
                                             </div>
-                                        @endif
+                                        <?php endif; ?>
                                         <div class="form-check mt-2">
-                                            <input class="form-check-input wizard-no-file" type="checkbox" id="wizReqNoFile1" data-upload-id="wizReqUpload1" @checked($isEditMode && $wizCur1 && !$wizCur1->file_path)>
+                                            <input class="form-check-input wizard-no-file" type="checkbox" id="wizReqNoFile1" data-upload-id="wizReqUpload1" <?php if($isEditMode && $wizCur1 && !$wizCur1->file_path): echo 'checked'; endif; ?>>
                                             <label class="form-check-label small text-muted" for="wizReqNoFile1">No file to upload for this requirement</label>
                                         </div>
                                     </div>
@@ -244,18 +245,18 @@
                                         <input type="file" class="form-control form-control-sm" accept="image/*,.pdf" id="wizReqUpload2" onchange="previewRequirement(this, 'wizReqPreview2')">
                                         <img id="wizReqPreview2" src="" alt="Preview" class="img-thumbnail d-none mt-2" style="max-height: 120px; object-fit: cover;">
                                         <button type="button" class="btn btn-outline-secondary btn-sm mt-2 w-100" data-upload-id="wizReqUpload2" onclick="openRequirementPreview('wizReqPreview2')">Preview</button>
-                                        @php $wizCur2 = $wizTxReqs->get('death_certificate'); @endphp
-                                        @if ($isEditMode && $wizCur2)
+                                        <?php $wizCur2 = $wizTxReqs->get('death_certificate'); ?>
+                                        <?php if($isEditMode && $wizCur2): ?>
                                             <div class="small text-muted mt-2" id="wizReqCurrent2">
-                                                @if ($wizCur2->file_path)
-                                                    Current file: <a href="{{ route('transaction-requirements.download', $wizCur2->id) }}">{{ $wizCur2->file_name }}</a>
-                                                @else
+                                                <?php if($wizCur2->file_path): ?>
+                                                    Current file: <a href="<?php echo e(route('transaction-requirements.download', $wizCur2->id)); ?>"><?php echo e($wizCur2->file_name); ?></a>
+                                                <?php else: ?>
                                                     <span class="fst-italic">Currently marked: no file provided</span>
-                                                @endif
+                                                <?php endif; ?>
                                             </div>
-                                        @endif
+                                        <?php endif; ?>
                                         <div class="form-check mt-2">
-                                            <input class="form-check-input wizard-no-file" type="checkbox" id="wizReqNoFile2" data-upload-id="wizReqUpload2" @checked($isEditMode && $wizCur2 && !$wizCur2->file_path)>
+                                            <input class="form-check-input wizard-no-file" type="checkbox" id="wizReqNoFile2" data-upload-id="wizReqUpload2" <?php if($isEditMode && $wizCur2 && !$wizCur2->file_path): echo 'checked'; endif; ?>>
                                             <label class="form-check-label small text-muted" for="wizReqNoFile2">No file to upload for this requirement</label>
                                         </div>
                                     </div>
@@ -266,18 +267,18 @@
                                         <input type="file" class="form-control form-control-sm" accept="image/*,.pdf" id="wizReqUpload3" onchange="previewRequirement(this, 'wizReqPreview3')">
                                         <img id="wizReqPreview3" src="" alt="Preview" class="img-thumbnail d-none mt-2" style="max-height: 120px; object-fit: cover;">
                                         <button type="button" class="btn btn-outline-secondary btn-sm mt-2 w-100" data-upload-id="wizReqUpload3" onclick="openRequirementPreview('wizReqPreview3')">Preview</button>
-                                        @php $wizCur3 = $wizTxReqs->get('funeral_contract'); @endphp
-                                        @if ($isEditMode && $wizCur3)
+                                        <?php $wizCur3 = $wizTxReqs->get('funeral_contract'); ?>
+                                        <?php if($isEditMode && $wizCur3): ?>
                                             <div class="small text-muted mt-2" id="wizReqCurrent3">
-                                                @if ($wizCur3->file_path)
-                                                    Current file: <a href="{{ route('transaction-requirements.download', $wizCur3->id) }}">{{ $wizCur3->file_name }}</a>
-                                                @else
+                                                <?php if($wizCur3->file_path): ?>
+                                                    Current file: <a href="<?php echo e(route('transaction-requirements.download', $wizCur3->id)); ?>"><?php echo e($wizCur3->file_name); ?></a>
+                                                <?php else: ?>
                                                     <span class="fst-italic">Currently marked: no file provided</span>
-                                                @endif
+                                                <?php endif; ?>
                                             </div>
-                                        @endif
+                                        <?php endif; ?>
                                         <div class="form-check mt-2">
-                                            <input class="form-check-input wizard-no-file" type="checkbox" id="wizReqNoFile3" data-upload-id="wizReqUpload3" @checked($isEditMode && $wizCur3 && !$wizCur3->file_path)>
+                                            <input class="form-check-input wizard-no-file" type="checkbox" id="wizReqNoFile3" data-upload-id="wizReqUpload3" <?php if($isEditMode && $wizCur3 && !$wizCur3->file_path): echo 'checked'; endif; ?>>
                                             <label class="form-check-label small text-muted" for="wizReqNoFile3">No file to upload for this requirement</label>
                                         </div>
                                     </div>
@@ -286,7 +287,7 @@
                         </div>
                     </div>
 
-                    {{-- STEP 4: Subject Information --}}
+                    
                     <div class="wizard-step d-none" data-step="4">
                         <div class="bg-light text-white px-4 py-3">
                             <h6 class="mb-0">Subject Information</h6>
@@ -303,25 +304,25 @@
                                     <label for="wizSubjectFirstName" class="form-label mb-0">First Name <span class="text-danger">*</span></label>
                                 </div>
                                 <div class="col-md-9">
-                                    <input type="text" class="form-control form-control-sm text-uppercase" id="wizSubjectFirstName" name="first_name" value="{{ $isEditMode ? $transaction->subject_first_name : '' }}" required>
+                                    <input type="text" class="form-control form-control-sm text-uppercase" id="wizSubjectFirstName" name="first_name" value="<?php echo e($isEditMode ? $transaction->subject_first_name : ''); ?>" required>
                                 </div>
                                 <div class="col-md-3">
                                     <label for="wizSubjectMiddleName" class="form-label mb-0">Middle Name</label>
                                 </div>
                                 <div class="col-md-9">
-                                    <input type="text" class="form-control form-control-sm text-uppercase" id="wizSubjectMiddleName" name="middle_name" value="{{ $isEditMode ? $transaction->subject_middle_name : '' }}">
+                                    <input type="text" class="form-control form-control-sm text-uppercase" id="wizSubjectMiddleName" name="middle_name" value="<?php echo e($isEditMode ? $transaction->subject_middle_name : ''); ?>">
                                 </div>
                                 <div class="col-md-3">
                                     <label for="wizSubjectLastName" class="form-label mb-0">Last Name <span class="text-danger">*</span></label>
                                 </div>
                                 <div class="col-md-9">
-                                    <input type="text" class="form-control form-control-sm text-uppercase" id="wizSubjectLastName" name="last_name" value="{{ $isEditMode ? $transaction->subject_last_name : '' }}" required>
+                                    <input type="text" class="form-control form-control-sm text-uppercase" id="wizSubjectLastName" name="last_name" value="<?php echo e($isEditMode ? $transaction->subject_last_name : ''); ?>" required>
                                 </div>
                                 <div class="col-md-3">
                                     <label for="wizSubjectNameExt" class="form-label mb-0">Name Ext.</label>
                                 </div>
                                 <div class="col-md-3">
-                                    <input type="text" class="form-control form-control-sm text-uppercase" id="wizSubjectNameExt" name="name_ext" value="{{ $isEditMode ? $transaction->subject_name_ext : '' }}">
+                                    <input type="text" class="form-control form-control-sm text-uppercase" id="wizSubjectNameExt" name="name_ext" value="<?php echo e($isEditMode ? $transaction->subject_name_ext : ''); ?>">
                                 </div>
                                 <div class="col-md-2">
                                     <label for="wizSubjectGender" class="form-label mb-0">Gender <span class="text-danger">*</span></label>
@@ -329,34 +330,34 @@
                                 <div class="col-md-4">
                                     <select class="form-select form-select-sm" id="wizSubjectGender" name="gender" required>
                                         <option value="">Select gender</option>
-                                        <option value="Male" @selected($isEditMode && $transaction->subject_gender === 'Male')>Male</option>
-                                        <option value="Female" @selected($isEditMode && $transaction->subject_gender === 'Female')>Female</option>
-                                        <option value="Other" @selected($isEditMode && $transaction->subject_gender === 'Other')>Other</option>
+                                        <option value="Male" <?php if($isEditMode && $transaction->subject_gender === 'Male'): echo 'selected'; endif; ?>>Male</option>
+                                        <option value="Female" <?php if($isEditMode && $transaction->subject_gender === 'Female'): echo 'selected'; endif; ?>>Female</option>
+                                        <option value="Other" <?php if($isEditMode && $transaction->subject_gender === 'Other'): echo 'selected'; endif; ?>>Other</option>
                                     </select>
                                 </div>
                                 <div class="col-md-3">
                                     <label for="wizSubjectBirthdate" class="form-label mb-0">Birthdate <span class="text-danger">*</span></label>
                                 </div>
                                 <div class="col-md-3">
-                                    <input type="date" class="form-control form-control-sm" id="wizSubjectBirthdate" name="birthdate" value="{{ $isEditMode ? optional($transaction->subject_birthdate)->format('Y-m-d') : '' }}" required>
+                                    <input type="date" class="form-control form-control-sm" id="wizSubjectBirthdate" name="birthdate" value="<?php echo e($isEditMode ? optional($transaction->subject_birthdate)->format('Y-m-d') : ''); ?>" required>
                                 </div>
                                 <div class="col-md-2">
                                     <label for="wizSubjectAge" class="form-label mb-0">Age</label>
                                 </div>
                                 <div class="col-md-4">
-                                    <input type="number" class="form-control form-control-sm bg-warning-subtle" id="wizSubjectAge" name="age" min="0" readonly value="{{ $isEditMode ? $transaction->subject_age : '' }}">
+                                    <input type="number" class="form-control form-control-sm bg-warning-subtle" id="wizSubjectAge" name="age" min="0" readonly value="<?php echo e($isEditMode ? $transaction->subject_age : ''); ?>">
                                 </div>
                                 <div class="col-md-3">
                                     <label for="wizSubjectBarangay" class="form-label mb-0">Barangay <span class="text-danger">*</span></label>
                                 </div>
                                 <div class="col-md-9">
-                                    <input type="text" class="form-control form-control-sm text-uppercase" id="wizSubjectBarangay" name="barangay" value="{{ $isEditMode ? $transaction->subject_barangay : '' }}" required>
+                                    <input type="text" class="form-control form-control-sm text-uppercase" id="wizSubjectBarangay" name="barangay" value="<?php echo e($isEditMode ? $transaction->subject_barangay : ''); ?>" required>
                                 </div>
                                 <div class="col-md-3">
                                     <label for="wizSubjectMunicipality" class="form-label mb-0">Municipality <span class="text-danger">*</span></label>
                                 </div>
                                 <div class="col-md-9">
-                                    <input type="text" class="form-control form-control-sm text-uppercase" id="wizSubjectMunicipality" name="municipality" value="{{ $isEditMode ? $transaction->subject_municipality : '' }}" required>
+                                    <input type="text" class="form-control form-control-sm text-uppercase" id="wizSubjectMunicipality" name="municipality" value="<?php echo e($isEditMode ? $transaction->subject_municipality : ''); ?>" required>
                                 </div>
                                 <div class="col-md-3">
                                     <label for="wizSubjectClientRelation" class="form-label mb-0">Client Relation <span class="text-danger">*</span></label>
@@ -364,21 +365,21 @@
                                 <div class="col-md-9">
                                     <select class="form-select form-select-sm" id="wizSubjectClientRelation" name="client_relation" required>
                                         <option value="">Select relation</option>
-                                        <option value="Self" @selected($isEditMode && $transaction->subject_client_relation === 'Self')>Self</option>
-                                        <option value="Parent" @selected($isEditMode && $transaction->subject_client_relation === 'Parent')>Parent</option>
-                                        <option value="Spouse" @selected($isEditMode && $transaction->subject_client_relation === 'Spouse')>Spouse</option>
-                                        <option value="Child" @selected($isEditMode && $transaction->subject_client_relation === 'Child')>Child</option>
-                                        <option value="Sibling" @selected($isEditMode && $transaction->subject_client_relation === 'Sibling')>Sibling</option>
-                                        <option value="Relative" @selected($isEditMode && $transaction->subject_client_relation === 'Relative')>Relative</option>
-                                        <option value="Guardian" @selected($isEditMode && $transaction->subject_client_relation === 'Guardian')>Guardian</option>
-                                        <option value="Other" @selected($isEditMode && $transaction->subject_client_relation === 'Other')>Other</option>
+                                        <option value="Self" <?php if($isEditMode && $transaction->subject_client_relation === 'Self'): echo 'selected'; endif; ?>>Self</option>
+                                        <option value="Parent" <?php if($isEditMode && $transaction->subject_client_relation === 'Parent'): echo 'selected'; endif; ?>>Parent</option>
+                                        <option value="Spouse" <?php if($isEditMode && $transaction->subject_client_relation === 'Spouse'): echo 'selected'; endif; ?>>Spouse</option>
+                                        <option value="Child" <?php if($isEditMode && $transaction->subject_client_relation === 'Child'): echo 'selected'; endif; ?>>Child</option>
+                                        <option value="Sibling" <?php if($isEditMode && $transaction->subject_client_relation === 'Sibling'): echo 'selected'; endif; ?>>Sibling</option>
+                                        <option value="Relative" <?php if($isEditMode && $transaction->subject_client_relation === 'Relative'): echo 'selected'; endif; ?>>Relative</option>
+                                        <option value="Guardian" <?php if($isEditMode && $transaction->subject_client_relation === 'Guardian'): echo 'selected'; endif; ?>>Guardian</option>
+                                        <option value="Other" <?php if($isEditMode && $transaction->subject_client_relation === 'Other'): echo 'selected'; endif; ?>>Other</option>
                                     </select>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    {{-- STEP 5: Review --}}
+                    
                     <div class="wizard-step d-none" data-step="5">
                         <div class="bg-light text-white px-4 py-3">
                             <h6 class="mb-0">Review</h6>
@@ -452,7 +453,7 @@
                             </div>
                         </div>
                     </div>
-                @if ($isEditMode)
+                <?php if($isEditMode): ?>
                             </div>
                             <div class="d-flex justify-content-between align-items-center gap-3 mt-3">
                                 <button type="button" class="btn btn-secondary d-none" id="wizardBackBtn">Back</button>
@@ -464,7 +465,7 @@
             </div>
         </div>
     </div>
-                @else
+                <?php else: ?>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary d-none" id="wizardBackBtn">Back</button>
@@ -474,7 +475,7 @@
         </div>
     </div>
 </div>
-                @endif
+                <?php endif; ?>
 
 <div class="modal fade" id="confirmTransactionModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-sm">
@@ -483,12 +484,12 @@
                 <div class="mb-3">
                     <i class="bi bi-question-circle-fill text-primary" style="font-size: 3rem;"></i>
                 </div>
-                <p class="fs-5 fw-semibold mb-1">{{ $isEditMode ? 'Update Transaction' : 'Confirm Transaction' }}</p>
-                <p class="text-muted mb-0">Are you sure you want to {{ $isEditMode ? 'save the changes to this' : 'submit this' }} transaction?</p>
+                <p class="fs-5 fw-semibold mb-1"><?php echo e($isEditMode ? 'Update Transaction' : 'Confirm Transaction'); ?></p>
+                <p class="text-muted mb-0">Are you sure you want to <?php echo e($isEditMode ? 'save the changes to this' : 'submit this'); ?> transaction?</p>
             </div>
             <div class="modal-footer border-0 justify-content-center gap-3 pt-0">
                 <button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal" id="cancelTransactionConfirmBtn">Cancel</button>
-                <button type="button" class="btn btn-primary px-4" id="submitTransactionBtn">{{ $isEditMode ? 'Update' : 'Submit' }}</button>
+                <button type="button" class="btn btn-primary px-4" id="submitTransactionBtn"><?php echo e($isEditMode ? 'Update' : 'Submit'); ?></button>
             </div>
         </div>
     </div>
@@ -575,12 +576,12 @@ document.addEventListener('DOMContentLoaded', function() {
     const confirmModalInstance = bootstrap.Modal.getOrCreateInstance(confirmModal);
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
-    const storeUrl = @json(route('transactions.store'));
-    const requirementsUrl = @json(route('transaction-requirements.store'));
-    const subjectUrlTemplate = @json(route('transactions.subject.store', ['id' => '__TRANSACTION_ID__']));
-    const clientShowUrl = @json(route('clients.show', $client));
-    const isEdit = @json($isEditMode);
-    const updateUrl = @json($isEditMode ? route('transactions.update', $transaction->id) : '');
+    const storeUrl = <?php echo json_encode(route('transactions.store'), 15, 512) ?>;
+    const requirementsUrl = <?php echo json_encode(route('transaction-requirements.store'), 15, 512) ?>;
+    const subjectUrlTemplate = <?php echo json_encode(route('transactions.subject.store', ['id' => '__TRANSACTION_ID__']), 512) ?>;
+    const clientShowUrl = <?php echo json_encode(route('clients.show', $client), 512) ?>;
+    const isEdit = <?php echo json_encode($isEditMode, 15, 512) ?>;
+    const updateUrl = <?php echo json_encode($isEditMode ? route('transactions.update', $transaction->id) : '', 512) ?>;
 
     const TOTAL_STEPS = 5;
     let currentStep = 1;
@@ -679,15 +680,15 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     const clientSubjectData = {
-        first_name: @json($client->first_name ?? ''),
-        middle_name: @json($client->middle_name ?? ''),
-        last_name: @json($client->last_name ?? ''),
-        name_ext: @json($client->suffix ?? ''),
-        gender: @json($client->gender ?? ''),
-        birthdate: @json(optional($client->birth_date ?? null)->format('Y-m-d')),
-        age: @json($client->age ?? ''),
-        barangay: @json($client->barangay ?? ''),
-        municipality: @json($client->city ?? ''),
+        first_name: <?php echo json_encode($client->first_name ?? '', 15, 512) ?>,
+        middle_name: <?php echo json_encode($client->middle_name ?? '', 15, 512) ?>,
+        last_name: <?php echo json_encode($client->last_name ?? '', 15, 512) ?>,
+        name_ext: <?php echo json_encode($client->suffix ?? '', 15, 512) ?>,
+        gender: <?php echo json_encode($client->gender ?? '', 15, 512) ?>,
+        birthdate: <?php echo json_encode(optional($client->birth_date ?? null)->format('Y-m-d'), 15, 512) ?>,
+        age: <?php echo json_encode($client->age ?? '', 15, 512) ?>,
+        barangay: <?php echo json_encode($client->barangay ?? '', 15, 512) ?>,
+        municipality: <?php echo json_encode($client->city ?? '', 15, 512) ?>,
         client_relation: 'Self'
     };
 
@@ -776,7 +777,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function initEditMode() {
-        populateTypeSelect(categorySelect.value, @json($isEditMode ? $transaction->type : ''));
+        populateTypeSelect(categorySelect.value, <?php echo json_encode($isEditMode ? $transaction->type : '', 15, 512) ?>);
         document.querySelectorAll('.wizard-no-file').forEach((checkbox) => {
             if (checkbox.checked) setNoFileState(checkbox.dataset.uploadId, true);
         });
@@ -800,7 +801,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const namedValue = (name) => (form.elements[name] ? form.elements[name].value : '').trim();
         const selectedText = (select) => select && select.selectedIndex >= 0 ? select.options[select.selectedIndex].textContent : '-';
 
-        document.getElementById('reviewClient').textContent = @json(strtoupper($client->full_name ?? 'Client'));
+        document.getElementById('reviewClient').textContent = <?php echo json_encode(strtoupper($client->full_name ?? 'Client'), 15, 512) ?>;
         document.getElementById('reviewClientId').textContent = namedValue('client_id') || '-';
         document.getElementById('reviewDate').textContent = namedValue('transaction_date') || '-';
         document.getElementById('reviewCategory').textContent = selectedText(categorySelect);
@@ -959,30 +960,30 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
-@php
+<?php
     $wizPreviewLabels = [
         1 => 'Valid Id of Claimant with Address to Imus (Back to Back)',
         2 => 'Registered Death Certificate (CTC)',
         3 => 'Funeral Contract',
     ];
-@endphp
+?>
 
-@foreach ($wizPreviewLabels as $num => $label)
-<div class="modal fade" id="requirementPreviewModal{{ $num }}" tabindex="-1" aria-hidden="true">
+<?php $__currentLoopData = $wizPreviewLabels; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $num => $label): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+<div class="modal fade" id="requirementPreviewModal<?php echo e($num); ?>" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-md">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Preview - {{ $label }}</h5>
+                <h5 class="modal-title">Preview - <?php echo e($label); ?></h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body text-center">
-                <img id="requirementPreviewImage{{ $num }}" src="" alt="Preview" class="img-fluid rounded d-none" style="max-height: 70vh;" />
-                <iframe id="requirementPreviewFrame{{ $num }}" src="" class="d-none" style="width: 100%; height: 70vh; border: none;"></iframe>
+                <img id="requirementPreviewImage<?php echo e($num); ?>" src="" alt="Preview" class="img-fluid rounded d-none" style="max-height: 70vh;" />
+                <iframe id="requirementPreviewFrame<?php echo e($num); ?>" src="" class="d-none" style="width: 100%; height: 70vh; border: none;"></iframe>
             </div>
         </div>
     </div>
 </div>
-@endforeach
+<?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
 
 <script>
 function previewRequirement(input, previewId) {
@@ -1068,3 +1069,4 @@ function showRequirementPreviewModal(src, modalEl, img, frame) {
     });
 }
 </script>
+<?php /**PATH C:\xampp\htdocs\E-Reg-System\resources\views\pages\client_transaction\newTransaction.blade.php ENDPATH**/ ?>

@@ -98,7 +98,10 @@ Route::group(['namespace' => 'App\Http\Controllers'], function () {
 
         // --------------------- Transactions ------------------//
         Route::post('transactions', [TransactionController::class, 'store'])->name('transactions.store');
+        Route::get('transactions/{id}/process', [TransactionController::class, 'process'])->name('transactions.process');
+        Route::get('transactions/{id}/edit', [TransactionController::class, 'edit'])->name('transactions.edit');
         Route::get('transactions/{id}', [TransactionController::class, 'show'])->name('transactions.show');
+        Route::put('transactions/{id}', [TransactionController::class, 'update'])->name('transactions.update');
         Route::post('transactions/{id}/subject', [TransactionController::class, 'storeSubject'])->name('transactions.subject.store');
 
         // --------------------- Transaction Requirements ------------------//

@@ -23,11 +23,19 @@ class TransactionController extends Controller
             'type' => 'required|string|max:100',
             'description' => 'nullable|string',
             'addressed_to' => 'nullable|string',
+            'actions_taken' => 'nullable|string',
+            'remarks' => 'nullable|string',
+            'signatory' => 'nullable|string|max:100',
+            'personnel_endorsed_to' => 'nullable|string|max:100',
+            'responsible_office' => 'nullable|string|max:100',
+            'amount' => 'nullable|numeric|min:0',
         ]);
 
         $validated['transaction_id'] = $this->nextClientTransactionId($validated['client_id']);
         $validated['source'] = 'E-Registration';
         $validated['status'] = 'Pending';
+        $validated['clerk'] = auth()->user()->name ?? null;
+        $validated['amount'] = (float) ($validated['amount'] ?? 0);
 
         $transaction = TransactionHistory::create($validated);
 
@@ -41,6 +49,84 @@ class TransactionController extends Controller
         ]);
 
         $client = Client::where('client_id', $validated['client_id'])->first();
+
+        if (!$client) {
+            return redirect()->route('client.list')->with('error', 'Client not found.');
+        }
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Transaction created successfully.',
+                'transaction' => $transaction,
+                'redirect' => route('clients.show', $client) . '?show_transaction=' . $transaction->id,
+            ]);
+        }
+
+        return redirect()->route('clients.show', $client)
+            ->with('show_transaction', $transaction->id);
+    }
+
+    public function edit($id)
+    {
+        $transaction = TransactionHistory::with('requirements')->find($id);
+
+        if (!$transaction) {
+            abort(404);
+        }
+
+        $client = Client::where('client_id', $transaction->client_id)->first();
+
+        if (!$client) {
+            abort(404);
+        }
+
+        return view('pages.client_transaction.transactionEdit', compact('transaction', 'client'));
+    }
+
+    public function update(Request $request, $id)
+    {
+        $transaction = TransactionHistory::findOrFail($id);
+
+        $validated = $request->validate([
+            'client_id' => 'required|string|exists:clients,client_id',
+            'transaction_date' => 'required|date',
+            'category' => 'required|string|max:100',
+            'type' => 'required|string|max:100',
+            'description' => 'nullable|string',
+            'addressed_to' => 'nullable|string',
+            'actions_taken' => 'nullable|string',
+            'remarks' => 'nullable|string',
+            'signatory' => 'nullable|string|max:100',
+            'personnel_endorsed_to' => 'nullable|string|max:100',
+            'responsible_office' => 'nullable|string|max:100',
+            'amount' => 'nullable|numeric|min:0',
+        ]);
+
+        $validated['amount'] = (float) ($validated['amount'] ?? 0);
+        unset($validated['client_id']);
+
+        $transaction->update($validated);
+
+        ActivityLog::create([
+            'user_id' => auth()->id(),
+            'action' => 'transaction_updated',
+            'description' => 'Updated transaction ' . $transaction->transaction_id,
+            'subject_type' => 'TransactionHistory',
+            'subject_id' => $transaction->id,
+            'properties' => json_encode(['transaction_id' => $transaction->id]),
+        ]);
+
+        $client = Client::where('client_id', $transaction->client_id)->first();
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Transaction updated successfully.',
+                'transaction' => $transaction,
+                'redirect' => route('clients.show', $client) . '?show_transaction=' . $transaction->id,
+            ]);
+        }
 
         return redirect()->route('clients.show', $client)
             ->with('show_transaction', $transaction->id);
@@ -79,6 +165,9 @@ class TransactionController extends Controller
             'type' => $transaction->type_label,
             'category' => $transaction->category_label,
             'clerk' => $transaction->clerk ?? auth()->user()->name ?? 'System',
+            'signatory' => $transaction->signatory ?? 'N/A',
+            'personnel_endorsed_to' => $transaction->personnel_endorsed_to ?? 'N/A',
+            'responsible_office' => $transaction->responsible_office ?? 'N/A',
             'status' => $transaction->status ?? 'Pending',
             'description' => $transaction->description ?? 'N/A',
             'actions_taken' => $transaction->actions_taken ?? 'N/A',
@@ -86,6 +175,78 @@ class TransactionController extends Controller
             'amount' => $transaction->amount > 0 ? 'PHP ' . number_format((float) $transaction->amount, 2) : 'PHP 0.00',
             'subject_summary' => $transaction->subject_summary ?? 'N/A',
         ]);
+    }
+
+    public function process($id)
+    {
+        $transaction = TransactionHistory::with('requirements')->find($id);
+
+        if (!$transaction) {
+            abort(404);
+        }
+
+        $client = Client::where('client_id', $transaction->client_id)->first();
+
+        $requirementLabels = [
+            'valid_id' => 'Valid Id of Claimant with Address to Imus (Back to Back)',
+            'death_certificate' => 'Registered Death Certificate (CTC)',
+            'funeral_contract' => 'Funeral Contract',
+        ];
+
+        $requirements = $transaction->requirements
+            ->sortBy('created_at')
+            ->map(function ($requirement) use ($requirementLabels) {
+                return [
+                    'id' => $requirement->id,
+                    'label' => $requirementLabels[$requirement->requirement_type] ?? strtoupper(str_replace('_', ' ', $requirement->requirement_type)),
+                    'type' => $requirement->requirement_type,
+                    'file_name' => $requirement->file_name,
+                    'file_url' => $requirement->file_url,
+                    'created_at' => $requirement->created_at,
+                ];
+            })
+            ->values();
+
+        $hasSubject = filled($transaction->subject_first_name);
+
+        $processSteps = [
+            [
+                'title' => 'Transaction Registration',
+                'done' => true,
+                'time' => $transaction->created_at,
+                'detail' => 'Transaction ' . $transaction->transaction_id . ' was registered via ' . ($transaction->source ?? 'E-Registration') . ' by ' . ($transaction->clerk ?? 'System') . '.',
+            ],
+            [
+                'title' => 'Transaction Details',
+                'done' => true,
+                'time' => $transaction->created_at,
+                'detail' => $transaction->type_label . ' (' . $transaction->category_label . ')',
+            ],
+            [
+                'title' => 'Requirements Submission',
+                'done' => $requirements->isNotEmpty(),
+                'time' => $requirements->isNotEmpty() ? $requirements->first()['created_at'] : null,
+                'detail' => $requirements->isNotEmpty()
+                    ? $requirements->count() . ' requirement record(s) submitted.'
+                    : 'No requirements submitted yet.',
+            ],
+            [
+                'title' => 'Subject Information',
+                'done' => $hasSubject,
+                'time' => $hasSubject ? $transaction->updated_at : null,
+                'detail' => $hasSubject
+                    ? $transaction->subject_full_name . ($transaction->subject_client_relation ? ' (' . $transaction->subject_client_relation . ')' : '')
+                    : 'No subject information recorded yet.',
+            ],
+            [
+                'title' => 'Approval',
+                'done' => strtolower($transaction->status ?? 'Pending') === 'approved',
+                'time' => null,
+                'detail' => $transaction->status ?? 'Pending',
+            ],
+        ];
+
+        return view('pages.client_transaction.transactionProcess', compact('transaction', 'client', 'requirements', 'processSteps', 'hasSubject'));
     }
 
     public function storeSubject(Request $request, $id)
