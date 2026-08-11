@@ -77,7 +77,6 @@
             }
         }
     </style>
-    @vite(['resources/js/app.js'])
 </head>
 
 <body>
@@ -314,55 +313,34 @@
     <!-- App js -->
     <script src="{{ asset('assets/js/app.js') }}"></script>
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const sidebarPages = document.getElementById('sidebarPages');
-            const sidebarDashboard = document.getElementById('sidebarDashboard');
-
-            if (!sidebarPages || !sidebarDashboard) {
+        document.addEventListener('DOMContentLoaded', function () {
+            if (typeof bootstrap === 'undefined') {
                 return;
             }
 
-            const keepDashboardOpen = () => {
-                sidebarDashboard.classList.add('show');
-            };
+            // Sidebar: keep the Dashboard nav group open
+            var sidebarPages = document.getElementById('sidebarPages');
+            var sidebarDashboard = document.getElementById('sidebarDashboard');
 
-            keepDashboardOpen();
+            if (sidebarPages && sidebarDashboard) {
+                var keepDashboardOpen = function () {
+                    sidebarDashboard.classList.add('show');
+                };
 
-            document.addEventListener('shown.bs.collapse', function(event) {
-                if (event.target && event.target.id === 'sidebarPages') {
-                    keepDashboardOpen();
-                }
-            });
-        });
-    </script>
-    <script>
-        // Ensure topbar user dropdown is initialized (fixes cases where data-bs state is lost)
-        document.addEventListener('DOMContentLoaded', function () {
-            try {
-                if (typeof bootstrap !== 'undefined' && document.getElementById('topbar-user-dropdown')) {
-                    var el = document.getElementById('topbar-user-dropdown');
-                    // initialize if not already
-                    if (!el.classList.contains('dropdown-toggle')) {
-                        el.classList.add('dropdown-toggle');
+                keepDashboardOpen();
+
+                document.addEventListener('shown.bs.collapse', function (event) {
+                    if (event.target && event.target.id === 'sidebarPages') {
+                        keepDashboardOpen();
                     }
-                    // create Dropdown instance to ensure it responds to clicks
-                    /* global bootstrap */
-                    var dd = new bootstrap.Dropdown(el);
+                });
+            }
 
-                    // Explicit click handler to toggle dropdown in case automatic binding is prevented
-                    el.addEventListener('click', function (ev) {
-                        try {
-                            ev.preventDefault();
-                            ev.stopPropagation();
-                            // toggle using the Dropdown API
-                            dd.toggle();
-                        } catch (ex) {
-                            console.warn('Topbar dropdown toggle failed:', ex);
-                        }
-                    });
-                }
-            } catch (e) {
-                console.warn('Dropdown init failed:', e);
+            // Topbar user dropdown: native Bootstrap data-api (data-bs-toggle="dropdown")
+            // handles toggling; only ensure an instance exists.
+            var userToggle = document.getElementById('topbar-user-dropdown');
+            if (userToggle) {
+                bootstrap.Dropdown.getOrCreateInstance(userToggle);
             }
         });
     </script>
