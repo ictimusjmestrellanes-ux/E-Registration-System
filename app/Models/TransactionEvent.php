@@ -21,11 +21,13 @@ class TransactionEvent extends Model
         'transaction_category',
         'transaction_type',
         'transferred_at',
+        'not_duplicate',
     ];
 
     protected $casts = [
         'birth_date' => 'date',
         'transferred_at' => 'datetime',
         'age' => 'integer',
+        'not_duplicate' => 'boolean',
     ];
 }

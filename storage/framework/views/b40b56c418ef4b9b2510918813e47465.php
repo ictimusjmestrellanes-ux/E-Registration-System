@@ -5,8 +5,8 @@
         <div class="row">
             <div class="col-12">
                 <div class="mb-4">
-                    <h4 class="mb-1 fw-semibold">Transaction Events</h4>
-                    <p class="text-muted mb-0">Manage and track all transaction events.</p>
+                    <h4 class="mb-1 fw-semibold">Events</h4>
+                    <p class="text-muted mb-0">Manage and import data events.</p>
                 </div>
             </div>
         </div>
@@ -42,14 +42,19 @@
                     <div class="card-header d-flex align-items-center justify-content-between">
                         <h5 class="card-title mb-0">Event List</h5>
                         <div class="d-flex align-items-center gap-2">
-                            <a href="<?php echo e(route('transaction-events.index', array_merge(request()->except('page'), ['duplicate_names' => 1]))); ?>"
-                                class="btn btn-sm <?php echo e(request()->boolean('duplicate_names') ? 'btn-warning' : 'btn-outline-warning'); ?>">
+                            <a href="<?php echo e(route('transaction-events.duplicate-review')); ?>"
+                                class="btn btn-sm <?php echo e($totalDuplicateGroups ? 'btn-warning' : 'btn-outline-warning'); ?>">
                                 <i class="ri-file-copy-2-line me-1"></i> Duplicate Names
+                                <?php if($totalDuplicateGroups): ?>
+                                    <span class="badge bg-danger text-white ms-1"><?php echo e($totalDuplicateGroups); ?></span>
+                                <?php endif; ?>
                             </a>
                             <div class="d-flex align-items-center gap-2">
-                                <button type="button" class="btn btn-success btn-sm" id="bulkTransferBtn" disabled>
-                                    <i class="ri-exchange-box-line me-1"></i> Transfer Selected
-                                </button>
+                                <?php if (! (auth()->user()?->role_name === 'Viewer')): ?>
+                                    <button type="button" class="btn btn-success btn-sm" id="bulkTransferBtn" disabled>
+                                        <i class="ri-exchange-box-line me-1"></i> Transfer Selected
+                                    </button>
+                                <?php endif; ?>
                             </div>
 
                             <form id="bulkTransferForm" action="<?php echo e(route('transaction-events.transfer-selected')); ?>"
@@ -59,10 +64,12 @@
                             <a href="<?php echo e(route('transaction-events.archives')); ?>" class="btn btn-outline-secondary btn-sm">
                                 <i class="ri-archive-line me-1"></i> View Archives
                             </a>
-                            <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal"
-                                data-bs-target="#importModal">
-                                <i class="ri-upload-2-line me-1"></i> Import CSV
-                            </button>
+                            <?php if (! (auth()->user()?->role_name === 'Viewer')): ?>
+                                <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal"
+                                    data-bs-target="#importModal">
+                                    <i class="ri-upload-2-line me-1"></i> Import CSV
+                                </button>
+                            <?php endif; ?>
                             <span class="badge bg-primary-subtle text-primary px-4 py-2"><?php echo e($events->total()); ?> total</span>
                         </div>
                     </div>
@@ -118,10 +125,12 @@
                                         <th style="width: 120px;" class="text-center">
                                             <div
                                                 class="d-inline-flex align-items-center justify-content-center gap-2 text-nowrap">
-                                                <input type="checkbox" class="form-check-input"
-                                                    id="selectAllTransactionEvents"
-                                                    aria-label="Select all transaction events on this page">
-                                                <span>Select all</span>
+                                                <?php if (! (auth()->user()?->role_name === 'Viewer')): ?>
+                                                    <input type="checkbox" class="form-check-input"
+                                                        id="selectAllTransactionEvents"
+                                                        aria-label="Select all transaction events on this page">
+                                                    <span>Select all</span>
+                                                <?php endif; ?>
                                             </div>
                                         </th>
                                         <th>Full Name</th>
@@ -143,10 +152,14 @@
                                         ?>
                                         <tr class="<?php echo e($isTransferred ? 'table-secondary text-muted' : ''); ?>">
                                             <td class="text-center">
-                                                <input type="checkbox" class="form-check-input transaction-event-checkbox"
-                                                    value="<?php echo e($event->id); ?>"
-                                                    aria-label="Select transaction event <?php echo e($event->id); ?>"
-                                                    <?php echo e($isTransferred ? 'disabled' : ''); ?>>
+                                                <?php if (! (auth()->user()?->role_name === 'Viewer')): ?>
+                                                    <input type="checkbox" class="form-check-input transaction-event-checkbox"
+                                                        value="<?php echo e($event->id); ?>"
+                                                        aria-label="Select transaction event <?php echo e($event->id); ?>"
+                                                        <?php echo e($isTransferred ? 'disabled' : ''); ?>
+
+                                                        <?php echo e(in_array($event->full_name, $duplicateFullNames, true) ? 'data-duplicate="1"' : ''); ?>>
+                                                <?php endif; ?>
                                             </td>
                                             <td class="fw-semibold"><?php echo e($event->full_name); ?></td>
                                             <td><?php echo e($event->age ?? '-'); ?></td>
@@ -161,6 +174,10 @@
                                                 <?php if($isTransferred): ?>
                                                     <span class="badge bg-success-subtle text-success px-3 py-2">
                                                         <i class="ri-check-line me-1"></i>Approved
+                                                    </span>
+                                                <?php elseif(auth()->user()?->role_name === 'Viewer'): ?>
+                                                    <span class="badge bg-secondary-subtle text-secondary px-3 py-2">
+                                                        <i class="ri-time-line me-1"></i>Pending
                                                     </span>
                                                 <?php else: ?>
                                                     <form action="<?php echo e(route('transaction-events.transfer', $event)); ?>"
@@ -375,18 +392,21 @@
             let selectedBulkTransferIds = [];
 
             if (selectAll) {
+                const selectableCheckboxes = () => eventCheckboxes.filter((checkbox) => !checkbox.dataset.duplicate && !checkbox.disabled);
+
                 const syncSelectAllState = () => {
-                    const checkedCount = eventCheckboxes.filter((checkbox) => checkbox.checked).length;
-                    selectAll.checked = eventCheckboxes.length > 0 && checkedCount === eventCheckboxes.length;
-                    selectAll.indeterminate = checkedCount > 0 && checkedCount < eventCheckboxes.length;
-                    selectAll.disabled = eventCheckboxes.length === 0;
+                    const selectable = selectableCheckboxes();
+                    const checkedCount = selectable.filter((checkbox) => checkbox.checked).length;
+                    selectAll.checked = selectable.length > 0 && checkedCount === selectable.length;
+                    selectAll.indeterminate = checkedCount > 0 && checkedCount < selectable.length;
+                    selectAll.disabled = selectable.length === 0;
                     if (bulkTransferBtn) {
                         bulkTransferBtn.disabled = checkedCount === 0;
                     }
                 };
 
                 selectAll.addEventListener('change', function() {
-                    eventCheckboxes.forEach((checkbox) => {
+                    selectableCheckboxes().forEach((checkbox) => {
                         checkbox.checked = selectAll.checked;
                     });
                     syncSelectAllState();

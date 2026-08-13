@@ -102,55 +102,64 @@
                         </div>
                     </li>
 
+                    <li class="menu-title"><span data-key="t-menu">Events</span></li>
                     <li class="nav-item">
                         <a class="nav-link menu-link {{ set_active(['transaction-events.*']) }}"
                             href="{{ route('transaction-events.index') }}">
-                            <i class="ri-calendar-event-line"></i> <span>Transaction Events</span>
+                            <i class="ri-calendar-event-line"></i> <span>Events</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link menu-link {{ set_active(['duplicate.review']) }}"
+                            href="{{ route('duplicate.review') }}">
+                            <i class="ri-file-copy-2-line"></i> <span data-key="t-duplicate-review">Duplicate Review</span>
+                        </a>
+                    </li>
+
+                    <li class="menu-title"><i class="ri-more-fill"></i> <span data-key="t-pages">Settings</span></li>
+                    @if(auth()->user()?->role_name !== 'DSWD' && auth()->user()?->role_name !== 'Cong Staff')
+                    <li class="nav-item">
+                        <a class="nav-link menu-link {{ set_active(['users.index', 'roles.index', 'permissions.index']) }}" href="#sidebarSettings"
+                            data-bs-toggle="collapse" role="button"
+                            aria-expanded="{{ set_expanded(['users.index', 'roles.index', 'permissions.index']) }}" aria-controls="sidebarSettings">
+                            <i class="ri-settings-3-line"></i> <span data-key="t-settings">User Management</span>
+                        </a>
+                        <div class="collapse menu-dropdown {{ set_show(['users.index', 'roles.index', 'permissions.index']) }}"
+                            id="sidebarSettings">
+                            <ul class="nav nav-sm flex-column">
+                                <li class="nav-item">
+                                    <a href="{{ route('users.index') }}"
+                                        class="nav-link {{ set_active(['users.index']) }}"
+                                        data-key="t-users">Users</a>
+                                </li>
+                                <li class="nav-item">
+                                    <a href="{{ route('roles.index') }}"
+                                        class="nav-link {{ set_active(['roles.index']) }}"
+                                        data-key="t-roles">Roles</a>
+                                </li>
+                                <li class="nav-item">
+                                    <a href="{{ route('permissions.index') }}"
+                                        class="nav-link {{ set_active(['permissions.index']) }}"
+                                        data-key="t-permissions">Permissions</a>
+                                </li>
+                            </ul>
+                        </div>
+                    </li>
+                    @endif
+
+                    <li class="nav-item">
+                        <a class="nav-link menu-link {{ set_active(['activity.logs']) }}"
+                            href="{{ route('activity.logs') }}">
+                            <i class="ri-history-line"></i> <span data-key="t-simple-page">Activity Logs</span>
                         </a>
                     </li>
 
                     <li class="menu-title"><i class="ri-more-fill"></i> <span data-key="t-pages">Pages</span></li>
-                    @if(auth()->user()?->role_name !== 'DSWD' && auth()->user()?->role_name !== 'Cong Staff')
                     <li class="nav-item">
-                        <a class="nav-link menu-link {{ set_active(['users.index']) }}"
-                            href="{{ route('users.index') }}">
-                            <i class="ri-user-line"></i> <span data-key="t-users">Users</span>
+                        <a class="nav-link menu-link {{ set_active(['settings']) }}"
+                            href="{{ route('settings') }}">
+                            <i class="ri-user-line"></i> <span data-key="t-settings">Profile Page</span>
                         </a>
-                    </li>
-                    @endif
-                    <li class="nav-item">
-                        <a class="nav-link menu-link {{ set_active(['activity.logs', 'profile', 'settings']) }}" href="#sidebarPages"
-                            data-bs-toggle="collapse" role="button"
-                            aria-expanded="{{ set_expanded(['activity.logs', 'profile', 'settings']) }}" aria-controls="sidebarPages">
-                            <i class="ri-pages-line"></i> <span data-key="t-pages">Profile Page</span>
-                        </a>
-                        <div class="collapse menu-dropdown {{ set_show(['activity.logs', 'profile', 'settings']) }}"
-                            id="sidebarPages">
-                            <ul class="nav nav-sm flex-column">
-                                <li class="nav-item">
-                                    <a href="#sidebarProfile"
-                                        class="nav-link {{ set_active(['activity.logs', 'profile', 'settings']) }}"
-                                        data-bs-toggle="collapse" role="button"
-                                        aria-expanded="{{ set_expanded(['activity.logs', 'profile', 'settings']) }}"
-                                        aria-controls="sidebarProfile" data-key="t-profile">Profile</a>
-                                    <div class="collapse menu-dropdown {{ set_show(['activity.logs', 'profile', 'settings']) }}"
-                                        id="sidebarProfile">
-                                        <ul class="nav nav-sm flex-column">
-                                            <li class="nav-item">
-                                                <a href="{{ route('activity.logs') }}"
-                                                    class="nav-link {{ set_active(['activity.logs']) }}"
-                                                    data-key="t-simple-page">Activity Logs</a>
-                                            </li>
-                                            <li class="nav-item">
-                                                <a href="{{ route('settings') }}"
-                                                    class="nav-link {{ set_active(['settings']) }}"
-                                                    data-key="t-settings">Settings</a>
-                                            </li>
-                                        </ul>
-                                    </div>
-                                </li>
-                            </ul>
-                        </div>
                     </li>
 
                 </ul>

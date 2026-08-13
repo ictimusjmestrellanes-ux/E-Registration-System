@@ -54,11 +54,13 @@
                         </div>
 
                         <div class="d-flex flex-wrap gap-2 mb-4">
-                            <button type="button" class="btn btn-primary flex-fill text-uppercase" data-bs-toggle="modal"
-                                data-bs-target="#newTransactionModal">New Transaction</button>
+                            @unless (auth()->user()?->role_name === 'Viewer')
+                                <button type="button" class="btn btn-primary flex-fill text-uppercase" data-bs-toggle="modal"
+                                    data-bs-target="#newTransactionModal">New Transaction</button>
 
-                            <a href="{{ route('clients.edit', $client) }}"
-                                class="btn btn-primary flex-fill text-uppercase">Update Client Information</a>
+                                <a href="{{ route('clients.edit', $client) }}"
+                                    class="btn btn-primary flex-fill text-uppercase">Update Client Information</a>
+                            @endunless
 
                             <a href="#clientTransactionHistory" class="btn btn-primary flex-fill text-uppercase">View
                                 Transaction Information</a>
@@ -66,20 +68,22 @@
                             <button type="button" class="btn btn-primary flex-fill text-uppercase" disabled>Cancel
                                 Transaction</button>
 
-                            <button type="button" class="btn btn-primary flex-fill text-uppercase" data-bs-toggle="modal"
-                                data-bs-target="#verifyFingerprintModal" @disabled(!$hasFingerprint)>Verify Client
-                                Fingerprint</button>
+                            @unless (auth()->user()?->role_name === 'Viewer')
+                                <button type="button" class="btn btn-primary flex-fill text-uppercase" data-bs-toggle="modal"
+                                    data-bs-target="#verifyFingerprintModal" @disabled(!$hasFingerprint)>Verify Client
+                                    Fingerprint</button>
 
-                            <form action="{{ route('clients.archive', $client) }}" method="POST"
-                                class="m-0 d-inline-flex flex-fill"
-                                onsubmit="return confirm('Deactivate this client and move the record to archive?');">
-                                @csrf
-                                <button type="submit" class="btn btn-primary w-100 text-uppercase">Deactivate
-                                    Client</button>
-                            </form>
+                                <form action="{{ route('clients.archive', $client) }}" method="POST"
+                                    class="m-0 d-inline-flex flex-fill"
+                                    onsubmit="return confirm('Deactivate this client and move the record to archive?');">
+                                    @csrf
+                                    <button type="submit" class="btn btn-primary w-100 text-uppercase">Deactivate
+                                        Client</button>
+                                </form>
 
-                            <button type="button" class="btn btn-primary flex-fill text-uppercase" disabled>Merge
-                                Account</button>
+                                <button type="button" class="btn btn-primary flex-fill text-uppercase" disabled>Merge
+                                    Account</button>
+                            @endunless
 
                             <a href="{{ route('client.list') }}" class="btn btn-primary flex-fill text-uppercase">Back to
                                 List</a>
@@ -257,9 +261,9 @@
                                                 $txIsApproved = strtolower($txStatus) === 'approved';
                                                 $transactionEditUrl = route('transactions.edit', $transaction->id);
                                             @endphp
-                                            <tr class="transaction-row {{ $txIsApproved ? 'transaction-row-disabled' : '' }}" data-transaction-url="{{ $txIsApproved ? '' : $transactionEditUrl }}">
+                                            <tr class="transaction-row {{ $txIsApproved ? 'transaction-row-disabled' : '' }}" data-transaction-url="{{ auth()->user()?->role_name === 'Viewer' ? '' : ($txIsApproved ? '' : $transactionEditUrl) }}">
                                                 <td>
-                                                    @if ($txIsApproved)
+                                                    @if ($txIsApproved || auth()->user()?->role_name === 'Viewer')
                                                         <span class="fw-semibold">{{ $transaction->transaction_id }}</span>
                                                     @else
                                                         <a href="{{ $transactionEditUrl }}"

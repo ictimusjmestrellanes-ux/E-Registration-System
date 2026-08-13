@@ -7,6 +7,7 @@ use App\Models\Client;
 use App\Models\TransactionEvent;
 use App\Models\TransactionHistory;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
 class TransactionEventsController extends Controller
@@ -44,15 +45,18 @@ class TransactionEventsController extends Controller
             $query->whereDate('created_at', '<=', $dateTo);
         }
 
-        if ($request->boolean('duplicate_names')) {
-            $duplicateNames = TransactionEvent::query()
-                ->select('full_name')
-                ->whereNotNull('full_name')
-                ->where('full_name', '<>', '')
-                ->groupBy('full_name')
-                ->havingRaw('COUNT(*) > 1');
+        $duplicateFullNames = TransactionEvent::query()
+            ->select('full_name')
+            ->whereNotNull('full_name')
+            ->where('full_name', '<>', '')
+            ->where('not_duplicate', false)
+            ->groupBy('full_name')
+            ->havingRaw('COUNT(*) > 1')
+            ->pluck('full_name')
+            ->all();
 
-            $query->whereIn('full_name', $duplicateNames);
+        if ($request->boolean('duplicate_names')) {
+            $query->whereIn('full_name', $duplicateFullNames);
         }
 
         if ($request->boolean('duplicate_names')) {
@@ -63,7 +67,197 @@ class TransactionEventsController extends Controller
 
         $events = $query->paginate(15)->withQueryString();
 
-        return view('pages.transaction_events.transactionEvents', compact('events'));
+        $totalDuplicateGroups = TransactionEvent::query()
+            ->selectRaw('LOWER(TRIM(full_name)) as keyval')
+            ->whereNotNull('full_name')
+            ->where('full_name', '<>', '')
+            ->where('not_duplicate', false)
+            ->groupBy('keyval')
+            ->havingRaw('COUNT(*) > 1')
+            ->count();
+
+        return view('pages.transaction_events.transactionEvents', compact('events', 'totalDuplicateGroups', 'duplicateFullNames'));
+    }
+
+    public function duplicateReview()
+    {
+        $exactGroups = $this->findEventExactDuplicates();
+        $likelyGroups = $this->findEventLikelyDuplicates();
+        $similarGroups = $this->findEventSimilarSpellingDuplicates();
+
+        $notDuplicates = TransactionEvent::where('not_duplicate', true)
+            ->orderByDesc('updated_at')
+            ->limit(50)
+            ->get();
+
+        return view('pages.transaction_events.duplicateReview', compact('exactGroups', 'likelyGroups', 'similarGroups', 'notDuplicates'));
+    }
+
+    public function markNotDuplicate(TransactionEvent $event)
+    {
+        $authUser = auth()->user();
+        if ($authUser->role_name === 'Viewer') {
+            abort(403, 'Viewer role is read-only.');
+        }
+
+        $event->update(['not_duplicate' => true]);
+
+        ActivityLog::create([
+            'user_id' => $authUser->id,
+            'action' => 'event_marked_not_duplicate',
+            'description' => "Marked transaction event #{$event->id} ({$event->full_name}) as not a duplicate.",
+            'subject_type' => 'TransactionEvent',
+            'subject_id' => $event->id,
+            'properties' => json_encode(['event_id' => $event->id, 'full_name' => $event->full_name]),
+        ]);
+
+        return redirect()->route('transaction-events.duplicate-review')
+            ->with('success', "Event #{$event->id} ({$event->full_name}) marked as not a duplicate.");
+    }
+
+    public function resetNotDuplicate(TransactionEvent $event)
+    {
+        $authUser = auth()->user();
+        if ($authUser->role_name === 'Viewer') {
+            abort(403, 'Viewer role is read-only.');
+        }
+
+        $event->update(['not_duplicate' => false]);
+
+        ActivityLog::create([
+            'user_id' => $authUser->id,
+            'action' => 'event_restored_to_duplicate_review',
+            'description' => "Restored transaction event #{$event->id} ({$event->full_name}) to duplicate review.",
+            'subject_type' => 'TransactionEvent',
+            'subject_id' => $event->id,
+            'properties' => json_encode(['event_id' => $event->id, 'full_name' => $event->full_name]),
+        ]);
+
+        return redirect()->route('transaction-events.duplicate-review')
+            ->with('success', "Event #{$event->id} ({$event->full_name}) restored to duplicate review.");
+    }
+
+    private function findEventExactDuplicates(): \Illuminate\Support\Collection
+    {
+        $keys = TransactionEvent::query()
+            ->selectRaw("CONCAT(LOWER(TRIM(full_name)), '|', COALESCE(birth_date,'')) as keyval")
+            ->whereNotNull('full_name')
+            ->where('full_name', '<>', '')
+            ->where('not_duplicate', false)
+            ->groupBy('keyval')
+            ->havingRaw('COUNT(*) > 1')
+            ->pluck('keyval')
+            ->map(fn ($v) => (string) $v)
+            ->toArray();
+
+        return $this->groupEventsByKey($keys, "CONCAT(LOWER(TRIM(full_name)), '|', COALESCE(birth_date,''))");
+    }
+
+    private function findEventLikelyDuplicates(): \Illuminate\Support\Collection
+    {
+        $nameKeys = TransactionEvent::query()
+            ->selectRaw('LOWER(TRIM(full_name)) as keyval')
+            ->whereNotNull('full_name')
+            ->where('full_name', '<>', '')
+            ->where('not_duplicate', false)
+            ->groupBy('keyval')
+            ->havingRaw('COUNT(*) > 1')
+            ->pluck('keyval')
+            ->map(fn ($v) => (string) $v)
+            ->toArray();
+
+        if (empty($nameKeys)) {
+            return collect();
+        }
+
+        $events = TransactionEvent::whereIn(DB::raw('LOWER(TRIM(full_name))'), $nameKeys)
+            ->where('not_duplicate', false)
+            ->get();
+
+        return $events->groupBy(fn ($event) => strtolower(trim($event->full_name)))
+            ->filter(function ($items) {
+                if ($items->count() < 2) {
+                    return false;
+                }
+
+                $birthDates = $items->pluck('birth_date')->filter()->map(fn ($d) => $d->format('Y-m-d'));
+
+                // Fully identical birth dates belong to the exact tab.
+                if ($birthDates->count() === $items->count() && $birthDates->unique()->count() === 1) {
+                    return false;
+                }
+
+                // Some dates missing -> likely duplicate.
+                if ($birthDates->count() < $items->count()) {
+                    return true;
+                }
+
+                // Only year-level match -> likely duplicate.
+                $years = $birthDates->map(fn ($d) => substr($d, 0, 4))->unique();
+
+                return $years->count() === 1;
+            })
+            ->map(fn ($items) => $this->eventGroupPayload($items))
+            ->values();
+    }
+
+    private function findEventSimilarSpellingDuplicates(): \Illuminate\Support\Collection
+    {
+        $keys = TransactionEvent::query()
+            ->selectRaw("COALESCE(SOUNDEX(LOWER(TRIM(full_name))),'') as keyval")
+            ->whereNotNull('full_name')
+            ->where('full_name', '<>', '')
+            ->where('not_duplicate', false)
+            ->groupBy('keyval')
+            ->havingRaw('COUNT(*) > 1')
+            ->pluck('keyval')
+            ->map(fn ($v) => (string) $v)
+            ->toArray();
+
+        if (empty($keys)) {
+            return collect();
+        }
+
+        $events = TransactionEvent::whereIn(DB::raw("COALESCE(SOUNDEX(LOWER(TRIM(full_name))),'')"), $keys)
+            ->where('not_duplicate', false)
+            ->get();
+
+        return $events->groupBy(fn ($event) => (string) soundex(strtolower(trim($event->full_name))))
+            ->filter(function ($items) {
+                if ($items->count() < 2) {
+                    return false;
+                }
+
+                $distinctNames = $items->map(fn ($event) => strtolower(trim($event->full_name)))->unique();
+
+                return $distinctNames->count() > 1;
+            })
+            ->map(fn ($items) => $this->eventGroupPayload($items))
+            ->values();
+    }
+
+    private function groupEventsByKey(array $keys, string $keyExpr): \Illuminate\Support\Collection
+    {
+        if (empty($keys)) {
+            return collect();
+        }
+
+        $events = TransactionEvent::whereIn(DB::raw($keyExpr), $keys)
+            ->where('not_duplicate', false)
+            ->get();
+
+        return $events->groupBy(function ($event) {
+            return strtolower(trim($event->full_name)) . '|' . ($event->birth_date?->format('Y-m-d') ?? '');
+        })->map(fn ($items) => $this->eventGroupPayload($items))->values();
+    }
+
+    private function eventGroupPayload($items): array
+    {
+        return [
+            'total' => $items->count(),
+            'events' => $items,
+            'created_at' => $items->min('created_at'),
+        ];
     }
 
     public function archives()
@@ -177,11 +371,34 @@ class TransactionEventsController extends Controller
             $message .= " Archived CSV as {$archiveFile}.";
         }
 
+        ActivityLog::create([
+            'user_id' => auth()->id(),
+            'action' => 'events_imported',
+            'description' => "Imported {$imported} transaction event(s) from CSV" . ($request->file('csv_file')->getClientOriginalName() ? ' (' . $request->file('csv_file')->getClientOriginalName() . ')' : '') . '.',
+            'subject_type' => 'TransactionEvent',
+            'subject_id' => null,
+            'properties' => json_encode([
+                'imported' => $imported,
+                'skipped' => $skipped,
+                'file_name' => $request->file('csv_file')->getClientOriginalName(),
+            ]),
+        ]);
+
         return redirect()->route('transaction-events.index')->with('success', $message);
     }
 
     public function transfer(TransactionEvent $event)
     {
+        if (!is_null($event->transferred_at)) {
+            return redirect()->route('transaction-events.index')
+                ->with('error', 'Event #' . $event->id . ' is already approved/transferred.');
+        }
+
+        if ($event->not_duplicate) {
+            return redirect()->route('transaction-events.duplicate-review')
+                ->with('error', 'Event #' . $event->id . ' is marked as not a duplicate and cannot be transferred.');
+        }
+
         $nameParts = $this->splitFullName($event->full_name);
 
         $client = Client::whereRaw('LOWER(first_name) = ?', [strtolower($nameParts['first_name'])])
@@ -189,8 +406,23 @@ class TransactionEventsController extends Controller
             ->first();
 
         if (!$client) {
-            return redirect()->route('transaction-events.index')
-                ->with('error', 'No matching client found for "' . $event->full_name . '". Transfer the client first via CSV import.');
+            $client = $this->createClientFromImportedEvent([
+                'full_name'       => $event->full_name,
+                'age'             => $event->age,
+                'contact_no'      => $event->contact_no,
+                'address'         => $event->address,
+                'birth_date'      => $event->birth_date?->format('Y-m-d'),
+                'client_category' => $event->client_category,
+            ]);
+
+            ActivityLog::create([
+                'user_id'      => auth()->id(),
+                'action'       => 'client_created',
+                'description'  => 'Auto-created client ' . $client->client_id . ' (' . trim($event->full_name) . ') during event transfer.',
+                'subject_type' => 'Client',
+                'subject_id'   => $client->id,
+                'properties'   => json_encode(['source' => 'transaction-event-transfer', 'event_id' => $event->id]),
+            ]);
         }
 
         if (empty($event->transaction_category) && empty($event->transaction_type)) {
@@ -245,6 +477,7 @@ class TransactionEventsController extends Controller
         $events = TransactionEvent::query()
             ->whereIn('id', $ids)
             ->whereNull('transferred_at')
+            ->where('not_duplicate', false)
             ->get();
 
         if ($events->isEmpty()) {
@@ -254,6 +487,7 @@ class TransactionEventsController extends Controller
 
         $successCount = 0;
         $skippedCount = 0;
+        $createdClients = 0;
         $archivedEvents = [];
 
         foreach ($events as $event) {
@@ -268,8 +502,24 @@ class TransactionEventsController extends Controller
                 ->first();
 
             if (!$client) {
-                $skippedCount++;
-                continue;
+                $client = $this->createClientFromImportedEvent([
+                    'full_name'       => $event->full_name,
+                    'age'             => $event->age,
+                    'contact_no'      => $event->contact_no,
+                    'address'         => $event->address,
+                    'birth_date'      => $event->birth_date?->format('Y-m-d'),
+                    'client_category' => $event->client_category,
+                ]);
+                $createdClients++;
+
+                ActivityLog::create([
+                    'user_id'      => auth()->id(),
+                    'action'       => 'client_created',
+                    'description'  => 'Auto-created client ' . $client->client_id . ' (' . trim($event->full_name) . ') during event transfer.',
+                    'subject_type' => 'Client',
+                    'subject_id'   => $client->id,
+                    'properties'   => json_encode(['source' => 'transaction-event-transfer', 'event_id' => $event->id]),
+                ]);
             }
 
             $transactionId = $this->nextTransferredTransactionId($client->client_id);
@@ -312,8 +562,11 @@ class TransactionEventsController extends Controller
         }
 
         $message = "Transferred {$successCount} event(s).";
+        if ($createdClients > 0) {
+            $message .= " Auto-created {$createdClients} new client(s).";
+        }
         if ($skippedCount > 0) {
-            $message .= " Skipped {$skippedCount} event(s) because no matching client or missing transaction details.";
+            $message .= " Skipped {$skippedCount} event(s) because they are missing transaction details.";
         }
         if (!empty($archiveFile)) {
             $message .= " Archived as {$archiveFile}.";

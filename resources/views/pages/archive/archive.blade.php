@@ -68,12 +68,14 @@
                                             </td>
                                             <td>{{ $client->archived_at ? $client->archived_at->format('m/d/Y h:i A') : '-' }}</td>
                                             <td>
-                                                <form action="{{ route('archive.restore', $client) }}" method="POST" onsubmit="return confirm('Restore this client back to the active list?');">
-                                                    @csrf
-                                                    <button type="submit" class="btn btn-sm btn-soft-success">
-                                                        Restore
-                                                    </button>
-                                                </form>
+                                                @unless (auth()->user()?->role_name === 'Viewer')
+                                                    <form action="{{ route('archive.restore', $client) }}" method="POST" onsubmit="return confirm('Restore this client back to the active list?');">
+                                                        @csrf
+                                                        <button type="submit" class="btn btn-sm btn-soft-success">
+                                                            Restore
+                                                        </button>
+                                                    </form>
+                                                @endunless
                                             </td>
                                         </tr>
                                     @empty

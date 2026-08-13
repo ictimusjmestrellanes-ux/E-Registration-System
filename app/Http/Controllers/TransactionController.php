@@ -69,6 +69,10 @@ class TransactionController extends Controller
 
     public function edit($id)
     {
+        if (auth()->user()->role_name === 'Viewer') {
+            abort(403, 'Viewer role is read-only.');
+        }
+
         $transaction = TransactionHistory::with('requirements')->find($id);
 
         if (!$transaction) {
@@ -284,6 +288,18 @@ class TransactionController extends Controller
             'subject_barangay' => $validated['barangay'],
             'subject_municipality' => $validated['municipality'],
             'subject_client_relation' => $validated['client_relation'],
+        ]);
+
+        ActivityLog::create([
+            'user_id' => auth()->id(),
+            'action' => 'transaction_subject_updated',
+            'description' => "Saved subject information for transaction {$transaction->transaction_id}.",
+            'subject_type' => 'TransactionHistory',
+            'subject_id' => $transaction->id,
+            'properties' => json_encode([
+                'subject_name' => trim($validated['first_name'] . ' ' . ($validated['middle_name'] ?? '') . ' ' . $validated['last_name']),
+                'client_relation' => $validated['client_relation'],
+            ]),
         ]);
 
         return response()->json([

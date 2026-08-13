@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Models\User;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Laravel\Socialite\Contracts\User as SocialiteUserContract;
@@ -53,7 +55,41 @@ class OAuthUserService
         $user->email_verified_at = $user->email_verified_at ?: now();
         $user->save();
 
+        if ($provider === 'azure') {
+            $this->refreshAzureAvatar($user, (string) $socialiteUser->token);
+        }
+
         return $user;
+    }
+
+    private function refreshAzureAvatar(User $user, string $token): void
+    {
+        try {
+            $response = Http::withHeaders([
+                'Authorization' => 'Bearer ' . $token,
+            ])->get('https://graph.microsoft.com/v1.0/me/photo/$value');
+
+            if (!$response->successful()) {
+                return;
+            }
+
+            $mime = $response->header('Content-Type');
+            $extension = str_contains((string) $mime, 'png') ? 'png' : 'jpg';
+            $filename = 'avatars/azure-' . Str::uuid() . '.' . $extension;
+
+            Storage::disk('public')->put($filename, $response->body());
+
+            $oldProviderAvatar = $user->provider_avatar;
+            $user->provider_avatar = asset('storage/' . $filename);
+            $user->save();
+
+            if ($oldProviderAvatar && str_contains($oldProviderAvatar, '/storage/avatars/azure-')) {
+                $oldPath = Str::after($oldProviderAvatar, '/storage/');
+                Storage::disk('public')->delete($oldPath);
+            }
+        } catch (\Throwable $e) {
+            // Keep the existing avatar if the photo cannot be fetched.
+        }
     }
 
     private function assertProviderAllowed(string $provider, SocialiteUserContract $socialiteUser, string $email): void

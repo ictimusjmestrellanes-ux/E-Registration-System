@@ -1,4 +1,25 @@
 <?php $__env->startSection('title', 'Client Details'); ?>
+
+<?php $__env->startPush('styles'); ?>
+    <style>
+        .transaction-row {
+            cursor: pointer;
+        }
+
+        .transaction-row:hover {
+            background-color: rgba(0, 0, 0, 0.075) !important;
+        }
+
+        .transaction-row.transaction-row-disabled {
+            cursor: default;
+        }
+
+        .transaction-row.transaction-row-disabled:hover {
+            background-color: transparent !important;
+        }
+    </style>
+<?php $__env->stopPush(); ?>
+
 <?php $__env->startSection('content'); ?>
     <?php
         $defaultClientPhoto = asset('assets/images/profile.png');
@@ -32,11 +53,13 @@
                         </div>
 
                         <div class="d-flex flex-wrap gap-2 mb-4">
-                            <button type="button" class="btn btn-primary flex-fill text-uppercase" data-bs-toggle="modal"
-                                data-bs-target="#newTransactionModal">New Transaction</button>
+                            <?php if (! (auth()->user()?->role_name === 'Viewer')): ?>
+                                <button type="button" class="btn btn-primary flex-fill text-uppercase" data-bs-toggle="modal"
+                                    data-bs-target="#newTransactionModal">New Transaction</button>
 
-                            <a href="<?php echo e(route('clients.edit', $client)); ?>"
-                                class="btn btn-primary flex-fill text-uppercase">Update Client Information</a>
+                                <a href="<?php echo e(route('clients.edit', $client)); ?>"
+                                    class="btn btn-primary flex-fill text-uppercase">Update Client Information</a>
+                            <?php endif; ?>
 
                             <a href="#clientTransactionHistory" class="btn btn-primary flex-fill text-uppercase">View
                                 Transaction Information</a>
@@ -44,20 +67,22 @@
                             <button type="button" class="btn btn-primary flex-fill text-uppercase" disabled>Cancel
                                 Transaction</button>
 
-                            <button type="button" class="btn btn-primary flex-fill text-uppercase" data-bs-toggle="modal"
-                                data-bs-target="#verifyFingerprintModal" <?php if(!$hasFingerprint): echo 'disabled'; endif; ?>>Verify Client
-                                Fingerprint</button>
+                            <?php if (! (auth()->user()?->role_name === 'Viewer')): ?>
+                                <button type="button" class="btn btn-primary flex-fill text-uppercase" data-bs-toggle="modal"
+                                    data-bs-target="#verifyFingerprintModal" <?php if(!$hasFingerprint): echo 'disabled'; endif; ?>>Verify Client
+                                    Fingerprint</button>
 
-                            <form action="<?php echo e(route('clients.archive', $client)); ?>" method="POST"
-                                class="m-0 d-inline-flex flex-fill"
-                                onsubmit="return confirm('Deactivate this client and move the record to archive?');">
-                                <?php echo csrf_field(); ?>
-                                <button type="submit" class="btn btn-primary w-100 text-uppercase">Deactivate
-                                    Client</button>
-                            </form>
+                                <form action="<?php echo e(route('clients.archive', $client)); ?>" method="POST"
+                                    class="m-0 d-inline-flex flex-fill"
+                                    onsubmit="return confirm('Deactivate this client and move the record to archive?');">
+                                    <?php echo csrf_field(); ?>
+                                    <button type="submit" class="btn btn-primary w-100 text-uppercase">Deactivate
+                                        Client</button>
+                                </form>
 
-                            <button type="button" class="btn btn-primary flex-fill text-uppercase" disabled>Merge
-                                Account</button>
+                                <button type="button" class="btn btn-primary flex-fill text-uppercase" disabled>Merge
+                                    Account</button>
+                            <?php endif; ?>
 
                             <a href="<?php echo e(route('client.list')); ?>" class="btn btn-primary flex-fill text-uppercase">Back to
                                 List</a>
@@ -195,7 +220,8 @@
                             <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
                                 <div>
                                     <h5 class="mb-1">Transaction History</h5>
-                                    <p class="text-muted mb-0 small">Latest transactions for this client.</p>
+                                    <p class="text-muted mb-0 small">Latest transactions for this client. Select a
+                                        transaction to view its process.</p>
                                 </div>
                                 <form method="GET" class="d-flex align-items-center gap-2">
                                     <?php if(request()->query('show_transaction')): ?>
@@ -231,12 +257,21 @@
                                         <?php $__empty_1 = true; $__currentLoopData = $transactions; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $transaction): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
                                             <?php
                                                 $txStatus = $transaction->status ?? 'Completed';
-                                                $isApproved = strtolower($txStatus) === 'approved';
+                                                $txIsApproved = strtolower($txStatus) === 'approved';
+                                                $transactionEditUrl = route('transactions.edit', $transaction->id);
                                             ?>
-                                            <tr class="transaction-row"
-                                                style="cursor: pointer;"
-                                                data-transaction-id="<?php echo e($transaction->id); ?>">
-                                                <td><?php echo e($transaction->transaction_id); ?></td>
+                                            <tr class="transaction-row <?php echo e($txIsApproved ? 'transaction-row-disabled' : ''); ?>" data-transaction-url="<?php echo e(auth()->user()?->role_name === 'Viewer' ? '' : ($txIsApproved ? '' : $transactionEditUrl)); ?>">
+                                                <td>
+                                                    <?php if($txIsApproved || auth()->user()?->role_name === 'Viewer'): ?>
+                                                        <span class="fw-semibold"><?php echo e($transaction->transaction_id); ?></span>
+                                                    <?php else: ?>
+                                                        <a href="<?php echo e($transactionEditUrl); ?>"
+                                                            class="fw-semibold text-decoration-none">
+                                                            <?php echo e($transaction->transaction_id); ?>
+
+                                                        </a>
+                                                    <?php endif; ?>
+                                                </td>
                                                 <td><?php echo e($transaction->transaction_date->format('m/d/Y')); ?></td>
                                                 <td class="text-uppercase">E-Registration</td>
                                                 <td class="text-uppercase"><?php echo e($transaction->category_label); ?></td>
@@ -256,7 +291,7 @@
                                             </tr>
                                         <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                                             <tr>
-                                                <td colspan="11" class="text-center text-muted py-4">
+                                                <td colspan="12" class="text-center text-muted py-4">
                                                     No transactions recorded for this client.
                                                 </td>
                                             </tr>
@@ -311,7 +346,7 @@
         </div>
     </div>
 
-    <?php echo $__env->make('pages.client_transaction.newTransaction', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
+    <?php echo $__env->make('pages.client_transaction.newTransaction', ['isEditMode' => false], array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
 
     <?php if(session('show_created_modal')): ?>
         <div class="modal fade" id="clientCreatedModal" tabindex="-1" aria-labelledby="clientCreatedModalLabel"
@@ -338,11 +373,6 @@
         </div>
     <?php endif; ?>
 
-    <style>
-        .transaction-row:hover {
-            background-color: rgba(0, 0, 0, 0.075) !important;
-        }
-    </style>
 <?php $__env->stopSection(); ?>
 
 <?php $__env->startSection('script'); ?>
@@ -353,16 +383,6 @@
             const verifyStatus = document.getElementById('verifyFingerprintStatus');
             const verifyScanAgainBtn = document.getElementById('verifyFingerprintScanAgainBtn');
             const createdModalEl = document.getElementById('clientCreatedModal');
-
-            const editUrlTemplate = <?php echo json_encode(route('transactions.edit', ['id' => '__ID__']), 512) ?>;
-            document.querySelectorAll('.transaction-row').forEach(row => {
-                row.addEventListener('click', function() {
-                    const transactionId = this.getAttribute('data-transaction-id');
-                    if (transactionId) {
-                        window.location.href = editUrlTemplate.replace('__ID__', transactionId);
-                    }
-                });
-            });
 
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
             const currentClientId = Number(<?php echo json_encode($client->id, 15, 512) ?>);
@@ -375,6 +395,19 @@
                 const createdModal = bootstrap.Modal.getOrCreateInstance(createdModalEl);
                 createdModal.show();
             }
+
+            document.querySelectorAll('.transaction-row').forEach((row) => {
+                row.addEventListener('click', function(event) {
+                    if (event.target.closest('a, button, input, select, textarea, label')) {
+                        return;
+                    }
+
+                    const transactionUrl = this.dataset.transactionUrl;
+                    if (transactionUrl) {
+                        window.location.assign(transactionUrl);
+                    }
+                });
+            });
 
             if (!verifyModalEl || !verifyPreview || !verifyStatus || !verifyScanAgainBtn) {
                 return;

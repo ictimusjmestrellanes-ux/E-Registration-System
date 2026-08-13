@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ActivityLog;
 use App\Models\TransactionHistory;
 use App\Models\TransactionRequirement;
 use Illuminate\Http\Request;
@@ -60,6 +61,15 @@ class TransactionRequirementController extends Controller
                     ]
                 );
 
+                ActivityLog::create([
+                    'user_id' => auth()->id(),
+                    'action' => 'requirement_updated',
+                    'description' => "Saved requirement '{$validated['requirement_type']}' without a file for transaction {$transaction->transaction_id}.",
+                    'subject_type' => 'TransactionRequirement',
+                    'subject_id' => $requirement->id,
+                    'properties' => json_encode(['transaction_id' => $transaction->id, 'requirement_type' => $validated['requirement_type'], 'has_file' => false]),
+                ]);
+
                 return response()->json([
                     'success' => true,
                     'message' => 'Requirement saved without a file.',
@@ -89,6 +99,15 @@ class TransactionRequirementController extends Controller
                     'file_size' => $file->getSize(),
                 ]
             );
+
+            ActivityLog::create([
+                'user_id' => auth()->id(),
+                'action' => 'requirement_uploaded',
+                'description' => "Uploaded requirement '{$validated['requirement_type']}' ({$file->getClientOriginalName()}) for transaction {$transaction->transaction_id}.",
+                'subject_type' => 'TransactionRequirement',
+                'subject_id' => $requirement->id,
+                'properties' => json_encode(['transaction_id' => $transaction->id, 'requirement_type' => $validated['requirement_type'], 'file_name' => $file->getClientOriginalName(), 'has_file' => true]),
+            ]);
 
             return response()->json([
                 'success' => true,
@@ -141,12 +160,22 @@ class TransactionRequirementController extends Controller
     {
         try {
             $requirement = TransactionRequirement::findOrFail($requirementId);
+            $transaction = TransactionHistory::find($requirement->transaction_id);
 
             if ($requirement->file_path) {
                 Storage::disk('public')->delete($requirement->file_path);
             }
 
             $requirement->delete();
+
+            ActivityLog::create([
+                'user_id' => auth()->id(),
+                'action' => 'requirement_deleted',
+                'description' => "Deleted requirement '{$requirement->requirement_type}'" . ($transaction ? " for transaction {$transaction->transaction_id}" : '') . '.',
+                'subject_type' => 'TransactionRequirement',
+                'subject_id' => $requirementId,
+                'properties' => json_encode(['requirement_type' => $requirement->requirement_type, 'transaction_id' => $requirement->transaction_id]),
+            ]);
 
             return response()->json([
                 'success' => true,

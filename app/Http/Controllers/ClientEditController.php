@@ -19,6 +19,10 @@ class ClientEditController extends Controller
 
     public function edit(Client $client)
     {
+        if (auth()->user()->role_name === 'Viewer') {
+            abort(403, 'Viewer role is read-only.');
+        }
+
         return view('pages.clients.clients', compact('client'));
     }
 

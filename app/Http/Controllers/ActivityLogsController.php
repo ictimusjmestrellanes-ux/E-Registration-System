@@ -14,23 +14,37 @@ class ActivityLogsController extends Controller
 
     public function index(Request $request)
     {
-        $now = now();
+        $timezone = 'Asia/Manila';
+        $manilaNow = now($timezone);
+        $viewOwnOnly = !in_array(auth()->user()->role_name, ['Admin', 'Super Admin']);
+
         $baseQuery = ActivityLog::with('user')->latest();
+        if ($viewOwnOnly) {
+            $baseQuery->where('user_id', auth()->id());
+        }
+
+        $monthStart = $manilaNow->copy()->startOfMonth()->setTimezone('UTC');
+        $monthEnd = $manilaNow->copy()->endOfMonth()->setTimezone('UTC');
 
         $monthlyActivities = (clone $baseQuery)
-            ->whereBetween('created_at', [$now->copy()->startOfMonth(), $now->copy()->endOfMonth()])
+            ->whereBetween('created_at', [$monthStart, $monthEnd])
             ->take(8)
             ->get();
 
-        $todayActivities = $monthlyActivities->filter(function ($a) use ($now) {
-            return $a->created_at && $a->created_at->isToday();
+        $todayActivities = $monthlyActivities->filter(function ($a) use ($timezone) {
+            return $a->created_at && $a->created_at->setTimezone($timezone)->isToday();
         })->values();
 
-        $weeklyActivities = $monthlyActivities->filter(function ($a) use ($now) {
-            return $a->created_at && $a->created_at->between($now->copy()->startOfWeek(), $now->copy()->endOfWeek());
+        $weeklyActivities = $monthlyActivities->filter(function ($a) use ($timezone, $manilaNow) {
+            return $a->created_at
+                && $a->created_at->setTimezone($timezone)
+                    ->between($manilaNow->copy()->startOfWeek(), $manilaNow->copy()->endOfWeek());
         })->values();
 
         $activitiesQuery = ActivityLog::with('user')->latest();
+        if ($viewOwnOnly) {
+            $activitiesQuery->where('user_id', auth()->id());
+        }
 
         $period = $request->input('period', 'all');
         $actionFilter = $request->input('action', '');
@@ -48,14 +62,34 @@ class ActivityLogsController extends Controller
                 '3years' => 1095,
             ];
 
-            if (isset($periodMap[$period])) {
-                $activitiesQuery->where('created_at', '>=', $now->copy()->subDays($periodMap[$period]));
-            } elseif ($period === 'this_month') {
-                $activitiesQuery->whereBetween('created_at', [$now->copy()->startOfMonth(), $now->copy()->endOfMonth()]);
-            } elseif ($period === 'this_week') {
-                $activitiesQuery->whereBetween('created_at', [$now->copy()->startOfWeek(), $now->copy()->endOfWeek()]);
-            } elseif ($period === 'today') {
-                $activitiesQuery->whereDate('created_at', $now->toDateString());
+            $startInTz = null;
+            $endInTz = null;
+
+            switch ($period) {
+                case 'today':
+                    $startInTz = $manilaNow->copy()->startOfDay();
+                    $endInTz = $startInTz->copy()->addDay();
+                    break;
+                case 'this_week':
+                    $startInTz = $manilaNow->copy()->startOfWeek();
+                    $endInTz = $startInTz->copy()->addWeek();
+                    break;
+                case 'this_month':
+                    $startInTz = $manilaNow->copy()->startOfMonth();
+                    $endInTz = $startInTz->copy()->addMonth();
+                    break;
+                default:
+                    if (isset($periodMap[$period])) {
+                        $startInTz = $manilaNow->copy()->subDays($periodMap[$period]);
+                    }
+            }
+
+            if ($startInTz) {
+                $activitiesQuery->where('created_at', '>=', $startInTz->setTimezone('UTC'));
+
+                if ($endInTz) {
+                    $activitiesQuery->where('created_at', '<', $endInTz->setTimezone('UTC'));
+                }
             }
         }
 
@@ -72,7 +106,13 @@ class ActivityLogsController extends Controller
         }
 
         $activities = $activitiesQuery->paginate(15)->withQueryString();
-        $uniqueActions = ActivityLog::distinct()->pluck('action')->filter()->sort()->values();
+        $uniqueActions = ActivityLog::query()
+            ->when($viewOwnOnly, fn ($query) => $query->where('user_id', auth()->id()))
+            ->distinct()
+            ->pluck('action')
+            ->filter()
+            ->sort()
+            ->values();
         $filteredTotal = (clone $activitiesQuery)->count();
 
         return view('pages.activity_logs.activityLogs', compact(

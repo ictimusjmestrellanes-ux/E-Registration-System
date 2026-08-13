@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -35,7 +36,7 @@ class UsersController extends Controller
 
         return view('pages.users.index', [
             'users' => $users,
-            'roles' => User::ROLES,
+            'roles' => Role::orderBy('name')->pluck('name')->all() ?: User::ROLES,
             'selectedRole' => $role,
             'search' => $search,
             'totalUsers' => $totalUsers,
@@ -52,10 +53,20 @@ class UsersController extends Controller
         }
 
         $validated = $request->validate([
-            'role_name' => ['required', 'string', Rule::in(User::ROLES)],
+            'role_name' => ['required', 'string', Rule::in(Role::pluck('name')->all() ?: User::ROLES)],
         ]);
 
+        $oldRole = $user->role_name;
         $user->update(['role_name' => $validated['role_name']]);
+
+        \App\Models\ActivityLog::create([
+            'user_id' => auth()->id(),
+            'action' => 'user_role_updated',
+            'description' => "Changed role of {$user->name} from {$oldRole} to {$validated['role_name']}.",
+            'subject_type' => 'User',
+            'subject_id' => $user->id,
+            'properties' => json_encode(['old_role' => $oldRole, 'new_role' => $validated['role_name']]),
+        ]);
 
         return redirect()->route('users.index')->with('success', "User role updated to {$validated['role_name']} successfully.");
     }

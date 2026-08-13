@@ -69,12 +69,14 @@
                                             </td>
                                             <td><?php echo e($client->archived_at ? $client->archived_at->format('m/d/Y h:i A') : '-'); ?></td>
                                             <td>
-                                                <form action="<?php echo e(route('archive.restore', $client)); ?>" method="POST" onsubmit="return confirm('Restore this client back to the active list?');">
-                                                    <?php echo csrf_field(); ?>
-                                                    <button type="submit" class="btn btn-sm btn-soft-success">
-                                                        Restore
-                                                    </button>
-                                                </form>
+                                                <?php if (! (auth()->user()?->role_name === 'Viewer')): ?>
+                                                    <form action="<?php echo e(route('archive.restore', $client)); ?>" method="POST" onsubmit="return confirm('Restore this client back to the active list?');">
+                                                        <?php echo csrf_field(); ?>
+                                                        <button type="submit" class="btn btn-sm btn-soft-success">
+                                                            Restore
+                                                        </button>
+                                                    </form>
+                                                <?php endif; ?>
                                             </td>
                                         </tr>
                                     <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>

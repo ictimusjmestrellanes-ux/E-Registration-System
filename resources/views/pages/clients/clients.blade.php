@@ -433,19 +433,35 @@
                                                             array_map('trim', explode(',', (string) $selectedSectors)),
                                                         );
                                                 @endphp
-                                                <div>
-                                                    <label for="sectorSelect" class="visually-hidden">Sector</label>
-                                                    <select id="sectorSelect" name="sectors[]" class="form-select"
-                                                        multiple>
-                                                        @foreach ($sectorOptions as $sectorOption)
-                                                            <option value="{{ $sectorOption }}"
-                                                                {{ in_array($sectorOption, $selectedSectorsArr) ? 'selected' : '' }}>
-                                                                {{ $sectorOption }}
-                                                            </option>
-                                                        @endforeach
-                                                    </select>
+                                                <div class="dropdown w-100" id="sectorDropdown"
+                                                    data-bs-auto-close="outside">
+                                                    <button class="btn dropdown-toggle w-100 text-start d-flex align-items-center justify-content-between gap-2 sector-dropdown-btn form-select"
+                                                        type="button" id="sectorDropdownBtn" data-bs-toggle="dropdown"
+                                                        aria-expanded="false">
+                                                        <span class="text-truncate sector-dropdown-label text-muted"
+                                                            id="sectorDropdownLabel">Select sectors</span>
+                                                    </button>
+                                                    <div class="dropdown-menu w-100 p-3 sector-dropdown-menu"
+                                                        aria-labelledby="sectorDropdownBtn">
+                                                        <input type="text" class="form-control form-control-sm mb-2"
+                                                            id="sectorSearchInput" placeholder="Search sectors...">
+                                                        <div class="sector-checkbox-list" id="sectorCheckboxList">
+                                                            @foreach ($sectorOptions as $sectorOption)
+                                                                <div class="form-check mb-1">
+                                                                    <input class="form-check-input sector-checkbox"
+                                                                        type="checkbox" value="{{ $sectorOption }}"
+                                                                        id="sectorOption{{ $loop->index }}"
+                                                                        {{ in_array($sectorOption, $selectedSectorsArr) ? 'checked' : '' }}>
+                                                                    <label class="form-check-label"
+                                                                        for="sectorOption{{ $loop->index }}">
+                                                                        {{ $sectorOption }}
+                                                                    </label>
+                                                                </div>
+                                                            @endforeach
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                                <input type="hidden" name="sector" id="sectorHidden" class="form-control"
+                                                <input type="hidden" name="sector" id="sectorHidden"
                                                     value="{{ old('sector', optional($editingClient)->sector ?? '') }}">
                                             </div>
 
@@ -545,64 +561,39 @@
 @endsection
 
 @section('script')
-    <!-- Choices.js for compact searchable multi-select -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/choices.js/public/assets/styles/choices.min.css" />
     <style>
-        /* Make Choices dropdown render in-flow instead of absolutely positioned
-               so it expands the layout (pushes content) rather than overlaying it. */
-        .choices__list--dropdown {
-            position: static !important;
-            display: none !important;
-            box-shadow: none !important;
-            max-width: 100% !important;
-            width: auto !important;
-            min-width: 100px;
+        .sector-dropdown-btn {
+            min-height: 38px;
+            border-color: var(--vz-border-color, #ced4da);
+            background: var(--vz-card-bg, #fff);
         }
 
-        /* When open, show the dropdown as a block element (in-flow) */
-        .choices.is-open .choices__list--dropdown {
-            display: block !important;
+        .sector-dropdown-btn::after {
+            flex-shrink: 0;
         }
 
-        /* The actual scrollable list inside the dropdown */
-        .choices__list--dropdown .choices__list {
-            max-height: 240px !important;
-            overflow-y: auto !important;
-            overflow-x: hidden !important;
+        .sector-dropdown-label {
+            min-width: 0;
+            text-transform: uppercase;
+            font-size: 0.875rem;
+            font-weight: 400;
         }
 
-        .choices__list--dropdown .choices__item {
-            white-space: normal !important;
-            word-break: break-word;
+        .sector-dropdown-menu {
+            max-height: 320px;
+            overflow-y: auto;
         }
 
-        .choices[data-type*=select-multiple] .choices__inner {
-            min-height: 44px;
-            padding: .35rem .5rem;
-            box-sizing: border-box;
+        .sector-checkbox-list {
+            max-height: 220px;
+            overflow-y: auto;
         }
 
-        /* Fix clipped/trimmed first letters by removing extra list padding
-               and ensuring each item has its own inner padding. Also ensure
-               dropdown has visible background and border so text isn't cut off. */
-        .choices__list--dropdown {
-            padding-left: 0 !important;
-            background: #ffffff !important;
-            border: 1px solid rgba(0, 0, 0, 0.08) !important;
-            border-radius: .375rem !important;
-            box-sizing: border-box !important;
-        }
-
-        .choices__list--dropdown .choices__list {
-            padding: 0 !important;
-            margin: 0 !important;
-        }
-
-        .choices__list--dropdown .choices__item {
-            padding: .375rem .75rem !important;
+        .sector-checkbox-list .form-check-label {
+            text-transform: uppercase;
+            font-size: 0.85rem;
         }
     </style>
-    <script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const openCameraBtn = document.getElementById('openCameraBtn');
@@ -1371,36 +1362,52 @@
                 contact2Error.classList.toggle('d-none', !hasInvalidChars);
             });
 
-            const sectorSelect = document.getElementById('sectorSelect');
             const sectorHidden = document.getElementById('sectorHidden');
+            const sectorDropdownLabel = document.getElementById('sectorDropdownLabel');
+            const sectorCheckboxes = Array.from(document.querySelectorAll('.sector-checkbox'));
+            const sectorSearchInput = document.getElementById('sectorSearchInput');
 
             const updateSectorDisplay = () => {
-                if (!sectorHidden || !sectorSelect) {
+                if (!sectorHidden || sectorCheckboxes.length === 0) {
                     return;
                 }
 
-                const labels = Array.from(sectorSelect.selectedOptions || [])
-                    .map(opt => opt.value);
+                const labels = sectorCheckboxes
+                    .filter((checkbox) => checkbox.checked)
+                    .map((checkbox) => checkbox.value);
                 sectorHidden.value = labels.join(',');
+
+                if (sectorDropdownLabel) {
+                    if (labels.length === 0) {
+                        sectorDropdownLabel.textContent = 'Select sectors';
+                        sectorDropdownLabel.classList.add('text-muted');
+                    } else if (labels.length === 1) {
+                        sectorDropdownLabel.textContent = labels[0];
+                        sectorDropdownLabel.classList.remove('text-muted');
+                    } else {
+                        sectorDropdownLabel.textContent = labels.length + ' sectors selected';
+                        sectorDropdownLabel.classList.remove('text-muted');
+                    }
+                }
             };
 
-            if (sectorSelect) {
-                // initialize Choices.js for a compact, searchable multi-select dropdown
-                try {
-                    new Choices(sectorSelect, {
-                        removeItemButton: true,
-                        placeholderValue: 'Select sectors',
-                        searchPlaceholderValue: 'Search sectors',
-                        shouldSort: false,
-                        itemSelectText: '',
-                        position: 'bottom',
-                        silent: true,
-                    });
-                } catch (e) {
-                    // Choices not available; fall back to native multi-select
-                }
+            if (sectorCheckboxes.length > 0) {
+                sectorCheckboxes.forEach((checkbox) => {
+                    checkbox.addEventListener('change', updateSectorDisplay);
+                });
 
-                sectorSelect.addEventListener('change', updateSectorDisplay);
+                if (sectorSearchInput) {
+                    sectorSearchInput.addEventListener('input', function() {
+                        const term = this.value.trim().toLowerCase();
+                        sectorCheckboxes.forEach((checkbox) => {
+                            const row = checkbox.closest('.form-check');
+                            if (row) {
+                                row.style.display =
+                                    checkbox.value.toLowerCase().includes(term) ? '' : 'none';
+                            }
+                        });
+                    });
+                }
             }
 
             updateSectorDisplay();

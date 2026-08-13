@@ -37,7 +37,7 @@
                     ? class_basename($activity->subject_type) . ($activity->subject_id ? ' #' . $activity->subject_id : '')
                     : 'System';
                 $propertiesCount = is_array($activity->properties) ? count($activity->properties) : 0;
-                $timeLabel = $activity->created_at?->format('M d, Y h:i A') ?? '-';
+                $timeLabel = $activity->created_at?->setTimezone('Asia/Manila')->format('M d, Y h:i A') ?? '-';
                 $userName = $activity->user?->name ?? 'System';
 
                 return '
@@ -384,8 +384,8 @@
                                         ?>
                                         <tr>
                                             <td>
-                                                <div class="fw-semibold"><?php echo e($activity->created_at?->format('M d, Y')); ?></div>
-                                                <div class="text-muted small"><?php echo e($activity->created_at?->format('h:i A')); ?></div>
+                                                <div class="fw-semibold"><?php echo e($activity->created_at?->setTimezone('Asia/Manila')->format('M d, Y')); ?></div>
+                                                <div class="text-muted small"><?php echo e($activity->created_at?->setTimezone('Asia/Manila')->format('h:i A')); ?></div>
                                             </td>
                                             <td>
                                                 <div class="fw-semibold"><?php echo e($activity->user?->name ?? 'System'); ?></div>

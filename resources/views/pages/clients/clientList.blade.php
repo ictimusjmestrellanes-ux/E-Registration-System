@@ -150,7 +150,9 @@
                                 @endif
                                 <button type="button" class="btn btn-soft-primary" id="searchFingerprintBtn">Search by
                                     Fingerprint</button>
-                                <a href="{{ route('clients') }}" class="btn btn-primary">Add Client</a>
+                                @unless (auth()->user()?->role_name === 'Viewer')
+                                    <a href="{{ route('clients') }}" class="btn btn-primary">Add Client</a>
+                                @endunless
                             </div>
                         </div>
 
@@ -371,17 +373,19 @@
                                                         class="btn btn-sm btn-soft-info">
                                                         View
                                                     </a>
-                                                    <a href="{{ route('clients.edit', $client) }}"
-                                                        class="btn btn-sm btn-soft-primary">
-                                                        Edit
-                                                    </a>
-                                                    <form action="{{ route('clients.archive', $client) }}" method="POST"
-                                                        onsubmit="return confirm('Are you sure you want to archive this client?');">
-                                                        @csrf
-                                                        <button type="submit" class="btn btn-sm btn-soft-warning">
-                                                            Archive
-                                                        </button>
-                                                    </form>
+                                                    @unless (auth()->user()?->role_name === 'Viewer')
+                                                        <a href="{{ route('clients.edit', $client) }}"
+                                                            class="btn btn-sm btn-soft-primary">
+                                                            Edit
+                                                        </a>
+                                                        <form action="{{ route('clients.archive', $client) }}" method="POST"
+                                                            onsubmit="return confirm('Are you sure you want to archive this client?');">
+                                                            @csrf
+                                                            <button type="submit" class="btn btn-sm btn-soft-warning">
+                                                                Archive
+                                                            </button>
+                                                        </form>
+                                                    @endunless
                                                 </div>
                                             </td>
                                         </tr>

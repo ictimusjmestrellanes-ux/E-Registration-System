@@ -150,7 +150,9 @@
                                 <?php endif; ?>
                                 <button type="button" class="btn btn-soft-primary" id="searchFingerprintBtn">Search by
                                     Fingerprint</button>
-                                <a href="<?php echo e(route('clients')); ?>" class="btn btn-primary">Add Client</a>
+                                <?php if (! (auth()->user()?->role_name === 'Viewer')): ?>
+                                    <a href="<?php echo e(route('clients')); ?>" class="btn btn-primary">Add Client</a>
+                                <?php endif; ?>
                             </div>
                         </div>
 
@@ -373,17 +375,19 @@
                                                         class="btn btn-sm btn-soft-info">
                                                         View
                                                     </a>
-                                                    <a href="<?php echo e(route('clients.edit', $client)); ?>"
-                                                        class="btn btn-sm btn-soft-primary">
-                                                        Edit
-                                                    </a>
-                                                    <form action="<?php echo e(route('clients.archive', $client)); ?>" method="POST"
-                                                        onsubmit="return confirm('Are you sure you want to archive this client?');">
-                                                        <?php echo csrf_field(); ?>
-                                                        <button type="submit" class="btn btn-sm btn-soft-warning">
-                                                            Archive
-                                                        </button>
-                                                    </form>
+                                                    <?php if (! (auth()->user()?->role_name === 'Viewer')): ?>
+                                                        <a href="<?php echo e(route('clients.edit', $client)); ?>"
+                                                            class="btn btn-sm btn-soft-primary">
+                                                            Edit
+                                                        </a>
+                                                        <form action="<?php echo e(route('clients.archive', $client)); ?>" method="POST"
+                                                            onsubmit="return confirm('Are you sure you want to archive this client?');">
+                                                            <?php echo csrf_field(); ?>
+                                                            <button type="submit" class="btn btn-sm btn-soft-warning">
+                                                                Archive
+                                                            </button>
+                                                        </form>
+                                                    <?php endif; ?>
                                                 </div>
                                             </td>
                                         </tr>

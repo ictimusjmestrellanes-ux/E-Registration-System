@@ -11,7 +11,9 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        $middleware->alias([
+            'viewer.readonly' => \App\Http\Middleware\ViewerReadOnly::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

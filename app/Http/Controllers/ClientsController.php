@@ -23,6 +23,10 @@ class ClientsController extends Controller
 
     public function create()
     {
+        if (auth()->user()->role_name === 'Viewer') {
+            abort(403, 'Viewer role is read-only.');
+        }
+
         return view('pages.clients.clients');
     }
 

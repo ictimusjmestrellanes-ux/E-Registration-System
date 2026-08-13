@@ -8,8 +8,11 @@ use App\Http\Controllers\CameraController;
 use App\Http\Controllers\ClientEditController;
 use App\Http\Controllers\ClientListController;
 use App\Http\Controllers\ClientsController;
+use App\Http\Controllers\DuplicateReviewController;
 use App\Http\Controllers\FingerprintController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\PermissionsController;
+use App\Http\Controllers\RolesController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\TransactionEventsController;
@@ -45,6 +48,7 @@ Route::group(['namespace' => 'App\Http\Controllers\Auth'],function()
 
 Route::group(['namespace' => 'App\Http\Controllers'], function () {
     Route::middleware('auth')->group(function () {
+        Route::middleware('viewer.readonly')->group(function () {
         // --------------------- Dashboard ------------------//
         Route::get('dashboard', [ProfileController::class, 'dashboard'])->name('dashboard');
 
@@ -54,6 +58,15 @@ Route::group(['namespace' => 'App\Http\Controllers'], function () {
         // --------------------- Users ------------------//
         Route::get('users', [UsersController::class, 'index'])->name('users.index');
         Route::put('users/{user}/role', [UsersController::class, 'updateRole'])->name('users.updateRole');
+
+        // --------------------- Roles & Permissions ------------------//
+        Route::get('roles', [RolesController::class, 'index'])->name('roles.index');
+        Route::post('roles', [RolesController::class, 'store'])->name('roles.store');
+        Route::delete('roles/{role}', [RolesController::class, 'destroy'])->name('roles.destroy');
+        Route::get('permissions', [PermissionsController::class, 'index'])->name('permissions.index');
+        Route::put('permissions', [PermissionsController::class, 'update'])->name('permissions.update');
+        Route::post('permissions', [PermissionsController::class, 'store'])->name('permissions.store');
+        Route::delete('permissions', [PermissionsController::class, 'destroy'])->name('permissions.destroy');
 
         // --------------------- Clients (Create) ------------------//
         Route::get('clients', [ClientsController::class, 'create'])->name('clients');
@@ -70,6 +83,9 @@ Route::group(['namespace' => 'App\Http\Controllers'], function () {
 
         // --------------------- Client List ------------------//
         Route::get('client-list', [ClientListController::class, 'index'])->name('client.list');
+
+        // --------------------- Duplicate Review ------------------//
+        Route::get('duplicate-review', [DuplicateReviewController::class, 'index'])->name('duplicate.review');
 
         // --------------------- Fingerprint ------------------//
         Route::post('client-list/fingerprint-search', [FingerprintController::class, 'search'])->name('client.search.fingerprint');
@@ -112,6 +128,9 @@ Route::group(['namespace' => 'App\Http\Controllers'], function () {
 
         // --------------------- Transaction Events ------------------//
         Route::get('transaction-events', [TransactionEventsController::class, 'index'])->name('transaction-events.index');
+        Route::get('transaction-events/duplicate-review', [TransactionEventsController::class, 'duplicateReview'])->name('transaction-events.duplicate-review');
+        Route::post('transaction-events/{event}/not-duplicate', [TransactionEventsController::class, 'markNotDuplicate'])->name('transaction-events.not-duplicate');
+        Route::post('transaction-events/{event}/reset-duplicate', [TransactionEventsController::class, 'resetNotDuplicate'])->name('transaction-events.reset-duplicate');
         Route::get('transaction-events/archives', [TransactionEventsController::class, 'archives'])->name('transaction-events.archives');
         Route::get('transaction-events/archives/{filename}', [TransactionEventsController::class, 'downloadArchive'])->name('transaction-events.archives.download');
         Route::post('transaction-events/preview', [TransactionEventsController::class, 'preview'])->name('transaction-events.preview');
@@ -119,5 +138,6 @@ Route::group(['namespace' => 'App\Http\Controllers'], function () {
         Route::post('transaction-events/{event}/transfer', [TransactionEventsController::class, 'transfer'])->name('transaction-events.transfer');
         Route::post('transaction-events/transfer-selected', [TransactionEventsController::class, 'transferSelected'])->name('transaction-events.transfer-selected');
     
+        });
     });
 });
