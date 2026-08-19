@@ -1,4 +1,4 @@
-<?php $__env->startSection('title', 'Duplicate Clients Review'); ?>
+<?php $__env->startSection('title', 'ERS | Duplicate Clients Review'); ?>
 <?php $__env->startSection('content'); ?>
 <?php
     $exactCount = $exactGroups->sum('total');

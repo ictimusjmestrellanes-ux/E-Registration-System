@@ -1,4 +1,4 @@
-<?php $__env->startSection('title', 'Login'); ?>
+<?php $__env->startSection('title', 'ERS | Login'); ?>
 
 <?php $__env->startSection('content'); ?>
     <style>

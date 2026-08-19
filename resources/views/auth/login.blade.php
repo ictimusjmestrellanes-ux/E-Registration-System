@@ -1,5 +1,5 @@
 @extends('layouts.app')
-@section('title', 'Login')
+@section('title', 'ERS | Login')
 
 @section('content')
     <style>

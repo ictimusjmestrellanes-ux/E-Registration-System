@@ -1,4 +1,4 @@
-<?php $__env->startSection('title', '404 Error'); ?>
+<?php $__env->startSection('title', 'ERS | 404 Error'); ?>
 <?php $__env->startSection('content'); ?>
     <div class="row justify-content-center">
         <div class="col-xl-7 col-lg-8">

@@ -15,13 +15,13 @@ class User extends Authenticatable
     use HasFactory, Notifiable;
 
     public const ROLE_DSWD = 'DSWD';
-    public const ROLE_CONG_STAFF = 'Cong Staff';
+    public const ROLE_STAFF = 'Staff';
     public const ROLE_ADMIN = 'Admin';
     public const ROLE_SUPER_ADMIN = 'Super Admin';
 
     public const ROLES = [
         self::ROLE_DSWD,
-        self::ROLE_CONG_STAFF,
+        self::ROLE_STAFF,
         self::ROLE_ADMIN,
         self::ROLE_SUPER_ADMIN,
     ];

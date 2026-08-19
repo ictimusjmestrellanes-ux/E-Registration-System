@@ -12,14 +12,14 @@ use Illuminate\Validation\Rule;
 class PermissionsController extends Controller
 {
     private const DEFAULT_PERMISSIONS = [
-        ['feature' => 'Dashboard', 'DSWD' => true, 'Cong Staff' => true, 'Admin' => true, 'Super Admin' => true],
-        ['feature' => 'Create Client', 'DSWD' => true, 'Cong Staff' => true, 'Admin' => true, 'Super Admin' => true],
-        ['feature' => 'Client List', 'DSWD' => true, 'Cong Staff' => true, 'Admin' => true, 'Super Admin' => true],
-        ['feature' => 'Archive', 'DSWD' => false, 'Cong Staff' => false, 'Admin' => true, 'Super Admin' => true],
-        ['feature' => 'Events', 'DSWD' => true, 'Cong Staff' => true, 'Admin' => true, 'Super Admin' => true],
-        ['feature' => 'Manage Users', 'DSWD' => false, 'Cong Staff' => false, 'Admin' => true, 'Super Admin' => true],
-        ['feature' => 'Activity Logs', 'DSWD' => false, 'Cong Staff' => false, 'Admin' => true, 'Super Admin' => true],
-        ['feature' => 'Send Transactions', 'DSWD' => false, 'Cong Staff' => true, 'Admin' => true, 'Super Admin' => true],
+        ['feature' => 'Dashboard', 'DSWD' => true, 'Staff' => true, 'Admin' => true, 'Super Admin' => true],
+        ['feature' => 'Create Client', 'DSWD' => true, 'Staff' => true, 'Admin' => true, 'Super Admin' => true],
+        ['feature' => 'Client List', 'DSWD' => true, 'Staff' => true, 'Admin' => true, 'Super Admin' => true],
+        ['feature' => 'Archive', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
+        ['feature' => 'Events', 'DSWD' => true, 'Staff' => true, 'Admin' => true, 'Super Admin' => true],
+        ['feature' => 'Manage Users', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
+        ['feature' => 'Activity Logs', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
+        ['feature' => 'Send Transactions', 'DSWD' => false, 'Staff' => true, 'Admin' => true, 'Super Admin' => true],
     ];
 
     public function __construct()

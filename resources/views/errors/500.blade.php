@@ -1,6 +1,6 @@
 
 @extends('layouts.error')
-@section('title', '500 Error')
+@section('title', 'ERS | 500 Error')
 @section('content')
     <style>
         html, body {

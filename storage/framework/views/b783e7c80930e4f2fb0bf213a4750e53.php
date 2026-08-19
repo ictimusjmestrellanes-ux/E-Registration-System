@@ -1,4 +1,4 @@
-<?php $__env->startSection('title', 'Client List'); ?>
+<?php $__env->startSection('title', 'ERS | Client List'); ?>
 <?php $__env->startSection('content'); ?>
     <style>
         .client-details-panel {

@@ -1,5 +1,5 @@
 @extends('layouts.master')
-@section('title', 'Client List')
+@section('title', 'ERS | Client List')
 @section('content')
     <style>
         .client-details-panel {

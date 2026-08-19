@@ -1,5 +1,5 @@
 @extends('layouts.master')
-@section('title', 'Client Details')
+@section('title', 'ERS | Client Details')
 
 @push('styles')
     <style>

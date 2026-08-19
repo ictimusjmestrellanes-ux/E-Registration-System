@@ -1,4 +1,4 @@
-<?php $__env->startSection('title', 'Clients'); ?>
+<?php $__env->startSection('title', 'ERS | Clients'); ?>
 <?php $__env->startPush('styles'); ?>
     <style>
         .clients-uppercase-form input,

@@ -120,7 +120,7 @@
                     
 
                     <li class="menu-title"><i class="ri-more-fill"></i> <span data-key="t-pages">Settings</span></li>
-                    <?php if(auth()->user()?->role_name !== 'DSWD' && auth()->user()?->role_name !== 'Cong Staff'): ?>
+                    <?php if(auth()->user()?->role_name !== 'DSWD' && auth()->user()?->role_name !== 'Staff'): ?>
                     <li class="nav-item">
                         <a class="nav-link menu-link <?php echo e(set_active(['users.index', 'roles.index', 'permissions.index'])); ?>" href="#sidebarSettings"
                             data-bs-toggle="collapse" role="button"

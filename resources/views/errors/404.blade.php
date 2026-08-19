@@ -1,5 +1,5 @@
 @extends('layouts.error')
-@section('title', '404 Error')
+@section('title', 'ERS | 404 Error')
 @section('content')
     <div class="row justify-content-center">
         <div class="col-xl-7 col-lg-8">

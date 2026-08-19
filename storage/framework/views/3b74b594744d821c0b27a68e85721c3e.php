@@ -6,6 +6,7 @@
 
     <meta charset="utf-8">
     <title><?php echo $__env->yieldContent('title', 'Error'); ?></title>
+    <link rel="icon" type="image/png" href="<?php echo e(asset('assets/images/City-Logo.png')); ?>">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta content="Premium Multipurpose Admin & Dashboard Template" name="description">
     <meta content="E-Registration System" name="author">

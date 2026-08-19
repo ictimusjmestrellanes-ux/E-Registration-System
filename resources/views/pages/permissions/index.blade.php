@@ -1,5 +1,5 @@
 @extends('layouts.master')
-@section('title', 'Permissions')
+@section('title', 'ERS | Permissions')
 @section('content')
 @php $canEdit = in_array(auth()->user()?->role_name, ['Admin', 'Super Admin']); @endphp
     <div class="container-fluid">

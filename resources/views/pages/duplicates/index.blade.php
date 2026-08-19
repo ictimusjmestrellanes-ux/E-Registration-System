@@ -1,5 +1,5 @@
 @extends('layouts.master')
-@section('title', 'Duplicate Clients Review')
+@section('title', 'ERS | Duplicate Clients Review')
 @section('content')
 @php
     $exactCount = $exactGroups->sum('total');

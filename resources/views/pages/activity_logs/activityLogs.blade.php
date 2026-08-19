@@ -1,11 +1,11 @@
 @extends('layouts.master')
-@section('title', 'Activity Logs')
+@section('title', 'ERS | Activity Logs')
 
 @section('content')
     @php
         $user = auth()->user();
         $profileAvatar = $user?->avatar_url;
-        $profileCover = $user?->cover_url ?? asset('assets/images/city-hall.jpg');
+        $profileCover = $user?->cover_url ?? asset('assets/images/city-hall1.jpg');
         $totalLogs = $activities->total();
         $todayCount = $todayActivities->count();
         $weeklyCount = $weeklyActivities->count();
@@ -70,8 +70,8 @@
             position: relative;
             overflow: hidden;
             border-radius: 20px;
-            min-height: 220px;
-            background: #3f4f8f;
+            min-height: 0;
+            aspect-ratio: 2571 / 727;
             color: #fff;
         }
 
@@ -79,8 +79,8 @@
             content: "";
             position: absolute;
             inset: 0;
-            background: linear-gradient(180deg, rgba(51, 63, 116, 0.18), rgba(51, 63, 116, 0.32));
-            z-index: 0;
+            background: linear-gradient(180deg, rgba(25, 36, 82, 0.2), rgba(25, 36, 82, 0.36));
+            z-index: 1;
         }
 
         .activity-hero::after {
@@ -88,15 +88,16 @@
             position: absolute;
             inset: 0;
             background-image: url('{{ $profileCover }}');
-            background-size: cover;
+            background-size: contain;
+            background-repeat: no-repeat;
             background-position: center;
-            opacity: 0.28;
+            opacity: 1;
             z-index: 0;
         }
 
         .activity-hero > * {
             position: relative;
-            z-index: 1;
+            z-index: 2;
         }
 
         .activity-avatar {

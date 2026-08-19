@@ -1,5 +1,5 @@
 @extends('layouts.master')
-@section('title', 'Transaction Event Archives')
+@section('title', 'ERS | Transaction Event Archives')
 
 @section('content')
     <div class="container-fluid">

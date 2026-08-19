@@ -1,5 +1,5 @@
 @extends('layouts.master')
-@section('title', 'Dashboard')
+@section('title', 'ERS | Dashboard')
 @section('content')
     @php
         $categoryMeta = [

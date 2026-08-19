@@ -1,5 +1,5 @@
 @extends('layouts.master')
-@section('title', 'Clients')
+@section('title', 'ERS | Clients')
 @push('styles')
     <style>
         .clients-uppercase-form input,

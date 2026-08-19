@@ -1,9 +1,10 @@
-<?php $__env->startSection('title', 'Profile Settings'); ?>
+<?php $__env->startSection('title', 'ERS | Profile Settings'); ?>
 <?php $__env->startSection('content'); ?>
     <!-- Page-content -->
     <style>
         .profile-setting-img {
-            overflow: hidden;
+            position: relative;
+            max-height: none;
         }
 
         .profile-setting-img::before,
@@ -14,6 +15,11 @@
         }
 
         .profile-setting-img .profile-wid-img {
+            display: block;
+            width: 100%;
+            height: auto;
+            max-height: none;
+            object-fit: contain;
             opacity: 1 !important;
             filter: none !important;
         }
@@ -23,14 +29,27 @@
             backdrop-filter: none !important;
             z-index: 2;
         }
+
+        .profile-settings-panel .card-header,
+        .profile-settings-panel .card-body {
+            background-color: transparent;
+        }
+
+        .profile-settings-panel {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.82) 0%, rgba(255, 255, 255, 0.42) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.55);
+            box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+        }
     </style>
     <div class="container-fluid">
         <div class="position-relative mx-n4 mt-n4">
-            <div class="profile-wid-bg profile-setting-img">
+            <div class="profile-setting-img">
                 <?php
-                    $profileCover = auth()->user()?->cover_url ?? asset('assets/images/city-hall.jpg');
+                    $profileCover = auth()->user()?->cover_url ?? asset('assets/images/city-hall1.jpg');
                 ?>
-                <img src="<?php echo e($profileCover); ?>" class="profile-wid-img" alt="">
+                <img src="<?php echo e($profileCover); ?>" class="profile-wid-img" alt="Profile cover">
                 <div class="overlay-content">
                     <div class="text-end p-3">
                         <div class="p-0 ms-auto rounded-circle profile-photo-edit">
@@ -51,7 +70,7 @@
 
         <div class="row">
             <div class="col-xxl-3">
-                <div class="card mt-n5">
+                <div class="card mt-n9 profile-settings-panel">
                     <div class="card-body p-4">
                         <div class="text-center">
                             <?php
@@ -78,7 +97,7 @@
             </div>
             <!--end col-->
             <div class="col-xxl-9">
-                <div class="card mt-xxl-n5">
+                <div class="card mt-xxl-n9 profile-settings-panel">
                     <div class="card-header">
                         <ul class="nav nav-tabs-custom rounded card-header-tabs border-bottom-0" role="tablist">
                             <li class="nav-item">

@@ -1,4 +1,4 @@
-<?php $__env->startSection('title', 'Users'); ?>
+<?php $__env->startSection('title', 'ERS | Users'); ?>
 <?php $__env->startSection('content'); ?>
 <?php $canEditRole = in_array(auth()->user()?->role_name, ['Admin', 'Super Admin']); ?>
     <div class="container-fluid">

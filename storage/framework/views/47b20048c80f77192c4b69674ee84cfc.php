@@ -1,4 +1,4 @@
-<?php $__env->startSection('title', 'Transaction Events'); ?>
+<?php $__env->startSection('title', 'ERS | Transaction Events'); ?>
 
 <?php $__env->startSection('content'); ?>
     <div class="container-fluid">

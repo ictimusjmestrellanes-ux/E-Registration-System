@@ -1,4 +1,4 @@
-<?php $__env->startSection('title', 'Roles'); ?>
+<?php $__env->startSection('title', 'ERS | Roles'); ?>
 <?php $__env->startSection('content'); ?>
 <?php $canManage = in_array(auth()->user()?->role_name, ['Admin', 'Super Admin']); ?>
     <div class="container-fluid">

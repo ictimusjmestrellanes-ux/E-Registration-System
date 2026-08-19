@@ -1,5 +1,5 @@
 @extends('layouts.master')
-@section('title', 'Transaction Process')
+@section('title', 'ERS | Transaction Process')
 @section('content')
     @php
         $txStatus = $transaction->status ?? 'Pending';

@@ -1,5 +1,5 @@
 @extends('layouts.master')
-@section('title', 'Roles')
+@section('title', 'ERS | Roles')
 @section('content')
 @php $canManage = in_array(auth()->user()?->role_name, ['Admin', 'Super Admin']); @endphp
     <div class="container-fluid">
