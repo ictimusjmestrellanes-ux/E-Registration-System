@@ -75,6 +75,8 @@
                         </a>
                     </li>
 
+                    <li class="menu-title"><span data-key="t-menu">Clients</span></li>
+
                     <li class="nav-item">
                         <a class="nav-link menu-link <?php echo e(set_active(['clients', 'client.list', 'archive.list'])); ?>" href="#sidebarClients"
                             data-bs-toggle="collapse" role="button"
@@ -101,6 +103,12 @@
                             </ul>
                         </div>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link menu-link <?php echo e(set_active(['duplicate.review'])); ?>"
+                            href="<?php echo e(route('duplicate.review')); ?>">
+                            <i class="ri-file-copy-2-line"></i> <span data-key="t-duplicate-review">Duplicate Clients Review</span>
+                        </a>
+                    </li>
 
                     <li class="menu-title"><span data-key="t-menu">Events</span></li>
                     <li class="nav-item">
@@ -109,12 +117,7 @@
                             <i class="ri-calendar-event-line"></i> <span>Events</span>
                         </a>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link menu-link <?php echo e(set_active(['duplicate.review'])); ?>"
-                            href="<?php echo e(route('duplicate.review')); ?>">
-                            <i class="ri-file-copy-2-line"></i> <span data-key="t-duplicate-review">Duplicate Review</span>
-                        </a>
-                    </li>
+                    
 
                     <li class="menu-title"><i class="ri-more-fill"></i> <span data-key="t-pages">Settings</span></li>
                     <?php if(auth()->user()?->role_name !== 'DSWD' && auth()->user()?->role_name !== 'Cong Staff'): ?>
