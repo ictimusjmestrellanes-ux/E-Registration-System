@@ -28,7 +28,7 @@
         <div class="position-relative mx-n4 mt-n4">
             <div class="profile-wid-bg profile-setting-img">
                 <?php
-                    $profileCover = auth()->user()?->cover_url ?? asset('assets/images/profile-bg.jpg');
+                    $profileCover = auth()->user()?->cover_url ?? asset('assets/images/city-hall.jpg');
                 ?>
                 <img src="<?php echo e($profileCover); ?>" class="profile-wid-img" alt="">
                 <div class="overlay-content">

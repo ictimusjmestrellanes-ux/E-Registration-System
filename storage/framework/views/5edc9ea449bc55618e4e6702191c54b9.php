@@ -4,6 +4,7 @@
 
     <meta charset="utf-8">
     <title><?php echo $__env->yieldContent('title'); ?></title>
+    <link rel="icon" type="image/png" href="<?php echo e(asset('assets/images/City-Logo.png')); ?>">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="<?php echo e(csrf_token()); ?>">
     <meta content="Premium Multipurpose Admin & Dashboard Template" name="description">
