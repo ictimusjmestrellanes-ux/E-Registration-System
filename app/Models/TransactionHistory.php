@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Cache;
 
 class TransactionHistory extends Model
 {
@@ -77,6 +78,17 @@ class TransactionHistory extends Model
         $category = self::normalizeCategory($this->category);
 
         return $category ? (self::CATEGORIES[$category] ?? strtoupper(str_replace('_', ' ', $category))) : '';
+    }
+
+    /**
+     * Drop all dashboard stat/chart caches so counts refresh
+     * immediately after data changes (client/transaction mutations).
+     */
+    public static function flushDashboardCache(): void
+    {
+        foreach (['dashboard.total_clients', 'dashboard.category_counts', 'dashboard.client_trend', 'dashboard.transaction_trend'] as $key) {
+            Cache::forget($key);
+        }
     }
 
     public static function normalizeCategory(?string $category): ?string

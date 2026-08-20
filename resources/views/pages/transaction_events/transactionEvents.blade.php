@@ -374,6 +374,30 @@
                 </div>
             </div>
         </div>
+
+        <!-- Import Progress Modal (Step 3: Live progress bar) -->
+        <div class="modal fade" id="importProgressModal" tabindex="-1" aria-hidden="true"
+            data-bs-backdrop="static" data-bs-keyboard="false">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">
+                            <i class="ri-loader-3-line ri-spin me-1"></i> Importing Transaction Events
+                        </h5>
+                    </div>
+                    <div class="modal-body">
+                        <div class="progress" style="height: 22px;">
+                            <div id="importProgressBar" class="progress-bar progress-bar-striped progress-bar-animated"
+                                role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                        </div>
+                        <div class="d-flex justify-content-between mt-2">
+                            <span id="importProgressText" class="text-muted small">Preparing import...</span>
+                            <span id="importProgressPercent" class="fw-semibold small">0%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 @endsection
 
@@ -629,11 +653,122 @@
                 }
             });
 
-            confirmBtn.addEventListener('click', function() {
+            confirmBtn.addEventListener('click', async function() {
                 if (csvFileHidden.files.length === 0) {
                     return;
                 }
-                importForm.submit();
+
+                const file = csvFileHidden.files[0];
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                const apiHeaders = {
+                    'X-CSRF-TOKEN': csrfToken,
+                    'Accept': 'application/json',
+                };
+
+                const progressModalEl = document.getElementById('importProgressModal');
+                const progressBar = document.getElementById('importProgressBar');
+                const progressText = document.getElementById('importProgressText');
+                const progressPercent = document.getElementById('importProgressPercent');
+
+                const setProgress = function(percent, text) {
+                    progressBar.style.width = percent + '%';
+                    progressBar.setAttribute('aria-valuenow', percent);
+                    progressPercent.textContent = Math.round(percent) + '%';
+                    if (text) {
+                        progressText.textContent = text;
+                    }
+                };
+
+                if (!progressModalEl || !progressBar || !progressText || !progressPercent) {
+                    importForm.submit();
+                    return;
+                }
+
+                const progressModal = bootstrap.Modal.getOrCreateInstance(progressModalEl);
+
+                confirmBtn.disabled = true;
+                previewModal.hide();
+                progressModal.show();
+                setProgress(0, 'Preparing import...');
+
+                try {
+                    const prepareForm = new FormData();
+                    prepareForm.append('csv_file', file);
+
+                    const prepareRes = await fetch('{{ route('transaction-events.import.prepare') }}', {
+                        method: 'POST',
+                        headers: apiHeaders,
+                        body: prepareForm,
+                    });
+                    const prepareData = await prepareRes.json();
+
+                    if (!prepareRes.ok || !prepareData.success) {
+                        throw new Error(prepareData.message || 'Failed to prepare the import.');
+                    }
+
+                    const total = prepareData.total;
+                    if (total === 0) {
+                        throw new Error('The CSV file has no rows to import.');
+                    }
+
+                    const CHUNK_SIZE = 200;
+                    let offset = 0;
+
+                    while (offset < total) {
+                        const next = Math.min(offset + CHUNK_SIZE, total);
+                        setProgress(
+                            (offset / total) * 100,
+                            'Importing rows ' + (offset + 1) + ' - ' + next + ' of ' + total
+                        );
+
+                        const chunkBody = new URLSearchParams();
+                        chunkBody.append('token', prepareData.token);
+                        chunkBody.append('offset', offset);
+                        chunkBody.append('limit', CHUNK_SIZE);
+
+                        const chunkRes = await fetch('{{ route('transaction-events.import.process') }}', {
+                            method: 'POST',
+                            headers: apiHeaders,
+                            body: chunkBody,
+                        });
+                        const chunkData = await chunkRes.json();
+
+                        if (!chunkRes.ok || !chunkData.success) {
+                            throw new Error(chunkData.message || 'Import failed while processing rows.');
+                        }
+
+                        offset = chunkData.processed;
+
+                        if (chunkData.done) {
+                            break;
+                        }
+                    }
+
+                    setProgress(100, 'Finalizing import...');
+
+                    const finishBody = new URLSearchParams();
+                    finishBody.append('token', prepareData.token);
+
+                    const finishRes = await fetch('{{ route('transaction-events.import.finish') }}', {
+                        method: 'POST',
+                        headers: apiHeaders,
+                        body: finishBody,
+                    });
+                    const finishData = await finishRes.json();
+
+                    if (!finishRes.ok || !finishData.success) {
+                        throw new Error(finishData.message || 'Import failed to finalize.');
+                    }
+
+                    setProgress(100, 'Done!');
+                    setTimeout(function() {
+                        window.location.href = '{{ route('transaction-events.index') }}';
+                    }, 500);
+                } catch (error) {
+                    progressModal.hide();
+                    confirmBtn.disabled = false;
+                    new Message('imessage').show(error.message || 'Import failed.', 'fail', 'top-center');
+                }
             });
 
             previewModalEl.addEventListener('hidden.bs.modal', function() {

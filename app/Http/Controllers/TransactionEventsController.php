@@ -495,6 +495,175 @@ class TransactionEventsController extends Controller
         return redirect()->route('transaction-events.index')->with('success', $message);
     }
 
+    // ----------------------------------------------------------------------
+    // Chunked import (progress-bar friendly). The file is parsed once, rows
+    // are cached to a temp session file, then processed in slices so the
+    // browser can show a live percentage while importing.
+    // ----------------------------------------------------------------------
+
+    private const IMPORT_SESSION_DIR = 'import-sessions';
+
+    public function prepareImport(Request $request)
+    {
+        $request->validate([
+            'csv_file' => 'required|file|mimes:csv,txt|max:5120',
+        ]);
+
+        $result = $this->parseCsv($request->file('csv_file'));
+
+        if (!empty($result['errors'])) {
+            return response()->json(['success' => false, 'message' => $result['errors'][0]], 422);
+        }
+
+        $rows = $result['rows'];
+        $hasDuplicateRows = collect($rows)->contains(fn ($row) => !empty($row['duplicate']));
+
+        $token = md5(uniqid((string) auth()->id(), true));
+        $this->cleanupStaleImportSessions();
+
+        Storage::disk('local')->makeDirectory(self::IMPORT_SESSION_DIR);
+        Storage::disk('local')->put(
+            self::IMPORT_SESSION_DIR . '/' . $token . '.json',
+            json_encode([
+                'mode'              => $hasDuplicateRows ? 'events_only' : 'direct',
+                'rows'              => $rows,
+                'original_filename' => $request->file('csv_file')->getClientOriginalName(),
+                'skipped'           => $result['skipped'],
+            ], JSON_INVALID_UTF8_SUBSTITUTE)
+        );
+
+        return response()->json([
+            'success'        => true,
+            'token'          => $token,
+            'total'          => count($rows),
+            'skipped'        => $result['skipped'],
+            'has_duplicates' => $hasDuplicateRows,
+        ]);
+    }
+
+    public function processImportChunk(Request $request)
+    {
+        $request->validate([
+            'token'  => 'required|string',
+            'offset' => 'required|integer|min:0',
+        ]);
+
+        $limit = min(max((int) $request->input('limit', 200), 1), 1000);
+        $sessionData = $this->loadImportSession($request->input('token'));
+
+        if ($sessionData === null) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Import session not found. Please start the import again.',
+            ], 404);
+        }
+
+        $rows = $sessionData['rows'];
+        $offset = (int) $request->input('offset');
+        $slice = array_slice($rows, $offset, $limit);
+
+        if ($sessionData['mode'] === 'events_only') {
+            $this->storeImportedEventsOnly($slice);
+        } else {
+            $this->processImportedEvents($slice);
+        }
+
+        $processed = $offset + count($slice);
+
+        return response()->json([
+            'success'   => true,
+            'processed' => $processed,
+            'total'     => count($rows),
+            'done'      => $processed >= count($rows),
+        ]);
+    }
+
+    public function finishImport(Request $request)
+    {
+        $request->validate([
+            'token' => 'required|string',
+        ]);
+
+        $sessionData = $this->loadImportSession($request->input('token'));
+
+        if ($sessionData === null) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Import session not found. Please start the import again.',
+            ], 404);
+        }
+
+        $rows = $sessionData['rows'];
+        $imported = count($rows);
+        $skipped = $sessionData['skipped'];
+        $hasDuplicateRows = $sessionData['mode'] === 'events_only';
+        $archiveFile = '';
+
+        if ($imported > 0) {
+            $archiveFile = $this->storeImportedEventArchive($rows, $sessionData['original_filename']);
+        }
+
+        $message = $hasDuplicateRows
+            ? "Imported {$imported} event(s) to the event list because duplicate rows were found in the selected file."
+            : "Successfully imported {$imported} event(s).";
+
+        if ($skipped > 0) {
+            $message .= " Skipped {$skipped} invalid row(s).";
+        }
+
+        if (!empty($archiveFile)) {
+            $message .= " Archived CSV as {$archiveFile}.";
+        }
+
+        ActivityLog::create([
+            'user_id' => auth()->id(),
+            'action' => 'events_imported',
+            'description' => "Imported {$imported} transaction event(s) from CSV" . ($sessionData['original_filename'] ? ' (' . $sessionData['original_filename'] . ')' : '') . '.',
+            'subject_type' => 'TransactionEvent',
+            'subject_id' => null,
+            'properties' => json_encode([
+                'imported' => $imported,
+                'skipped' => $skipped,
+                'file_name' => $sessionData['original_filename'],
+            ], JSON_INVALID_UTF8_SUBSTITUTE),
+        ]);
+
+        Storage::disk('local')->delete(self::IMPORT_SESSION_DIR . '/' . $request->input('token') . '.json');
+
+        TransactionHistory::flushDashboardCache();
+
+        session()->flash('success', $message);
+
+        return response()->json([
+            'success'  => true,
+            'imported' => $imported,
+            'skipped'  => $skipped,
+            'message'  => $message,
+        ]);
+    }
+
+    private function loadImportSession(string $token): ?array
+    {
+        $path = self::IMPORT_SESSION_DIR . '/' . $token . '.json';
+
+        if (!Storage::disk('local')->exists($path)) {
+            return null;
+        }
+
+        $data = json_decode(Storage::disk('local')->get($path), true);
+
+        return is_array($data) ? $data : null;
+    }
+
+    private function cleanupStaleImportSessions(): void
+    {
+        foreach (Storage::disk('local')->files(self::IMPORT_SESSION_DIR) as $file) {
+            if (Storage::disk('local')->lastModified($file) < now()->subHours(2)->timestamp) {
+                Storage::disk('local')->delete($file);
+            }
+        }
+    }
+
     public function transfer(TransactionEvent $event)
     {
         if (!is_null($event->transferred_at)) {
@@ -568,6 +737,8 @@ class TransactionEventsController extends Controller
         }
 
         $event->update(['transferred_at' => now()]);
+
+        TransactionHistory::flushDashboardCache();
 
         return redirect()->route('transaction-events.index')
             ->with('success', 'Transaction ' . $transactionId . ' created successfully for ' . $client->full_name . '.');
@@ -681,6 +852,8 @@ class TransactionEventsController extends Controller
         }
 
         if ($successCount > 0) {
+            TransactionHistory::flushDashboardCache();
+
             return redirect()->route('transaction-events.index')->with('success', $message);
         }
 

@@ -14,6 +14,10 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'viewer.readonly' => \App\Http\Middleware\ViewerReadOnly::class,
         ]);
+
+        $middleware->web(append: [
+            \App\Http\Middleware\PreventCaching::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

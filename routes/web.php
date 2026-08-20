@@ -124,6 +124,9 @@ Route::group(['namespace' => 'App\Http\Controllers'], function () {
         Route::get('transaction-events/archives/{filename}', [TransactionEventsController::class, 'downloadArchive'])->name('transaction-events.archives.download');
         Route::post('transaction-events/preview', [TransactionEventsController::class, 'preview'])->name('transaction-events.preview');
         Route::post('transaction-events/import', [TransactionEventsController::class, 'import'])->name('transaction-events.import');
+Route::post('transaction-events/import/prepare', [TransactionEventsController::class, 'prepareImport'])->name('transaction-events.import.prepare');
+Route::post('transaction-events/import/process', [TransactionEventsController::class, 'processImportChunk'])->name('transaction-events.import.process');
+Route::post('transaction-events/import/finish', [TransactionEventsController::class, 'finishImport'])->name('transaction-events.import.finish');
         Route::get('transaction-events/template', [TransactionEventsController::class, 'downloadTemplate'])->name('transaction-events.template');
         Route::post('transaction-events/{event}/transfer', [TransactionEventsController::class, 'transfer'])->name('transaction-events.transfer');
         Route::post('transaction-events/transfer-selected', [TransactionEventsController::class, 'transferSelected'])->name('transaction-events.transfer-selected');

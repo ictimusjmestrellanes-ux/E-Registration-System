@@ -102,6 +102,8 @@ class TransactionController extends Controller
 
         $transaction = TransactionHistory::create($validated);
 
+        TransactionHistory::flushDashboardCache();
+
         ActivityLog::create([
             'user_id' => auth()->id(),
             'action' => 'transaction_created',
@@ -175,6 +177,8 @@ class TransactionController extends Controller
         $validated['category'] = TransactionHistory::normalizeCategory($validated['category']);
 
         $transaction->update($validated);
+
+        TransactionHistory::flushDashboardCache();
 
         ActivityLog::create([
             'user_id' => auth()->id(),

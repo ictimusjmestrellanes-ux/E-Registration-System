@@ -101,6 +101,8 @@ class ClientsController extends Controller
             $client
         );
 
+        \App\Models\TransactionHistory::flushDashboardCache();
+
         return redirect()->route('clients.show', $client)
             ->with('success', 'Client saved successfully.')
             ->with('show_created_modal', true);
@@ -153,6 +155,8 @@ class ClientsController extends Controller
         );
 
         $client->delete();
+
+        \App\Models\TransactionHistory::flushDashboardCache();
 
         return redirect()->route('client.list')->with('success', 'Client deleted successfully.');
     }

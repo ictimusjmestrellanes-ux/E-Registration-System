@@ -363,6 +363,40 @@
             });
         });
     </script>
+
+    <!-- Session expiry guard: if this page is shown from browser history / back-forward
+         cache after the session has expired, redirect straight to the login page. -->
+    <script>
+        (function () {
+            var loginUrl = "{{ route('login') }}";
+
+            function checkSession() {
+                fetch(window.location.href, {
+                    method: 'GET',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    cache: 'no-store'
+                }).then(function (resp) {
+                    if (resp.redirected && resp.url.indexOf('/login') !== -1) {
+                        window.location.replace(loginUrl);
+                    }
+                }).catch(function () {});
+            }
+
+            window.addEventListener('pageshow', function (event) {
+                if (event.persisted) {
+                    checkSession();
+                }
+            });
+
+            document.addEventListener('visibilitychange', function () {
+                if (document.visibilityState === 'visible') {
+                    checkSession();
+                }
+            });
+
+            setInterval(checkSession, 60000);
+        })();
+    </script>
     @stack('scripts')
     @yield('script')
 </body>

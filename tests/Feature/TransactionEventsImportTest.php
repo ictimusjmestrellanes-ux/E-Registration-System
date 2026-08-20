@@ -269,6 +269,77 @@ class TransactionEventsImportTest extends TestCase
         ]);
     }
 
+    public function test_chunked_import_progress_endpoints(): void
+    {
+        $this->actingAs(User::factory()->create());
+
+        $csv = implode("\n", [
+            'full_name,contact_no,address,age',
+            'ALICE SMITH,,Address A,25',
+            'BOB JONES,,Address B,40',
+        ]);
+
+        $prepare = $this->post(route('transaction-events.import.prepare'), [
+            'csv_file' => $this->csvUpload($csv),
+        ], ['Accept' => 'application/json']);
+
+        $prepare->assertOk()->assertJson([
+            'success' => true,
+            'total' => 2,
+            'skipped' => 0,
+        ]);
+
+        $token = $prepare->json('token');
+
+        $processOne = $this->post(route('transaction-events.import.process'), [
+            'token' => $token,
+            'offset' => 0,
+            'limit' => 1,
+        ], ['Accept' => 'application/json']);
+
+        $processOne->assertOk()->assertJson([
+            'success' => true,
+            'processed' => 1,
+            'total' => 2,
+            'done' => false,
+        ]);
+
+        $processTwo = $this->post(route('transaction-events.import.process'), [
+            'token' => $token,
+            'offset' => 1,
+            'limit' => 1,
+        ], ['Accept' => 'application/json']);
+
+        $processTwo->assertOk()->assertJson([
+            'success' => true,
+            'processed' => 2,
+            'total' => 2,
+            'done' => true,
+        ]);
+
+        $finish = $this->post(route('transaction-events.import.finish'), [
+            'token' => $token,
+        ], ['Accept' => 'application/json']);
+
+        $finish->assertOk()->assertJson([
+            'success' => true,
+            'imported' => 2,
+            'skipped' => 0,
+        ]);
+        $finish->assertSessionHas('success');
+
+        $this->assertDatabaseCount('clients', 2);
+        $this->assertDatabaseCount('transaction_history', 2);
+        $this->assertDatabaseCount('transaction_events', 0);
+
+        $missingSession = $this->post(route('transaction-events.import.process'), [
+            'token' => $token,
+            'offset' => 0,
+        ], ['Accept' => 'application/json']);
+
+        $missingSession->assertNotFound();
+    }
+
     private function csvUpload(string $contents): UploadedFile
     {
         $path = tempnam(sys_get_temp_dir(), 'transaction-events');
