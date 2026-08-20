@@ -108,7 +108,7 @@ class TransactionEventsController extends Controller
             'description' => "Marked transaction event #{$event->id} ({$event->full_name}) as not a duplicate.",
             'subject_type' => 'TransactionEvent',
             'subject_id' => $event->id,
-            'properties' => json_encode(['event_id' => $event->id, 'full_name' => $event->full_name]),
+            'properties' => json_encode(['event_id' => $event->id, 'full_name' => $event->full_name], JSON_INVALID_UTF8_SUBSTITUTE),
         ]);
 
         return redirect()->route('transaction-events.duplicate-review')
@@ -130,7 +130,7 @@ class TransactionEventsController extends Controller
             'description' => "Restored transaction event #{$event->id} ({$event->full_name}) to duplicate review.",
             'subject_type' => 'TransactionEvent',
             'subject_id' => $event->id,
-            'properties' => json_encode(['event_id' => $event->id, 'full_name' => $event->full_name]),
+            'properties' => json_encode(['event_id' => $event->id, 'full_name' => $event->full_name], JSON_INVALID_UTF8_SUBSTITUTE),
         ]);
 
         return redirect()->route('transaction-events.duplicate-review')
@@ -332,6 +332,114 @@ class TransactionEventsController extends Controller
         ]);
     }
 
+    public function downloadTemplate()
+    {
+        $headers = [
+            'full_name',
+            'contact_no',
+            'address',
+            'age',
+            'birth_date',
+            'client_category',
+            'transaction_category',
+            'transaction_type',
+        ];
+
+        $widths = [28, 16, 35, 8, 14, 22, 24, 24];
+        $exampleRow = [
+            'Juan Dela Cruz',
+            '09171234567',
+            'Brgy. Poblacion, City Hall',
+            '45',
+            '1981-03-15',
+            'INDIGENT',
+            'CARAVAN',
+            'FOOD ASSISTANCE',
+        ];
+
+        $rows = '';
+
+        foreach ([$headers, $exampleRow] as $index => $row) {
+            $style = $index === 0 ? ' s="1"' : '';
+            $cells = '';
+            foreach ($row as $i => $cell) {
+                $ref = $this->excelColumnName($i + 1) . ($index + 1);
+                $value = htmlspecialchars((string) $cell, ENT_XML1 | ENT_QUOTES, 'UTF-8');
+                $cells .= "<c r=\"{$ref}\" t=\"inlineStr\"{$style}><is><t xml:space=\"preserve\">{$value}</t></is></c>";
+            }
+            $rows .= "<row r=\"" . ($index + 1) . "\">{$cells}</row>";
+        }
+
+        $cols = '';
+        foreach ($widths as $i => $width) {
+            $cols .= "<col min=\"" . ($i + 1) . "\" max=\"" . ($i + 1) . "\" width=\"{$width}\" customWidth=\"1\"/>";
+        }
+
+        $sheetXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            . '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+            . "<cols>{$cols}</cols>"
+            . "<sheetData>{$rows}</sheetData>"
+            . '</worksheet>';
+
+        $contentTypes = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            . '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+            . '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+            . '<Default Extension="xml" ContentType="application/xml"/>'
+            . '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+            . '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+            . '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'
+            . '</Types>';
+
+        $rels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            . '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            . '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'
+            . '</Relationships>';
+
+        $workbook = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            . '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+            . '<sheets><sheet name="Import Template" sheetId="1" r:id="rId1"/></sheets>'
+            . '</workbook>';
+
+        $workbookRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            . '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            . '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'
+            . '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
+            . '</Relationships>';
+
+        $styles = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            . '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+            . '<fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts>'
+            . '<fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>'
+            . '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>'
+            . '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
+            . '<cellXfs count="2">'
+            . '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
+            . '<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/>'
+            . '</cellXfs>'
+            . '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>'
+            . '</styleSheet>';
+
+        $tempPath = tempnam(sys_get_temp_dir(), 'template_') . '.xlsx';
+
+        $zip = new \ZipArchive();
+        if ($zip->open($tempPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) {
+            @unlink($tempPath);
+            return back()->with('error', 'Unable to generate the Excel template. Please try again.');
+        }
+
+        $zip->addFromString('[Content_Types].xml', $contentTypes);
+        $zip->addFromString('_rels/.rels', $rels);
+        $zip->addFromString('xl/workbook.xml', $workbook);
+        $zip->addFromString('xl/_rels/workbook.xml.rels', $workbookRels);
+        $zip->addFromString('xl/worksheets/sheet1.xml', $sheetXml);
+        $zip->addFromString('xl/styles.xml', $styles);
+        $zip->close();
+
+        return response()->download($tempPath, 'import_template.xlsx', [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ])->deleteFileAfterSend(true);
+    }
+
     public function import(Request $request)
     {
         $request->validate([
@@ -381,7 +489,7 @@ class TransactionEventsController extends Controller
                 'imported' => $imported,
                 'skipped' => $skipped,
                 'file_name' => $request->file('csv_file')->getClientOriginalName(),
-            ]),
+            ], JSON_INVALID_UTF8_SUBSTITUTE),
         ]);
 
         return redirect()->route('transaction-events.index')->with('success', $message);
@@ -438,7 +546,7 @@ class TransactionEventsController extends Controller
             'client_category'  => $clientCategory,
             'transaction_id'   => $transactionId,
             'transaction_date' => now(),
-            'category'         => $event->transaction_category,
+            'category'         => TransactionHistory::normalizeCategory($event->transaction_category),
             'type'             => $event->transaction_type,
             'source'           => 'E-Registration',
             'clerk'            => auth()->user()->name ?? 'System',
@@ -530,22 +638,22 @@ class TransactionEventsController extends Controller
                 'client_category'  => $clientCategory,
                 'transaction_id'   => $transactionId,
                 'transaction_date' => now(),
-                'category'         => $event->transaction_category,
-                'type'             => $event->transaction_type,
-                'source'           => 'E-Registration',
-                'clerk'            => auth()->user()->name ?? 'System',
-                'status'           => 'Approved',
-                'description'      => 'Transferred from imported event for ' . $event->full_name,
-            ]);
+'category'         => TransactionHistory::normalizeCategory($event->transaction_category),
+            'type'             => $event->transaction_type,
+            'source'           => 'E-Registration',
+            'clerk'            => auth()->user()->name ?? 'System',
+            'status'           => 'Approved',
+            'description'      => 'Transferred from imported event for ' . $event->full_name,
+        ]);
 
-            ActivityLog::create([
-                'user_id'      => auth()->id(),
-                'action'       => 'transaction_created',
-                'description'  => 'Created transaction ' . $transactionId . ' from imported event.',
-                'subject_type' => 'TransactionHistory',
-                'subject_id'   => $transaction->id,
-                'properties'   => json_encode(['event_id' => $event->id]),
-            ]);
+        ActivityLog::create([
+            'user_id'      => auth()->id(),
+            'action'       => 'transaction_created',
+            'description'  => 'Created transaction ' . $transactionId . ' from imported event.',
+            'subject_type' => 'TransactionHistory',
+            'subject_id'   => $transaction->id,
+            'properties'   => json_encode(['event_id' => $event->id]),
+        ]);
 
             if (!empty($event->client_category)) {
                 $client->update(['sector' => $event->client_category]);
@@ -597,10 +705,58 @@ class TransactionEventsController extends Controller
         return $prefix . str_pad((string) $sequence, 4, '0', STR_PAD_LEFT);
     }
 
+    private function utf8Encode(?string $value): string
+    {
+        $value = (string) $value;
+
+        if ($value === '') {
+            return $value;
+        }
+
+        if (str_contains($value, "\x00")) {
+            foreach (['UTF-16LE', 'UTF-16BE', 'UTF-16', 'UTF-32LE', 'UTF-32BE', 'UTF-32'] as $encoding) {
+                $converted = mb_convert_encoding($value, 'UTF-8', $encoding);
+                if (mb_check_encoding($converted, 'UTF-8') && !str_contains($converted, "\x00")) {
+                    return $converted;
+                }
+            }
+        }
+
+        if (mb_check_encoding($value, 'UTF-8')) {
+            return ltrim($value, "\xEF\xBB\xBF");
+        }
+
+        foreach (['Windows-1252', 'ISO-8859-1'] as $encoding) {
+            $converted = mb_convert_encoding($value, 'UTF-8', $encoding);
+            if (mb_check_encoding($converted, 'UTF-8')) {
+                return $converted;
+            }
+        }
+
+        return mb_scrub($value, 'UTF-8');
+    }
+
+    private function excelColumnName(int $index): string
+    {
+        $name = '';
+        while ($index > 0) {
+            $mod = ($index - 1) % 26;
+            $name = chr(65 + $mod) . $name;
+            $index = intdiv($index - 1, 26);
+        }
+        return $name;
+    }
+
     private function parseCsv($file): array
     {
         $contents = file_get_contents($file->getPathname());
-        $contents = ltrim($contents, "\xEF\xBB\xBF");
+
+        if ($contents === false) {
+            return ['errors' => ['Unable to read the uploaded file.'], 'rows' => [], 'total' => 0, 'skipped' => 0];
+        }
+
+        $contents = $this->utf8Encode($contents);
+
         $tempPath = tempnam(sys_get_temp_dir(), 'csv');
         file_put_contents($tempPath, $contents);
         $handle = fopen($tempPath, 'r');
@@ -638,6 +794,7 @@ class TransactionEventsController extends Controller
 
         while (($row = fgetcsv($handle)) !== false) {
             $lineNumber++;
+            $row = array_map(fn ($cell) => $this->utf8Encode($cell), $row);
             $row = array_map('trim', $row);
             $row = array_slice(array_pad($row, count($header), ''), 0, count($header));
 
@@ -903,7 +1060,7 @@ class TransactionEventsController extends Controller
             'client_category'  => $event['client_category'] ?: $client->sector,
             'transaction_id'   => $this->nextTransferredTransactionId($client->client_id),
             'transaction_date' => now(),
-            'category'         => $event['transaction_category'] ?? '',
+            'category'         => TransactionHistory::normalizeCategory($event['transaction_category'] ?? ''),
             'type'             => $event['transaction_type'] ?? '',
             'source'           => 'E-Registration',
             'clerk'            => auth()->user()->name ?? 'System',

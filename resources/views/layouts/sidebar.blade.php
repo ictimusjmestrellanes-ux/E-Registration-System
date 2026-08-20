@@ -17,14 +17,16 @@
         <div class="navbar-brand-box">
             <!-- Dark Logo-->
             <a href="{{ route('dashboard') }}" class="logo logo-dark">
-                <span class="logo-lg">
-                    <span class="fw-bold fs-5 text-white">E-Registration System</span>
+                <span class="logo-lg d-inline-flex align-items-center gap-2">
+                    <img src="{{ asset('assets/images/City-Logo.png') }}" alt="City Logo" style="height: 40px; width: auto;">
+                    <span class="fw-bold fs-5 text-white" style="white-space: nowrap;">E-Reg System</span>
                 </span>
             </a>
             <!-- Light Logo-->
             <a href="{{ route('dashboard') }}" class="logo logo-light">
-                <span class="logo-lg">
-                    <span class="fw-bold fs-5 text-white">E-Registration System</span>
+                <span class="logo-lg d-inline-flex align-items-center gap-2">
+                    <img src="{{ asset('assets/images/City-Logo.png') }}" alt="City Logo" style="height: 40px; width: auto;">
+                    <span class="fw-bold fs-5 text-white" style="white-space: nowrap;">E-Reg System</span>
                 </span>
             </a>
             <button type="button" class="btn btn-sm p-0 fs-20 header-item float-end btn-vertical-sm-hover"
@@ -33,21 +35,6 @@
             </button>
         </div>
         <div class="dropdown sidebar-user m-1 rounded">
-            <button type="button" class="btn material-shadow-none sidebar-user-toggle" id="sidebar-user-dropdown"
-                data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                <span class="d-flex align-items-center gap-2">
-                    @php
-                        $sidebarAvatar = auth()->user()?->avatar_url ?? asset('assets/images/avatar-1.jpg');
-                    @endphp
-                    <img class="rounded header-profile-user" src="{{ $sidebarAvatar }}" alt="Header Avatar">
-                    <span class="text-start">
-                        <span class="d-block fw-medium sidebar-user-name-text">E-Registration System</span>
-                        <span class="d-block fs-14 sidebar-user-name-sub-text"><i
-                                class="ri ri-circle-fill fs-10 text-success align-baseline"></i> <span
-                                class="align-middle">Online</span></span>
-                    </span>
-                </span>
-            </button>
             <div class="dropdown-menu dropdown-menu-end" aria-labelledby="sidebar-user-dropdown">
                 <!-- item-->
                 <h6 class="dropdown-header">Welcome {{ auth()->user()->name ?? 'User' }}!</h6>
@@ -55,9 +42,6 @@
                 <a class="dropdown-item" href="{{ route('profile') }}"><i
                         class="mdi mdi-cog-outline text-muted fs-16 align-middle me-1"></i> <span
                         class="align-middle">Settings</span></a>
-                <a class="dropdown-item" href="auth-lockscreen-basic.html"><i
-                        class="mdi mdi-lock text-muted fs-16 align-middle me-1"></i> <span class="align-middle">Lock
-                        screen</span></a>
                 <a class="dropdown-item" href="auth-logout-basic.html"><i
                         class="mdi mdi-logout text-muted fs-16 align-middle me-1"></i> <span class="align-middle"
                         data-key="t-logout">Logout</span></a>
@@ -119,7 +103,7 @@
                     </li>
                     
 
-                    <li class="menu-title"><i class="ri-more-fill"></i> <span data-key="t-pages">Settings</span></li>
+                    <li class="menu-title"><span data-key="t-menu">Settings</span></li>
                     @if(auth()->user()?->role_name !== 'DSWD' && auth()->user()?->role_name !== 'Staff')
                     <li class="nav-item">
                         <a class="nav-link menu-link {{ set_active(['users.index', 'roles.index', 'permissions.index']) }}" href="#sidebarSettings"
@@ -157,7 +141,7 @@
                         </a>
                     </li>
 
-                    <li class="menu-title"><i class="ri-more-fill"></i> <span data-key="t-pages">Pages</span></li>
+                    <li class="menu-title"><span data-key="t-menu">Pages</span></li>
                     <li class="nav-item">
                         <a class="nav-link menu-link {{ set_active(['settings']) }}"
                             href="{{ route('settings') }}">

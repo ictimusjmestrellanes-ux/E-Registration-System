@@ -38,7 +38,7 @@ class TransactionEventsImportTest extends TestCase
         ]);
 
         $response->assertRedirect(route('transaction-events.index'));
-        $response->assertSessionHas('success', 'Successfully imported 1 event(s). Skipped 1 invalid row(s).');
+        $response->assertSessionHas('success', fn (string $message) => str_starts_with($message, 'Successfully imported 1 event(s). Skipped 1 invalid row(s).'));
 
         $this->assertDatabaseCount('transaction_events', 0);
         $this->assertDatabaseHas('clients', [

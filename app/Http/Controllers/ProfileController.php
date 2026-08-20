@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Client;
 use App\Models\TransactionHistory;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
 
 class ProfileController extends Controller
@@ -25,14 +26,75 @@ class ProfileController extends Controller
         });
 
         $categoryCounts = Cache::remember('dashboard.category_counts', 300, function () {
-            return TransactionHistory::selectRaw('category, count(*) as total')
+            $counts = array_fill_keys(array_keys(TransactionHistory::CATEGORIES), 0);
+
+            $rows = TransactionHistory::query()
+                ->selectRaw('category, count(*) as total')
+                ->whereNotNull('category')
+                ->where('category', '<>', '')
                 ->groupBy('category')
-                ->pluck('total', 'category')
-                ->toArray();
+                ->get();
+
+            foreach ($rows as $row) {
+                $key = TransactionHistory::normalizeCategory($row->category);
+                if ($key !== null && array_key_exists($key, $counts)) {
+                    $counts[$key] += (int) $row->total;
+                }
+            }
+
+            return $counts;
         });
 
         $categories = TransactionHistory::CATEGORIES;
 
-        return view('pages.dashboard', compact('totalClients', 'categoryCounts', 'categories'));
+        $clientTrend = Cache::remember('dashboard.client_trend', 300, function () {
+            $start = Carbon::create(2026, 1, 1)->startOfMonth();
+
+            $rows = Client::query()
+                ->selectRaw("DATE_FORMAT(created_at, '%Y-%m') as month, count(*) as total")
+                ->where('created_at', '>=', $start)
+                ->groupBy('month')
+                ->orderBy('month')
+                ->pluck('total', 'month')
+                ->toArray();
+
+            $labels = [];
+            $data = [];
+            $cursor = $start->copy();
+            while ($cursor->lte(now())) {
+                $key = $cursor->format('Y-m');
+                $labels[] = $cursor->format('M Y');
+                $data[] = $rows[$key] ?? 0;
+                $cursor->addMonth();
+            }
+
+            return ['labels' => $labels, 'data' => $data];
+        });
+
+        $transactionTrend = Cache::remember('dashboard.transaction_trend', 300, function () {
+            $start = Carbon::create(2026, 1, 1)->startOfMonth();
+
+            $rows = TransactionHistory::query()
+                ->selectRaw("DATE_FORMAT(transaction_date, '%Y-%m') as month, count(*) as total")
+                ->where('transaction_date', '>=', $start)
+                ->groupBy('month')
+                ->orderBy('month')
+                ->pluck('total', 'month')
+                ->toArray();
+
+            $labels = [];
+            $data = [];
+            $cursor = $start->copy();
+            while ($cursor->lte(now())) {
+                $key = $cursor->format('Y-m');
+                $labels[] = $cursor->format('M Y');
+                $data[] = $rows[$key] ?? 0;
+                $cursor->addMonth();
+            }
+
+            return ['labels' => $labels, 'data' => $data];
+        });
+
+        return view('pages.dashboard', compact('totalClients', 'categoryCounts', 'categories', 'clientTrend', 'transactionTrend'));
     }
 }

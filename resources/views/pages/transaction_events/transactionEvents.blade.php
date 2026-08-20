@@ -64,6 +64,10 @@
                                 <i class="ri-archive-line me-1"></i> View Archives
                             </a>
                             @unless (auth()->user()?->role_name === 'Viewer')
+                                <a href="{{ route('transaction-events.template') }}"
+                                    class="btn btn-soft-primary btn-sm">
+                                    <i class="ri-download-2-line me-1"></i> Excel Template
+                                </a>
                                 <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal"
                                     data-bs-target="#importModal">
                                     <i class="ri-upload-2-line me-1"></i> Import CSV
@@ -285,7 +289,10 @@
                             <strong>CSV Format:</strong> The file should have the following columns (with header
                             row):<br>
                             <code>full_name, contact_no, address, age, birth_date, client_category, transaction_category,
-                                transaction_type</code>
+                                transaction_type</code><br>
+                            <a href="{{ route('transaction-events.template') }}" class="alert-link mt-1 d-inline-block">
+                                <i class="ri-download-2-line me-1"></i>Download the Excel template
+                            </a> to get started, then save as CSV.
                         </div>
                     </div>
                     <div class="modal-footer">

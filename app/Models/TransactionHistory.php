@@ -74,7 +74,42 @@ class TransactionHistory extends Model
 
     public function getCategoryLabelAttribute(): string
     {
-        return self::CATEGORIES[$this->category] ?? strtoupper(str_replace('_', ' ', $this->category));
+        $category = self::normalizeCategory($this->category);
+
+        return $category ? (self::CATEGORIES[$category] ?? strtoupper(str_replace('_', ' ', $category))) : '';
+    }
+
+    public static function normalizeCategory(?string $category): ?string
+    {
+        if ($category === null) {
+            return null;
+        }
+
+        $label = strtoupper(trim($category));
+
+        if ($label === '') {
+            return $category;
+        }
+
+        if (in_array($label, ['BIGAY BIGAS SA MASA', 'CARAVAN'], true)) {
+            return 'events';
+        }
+
+        if (in_array($label, ['SOCIAL SERVICES', 'SOCIAL SERVICES ASSISTANCE', 'SOCIAL_SERVICES', 'SOCIAL_SERVICES_ASSISTANCE'], true)) {
+            return 'social_services';
+        }
+
+        if (in_array($label, ['OTHERS', 'OTHER'], true)) {
+            return 'others';
+        }
+
+        $slug = strtolower(str_replace(' ', '_', $category));
+
+        if (isset(self::CATEGORIES[$slug])) {
+            return $slug;
+        }
+
+        return 'others';
     }
 
     public function getTypeLabelAttribute(): string

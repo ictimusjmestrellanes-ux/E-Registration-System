@@ -14,6 +14,68 @@ class TransactionController extends Controller
         $this->middleware('auth');
     }
 
+    public function index(Request $request)
+    {
+        $transactions = TransactionHistory::query()
+            ->when($request->filled('search'), function ($query) use ($request) {
+                $query->where(function ($q) use ($request) {
+                    $q->where('transaction_id', 'like', '%' . $request->search . '%')
+                        ->orWhere('clerk', 'like', '%' . $request->search . '%')
+                        ->orWhere('type', 'like', '%' . $request->search . '%')
+                        ->orWhere('category', 'like', '%' . $request->search . '%');
+                });
+            })
+            ->orderByDesc('transaction_date')
+            ->orderByDesc('id')
+            ->paginate(15)
+            ->withQueryString();
+
+        $total = $transactions->total();
+
+        return view('pages.client_transaction.transactionCategoryList', [
+            'category' => null,
+            'labels' => 'All',
+            'transactions' => $transactions,
+            'total' => $total,
+        ]);
+    }
+
+    public function categoryList(Request $request, string $category)
+    {
+        if (!array_key_exists($category, TransactionHistory::CATEGORIES)) {
+            abort(404);
+        }
+
+        $aliases = [];
+        foreach (TransactionHistory::query()->select('category')->distinct()->pluck('category') as $stored) {
+            $canonical = TransactionHistory::normalizeCategory($stored);
+            if ($canonical !== null) {
+                $aliases[$canonical][] = $stored;
+            }
+        }
+
+        $categoryNames = array_unique(array_merge($aliases[$category] ?? [], [$category]));
+
+        $transactions = TransactionHistory::query()
+            ->whereIn('category', $categoryNames)
+            ->when($request->filled('search'), function ($query) use ($request) {
+                $query->where(function ($q) use ($request) {
+                    $q->where('transaction_id', 'like', '%' . $request->search . '%')
+                        ->orWhere('clerk', 'like', '%' . $request->search . '%')
+                        ->orWhere('type', 'like', '%' . $request->search . '%');
+                });
+            })
+            ->orderByDesc('transaction_date')
+            ->orderByDesc('id')
+            ->paginate(15)
+            ->withQueryString();
+
+        $labels = TransactionHistory::CATEGORIES[$category];
+        $total = $transactions->total();
+
+        return view('pages.client_transaction.transactionCategoryList', compact('category', 'labels', 'transactions', 'total'));
+    }
+
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -33,7 +95,8 @@ class TransactionController extends Controller
 
         $validated['transaction_id'] = $this->nextClientTransactionId($validated['client_id']);
         $validated['source'] = 'E-Registration';
-        $validated['status'] = 'Pending';
+        $validated['category'] = TransactionHistory::normalizeCategory($validated['category']);
+        $validated['status'] = in_array(auth()->user()->role_name, ['Admin', 'Super Admin'], true) ? 'Approved' : 'Pending';
         $validated['clerk'] = auth()->user()->name ?? null;
         $validated['amount'] = (float) ($validated['amount'] ?? 0);
 
@@ -109,6 +172,7 @@ class TransactionController extends Controller
 
         $validated['amount'] = (float) ($validated['amount'] ?? 0);
         unset($validated['client_id']);
+        $validated['category'] = TransactionHistory::normalizeCategory($validated['category']);
 
         $transaction->update($validated);
 

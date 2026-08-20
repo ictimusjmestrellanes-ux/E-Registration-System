@@ -1,4 +1,4 @@
-<?php $__env->startSection('title', 'Events - Duplicate Review'); ?>
+<?php $__env->startSection('title', 'ERS | Events - Duplicate Review'); ?>
 <?php $__env->startSection('content'); ?>
 <?php
     $exactCount = $exactGroups->sum('total');

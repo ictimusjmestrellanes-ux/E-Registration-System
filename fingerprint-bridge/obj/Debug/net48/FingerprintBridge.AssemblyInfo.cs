@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("FingerprintBridge")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+e6f1717dbd7b5330b7e2fe3be74141836a8ba6f5")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+ae69531f268828b9ac026b8b2ea4925ee3bb042e")]
 [assembly: System.Reflection.AssemblyProductAttribute("FingerprintBridge")]
 [assembly: System.Reflection.AssemblyTitleAttribute("FingerprintBridge")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

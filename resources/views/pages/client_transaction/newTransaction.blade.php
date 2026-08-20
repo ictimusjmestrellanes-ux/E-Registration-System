@@ -706,6 +706,24 @@
             }
         ];
 
+        const eventTypes = [{
+                value: 'null',
+                label: 'SELECT TRANSACTION TYPE'
+            },
+            {
+                value: 'events',
+                label: 'EVENTS'
+            },
+            {
+                value: 'bigay_bigas_sa_masa',
+                label: 'BIGAY BIGAS SA MASA'
+            },
+            {
+                value: 'caravan',
+                label: 'CARAVAN'
+            }
+        ];
+
         const typeLabels = {
             solicitation: 'SOLICITATION',
             youth_sports: 'YOUTH & SPORTS',
@@ -713,7 +731,6 @@
             infrastructure: 'INFRASTRUCTURE',
             scholarships: 'SCHOLARSHIPS',
             permits: 'PERMITS',
-            events: 'EVENTS',
             job_application: 'JOB APPLICATION',
             hoa: 'HOA',
             others: 'OTHERS'
@@ -733,6 +750,15 @@
 
             if (category === 'social_services_assistance') {
                 socialServicesTypes.forEach(t => {
+                    const opt = document.createElement('option');
+                    opt.value = t.value;
+                    opt.textContent = t.label;
+                    if (selectedValue && t.value === selectedValue) opt.selected = true;
+                    typeSelect.appendChild(opt);
+                });
+                typeSelect.disabled = false;
+            } else if (category === 'events') {
+                eventTypes.forEach(t => {
                     const opt = document.createElement('option');
                     opt.value = t.value;
                     opt.textContent = t.label;

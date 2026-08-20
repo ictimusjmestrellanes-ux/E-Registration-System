@@ -1,4 +1,4 @@
-<?php $__env->startSection('title', 'Client Details'); ?>
+<?php $__env->startSection('title', 'ERS | Client Details'); ?>
 
 <?php $__env->startPush('styles'); ?>
     <style>

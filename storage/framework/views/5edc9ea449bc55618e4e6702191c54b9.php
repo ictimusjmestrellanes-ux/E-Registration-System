@@ -215,7 +215,6 @@
                                 <h6 class="dropdown-header">Welcome <?php echo e(auth()->user()->name ?? 'User'); ?>!</h6>
                                 <div class="dropdown-divider"></div>
                                 <a class="dropdown-item" href="<?php echo e(route('settings')); ?>"><i class="mdi mdi-cog-outline text-muted fs-16 align-middle me-1"></i> <span class="align-middle">Settings</span></a>
-                                <a class="dropdown-item" href="<?php echo e(route('lock-activate')); ?>"><i class="mdi mdi-lock text-muted fs-16 align-middle me-1"></i> <span class="align-middle">Lock screen</span></a>
                                 <form method="POST" action="<?php echo e(route('logout')); ?>" class="m-0">
                                     <?php echo csrf_field(); ?>
                                     <button type="submit" class="dropdown-item">

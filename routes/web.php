@@ -2,7 +2,6 @@
 
 use App\Http\Controllers\ActivityLogsController;
 use App\Http\Controllers\ArchiveController;
-use App\Http\Controllers\Auth\LockScreenController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\CameraController;
 use App\Http\Controllers\ClientEditController;
@@ -31,18 +30,6 @@ Route::group(['namespace' => 'App\Http\Controllers\Auth'],function()
     Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
     Route::get('auth/azure/redirect', [LoginController::class, 'redirectToAzure'])->name('azure.redirect');
     Route::get('auth/azure/callback', [LoginController::class, 'handleAzureCallback'])->name('azure.callback');
-
-    // Lock the screen
-    Route::get('/lock', function () {
-        session(['locked' => true]);
-        return redirect()->route('lockscreen')->with('success', 'Locked successfully!');
-    })->name('lock-activate');
-
-    Route::controller(LockScreenController::class)->group(function () {
-        // ---------------------------- Lock Screen ---------------------------//
-        Route::get('lockscreen', [LockScreenController::class, 'lockscreen'])->name('lockscreen');
-        Route::post('unlock', [LockScreenController::class, 'unlock'])->name('unlock-screen');
-    });
 
 });
 
@@ -113,6 +100,8 @@ Route::group(['namespace' => 'App\Http\Controllers'], function () {
         Route::put('profile/update', [SettingsController::class, 'update'])->name('profile.update');
 
         // --------------------- Transactions ------------------//
+        Route::get('transactions', [TransactionController::class, 'index'])->name('transactions.index');
+        Route::get('transactions/category/{category}', [TransactionController::class, 'categoryList'])->name('transactions.category');
         Route::post('transactions', [TransactionController::class, 'store'])->name('transactions.store');
         Route::get('transactions/{id}/process', [TransactionController::class, 'process'])->name('transactions.process');
         Route::get('transactions/{id}/edit', [TransactionController::class, 'edit'])->name('transactions.edit');
@@ -135,6 +124,7 @@ Route::group(['namespace' => 'App\Http\Controllers'], function () {
         Route::get('transaction-events/archives/{filename}', [TransactionEventsController::class, 'downloadArchive'])->name('transaction-events.archives.download');
         Route::post('transaction-events/preview', [TransactionEventsController::class, 'preview'])->name('transaction-events.preview');
         Route::post('transaction-events/import', [TransactionEventsController::class, 'import'])->name('transaction-events.import');
+        Route::get('transaction-events/template', [TransactionEventsController::class, 'downloadTemplate'])->name('transaction-events.template');
         Route::post('transaction-events/{event}/transfer', [TransactionEventsController::class, 'transfer'])->name('transaction-events.transfer');
         Route::post('transaction-events/transfer-selected', [TransactionEventsController::class, 'transferSelected'])->name('transaction-events.transfer-selected');
     
