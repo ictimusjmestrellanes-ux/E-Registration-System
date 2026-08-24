@@ -18,6 +18,10 @@ class DuplicateReviewController extends Controller
 
     public function index()
     {
+        if (!feature_allowed('Duplicate Clients Review')) {
+            abort(403, 'You do not have permission to view Duplicate Clients Review.');
+        }
+
         $exactGroups = $this->findExactDuplicates();
         $likelyGroups = $this->findLikelyDuplicates();
         $similarGroups = $this->findSimilarSpellingDuplicates();

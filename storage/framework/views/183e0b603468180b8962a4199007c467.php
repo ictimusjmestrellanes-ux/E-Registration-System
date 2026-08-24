@@ -53,14 +53,17 @@
                 <ul class="navbar-nav" id="navbar-nav">
 
                     <li class="menu-title"><span data-key="t-menu">Menu</span></li>
+                    <?php if(feature_allowed_uri('dashboard')): ?>
                     <li class="nav-item">
                         <a class="nav-link menu-link <?php echo e(set_active(['dashboard'])); ?>" href="<?php echo e(route('dashboard')); ?>">
                             <i class="ri-dashboard-2-line"></i> <span data-key="t-dashboard">Dashboard</span>
                         </a>
                     </li>
+                    <?php endif; ?>
 
                     <li class="menu-title"><span data-key="t-menu">Clients</span></li>
 
+                    <?php if(feature_allowed_uri('clients') || feature_allowed_uri('client-list') || feature_allowed_uri('archive')): ?>
                     <li class="nav-item">
                         <a class="nav-link menu-link <?php echo e(set_active(['clients', 'client.list', 'archive.list'])); ?>" href="#sidebarClients"
                             data-bs-toggle="collapse" role="button"
@@ -70,54 +73,69 @@
                         <div class="collapse menu-dropdown <?php echo e(set_show(['clients', 'client.list', 'archive.list'])); ?>"
                             id="sidebarClients">
                             <ul class="nav nav-sm flex-column">
+                                <?php if(feature_allowed_uri('clients')): ?>
                                 <li class="nav-item">
                                     <a href="<?php echo e(route('clients')); ?>" class="nav-link <?php echo e(set_active(['clients'])); ?>"
                                         data-key="t-create-client">Create Client</a>
                                 </li>
+                                <?php endif; ?>
+                                <?php if(feature_allowed_uri('client-list')): ?>
                                 <li class="nav-item">
                                     <a href="<?php echo e(route('client.list')); ?>"
                                         class="nav-link <?php echo e(set_active(['client.list'])); ?>"
                                         data-key="t-client-list">Client List</a>
                                 </li>
+                                <?php endif; ?>
+                                <?php if(feature_allowed_uri('archive')): ?>
                                 <li class="nav-item">
                                     <a href="<?php echo e(route('archive.list')); ?>"
                                         class="nav-link <?php echo e(set_active(['archive.list'])); ?>"
                                         data-key="t-archive-list">Archive</a>
                                 </li>
+                                <?php endif; ?>
                             </ul>
                         </div>
                     </li>
+                    <?php endif; ?>
+                    <?php if(feature_allowed_uri('duplicate-review')): ?>
                     <li class="nav-item">
                         <a class="nav-link menu-link <?php echo e(set_active(['duplicate.review'])); ?>"
                             href="<?php echo e(route('duplicate.review')); ?>">
                             <i class="ri-file-copy-2-line"></i> <span data-key="t-duplicate-review">Duplicate Clients Review</span>
                         </a>
                     </li>
+                    <?php endif; ?>
 
                     <li class="menu-title"><span data-key="t-menu">Events</span></li>
+                    <?php if(feature_allowed_uri('transaction-events')): ?>
                     <li class="nav-item">
                         <a class="nav-link menu-link <?php echo e(set_active(['transaction-events'])); ?>"
                             href="<?php echo e(route('transaction-events.index')); ?>">
                             <i class="ri-calendar-event-line"></i> <span>Events</span>
                         </a>
                     </li>
+                    <?php endif; ?>
 
+                    <?php if(feature_allowed_uri('transaction-events/records')): ?>
                     <li class="nav-item">
                         <a class="nav-link menu-link <?php echo e(set_active(['transaction-events/records'])); ?>"
                             href="<?php echo e(route('transaction-events.records')); ?>">
                             <i class="ri-file-list-3-line"></i> <span data-key="t-events-records">Events Records</span>
                         </a>
                     </li>
+                    <?php endif; ?>
 
+                    <?php if(feature_allowed_uri('transaction-events/archives')): ?>
                     <li class="nav-item">
                         <a class="nav-link menu-link <?php echo e(set_active(['transaction-events/archives'])); ?>"
                             href="<?php echo e(route('transaction-events.archives')); ?>">
                             <i class="ri-archive-2-line"></i> <span data-key="t-archive-files">View Archive Files</span>
                         </a>
                     </li>
+                    <?php endif; ?>
 
                     <li class="menu-title"><span data-key="t-menu">Settings</span></li>
-                    <?php if(auth()->user()?->role_name !== 'DSWD' && auth()->user()?->role_name !== 'Staff'): ?>
+                    <?php if(auth()->user()?->role_name !== 'DSWD' && auth()->user()?->role_name !== 'Staff' && feature_allowed_uri('users')): ?>
                     <li class="nav-item">
                         <a class="nav-link menu-link <?php echo e(set_active(['users.index', 'roles.index', 'permissions.index'])); ?>" href="#sidebarSettings"
                             data-bs-toggle="collapse" role="button"
@@ -147,12 +165,14 @@
                     </li>
                     <?php endif; ?>
 
+                    <?php if(feature_allowed_uri('activity-logs')): ?>
                     <li class="nav-item">
                         <a class="nav-link menu-link <?php echo e(set_active(['activity.logs'])); ?>"
                             href="<?php echo e(route('activity.logs')); ?>">
                             <i class="ri-history-line"></i> <span data-key="t-simple-page">Activity Logs</span>
                         </a>
                     </li>
+                    <?php endif; ?>
 
                     <li class="menu-title"><span data-key="t-menu">Pages</span></li>
                     <li class="nav-item">

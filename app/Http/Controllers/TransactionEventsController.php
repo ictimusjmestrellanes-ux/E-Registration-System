@@ -108,6 +108,10 @@ class TransactionEventsController extends Controller
 
     public function records(Request $request)
     {
+        if (!feature_allowed('Event Records')) {
+            abort(403, 'You do not have permission to view Events - Records.');
+        }
+
         $query = TransactionEvent::whereNotNull('transferred_at');
 
         if ($search = $request->input('search')) {
@@ -322,6 +326,10 @@ class TransactionEventsController extends Controller
 
     public function archives()
     {
+        if (!feature_allowed('View Archive Files')) {
+            abort(403, 'You do not have permission to view Archive Files.');
+        }
+
         $directory = 'transaction-events-archive';
         $files = Storage::disk('local')->files($directory);
 
