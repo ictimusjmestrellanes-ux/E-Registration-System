@@ -1,6 +1,5 @@
-@extends('layouts.master')
-@section('title', 'ERS | Profile Settings')
-@section('content')
+<?php $__env->startSection('title', 'ERS | Profile Settings'); ?>
+<?php $__env->startSection('content'); ?>
     <!-- Page-content -->
     <style>
         .profile-setting-img {
@@ -47,10 +46,10 @@
     <div class="container-fluid">
         <div class="position-relative mx-n4 mt-n4">
             <div class="profile-setting-img">
-                @php
+                <?php
                     $profileCover = auth()->user()?->cover_url ?? asset('assets/images/city-hall1.jpg');
-                @endphp
-                <img src="{{ $profileCover }}" class="profile-wid-img" alt="Profile cover">
+                ?>
+                <img src="<?php echo e($profileCover); ?>" class="profile-wid-img" alt="Profile cover">
                 <div class="overlay-content">
                     <div class="text-end p-3">
                         <div class="p-0 ms-auto rounded-circle profile-photo-edit">
@@ -74,11 +73,11 @@
                 <div class="card mt-n9 profile-settings-panel" style="height: 300px">
                     <div class="card-body p-4">
                         <div class="text-center">
-                            @php
+                            <?php
                                 $profileAvatar = auth()->user()?->avatar_url;
-                            @endphp
+                            ?>
                             <div class="profile-user position-relative d-inline-block mx-auto  mb-4">
-                                <img src="{{ $profileAvatar }}" class="rounded-circle avatar-xl img-thumbnail user-profile-image material-shadow" alt="user-profile-image">
+                                <img src="<?php echo e($profileAvatar); ?>" class="rounded-circle avatar-xl img-thumbnail user-profile-image material-shadow" alt="user-profile-image">
                                 <div class="avatar-xs p-0 rounded-circle profile-photo-edit">
                                     <input id="profile-img-file-input" name="avatar" type="file" class="profile-img-file-input" form="profile-update-form" accept="image/*">
                                     <label for="profile-img-file-input" class="profile-photo-edit avatar-xs">
@@ -88,7 +87,7 @@
                                     </label>
                                 </div>
                             </div>
-                            <h5 class="fs-16 mb-1">{{ auth()->user()->name ?? 'User' }}</h5>
+                            <h5 class="fs-16 mb-1"><?php echo e(auth()->user()->name ?? 'User'); ?></h5>
                         </div>
                     </div>
                 </div>
@@ -134,29 +133,29 @@
                     <div class="card-body p-4">
                         <div class="tab-content">
                             <div class="tab-pane active" id="personalDetails" role="tabpanel">
-                                <form id="profile-update-form" action="{{ route('profile.update') }}" method="POST" enctype="multipart/form-data">
-                                    @csrf
-                                    @method('PUT')
+                                <form id="profile-update-form" action="<?php echo e(route('profile.update')); ?>" method="POST" enctype="multipart/form-data">
+                                    <?php echo csrf_field(); ?>
+                                    <?php echo method_field('PUT'); ?>
                                     <input type="hidden" id="profile-cover-photo-data" name="cover_photo_data" value="">
                                     <div class="row">
                                         <div class="col-lg-6">
                                             <div class="mb-3">
                                                 <label for="nameInput" class="form-label">Name</label>
-                                                <input type="text" class="form-control" id="nameInput" name="name" placeholder="Enter your name" value="{{ old('name', auth()->user()->name ?? '') }}">
+                                                <input type="text" class="form-control" id="nameInput" name="name" placeholder="Enter your name" value="<?php echo e(old('name', auth()->user()->name ?? '')); ?>">
                                             </div>
                                         </div>
                                         <!--end col-->
                                         <div class="col-lg-6">
                                             <div class="mb-3">
                                                 <label for="phoneInput" class="form-label">Phone Number</label>
-                                                <input type="text" class="form-control" id="phoneInput" name="phone_number" placeholder="Enter your phone number" value="{{ old('phone_number', auth()->user()->phone_number ?? '') }}">
+                                                <input type="text" class="form-control" id="phoneInput" name="phone_number" placeholder="Enter your phone number" value="<?php echo e(old('phone_number', auth()->user()->phone_number ?? '')); ?>">
                                             </div>
                                         </div>
                                         <!--end col-->
                                         <div class="col-lg-12">
                                             <div class="mb-3">
                                                 <label for="emailInput" class="form-label">Email Address</label>
-                                                <input type="email" class="form-control" id="emailInput" name="email" placeholder="Enter your email" value="{{ old('email', auth()->user()->email ?? '') }}">
+                                                <input type="email" class="form-control" id="emailInput" name="email" placeholder="Enter your email" value="<?php echo e(old('email', auth()->user()->email ?? '')); ?>">
                                             </div>
                                         </div>
                                         <!--end col-->
@@ -300,9 +299,9 @@
         </div>
     </div>
     
-    @section('script')
+    <?php $__env->startSection('script'); ?>
   <!-- profile-setting init js -->
-    <script src="{{ asset('assets/js/profile-setting.init.js') }}"></script>
+    <script src="<?php echo e(asset('assets/js/profile-setting.init.js')); ?>"></script>
 
     <!-- Analog Clock & Calendar -->
     <script>
@@ -673,5 +672,7 @@
             });
         });
     </script>
-    @endsection
-@endsection
+    <?php $__env->stopSection(); ?>
+<?php $__env->stopSection(); ?>
+
+<?php echo $__env->make('layouts.master', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH C:\xampp\htdocs\E-Reg-System\resources\views/pages/client_profile/settings.blade.php ENDPATH**/ ?>

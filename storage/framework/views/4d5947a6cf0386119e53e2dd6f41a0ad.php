@@ -1,7 +1,6 @@
-@extends('layouts.master')
-@section('title', 'ERS | Dashboard')
-@section('content')
-    @php
+<?php $__env->startSection('title', 'ERS | Dashboard'); ?>
+<?php $__env->startSection('content'); ?>
+    <?php
         $categoryMeta = [
             'social_services' => ['fa-hand-holding-heart', 'primary'],
             'solicitation' => ['fa-file-invoice', 'success'],
@@ -35,7 +34,7 @@
             '#e9b876',
             '#a8a29a',
         ];
-    @endphp
+    ?>
 
     <style>
         .category-card,
@@ -59,7 +58,7 @@
                         <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
                             <div>
                                 <h4 class="mb-1">Dashboard</h4>
-                                <p class="text-muted mb-0">Welcome back, {{ auth()->user()?->name ?? 'User' }}.</p>
+                                <p class="text-muted mb-0">Welcome back, <?php echo e(auth()->user()?->name ?? 'User'); ?>.</p>
                             </div>
                         </div>
                     </div>
@@ -74,7 +73,7 @@
                 <!-- Stat Cards -->
                 <div class="row">
                     <div class="col-lg-4">
-                        <a href="{{ route('client.list') }}" class="text-decoration-none">
+                        <a href="<?php echo e(route('client.list')); ?>" class="text-decoration-none">
                             <div class="card material-shadow border-primary border-opacity-25 stat-card h-100">
                                 <div class="card-body">
                                     <div class="d-flex align-items-center">
@@ -86,7 +85,7 @@
                                         </div>
                                         <div>
                                             <p class="text-muted mb-1">Total Registered Clients</p>
-                                            <h3 class="mb-0">{{ $totalClients }}</h3>
+                                            <h3 class="mb-0"><?php echo e($totalClients); ?></h3>
                                         </div>
                                     </div>
                                 </div>
@@ -107,7 +106,7 @@
                                         </div>
                                         <div>
                                             <p class="text-muted mb-1">Total Categories</p>
-                                            <h3 class="mb-0">{{ count($categories) }}</h3>
+                                            <h3 class="mb-0"><?php echo e(count($categories)); ?></h3>
                                         </div>
                                     </div>
                                 </div>
@@ -116,7 +115,7 @@
                     </div>
 
                     <div class="col-lg-4">
-                        <a href="{{ route('transactions.index') }}" class="text-decoration-none">
+                        <a href="<?php echo e(route('transactions.index')); ?>" class="text-decoration-none">
                             <div class="card material-shadow border-info border-opacity-25 stat-card h-100">
                                 <div class="card-body">
                                     <div class="d-flex align-items-center">
@@ -128,7 +127,7 @@
                                         </div>
                                         <div>
                                             <p class="text-muted mb-1">Total Transactions</p>
-                                            <h3 class="mb-0">{{ $totalCategoryTransactions }}</h3>
+                                            <h3 class="mb-0"><?php echo e($totalCategoryTransactions); ?></h3>
                                         </div>
                                     </div>
                                 </div>
@@ -249,38 +248,38 @@
                 </div>
             </div>
 
-            @foreach ($categories as $key => $label)
-                @php
+            <?php $__currentLoopData = $categories; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $key => $label): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                <?php
                     [$icon, $color] = $categoryMeta[$key] ?? ['fa-circle', 'secondary'];
                     $count = $categoryCounts[$key] ?? 0;
-                @endphp
+                ?>
                 <div class="col-xl-3 col-lg-4 col-md-6">
-                    <a href="{{ route('transactions.category', $key) }}" class="text-decoration-none">
+                    <a href="<?php echo e(route('transactions.category', $key)); ?>" class="text-decoration-none">
                         <div class="card material-shadow h-100 category-card">
                             <div class="card-body text-center">
                                 <div
-                                    class="avatar-md bg-{{ $color }} bg-opacity-10 rounded-circle mx-auto mb-3 d-flex align-items-center justify-content-center">
-                                    <i class="fa-solid {{ $icon }} text-{{ $color }} fs-3"></i>
+                                    class="avatar-md bg-<?php echo e($color); ?> bg-opacity-10 rounded-circle mx-auto mb-3 d-flex align-items-center justify-content-center">
+                                    <i class="fa-solid <?php echo e($icon); ?> text-<?php echo e($color); ?> fs-3"></i>
                                 </div>
-                                <h4 class="mb-1">{{ $count }}</h4>
-                                <p class="text-muted mb-0">{{ $label }}</p>
+                                <h4 class="mb-1"><?php echo e($count); ?></h4>
+                                <p class="text-muted mb-0"><?php echo e($label); ?></p>
                             </div>
                         </div>
                     </a>
                 </div>
-            @endforeach
+            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
         </div>
     </div>
-@endsection
+<?php $__env->stopSection(); ?>
 
-@push('scripts')
-    <script src="{{ asset('assets/libs/chart.js/chart.umd.min.js') }}"></script>
+<?php $__env->startPush('scripts'); ?>
+    <script src="<?php echo e(asset('assets/libs/chart.js/chart.umd.min.js')); ?>"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const trendCanvas = document.getElementById('clientTrendChart');
             if (trendCanvas) {
-                const trendLabels = @json($clientTrend['labels']);
-                const trendData = @json($clientTrend['data']);
+                const trendLabels = <?php echo json_encode($clientTrend['labels'], 15, 512) ?>;
+                const trendData = <?php echo json_encode($clientTrend['data'], 15, 512) ?>;
 
                 new Chart(trendCanvas, {
                     type: 'line',
@@ -338,8 +337,8 @@
         document.addEventListener('DOMContentLoaded', function() {
             const txCanvas = document.getElementById('transactionTrendChart');
             if (txCanvas) {
-                const txLabels = @json($transactionTrend['labels']);
-                const txData = @json($transactionTrend['data']);
+                const txLabels = <?php echo json_encode($transactionTrend['labels'], 15, 512) ?>;
+                const txData = <?php echo json_encode($transactionTrend['data'], 15, 512) ?>;
 
                 new Chart(txCanvas, {
                     type: 'line',
@@ -398,9 +397,9 @@
             const canvas = document.getElementById('serviceCategoryChart');
             if (!canvas) return;
 
-            const labels = @json($chartLabels);
-            const data = @json($chartData);
-            const colors = @json($chartColors).slice(0, labels.length);
+            const labels = <?php echo json_encode($chartLabels, 15, 512) ?>;
+            const data = <?php echo json_encode($chartData, 15, 512) ?>;
+            const colors = <?php echo json_encode($chartColors, 15, 512) ?>.slice(0, labels.length);
 
             new Chart(canvas, {
                 type: 'doughnut',
@@ -626,4 +625,6 @@
         }
     });
     </script>
-@endpush
+<?php $__env->stopPush(); ?>
+
+<?php echo $__env->make('layouts.master', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH C:\xampp\htdocs\E-Reg-System\resources\views/pages/dashboard.blade.php ENDPATH**/ ?>
