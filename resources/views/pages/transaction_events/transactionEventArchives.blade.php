@@ -10,6 +10,13 @@
             </div>
         </div>
 
+        @if (session('success'))
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                {{ session('success') }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        @endif
+
         <div class="row">
             <div class="col-12">
                 <div class="card">
@@ -30,6 +37,7 @@
                                     <thead class="table-light">
                                         <tr>
                                             <th>Filename</th>
+                                            <th style="width: 400px;">Imported By</th>
                                             <th style="width: 140px;">Uploaded At</th>
                                             <th style="width: 120px;">Size</th>
                                             <th style="width: 140px; text-align: center;">Action</th>
@@ -39,7 +47,17 @@
                                         @foreach ($files as $file)
                                             <tr>
                                                 <td>{{ $file['name'] }}</td>
-                                                <td>{{ \Carbon\Carbon::createFromTimestamp($file['uploaded_at'])->format('M d, Y H:i:s') }}</td>
+                                                <td>
+                                                    @if (!empty($file['imported_by']))
+                                                        {{ $file['imported_by']['imported_by'] }}
+                                                        @if (!empty($file['imported_by']['role']))
+                                                            <span class="badge badge-soft-secondary ms-1">{{ $file['imported_by']['role'] }}</span>
+                                                        @endif
+                                                    @else
+                                                        <span class="text-muted">—</span>
+                                                    @endif
+                                                </td>
+                                                <td>{{ \Carbon\Carbon::createFromTimestamp($file['uploaded_at'])->timezone('Asia/Manila')->format('M d, Y H:i:s') }}</td>
                                                 <td>{{ number_format($file['size'] / 1024, 2) }} KB</td>
                                                 <td class="text-center">
                                                     <a href="{{ $file['download_url'] }}" class="btn btn-sm btn-primary">

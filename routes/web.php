@@ -117,7 +117,9 @@ Route::group(['namespace' => 'App\Http\Controllers'], function () {
 
         // --------------------- Transaction Events ------------------//
         Route::get('transaction-events', [TransactionEventsController::class, 'index'])->name('transaction-events.index');
+        Route::get('transaction-events/records', [TransactionEventsController::class, 'records'])->name('transaction-events.records');
         Route::get('transaction-events/duplicate-review', [TransactionEventsController::class, 'duplicateReview'])->name('transaction-events.duplicate-review');
+        Route::get('transaction-events/removed-duplicates', [TransactionEventsController::class, 'removedDuplicates'])->name('transaction-events.removed-duplicates');
         Route::post('transaction-events/{event}/not-duplicate', [TransactionEventsController::class, 'markNotDuplicate'])->name('transaction-events.not-duplicate');
         Route::post('transaction-events/{event}/reset-duplicate', [TransactionEventsController::class, 'resetNotDuplicate'])->name('transaction-events.reset-duplicate');
         Route::get('transaction-events/archives', [TransactionEventsController::class, 'archives'])->name('transaction-events.archives');
@@ -129,6 +131,7 @@ Route::post('transaction-events/import/process', [TransactionEventsController::c
 Route::post('transaction-events/import/finish', [TransactionEventsController::class, 'finishImport'])->name('transaction-events.import.finish');
         Route::get('transaction-events/template', [TransactionEventsController::class, 'downloadTemplate'])->name('transaction-events.template');
         Route::post('transaction-events/{event}/transfer', [TransactionEventsController::class, 'transfer'])->name('transaction-events.transfer');
+        Route::post('transaction-events/{event}/undo-transfer', [TransactionEventsController::class, 'undoTransfer'])->name('transaction-events.undo-transfer');
         Route::post('transaction-events/transfer-selected', [TransactionEventsController::class, 'transferSelected'])->name('transaction-events.transfer-selected');
     
         });

@@ -48,15 +48,15 @@
             if (auth()->user()?->role_name !== 'Viewer') {
                 $out .= '<td class="text-center text-nowrap">';
                 if (!$transferred) {
-                    $out .= '<form action="' . e(route('transaction-events.not-duplicate', $event)) . '" method="POST" class="d-inline me-1" onsubmit="return confirm(\'Mark this event as not a duplicate?\');">';
+                    $out .= '<form action="' . e(route('transaction-events.not-duplicate', $event)) . '" method="POST" class="d-inline me-1" onsubmit="return confirm(\'Remove this duplicate event?\');">';
                     $out .= csrf_field();
-                    $out .= '<button type="submit" class="btn btn-sm btn-soft-secondary" title="Mark as not a duplicate"><i class="ri-close-circle-line me-1"></i>Not a Duplicate</button>';
+                    $out .= '<button type="submit" class="btn btn-sm btn-soft-secondary" title="Remove as duplicate"><i class="ri-close-circle-line me-1"></i>Remove Duplicate</button>';
                     $out .= '</form>';
-                    $out .= '<form action="' . e(route('transaction-events.transfer', $event)) . '" method="POST" class="d-inline" onsubmit="return confirm(\'Transfer this event to a transaction?\');">';
+                    $out .= '<form action="' . e(route('transaction-events.transfer', $event)) . '" method="POST" class="d-inline" onsubmit="return confirm(\'Insert this event as a transaction record?\');">';
                         $out .= csrf_field();
                         $out .= '<button type="submit" class="btn btn-sm btn-soft-success"'
                             . (empty($event->transaction_category) && empty($event->transaction_type) ? ' disabled' : '')
-                            . ' title="Transfer to transaction"><i class="ri-exchange-line me-1"></i>Transfer</button>';
+                            . ' title="Insert as transaction record"><i class="ri-exchange-line me-1"></i>Insert Record</button>';
                         $out .= '</form>';
                 }
                 $out .= '</td>';
@@ -166,7 +166,12 @@
                         </div>
 
                         <hr class="my-4">
-                        <h6 class="mb-3">Reviewed as Not a Duplicate</h6>
+                        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+                            <h6 class="mb-0">Reviewed as Not a Duplicate</h6>
+                            <a href="<?php echo e(route('transaction-events.removed-duplicates')); ?>" class="btn btn-sm btn-soft-secondary">
+                                <i class="ri-list-unordered me-1"></i> View All Removed
+                            </a>
+                        </div>
                         <?php $__empty_1 = true; $__currentLoopData = $notDuplicates; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $event): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
                             <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 border rounded-3 px-3 py-2 mb-2">
                                 <div>

@@ -1,4 +1,3 @@
-
 <?php $__env->startSection('title', 'ERS | Transaction Event Archives'); ?>
 
 <?php $__env->startSection('content'); ?>
@@ -9,6 +8,14 @@
                 <p class="text-muted mb-0">Browse and download CSV archive files generated from imported transaction events.</p>
             </div>
         </div>
+
+        <?php if(session('success')): ?>
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                <?php echo e(session('success')); ?>
+
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        <?php endif; ?>
 
         <div class="row">
             <div class="col-12">
@@ -30,6 +37,7 @@
                                     <thead class="table-light">
                                         <tr>
                                             <th>Filename</th>
+                                            <th style="width: 400px;">Imported By</th>
                                             <th style="width: 140px;">Uploaded At</th>
                                             <th style="width: 120px;">Size</th>
                                             <th style="width: 140px; text-align: center;">Action</th>
@@ -39,7 +47,18 @@
                                         <?php $__currentLoopData = $files; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $file): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                             <tr>
                                                 <td><?php echo e($file['name']); ?></td>
-                                                <td><?php echo e(\Carbon\Carbon::createFromTimestamp($file['uploaded_at'])->format('M d, Y H:i:s')); ?></td>
+                                                <td>
+                                                    <?php if(!empty($file['imported_by'])): ?>
+                                                        <?php echo e($file['imported_by']['imported_by']); ?>
+
+                                                        <?php if(!empty($file['imported_by']['role'])): ?>
+                                                            <span class="badge badge-soft-secondary ms-1"><?php echo e($file['imported_by']['role']); ?></span>
+                                                        <?php endif; ?>
+                                                    <?php else: ?>
+                                                        <span class="text-muted">—</span>
+                                                    <?php endif; ?>
+                                                </td>
+                                                <td><?php echo e(\Carbon\Carbon::createFromTimestamp($file['uploaded_at'])->timezone('Asia/Manila')->format('M d, Y H:i:s')); ?></td>
                                                 <td><?php echo e(number_format($file['size'] / 1024, 2)); ?> KB</td>
                                                 <td class="text-center">
                                                     <a href="<?php echo e($file['download_url']); ?>" class="btn btn-sm btn-primary">

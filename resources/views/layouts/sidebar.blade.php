@@ -96,12 +96,25 @@
 
                     <li class="menu-title"><span data-key="t-menu">Events</span></li>
                     <li class="nav-item">
-                        <a class="nav-link menu-link {{ set_active(['transaction-events.*']) }}"
+                        <a class="nav-link menu-link {{ set_active(['transaction-events']) }}"
                             href="{{ route('transaction-events.index') }}">
                             <i class="ri-calendar-event-line"></i> <span>Events</span>
                         </a>
                     </li>
-                    
+
+                    <li class="nav-item">
+                        <a class="nav-link menu-link {{ set_active(['transaction-events/records']) }}"
+                            href="{{ route('transaction-events.records') }}">
+                            <i class="ri-file-list-3-line"></i> <span data-key="t-events-records">Events Records</span>
+                        </a>
+                    </li>
+
+                    <li class="nav-item">
+                        <a class="nav-link menu-link {{ set_active(['transaction-events/archives']) }}"
+                            href="{{ route('transaction-events.archives') }}">
+                            <i class="ri-archive-2-line"></i> <span data-key="t-archive-files">View Archive Files</span>
+                        </a>
+                    </li>
 
                     <li class="menu-title"><span data-key="t-menu">Settings</span></li>
                     @if(auth()->user()?->role_name !== 'DSWD' && auth()->user()?->role_name !== 'Staff')

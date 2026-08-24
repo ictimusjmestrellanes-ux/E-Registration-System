@@ -321,7 +321,7 @@
                                             <div class="col-lg-4">
                                                 <label for="province" class="form-label">Province</label>
                                                 <select class="form-select" id="province" name="province_select"
-                                                    disabled>
+                                                    >
                                                     <option value="">Select province</option>
                                                 </select>
                                                 <input type="hidden" id="provinceHidden" name="province"
@@ -334,7 +334,7 @@
 
                                             <div class="col-lg-4">
                                                 <label for="city" class="form-label">City</label>
-                                                <select class="form-select" id="city" name="city_select" disabled>
+                                                <select class="form-select" id="city" name="city_select" >
                                                     <option value="">Select city</option>
                                                 </select>
                                                 <input type="hidden" id="cityHidden" name="city"
@@ -346,7 +346,7 @@
 
                                             <div class="col-lg-4">
                                                 <label for="barangay" class="form-label">Barangay</label>
-                                                <select class="form-select" id="barangay" name="barangay" required>
+                                                <select class="form-select" id="barangay" name="barangay" >
                                                     <option value="">Select barangay</option>
                                                 </select>
                                                 <input type="text" class="form-control d-none mt-2"

@@ -12,22 +12,20 @@
         $out = '<div class="border rounded-4 p-3 mb-3">';
         $out .= '<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">';
         $out .= '<div>';
-        $out .= '<h6 class="mb-0">' . e($first->full_name);
-        $out .= ' <span class="badge bg-danger-subtle text-danger ms-1">' . $group['total'] . ' records</span></h6>';
-        $out .= '<p class="text-muted small mb-0">Birth date: ' . e(optional($first->birth_date)->format('M d, Y') ?? '-');
-        $out .= ' &middot; Earliest record: ' . e(optional($group['created_at'])->format('M d, Y')) . '</p>';
+        $out .= '<span class="badge bg-danger-subtle text-danger ms-1">' . $group['total'] . ' records</span>';
         $out .= '</div>';
         $out .= '<a href="' . e(route('client.list', ['duplicate_names' => 1])) . '" class="btn btn-sm btn-outline-secondary">View in Client List</a>';
         $out .= '</div>';
         $out .= '<div class="table-responsive">';
         $out .= '<table class="table table-sm table-hover align-middle mb-0">';
         $out .= '<thead class="table-light"><tr>';
-        $out .= '<th>Client ID</th><th>Photo</th><th>Age</th><th>Birth Date</th><th>Gender</th><th>Contact</th><th>Address</th><th class="text-center">Actions</th>';
+        $out .= '<th>Client ID</th><th>Photo</th><th>Name</th><th>Age</th><th>Birth Date</th><th>Gender</th><th>Contact</th><th>Address</th><th class="text-center">Actions</th>';
         $out .= '</tr></thead><tbody>';
         foreach ($group['clients'] as $client) {
             $out .= '<tr>';
             $out .= '<td class="fw-semibold">' . e($client->client_id) . '</td>';
             $out .= '<td><img src="' . e($client->photo_url) . '" alt="Photo" class="rounded avatar-sm object-fit-cover" onerror="this.onerror=null;this.src=\'' . e(asset('assets/images/profile.png')) . '\';"></td>';
+            $out .= '<td>' . e($client->full_name) . '</td>';
             $out .= '<td>' . e($client->age ?? '-') . '</td>';
             $out .= '<td>' . e(optional($client->birth_date)->format('M d, Y') ?? '-') . '</td>';
             $out .= '<td>' . e($client->gender ?? '-') . '</td>';
@@ -121,7 +119,7 @@
                             <div class="tab-pane fade" id="similar-tab" role="tabpanel">
                                 <div class="alert alert-info-subtle d-flex align-items-center mb-3 py-2" role="alert">
                                     <i class="ri-information-line fs-4 me-2"></i>
-                                    <div class="small">Possible-similar name spelling (e.g. Maria/Marie, Jon/John). Verify before acting.</div>
+                                    <div class="small">Possible-similar name spelling or typos (e.g. Maria/Marie, Iscober/Escobar) and format mismatches (e.g. "SURNAME, First" vs "First Last"). Verify before acting.</div>
                                 </div>
                                 <?php $__empty_1 = true; $__currentLoopData = $similarGroups; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $group): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
                                     <?php echo $renderGroup($group); ?>

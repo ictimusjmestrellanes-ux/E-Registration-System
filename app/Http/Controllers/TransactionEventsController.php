@@ -7,6 +7,7 @@ use App\Models\Client;
 use App\Models\TransactionEvent;
 use App\Models\TransactionHistory;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
@@ -19,8 +20,51 @@ class TransactionEventsController extends Controller
 
     public function index(Request $request)
     {
-        $query = TransactionEvent::query();
+        $query = TransactionEvent::whereNull('transferred_at')
+            ->where('not_duplicate', false);
 
+        $this->applyEventListFilters($query, $request);
+
+        $duplicateFullNames = $this->duplicateFullNamesList();
+
+        if ($request->boolean('duplicate_names')) {
+            $query->whereIn('full_name', $duplicateFullNames);
+        }
+
+        if ($request->boolean('duplicate_names')) {
+            $query->orderBy('full_name')->orderBy('id', 'desc');
+        } else {
+            $query->orderByDesc('id');
+        }
+
+        $perPage = (int) $request->input('per_page', 15);
+        if (! in_array($perPage, [15, 25, 50, 100], true)) {
+            $perPage = 15;
+        }
+
+        $events = $query->paginate($perPage)->withQueryString();
+
+        // Scope to the pending list so the duplicate-names filter count
+        // matches what the filtered Event List can actually show.
+        $totalDuplicateGroups = TransactionEvent::query()
+            ->whereNull('transferred_at')
+            ->selectRaw('LOWER(TRIM(full_name)) as keyval')
+            ->whereNotNull('full_name')
+            ->where('full_name', '<>', '')
+            ->where('not_duplicate', false)
+            ->groupBy('keyval')
+            ->havingRaw('COUNT(*) > 1')
+            ->count();
+
+        return view('pages.transaction_events.transactionEvents', compact('events', 'totalDuplicateGroups', 'duplicateFullNames'));
+    }
+
+    /**
+     * Shared list filters (search, contact, age range, date range) so the
+     * bulk "select all across pages" transfer targets exactly what is shown.
+     */
+    private function applyEventListFilters($query, Request $request): void
+    {
         if ($search = $request->input('search')) {
             $query->where('full_name', 'like', "%{$search}%");
         }
@@ -44,9 +88,15 @@ class TransactionEventsController extends Controller
         if ($dateTo = $request->input('date_to')) {
             $query->whereDate('created_at', '<=', $dateTo);
         }
+    }
 
-        $duplicateFullNames = TransactionEvent::query()
+    private function duplicateFullNamesList(): array
+    {
+        // Scope to the pending list population so already-transferred records
+        // do not flag remaining rows as duplicates.
+        return TransactionEvent::query()
             ->select('full_name')
+            ->whereNull('transferred_at')
             ->whereNotNull('full_name')
             ->where('full_name', '<>', '')
             ->where('not_duplicate', false)
@@ -54,29 +104,22 @@ class TransactionEventsController extends Controller
             ->havingRaw('COUNT(*) > 1')
             ->pluck('full_name')
             ->all();
+    }
 
-        if ($request->boolean('duplicate_names')) {
-            $query->whereIn('full_name', $duplicateFullNames);
+    public function records(Request $request)
+    {
+        $query = TransactionEvent::whereNotNull('transferred_at');
+
+        if ($search = $request->input('search')) {
+            $query->where('full_name', 'like', "%{$search}%");
         }
 
-        if ($request->boolean('duplicate_names')) {
-            $query->orderBy('full_name')->orderBy('id', 'desc');
-        } else {
-            $query->orderByRaw('ISNULL(transferred_at) DESC, id DESC');
-        }
+        $events = $query->with('transferredTransaction:id,transaction_id')
+            ->orderByDesc('id')
+            ->paginate(15)
+            ->withQueryString();
 
-        $events = $query->paginate(15)->withQueryString();
-
-        $totalDuplicateGroups = TransactionEvent::query()
-            ->selectRaw('LOWER(TRIM(full_name)) as keyval')
-            ->whereNotNull('full_name')
-            ->where('full_name', '<>', '')
-            ->where('not_duplicate', false)
-            ->groupBy('keyval')
-            ->havingRaw('COUNT(*) > 1')
-            ->count();
-
-        return view('pages.transaction_events.transactionEvents', compact('events', 'totalDuplicateGroups', 'duplicateFullNames'));
+        return view('pages.transaction_events.eventRecords', compact('events'));
     }
 
     public function duplicateReview()
@@ -86,11 +129,22 @@ class TransactionEventsController extends Controller
         $similarGroups = $this->findEventSimilarSpellingDuplicates();
 
         $notDuplicates = TransactionEvent::where('not_duplicate', true)
+            ->whereNull('transferred_at')
             ->orderByDesc('updated_at')
             ->limit(50)
             ->get();
 
         return view('pages.transaction_events.duplicateReview', compact('exactGroups', 'likelyGroups', 'similarGroups', 'notDuplicates'));
+    }
+
+    public function removedDuplicates()
+    {
+        $events = TransactionEvent::where('not_duplicate', true)
+            ->orderByDesc('updated_at')
+            ->paginate(15)
+            ->withQueryString();
+
+        return view('pages.transaction_events.removedDuplicates', compact('events'));
     }
 
     public function markNotDuplicate(TransactionEvent $event)
@@ -105,14 +159,14 @@ class TransactionEventsController extends Controller
         ActivityLog::create([
             'user_id' => $authUser->id,
             'action' => 'event_marked_not_duplicate',
-            'description' => "Marked transaction event #{$event->id} ({$event->full_name}) as not a duplicate.",
+            'description' => "Removed transaction event #{$event->id} ({$event->full_name}) as a duplicate.",
             'subject_type' => 'TransactionEvent',
             'subject_id' => $event->id,
             'properties' => json_encode(['event_id' => $event->id, 'full_name' => $event->full_name], JSON_INVALID_UTF8_SUBSTITUTE),
         ]);
 
-        return redirect()->route('transaction-events.duplicate-review')
-            ->with('success', "Event #{$event->id} ({$event->full_name}) marked as not a duplicate.");
+        return redirect()->route('transaction-events.removed-duplicates')
+            ->with('success', "Event #{$event->id} ({$event->full_name}) removed as duplicate.");
     }
 
     public function resetNotDuplicate(TransactionEvent $event)
@@ -133,14 +187,15 @@ class TransactionEventsController extends Controller
             'properties' => json_encode(['event_id' => $event->id, 'full_name' => $event->full_name], JSON_INVALID_UTF8_SUBSTITUTE),
         ]);
 
-        return redirect()->route('transaction-events.duplicate-review')
+        return redirect()->back()
             ->with('success', "Event #{$event->id} ({$event->full_name}) restored to duplicate review.");
     }
 
-    private function findEventExactDuplicates(): \Illuminate\Support\Collection
+    private function findEventExactDuplicates(): Collection
     {
         $keys = TransactionEvent::query()
             ->selectRaw("CONCAT(LOWER(TRIM(full_name)), '|', COALESCE(birth_date,'')) as keyval")
+            ->whereNull('transferred_at')
             ->whereNotNull('full_name')
             ->where('full_name', '<>', '')
             ->where('not_duplicate', false)
@@ -153,10 +208,11 @@ class TransactionEventsController extends Controller
         return $this->groupEventsByKey($keys, "CONCAT(LOWER(TRIM(full_name)), '|', COALESCE(birth_date,''))");
     }
 
-    private function findEventLikelyDuplicates(): \Illuminate\Support\Collection
+    private function findEventLikelyDuplicates(): Collection
     {
         $nameKeys = TransactionEvent::query()
             ->selectRaw('LOWER(TRIM(full_name)) as keyval')
+            ->whereNull('transferred_at')
             ->whereNotNull('full_name')
             ->where('full_name', '<>', '')
             ->where('not_duplicate', false)
@@ -171,6 +227,7 @@ class TransactionEventsController extends Controller
         }
 
         $events = TransactionEvent::whereIn(DB::raw('LOWER(TRIM(full_name))'), $nameKeys)
+            ->whereNull('transferred_at')
             ->where('not_duplicate', false)
             ->get();
 
@@ -201,10 +258,11 @@ class TransactionEventsController extends Controller
             ->values();
     }
 
-    private function findEventSimilarSpellingDuplicates(): \Illuminate\Support\Collection
+    private function findEventSimilarSpellingDuplicates(): Collection
     {
         $keys = TransactionEvent::query()
             ->selectRaw("COALESCE(SOUNDEX(LOWER(TRIM(full_name))),'') as keyval")
+            ->whereNull('transferred_at')
             ->whereNotNull('full_name')
             ->where('full_name', '<>', '')
             ->where('not_duplicate', false)
@@ -219,6 +277,7 @@ class TransactionEventsController extends Controller
         }
 
         $events = TransactionEvent::whereIn(DB::raw("COALESCE(SOUNDEX(LOWER(TRIM(full_name))),'')"), $keys)
+            ->whereNull('transferred_at')
             ->where('not_duplicate', false)
             ->get();
 
@@ -236,18 +295,19 @@ class TransactionEventsController extends Controller
             ->values();
     }
 
-    private function groupEventsByKey(array $keys, string $keyExpr): \Illuminate\Support\Collection
+    private function groupEventsByKey(array $keys, string $keyExpr): Collection
     {
         if (empty($keys)) {
             return collect();
         }
 
         $events = TransactionEvent::whereIn(DB::raw($keyExpr), $keys)
+            ->whereNull('transferred_at')
             ->where('not_duplicate', false)
             ->get();
 
         return $events->groupBy(function ($event) {
-            return strtolower(trim($event->full_name)) . '|' . ($event->birth_date?->format('Y-m-d') ?? '');
+            return strtolower(trim($event->full_name)).'|'.($event->birth_date?->format('Y-m-d') ?? '');
         })->map(fn ($items) => $this->eventGroupPayload($items))->values();
     }
 
@@ -266,9 +326,19 @@ class TransactionEventsController extends Controller
         $files = Storage::disk('local')->files($directory);
 
         $archiveFiles = collect($files)
-            ->map(function ($path) use ($directory) {
+            ->filter(fn ($path) => str_ends_with(strtolower($path), '.csv'))
+            ->map(function ($path) {
                 $filename = basename($path);
                 $uploadedAt = $this->extractArchiveUploadedAt($filename);
+                $importedBy = null;
+
+                $metaPath = $path.'.importer.json';
+                if (Storage::disk('local')->exists($metaPath)) {
+                    $meta = json_decode(Storage::disk('local')->get($metaPath), true);
+                    if (is_array($meta) && ! empty($meta['imported_by'])) {
+                        $importedBy = $meta;
+                    }
+                }
 
                 return [
                     'name' => $filename,
@@ -277,6 +347,7 @@ class TransactionEventsController extends Controller
                     'size' => Storage::disk('local')->size($path),
                     'modified_at' => Storage::disk('local')->lastModified($path),
                     'uploaded_at' => $uploadedAt ?? Storage::disk('local')->lastModified($path),
+                    'imported_by' => $importedBy,
                 ];
             })
             ->sortByDesc('uploaded_at')
@@ -291,7 +362,7 @@ class TransactionEventsController extends Controller
             $date = $matches[1];
             $time = $matches[2];
 
-            $timestamp = \DateTime::createFromFormat('YmdHis', $date . $time, new \DateTimeZone('UTC'));
+            $timestamp = \DateTime::createFromFormat('YmdHis', $date.$time, new \DateTimeZone('UTC'));
             if ($timestamp !== false) {
                 return $timestamp->getTimestamp();
             }
@@ -302,9 +373,9 @@ class TransactionEventsController extends Controller
 
     public function downloadArchive(string $filename)
     {
-        $path = 'transaction-events-archive/' . $filename;
+        $path = 'transaction-events-archive/'.$filename;
 
-        if (!Storage::disk('local')->exists($path)) {
+        if (! Storage::disk('local')->exists($path)) {
             abort(404);
         }
 
@@ -319,15 +390,15 @@ class TransactionEventsController extends Controller
 
         $result = $this->parseCsv($request->file('csv_file'));
 
-        if (!empty($result['errors'])) {
+        if (! empty($result['errors'])) {
             return response()->json(['success' => false, 'message' => $result['errors'][0]], 422);
         }
 
         return response()->json([
-            'success'      => true,
-            'rows'         => $result['rows'],
-            'total'        => $result['total'],
-            'skipped'      => $result['skipped'],
+            'success' => true,
+            'rows' => $result['rows'],
+            'total' => $result['total'],
+            'skipped' => $result['skipped'],
             'skipped_rows' => $result['skipped_rows'],
         ]);
     }
@@ -363,67 +434,68 @@ class TransactionEventsController extends Controller
             $style = $index === 0 ? ' s="1"' : '';
             $cells = '';
             foreach ($row as $i => $cell) {
-                $ref = $this->excelColumnName($i + 1) . ($index + 1);
+                $ref = $this->excelColumnName($i + 1).($index + 1);
                 $value = htmlspecialchars((string) $cell, ENT_XML1 | ENT_QUOTES, 'UTF-8');
                 $cells .= "<c r=\"{$ref}\" t=\"inlineStr\"{$style}><is><t xml:space=\"preserve\">{$value}</t></is></c>";
             }
-            $rows .= "<row r=\"" . ($index + 1) . "\">{$cells}</row>";
+            $rows .= '<row r="'.($index + 1)."\">{$cells}</row>";
         }
 
         $cols = '';
         foreach ($widths as $i => $width) {
-            $cols .= "<col min=\"" . ($i + 1) . "\" max=\"" . ($i + 1) . "\" width=\"{$width}\" customWidth=\"1\"/>";
+            $cols .= '<col min="'.($i + 1).'" max="'.($i + 1)."\" width=\"{$width}\" customWidth=\"1\"/>";
         }
 
         $sheetXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-            . '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
-            . "<cols>{$cols}</cols>"
-            . "<sheetData>{$rows}</sheetData>"
-            . '</worksheet>';
+            .'<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+            ."<cols>{$cols}</cols>"
+            ."<sheetData>{$rows}</sheetData>"
+            .'</worksheet>';
 
         $contentTypes = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-            . '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
-            . '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
-            . '<Default Extension="xml" ContentType="application/xml"/>'
-            . '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
-            . '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
-            . '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'
-            . '</Types>';
+            .'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+            .'<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+            .'<Default Extension="xml" ContentType="application/xml"/>'
+            .'<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+            .'<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+            .'<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'
+            .'</Types>';
 
         $rels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-            . '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
-            . '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'
-            . '</Relationships>';
+            .'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            .'<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'
+            .'</Relationships>';
 
         $workbook = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-            . '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
-            . '<sheets><sheet name="Import Template" sheetId="1" r:id="rId1"/></sheets>'
-            . '</workbook>';
+            .'<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+            .'<sheets><sheet name="Import Template" sheetId="1" r:id="rId1"/></sheets>'
+            .'</workbook>';
 
         $workbookRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-            . '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
-            . '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'
-            . '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
-            . '</Relationships>';
+            .'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            .'<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'
+            .'<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
+            .'</Relationships>';
 
         $styles = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-            . '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
-            . '<fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts>'
-            . '<fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>'
-            . '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>'
-            . '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
-            . '<cellXfs count="2">'
-            . '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
-            . '<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/>'
-            . '</cellXfs>'
-            . '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>'
-            . '</styleSheet>';
+            .'<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+            .'<fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts>'
+            .'<fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>'
+            .'<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>'
+            .'<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
+            .'<cellXfs count="2">'
+            .'<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
+            .'<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/>'
+            .'</cellXfs>'
+            .'<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>'
+            .'</styleSheet>';
 
-        $tempPath = tempnam(sys_get_temp_dir(), 'template_') . '.xlsx';
+        $tempPath = tempnam(sys_get_temp_dir(), 'template_').'.xlsx';
 
-        $zip = new \ZipArchive();
+        $zip = new \ZipArchive;
         if ($zip->open($tempPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) {
             @unlink($tempPath);
+
             return back()->with('error', 'Unable to generate the Excel template. Please try again.');
         }
 
@@ -448,14 +520,14 @@ class TransactionEventsController extends Controller
 
         $result = $this->parseCsv($request->file('csv_file'));
 
-        if (!empty($result['errors'])) {
+        if (! empty($result['errors'])) {
             return back()->withErrors(['csv_file' => $result['errors'][0]]);
         }
 
         $rows = $result['rows'];
         $archiveFile = '';
         $imported = count($rows);
-        $hasDuplicateRows = collect($rows)->contains(fn ($row) => !empty($row['duplicate']));
+        $hasDuplicateRows = collect($rows)->contains(fn ($row) => ! empty($row['duplicate']));
 
         if ($imported > 0) {
             if ($hasDuplicateRows) {
@@ -475,14 +547,14 @@ class TransactionEventsController extends Controller
             $message .= " Skipped {$skipped} invalid row(s).";
         }
 
-        if (!empty($archiveFile)) {
+        if (! empty($archiveFile)) {
             $message .= " Archived CSV as {$archiveFile}.";
         }
 
         ActivityLog::create([
             'user_id' => auth()->id(),
             'action' => 'events_imported',
-            'description' => "Imported {$imported} transaction event(s) from CSV" . ($request->file('csv_file')->getClientOriginalName() ? ' (' . $request->file('csv_file')->getClientOriginalName() . ')' : '') . '.',
+            'description' => "Imported {$imported} transaction event(s) from CSV".($request->file('csv_file')->getClientOriginalName() ? ' ('.$request->file('csv_file')->getClientOriginalName().')' : '').'.',
             'subject_type' => 'TransactionEvent',
             'subject_id' => null,
             'properties' => json_encode([
@@ -491,6 +563,12 @@ class TransactionEventsController extends Controller
                 'file_name' => $request->file('csv_file')->getClientOriginalName(),
             ], JSON_INVALID_UTF8_SUBSTITUTE),
         ]);
+
+        // Direct imports (no duplicate rows) are transferred immediately,
+        // so land the user on Events - Records where those records live.
+        if (! $hasDuplicateRows && $imported > 0) {
+            return redirect()->route('transaction-events.records')->with('success', $message);
+        }
 
         return redirect()->route('transaction-events.index')->with('success', $message);
     }
@@ -511,32 +589,32 @@ class TransactionEventsController extends Controller
 
         $result = $this->parseCsv($request->file('csv_file'));
 
-        if (!empty($result['errors'])) {
+        if (! empty($result['errors'])) {
             return response()->json(['success' => false, 'message' => $result['errors'][0]], 422);
         }
 
         $rows = $result['rows'];
-        $hasDuplicateRows = collect($rows)->contains(fn ($row) => !empty($row['duplicate']));
+        $hasDuplicateRows = collect($rows)->contains(fn ($row) => ! empty($row['duplicate']));
 
         $token = md5(uniqid((string) auth()->id(), true));
         $this->cleanupStaleImportSessions();
 
         Storage::disk('local')->makeDirectory(self::IMPORT_SESSION_DIR);
         Storage::disk('local')->put(
-            self::IMPORT_SESSION_DIR . '/' . $token . '.json',
+            self::IMPORT_SESSION_DIR.'/'.$token.'.json',
             json_encode([
-                'mode'              => $hasDuplicateRows ? 'events_only' : 'direct',
-                'rows'              => $rows,
+                'mode' => $hasDuplicateRows ? 'events_only' : 'direct',
+                'rows' => $rows,
                 'original_filename' => $request->file('csv_file')->getClientOriginalName(),
-                'skipped'           => $result['skipped'],
+                'skipped' => $result['skipped'],
             ], JSON_INVALID_UTF8_SUBSTITUTE)
         );
 
         return response()->json([
-            'success'        => true,
-            'token'          => $token,
-            'total'          => count($rows),
-            'skipped'        => $result['skipped'],
+            'success' => true,
+            'token' => $token,
+            'total' => count($rows),
+            'skipped' => $result['skipped'],
             'has_duplicates' => $hasDuplicateRows,
         ]);
     }
@@ -544,7 +622,7 @@ class TransactionEventsController extends Controller
     public function processImportChunk(Request $request)
     {
         $request->validate([
-            'token'  => 'required|string',
+            'token' => 'required|string',
             'offset' => 'required|integer|min:0',
         ]);
 
@@ -571,10 +649,10 @@ class TransactionEventsController extends Controller
         $processed = $offset + count($slice);
 
         return response()->json([
-            'success'   => true,
+            'success' => true,
             'processed' => $processed,
-            'total'     => count($rows),
-            'done'      => $processed >= count($rows),
+            'total' => count($rows),
+            'done' => $processed >= count($rows),
         ]);
     }
 
@@ -611,14 +689,14 @@ class TransactionEventsController extends Controller
             $message .= " Skipped {$skipped} invalid row(s).";
         }
 
-        if (!empty($archiveFile)) {
+        if (! empty($archiveFile)) {
             $message .= " Archived CSV as {$archiveFile}.";
         }
 
         ActivityLog::create([
             'user_id' => auth()->id(),
             'action' => 'events_imported',
-            'description' => "Imported {$imported} transaction event(s) from CSV" . ($sessionData['original_filename'] ? ' (' . $sessionData['original_filename'] . ')' : '') . '.',
+            'description' => "Imported {$imported} transaction event(s) from CSV".($sessionData['original_filename'] ? ' ('.$sessionData['original_filename'].')' : '').'.',
             'subject_type' => 'TransactionEvent',
             'subject_id' => null,
             'properties' => json_encode([
@@ -628,25 +706,25 @@ class TransactionEventsController extends Controller
             ], JSON_INVALID_UTF8_SUBSTITUTE),
         ]);
 
-        Storage::disk('local')->delete(self::IMPORT_SESSION_DIR . '/' . $request->input('token') . '.json');
+        Storage::disk('local')->delete(self::IMPORT_SESSION_DIR.'/'.$request->input('token').'.json');
 
         TransactionHistory::flushDashboardCache();
 
         session()->flash('success', $message);
 
         return response()->json([
-            'success'  => true,
+            'success' => true,
             'imported' => $imported,
-            'skipped'  => $skipped,
-            'message'  => $message,
+            'skipped' => $skipped,
+            'message' => $message,
         ]);
     }
 
     private function loadImportSession(string $token): ?array
     {
-        $path = self::IMPORT_SESSION_DIR . '/' . $token . '.json';
+        $path = self::IMPORT_SESSION_DIR.'/'.$token.'.json';
 
-        if (!Storage::disk('local')->exists($path)) {
+        if (! Storage::disk('local')->exists($path)) {
             return null;
         }
 
@@ -666,14 +744,14 @@ class TransactionEventsController extends Controller
 
     public function transfer(TransactionEvent $event)
     {
-        if (!is_null($event->transferred_at)) {
+        if (! is_null($event->transferred_at)) {
             return redirect()->route('transaction-events.index')
-                ->with('error', 'Event #' . $event->id . ' is already approved/transferred.');
+                ->with('error', 'Event #'.$event->id.' is already approved/transferred.');
         }
 
         if ($event->not_duplicate) {
             return redirect()->route('transaction-events.duplicate-review')
-                ->with('error', 'Event #' . $event->id . ' is marked as not a duplicate and cannot be transferred.');
+                ->with('error', 'Event #'.$event->id.' is marked as not a duplicate and cannot be transferred.');
         }
 
         $nameParts = $this->splitFullName($event->full_name);
@@ -682,82 +760,183 @@ class TransactionEventsController extends Controller
             ->whereRaw('LOWER(last_name) = ?', [strtolower($nameParts['last_name'])])
             ->first();
 
-        if (!$client) {
+        if (! $client) {
             $client = $this->createClientFromImportedEvent([
-                'full_name'       => $event->full_name,
-                'age'             => $event->age,
-                'contact_no'      => $event->contact_no,
-                'address'         => $event->address,
-                'birth_date'      => $event->birth_date?->format('Y-m-d'),
+                'full_name' => $event->full_name,
+                'age' => $event->age,
+                'contact_no' => $event->contact_no,
+                'address' => $event->address,
+                'birth_date' => $event->birth_date?->format('Y-m-d'),
                 'client_category' => $event->client_category,
             ]);
 
             ActivityLog::create([
-                'user_id'      => auth()->id(),
-                'action'       => 'client_created',
-                'description'  => 'Auto-created client ' . $client->client_id . ' (' . trim($event->full_name) . ') during event transfer.',
+                'user_id' => auth()->id(),
+                'action' => 'client_created',
+                'description' => 'Auto-created client '.$client->client_id.' ('.trim($event->full_name).') during event transfer.',
                 'subject_type' => 'Client',
-                'subject_id'   => $client->id,
-                'properties'   => json_encode(['source' => 'transaction-event-transfer', 'event_id' => $event->id]),
+                'subject_id' => $client->id,
+                'properties' => json_encode(['source' => 'transaction-event-transfer', 'event_id' => $event->id]),
             ]);
         }
 
         if (empty($event->transaction_category) && empty($event->transaction_type)) {
             return redirect()->route('transaction-events.index')
-                ->with('error', 'Event #' . $event->id . ' has no transaction category or type to transfer.');
+                ->with('error', 'Event #'.$event->id.' has no transaction category or type to transfer.');
         }
 
         $transactionId = $this->nextTransferredTransactionId($client->client_id);
         $clientCategory = $event->client_category ?: $client->sector;
 
         $transaction = TransactionHistory::create([
-            'client_id'        => $client->client_id,
-            'client_category'  => $clientCategory,
-            'transaction_id'   => $transactionId,
+            'client_id' => $client->client_id,
+            'client_category' => $clientCategory,
+            'transaction_id' => $transactionId,
             'transaction_date' => now(),
-            'category'         => TransactionHistory::normalizeCategory($event->transaction_category),
-            'type'             => $event->transaction_type,
-            'source'           => 'E-Registration',
-            'clerk'            => auth()->user()->name ?? 'System',
-            'status'           => 'Approved',
-            'description'      => 'Transferred from imported event for ' . $event->full_name,
+            'category' => TransactionHistory::normalizeCategory($event->transaction_category),
+            'type' => $event->transaction_type,
+            'source' => 'E-Registration',
+            'clerk' => auth()->user()->name ?? 'System',
+            'status' => 'Approved',
+            'description' => 'Transferred from imported event for '.$event->full_name,
         ]);
 
         ActivityLog::create([
-            'user_id'      => auth()->id(),
-            'action'       => 'transaction_created',
-            'description'  => 'Created transaction ' . $transactionId . ' from imported event.',
+            'user_id' => auth()->id(),
+            'action' => 'transaction_created',
+            'description' => 'Created transaction '.$transactionId.' from imported event.',
             'subject_type' => 'TransactionHistory',
-            'subject_id'   => $transaction->id,
-            'properties'   => json_encode(['event_id' => $event->id]),
+            'subject_id' => $transaction->id,
+            'properties' => ['event_id' => $event->id],
         ]);
 
-        if (!empty($event->client_category)) {
+        if (! empty($event->client_category)) {
             $client->update(['sector' => $event->client_category]);
         }
 
-        $event->update(['transferred_at' => now()]);
+        $event->update([
+            'transferred_at' => now(),
+            'transferred_transaction_id' => $transaction->id,
+        ]);
 
         TransactionHistory::flushDashboardCache();
 
-        return redirect()->route('transaction-events.index')
-            ->with('success', 'Transaction ' . $transactionId . ' created successfully for ' . $client->full_name . '.');
+        return redirect()->route('transaction-events.records')
+            ->with('success', 'Transaction '.$transactionId.' created successfully for '.$client->full_name.'.');
+    }
+
+    public function undoTransfer(TransactionEvent $event)
+    {
+        if (auth()->user()->role_name === 'Viewer') {
+            abort(403, 'Viewer role is read-only.');
+        }
+
+        try {
+            $transactionId = DB::transaction(function () use ($event) {
+                $event = TransactionEvent::query()
+                    ->lockForUpdate()
+                    ->find($event->id);
+
+                if (! $event) {
+                    throw new \RuntimeException('This event record no longer exists.');
+                }
+
+                if (is_null($event->transferred_at)) {
+                    throw new \RuntimeException('Event #'.$event->id.' is not currently transferred.');
+                }
+
+                $transaction = $this->findTransferredTransaction($event);
+
+                if (! $transaction) {
+                    throw new \RuntimeException(
+                        'The transaction created from event #'.$event->id.' could not be found. No changes were made.'
+                    );
+                }
+
+                $transaction = TransactionHistory::query()
+                    ->whereKey($transaction->id)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (! $transaction) {
+                    throw new \RuntimeException(
+                        'The transaction created from event #'.$event->id.' could not be found. No changes were made.'
+                    );
+                }
+
+                if ($transaction->requirements()->exists()) {
+                    throw new \RuntimeException(
+                        'This transfer cannot be undone because the transaction already has supporting requirements. Remove them first.'
+                    );
+                }
+
+                $transactionNumber = $transaction->transaction_id;
+                $transactionHistoryId = $transaction->id;
+
+                $transaction->delete();
+
+                $event->update([
+                    'transferred_at' => null,
+                    'transferred_transaction_id' => null,
+                ]);
+
+                ActivityLog::create([
+                    'user_id' => auth()->id(),
+                    'action' => 'event_transfer_undone',
+                    'description' => 'Undid transfer of transaction event #'.$event->id
+                        .' ('.$event->full_name.') and removed transaction '.$transactionNumber.'.',
+                    'subject_type' => 'TransactionEvent',
+                    'subject_id' => $event->id,
+                    'properties' => [
+                        'event_id' => $event->id,
+                        'transaction_history_id' => $transactionHistoryId,
+                        'transaction_id' => $transactionNumber,
+                    ],
+                ]);
+
+                return $transactionNumber;
+            });
+        } catch (\RuntimeException $exception) {
+            return redirect()->route('transaction-events.records')
+                ->with('error', $exception->getMessage());
+        }
+
+        TransactionHistory::flushDashboardCache();
+
+        return redirect()->route('transaction-events.records')
+            ->with('success', 'Transfer undone. Transaction '.$transactionId.' was removed and the event is pending again.');
     }
 
     public function transferSelected(Request $request)
     {
-        $ids = array_values(array_filter(array_map('intval', (array) $request->input('event_ids', []))));
+        if ($request->boolean('select_all')) {
+            // Transfer every pending event matching the current list filters,
+            // not just the ones visible on the current page.
+            $query = TransactionEvent::query()
+                ->whereNull('transferred_at')
+                ->where('not_duplicate', false);
 
-        if (empty($ids)) {
-            return redirect()->route('transaction-events.index')
-                ->with('error', 'No transaction events selected for transfer.');
+            $this->applyEventListFilters($query, $request);
+
+            if ($request->boolean('duplicate_names')) {
+                $query->whereIn('full_name', $this->duplicateFullNamesList());
+            }
+
+            $events = $query->get();
+        } else {
+            $ids = array_values(array_filter(array_map('intval', (array) $request->input('event_ids', []))));
+
+            if (empty($ids)) {
+                return redirect()->route('transaction-events.index')
+                    ->with('error', 'No transaction events selected for transfer.');
+            }
+
+            $events = TransactionEvent::query()
+                ->whereIn('id', $ids)
+                ->whereNull('transferred_at')
+                ->where('not_duplicate', false)
+                ->get();
         }
-
-        $events = TransactionEvent::query()
-            ->whereIn('id', $ids)
-            ->whereNull('transferred_at')
-            ->where('not_duplicate', false)
-            ->get();
 
         if ($events->isEmpty()) {
             return redirect()->route('transaction-events.index')
@@ -772,6 +951,7 @@ class TransactionEventsController extends Controller
         foreach ($events as $event) {
             if (empty($event->transaction_category) || empty($event->transaction_type)) {
                 $skippedCount++;
+
                 continue;
             }
 
@@ -780,24 +960,24 @@ class TransactionEventsController extends Controller
                 ->whereRaw('LOWER(last_name) = ?', [strtolower($nameParts['last_name'])])
                 ->first();
 
-            if (!$client) {
+            if (! $client) {
                 $client = $this->createClientFromImportedEvent([
-                    'full_name'       => $event->full_name,
-                    'age'             => $event->age,
-                    'contact_no'      => $event->contact_no,
-                    'address'         => $event->address,
-                    'birth_date'      => $event->birth_date?->format('Y-m-d'),
+                    'full_name' => $event->full_name,
+                    'age' => $event->age,
+                    'contact_no' => $event->contact_no,
+                    'address' => $event->address,
+                    'birth_date' => $event->birth_date?->format('Y-m-d'),
                     'client_category' => $event->client_category,
                 ]);
                 $createdClients++;
 
                 ActivityLog::create([
-                    'user_id'      => auth()->id(),
-                    'action'       => 'client_created',
-                    'description'  => 'Auto-created client ' . $client->client_id . ' (' . trim($event->full_name) . ') during event transfer.',
+                    'user_id' => auth()->id(),
+                    'action' => 'client_created',
+                    'description' => 'Auto-created client '.$client->client_id.' ('.trim($event->full_name).') during event transfer.',
                     'subject_type' => 'Client',
-                    'subject_id'   => $client->id,
-                    'properties'   => json_encode(['source' => 'transaction-event-transfer', 'event_id' => $event->id]),
+                    'subject_id' => $client->id,
+                    'properties' => json_encode(['source' => 'transaction-event-transfer', 'event_id' => $event->id]),
                 ]);
             }
 
@@ -805,38 +985,41 @@ class TransactionEventsController extends Controller
             $clientCategory = $event->client_category ?: $client->sector;
 
             $transaction = TransactionHistory::create([
-                'client_id'        => $client->client_id,
-                'client_category'  => $clientCategory,
-                'transaction_id'   => $transactionId,
+                'client_id' => $client->client_id,
+                'client_category' => $clientCategory,
+                'transaction_id' => $transactionId,
                 'transaction_date' => now(),
-'category'         => TransactionHistory::normalizeCategory($event->transaction_category),
-            'type'             => $event->transaction_type,
-            'source'           => 'E-Registration',
-            'clerk'            => auth()->user()->name ?? 'System',
-            'status'           => 'Approved',
-            'description'      => 'Transferred from imported event for ' . $event->full_name,
-        ]);
+                'category' => TransactionHistory::normalizeCategory($event->transaction_category),
+                'type' => $event->transaction_type,
+                'source' => 'E-Registration',
+                'clerk' => auth()->user()->name ?? 'System',
+                'status' => 'Approved',
+                'description' => 'Transferred from imported event for '.$event->full_name,
+            ]);
 
-        ActivityLog::create([
-            'user_id'      => auth()->id(),
-            'action'       => 'transaction_created',
-            'description'  => 'Created transaction ' . $transactionId . ' from imported event.',
-            'subject_type' => 'TransactionHistory',
-            'subject_id'   => $transaction->id,
-            'properties'   => json_encode(['event_id' => $event->id]),
-        ]);
+            ActivityLog::create([
+                'user_id' => auth()->id(),
+                'action' => 'transaction_created',
+                'description' => 'Created transaction '.$transactionId.' from imported event.',
+                'subject_type' => 'TransactionHistory',
+                'subject_id' => $transaction->id,
+                'properties' => ['event_id' => $event->id],
+            ]);
 
-            if (!empty($event->client_category)) {
+            if (! empty($event->client_category)) {
                 $client->update(['sector' => $event->client_category]);
             }
 
-            $event->update(['transferred_at' => now()]);
+            $event->update([
+                'transferred_at' => now(),
+                'transferred_transaction_id' => $transaction->id,
+            ]);
             $archivedEvents[] = $event;
             $successCount++;
         }
 
         $archiveFile = '';
-        if (!empty($archivedEvents)) {
+        if (! empty($archivedEvents)) {
             $archiveFile = $this->storeArchivedTransactionEvents($archivedEvents);
         }
 
@@ -847,14 +1030,14 @@ class TransactionEventsController extends Controller
         if ($skippedCount > 0) {
             $message .= " Skipped {$skippedCount} event(s) because they are missing transaction details.";
         }
-        if (!empty($archiveFile)) {
+        if (! empty($archiveFile)) {
             $message .= " Archived as {$archiveFile}.";
         }
 
         if ($successCount > 0) {
             TransactionHistory::flushDashboardCache();
 
-            return redirect()->route('transaction-events.index')->with('success', $message);
+            return redirect()->route('transaction-events.records')->with('success', $message);
         }
 
         return redirect()->route('transaction-events.index')->with('error', $message);
@@ -862,10 +1045,10 @@ class TransactionEventsController extends Controller
 
     private function nextTransferredTransactionId(string $clientId): string
     {
-        $prefix = $clientId . '-' . now()->format('y') . '-';
+        $prefix = $clientId.'-'.now()->format('y').'-';
 
         $maxSequence = TransactionHistory::query()
-            ->where('transaction_id', 'like', $prefix . '%')
+            ->where('transaction_id', 'like', $prefix.'%')
             ->pluck('transaction_id')
             ->reduce(function (int $max, string $transactionId) use ($prefix) {
                 $suffix = substr($transactionId, strlen($prefix));
@@ -875,7 +1058,38 @@ class TransactionEventsController extends Controller
 
         $sequence = $maxSequence + 1;
 
-        return $prefix . str_pad((string) $sequence, 4, '0', STR_PAD_LEFT);
+        return $prefix.str_pad((string) $sequence, 4, '0', STR_PAD_LEFT);
+    }
+
+    private function findTransferredTransaction(TransactionEvent $event): ?TransactionHistory
+    {
+        if (! is_null($event->transferred_transaction_id)) {
+            return TransactionHistory::find($event->transferred_transaction_id);
+        }
+
+        // Transfers made before the direct link was added can still be reversed
+        // through their original transaction-created audit entry.
+        $activity = ActivityLog::query()
+            ->where('action', 'transaction_created')
+            ->where('subject_type', 'TransactionHistory')
+            ->latest('id')
+            ->get()
+            ->first(function (ActivityLog $activity) use ($event) {
+                $properties = $activity->properties;
+
+                if (is_string($properties)) {
+                    $properties = json_decode($properties, true);
+                }
+
+                return is_array($properties)
+                    && (int) ($properties['event_id'] ?? 0) === $event->id;
+            });
+
+        $transactionHistoryId = $activity?->subject_id;
+
+        return $transactionHistoryId
+            ? TransactionHistory::find($transactionHistoryId)
+            : null;
     }
 
     private function utf8Encode(?string $value): string
@@ -889,7 +1103,7 @@ class TransactionEventsController extends Controller
         if (str_contains($value, "\x00")) {
             foreach (['UTF-16LE', 'UTF-16BE', 'UTF-16', 'UTF-32LE', 'UTF-32BE', 'UTF-32'] as $encoding) {
                 $converted = mb_convert_encoding($value, 'UTF-8', $encoding);
-                if (mb_check_encoding($converted, 'UTF-8') && !str_contains($converted, "\x00")) {
+                if (mb_check_encoding($converted, 'UTF-8') && ! str_contains($converted, "\x00")) {
                     return $converted;
                 }
             }
@@ -914,9 +1128,10 @@ class TransactionEventsController extends Controller
         $name = '';
         while ($index > 0) {
             $mod = ($index - 1) % 26;
-            $name = chr(65 + $mod) . $name;
+            $name = chr(65 + $mod).$name;
             $index = intdiv($index - 1, 26);
         }
+
         return $name;
     }
 
@@ -936,6 +1151,7 @@ class TransactionEventsController extends Controller
 
         if ($handle === false) {
             @unlink($tempPath);
+
             return ['errors' => ['Unable to read the uploaded file.'], 'rows' => [], 'total' => 0, 'skipped' => 0];
         }
 
@@ -944,6 +1160,7 @@ class TransactionEventsController extends Controller
         if ($header === false) {
             fclose($handle);
             @unlink($tempPath);
+
             return ['errors' => ['The CSV file is empty or has no header row.'], 'rows' => [], 'total' => 0, 'skipped' => 0];
         }
 
@@ -953,9 +1170,10 @@ class TransactionEventsController extends Controller
         $header = array_filter($header);
         $header = array_values($header);
 
-        if (!in_array('full_name', $header)) {
+        if (! in_array('full_name', $header)) {
             fclose($handle);
             @unlink($tempPath);
+
             return ['errors' => ['Missing required column: full_name.'], 'rows' => [], 'total' => 0, 'skipped' => 0];
         }
 
@@ -976,20 +1194,22 @@ class TransactionEventsController extends Controller
 
             if (empty($fullName)) {
                 $skippedRows[] = [
-                    'line'   => $lineNumber,
+                    'line' => $lineNumber,
                     'reason' => 'Empty full_name',
-                    'data'   => $data,
+                    'data' => $data,
                 ];
+
                 continue;
             }
 
             $age = $this->parseImportedAge($data['age'] ?? null);
             if (($data['age'] ?? '') !== '' && $age === null) {
                 $skippedRows[] = [
-                    'line'   => $lineNumber,
+                    'line' => $lineNumber,
                     'reason' => 'Invalid age value',
-                    'data'   => $data,
+                    'data' => $data,
                 ];
+
                 continue;
             }
 
@@ -999,15 +1219,15 @@ class TransactionEventsController extends Controller
             $eventKeyCounts[$eventKey] = ($eventKeyCounts[$eventKey] ?? 0) + 1;
 
             $tempRows[] = [
-                'full_name'           => $fullName,
-                'contact_no'          => $data['contact_no'] ?? '',
-                'address'             => $data['address'] ?? '',
-                'age'                 => $age,
-                'birth_date'          => $birthDate,
-                'client_category'     => $data['client_category'] ?? '',
+                'full_name' => $fullName,
+                'contact_no' => $data['contact_no'] ?? '',
+                'address' => $data['address'] ?? '',
+                'age' => $age,
+                'birth_date' => $birthDate,
+                'client_category' => $data['client_category'] ?? '',
                 'transaction_category' => $data['transaction_category'] ?? '',
-                'transaction_type'    => $data['transaction_type'] ?? '',
-                'event_key'           => $eventKey,
+                'transaction_type' => $data['transaction_type'] ?? '',
+                'event_key' => $eventKey,
             ];
         }
 
@@ -1015,15 +1235,15 @@ class TransactionEventsController extends Controller
             $duplicate = $eventKeyCounts[$tempRow['event_key']] > 1;
 
             $rows[] = [
-                'full_name'           => $tempRow['full_name'],
-                'contact_no'          => $tempRow['contact_no'],
-                'address'             => $tempRow['address'],
-                'age'                 => $tempRow['age'],
-                'birth_date'          => $tempRow['birth_date'],
-                'client_category'     => $tempRow['client_category'],
+                'full_name' => $tempRow['full_name'],
+                'contact_no' => $tempRow['contact_no'],
+                'address' => $tempRow['address'],
+                'age' => $tempRow['age'],
+                'birth_date' => $tempRow['birth_date'],
+                'client_category' => $tempRow['client_category'],
                 'transaction_category' => $tempRow['transaction_category'],
-                'transaction_type'    => $tempRow['transaction_type'],
-                'duplicate'           => $duplicate,
+                'transaction_type' => $tempRow['transaction_type'],
+                'duplicate' => $duplicate,
             ];
         }
 
@@ -1031,10 +1251,10 @@ class TransactionEventsController extends Controller
         @unlink($tempPath);
 
         return [
-            'errors'       => [],
-            'rows'         => $rows,
-            'total'        => count($rows),
-            'skipped'      => count($skippedRows),
+            'errors' => [],
+            'rows' => $rows,
+            'total' => count($rows),
+            'skipped' => count($skippedRows),
             'skipped_rows' => $skippedRows,
         ];
     }
@@ -1044,7 +1264,7 @@ class TransactionEventsController extends Controller
         $normalizedFullName = preg_replace('/\s+/', ' ', trim(strtolower($fullName)));
         $normalizedBirthDate = $birthDate ? trim(strtolower($birthDate)) : '';
 
-        return $normalizedFullName . '|' . $normalizedBirthDate;
+        return $normalizedFullName.'|'.$normalizedBirthDate;
     }
 
     private function isDuplicateImportedEvent(string $fullName, ?string $birthDate): bool
@@ -1060,7 +1280,7 @@ class TransactionEventsController extends Controller
 
         $nameParts = $this->splitFullName($normalizedName);
 
-        if (!empty($nameParts['first_name']) && !empty($nameParts['last_name'])) {
+        if (! empty($nameParts['first_name']) && ! empty($nameParts['last_name'])) {
             $clientMatch = Client::query()
                 ->whereRaw('LOWER(TRIM(first_name)) = ?', [strtolower($nameParts['first_name'])])
                 ->whereRaw('LOWER(TRIM(last_name)) = ?', [strtolower($nameParts['last_name'])])
@@ -1091,7 +1311,7 @@ class TransactionEventsController extends Controller
             } else {
                 $client = $this->findExistingClientForImportedEvent($event, $existingClients);
 
-                if (!$client) {
+                if (! $client) {
                     $client = $this->createClientFromImportedEvent($event);
                 }
 
@@ -1100,11 +1320,23 @@ class TransactionEventsController extends Controller
                 }
             }
 
-            if (!empty($event['client_category']) && $client->sector !== $event['client_category']) {
+            if (! empty($event['client_category']) && $client->sector !== $event['client_category']) {
                 $client->update(['sector' => $event['client_category']]);
             }
 
-            $this->createTransactionHistoryFromImportedEvent($client, $event);
+            $transaction = $this->createTransactionHistoryFromImportedEvent($client, $event);
+            TransactionEvent::create([
+                'full_name' => $event['full_name'],
+                'contact_no' => $event['contact_no'] ?? '',
+                'address' => $event['address'] ?? '',
+                'age' => $event['age'] ?? null,
+                'birth_date' => $event['birth_date'] ?? null,
+                'client_category' => $event['client_category'] ?? '',
+                'transaction_category' => $event['transaction_category'] ?? '',
+                'transaction_type' => $event['transaction_type'] ?? '',
+                'transferred_at' => now(),
+                'transferred_transaction_id' => $transaction->id,
+            ]);
         }
     }
 
@@ -1112,14 +1344,14 @@ class TransactionEventsController extends Controller
     {
         foreach ($events as $event) {
             TransactionEvent::create([
-                'full_name'           => $event['full_name'],
-                'contact_no'          => $event['contact_no'] ?? '',
-                'address'             => $event['address'] ?? '',
-                'age'                 => $event['age'] ?? null,
-                'birth_date'          => $event['birth_date'] ?? null,
-                'client_category'     => $event['client_category'] ?? '',
+                'full_name' => $event['full_name'],
+                'contact_no' => $event['contact_no'] ?? '',
+                'address' => $event['address'] ?? '',
+                'age' => $event['age'] ?? null,
+                'birth_date' => $event['birth_date'] ?? null,
+                'client_category' => $event['client_category'] ?? '',
                 'transaction_category' => $event['transaction_category'] ?? '',
-                'transaction_type'    => $event['transaction_type'] ?? '',
+                'transaction_type' => $event['transaction_type'] ?? '',
             ]);
         }
     }
@@ -1135,8 +1367,8 @@ class TransactionEventsController extends Controller
             }
 
             $searchKeys[] = [
-                'first'      => strtolower($nameParts['first_name']),
-                'last'       => strtolower($nameParts['last_name']),
+                'first' => strtolower($nameParts['first_name']),
+                'last' => strtolower($nameParts['last_name']),
                 'birth_date' => $event['birth_date'],
             ];
         }
@@ -1190,14 +1422,14 @@ class TransactionEventsController extends Controller
 
         return $this->normalizeImportedClientKey([
             'first_name' => $nameParts['first_name'],
-            'last_name'  => $nameParts['last_name'],
+            'last_name' => $nameParts['last_name'],
             'birth_date' => $event['birth_date'] ?? null,
         ]);
     }
 
     private function normalizeImportedClientKey(array $data): string
     {
-        return strtolower(trim($data['first_name'] . '|' . $data['last_name'] . '|' . ($data['birth_date'] ?? '')));
+        return strtolower(trim($data['first_name'].'|'.$data['last_name'].'|'.($data['birth_date'] ?? '')));
     }
 
     private function createClientFromImportedEvent(array $event): Client
@@ -1205,40 +1437,40 @@ class TransactionEventsController extends Controller
         $nameParts = $this->splitFullName($event['full_name']);
 
         $clientData = [
-            'client_id'   => Client::generateClientId(),
-            'first_name'  => $nameParts['first_name'],
+            'client_id' => Client::generateClientId(),
+            'first_name' => $nameParts['first_name'],
             'middle_name' => $nameParts['middle_name'],
-            'last_name'   => $nameParts['last_name'],
-            'suffix'      => $nameParts['suffix'],
-            'age'         => $event['age'],
-            'contact'     => $event['contact_no'],
-            'address'     => $event['address'],
+            'last_name' => $nameParts['last_name'],
+            'suffix' => $nameParts['suffix'],
+            'age' => $event['age'],
+            'contact' => $event['contact_no'],
+            'address' => $event['address'],
         ];
 
-        if (!empty($event['birth_date'])) {
+        if (! empty($event['birth_date'])) {
             $clientData['birth_date'] = $event['birth_date'];
         }
 
-        if (!empty($event['client_category'])) {
+        if (! empty($event['client_category'])) {
             $clientData['sector'] = $event['client_category'];
         }
 
         return Client::create($clientData);
     }
 
-    private function createTransactionHistoryFromImportedEvent(Client $client, array $event): void
+    private function createTransactionHistoryFromImportedEvent(Client $client, array $event): TransactionHistory
     {
-        TransactionHistory::create([
-            'client_id'        => $client->client_id,
-            'client_category'  => $event['client_category'] ?: $client->sector,
-            'transaction_id'   => $this->nextTransferredTransactionId($client->client_id),
+        return TransactionHistory::create([
+            'client_id' => $client->client_id,
+            'client_category' => $event['client_category'] ?: $client->sector,
+            'transaction_id' => $this->nextTransferredTransactionId($client->client_id),
             'transaction_date' => now(),
-            'category'         => TransactionHistory::normalizeCategory($event['transaction_category'] ?? ''),
-            'type'             => $event['transaction_type'] ?? '',
-            'source'           => 'E-Registration',
-            'clerk'            => auth()->user()->name ?? 'System',
-            'status'           => 'Approved',
-            'description'      => 'Imported from transaction events CSV',
+            'category' => TransactionHistory::normalizeCategory($event['transaction_category'] ?? ''),
+            'type' => $event['transaction_type'] ?? '',
+            'source' => 'E-Registration',
+            'clerk' => auth()->user()->name ?? 'System',
+            'status' => 'Approved',
+            'description' => 'Imported from transaction events CSV',
         ]);
     }
 
@@ -1267,7 +1499,7 @@ class TransactionEventsController extends Controller
 
         $safeFilename = $this->sanitizeArchiveFilename($originalFilename);
         $archiveName = sprintf('transaction-events_%s_%s', now()->format('Ymd_His'), $safeFilename);
-        $archivePath = $directory . '/' . $archiveName;
+        $archivePath = $directory.'/'.$archiveName;
 
         $csvHeader = [
             'full_name',
@@ -1301,6 +1533,17 @@ class TransactionEventsController extends Controller
         fclose($stream);
 
         Storage::disk('local')->put($archivePath, $csvContents);
+
+        $user = auth()->user();
+        Storage::disk('local')->put(
+            $directory.'/'.$archiveName.'.importer.json',
+            json_encode([
+                'imported_by_id' => $user?->id,
+                'imported_by' => $user->name ?? 'System',
+                'role' => $user->role_name ?? '',
+                'imported_at' => now()->toDateTimeString(),
+            ], JSON_INVALID_UTF8_SUBSTITUTE)
+        );
 
         return $archiveName;
     }
@@ -1384,10 +1627,10 @@ class TransactionEventsController extends Controller
         }
 
         return [
-            'first_name'  => $firstName,
+            'first_name' => $firstName,
             'middle_name' => $middleName,
-            'last_name'   => $lastName,
-            'suffix'      => $suffix,
+            'last_name' => $lastName,
+            'suffix' => $suffix,
         ];
     }
 }

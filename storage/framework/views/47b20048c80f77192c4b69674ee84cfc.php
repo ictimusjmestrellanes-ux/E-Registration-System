@@ -79,7 +79,7 @@
                     </div>
                     <div class="card-body">
                         <form method="GET" class="row g-2 mb-3">
-                            <div class="col-md-3">
+                            <div class="col-md-2">
                                 <input type="text" class="form-control form-control-sm" name="search"
                                     placeholder="Search name..." value="<?php echo e(request('search')); ?>">
                             </div>
@@ -87,21 +87,31 @@
                                 <input type="text" class="form-control form-control-sm" name="contact"
                                     placeholder="Search contact..." value="<?php echo e(request('contact')); ?>">
                             </div>
-                            <div class="col-md-1">
+                            <div class="col-md-2">
                                 <input type="number" class="form-control form-control-sm" name="age_from"
                                     placeholder="Age from" value="<?php echo e(request('age_from')); ?>">
                             </div>
-                            <div class="col-md-1">
+                            <div class="col-md-2">
                                 <input type="number" class="form-control form-control-sm" name="age_to"
                                     placeholder="Age to" value="<?php echo e(request('age_to')); ?>">
                             </div>
-                            <div class="col-md-2">
+                            <div class="col-md-1">
                                 <input type="date" class="form-control form-control-sm" name="date_from"
                                     value="<?php echo e(request('date_from')); ?>">
                             </div>
-                            <div class="col-md-2">
+                            <div class="col-md-1">
                                 <input type="date" class="form-control form-control-sm" name="date_to"
                                     value="<?php echo e(request('date_to')); ?>">
+                            </div>
+                            <div class="col-md-1">
+                                <select name="per_page" class="form-select form-select-sm"
+                                    onchange="this.form.submit()" aria-label="Records per page">
+                                    <?php $__currentLoopData = [15, 25, 50, 100]; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $size): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                        <option value="<?php echo e($size); ?>" <?php echo e(request('per_page', 15) == $size ? 'selected' : ''); ?>>
+                                            <?php echo e($size); ?> / page
+                                        </option>
+                                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                                </select>
                             </div>
                             <div class="col-md-1 d-flex gap-1">
                                 <button type="submit" class="btn btn-primary btn-sm flex-fill">
@@ -121,6 +131,15 @@
                                 Showing transaction events with duplicate names.
                             </div>
                         <?php endif; ?>
+
+                        <div id="selectAllPagesBar"
+                            class="alert alert-primary py-2 px-3 mb-3 d-none align-items-center justify-content-between flex-wrap gap-2"
+                            role="alert">
+                            <span id="selectAllPagesText"></span>
+                            <button type="button" id="clearSelectionBtn" class="btn btn-sm btn-light d-none">
+                                Clear selection
+                            </button>
+                        </div>
 
                         <div class="table-responsive">
                             <table class="table table-hover align-middle mb-0">
@@ -162,7 +181,7 @@
                                                         aria-label="Select transaction event <?php echo e($event->id); ?>"
                                                         <?php echo e($isTransferred ? 'disabled' : ''); ?>
 
-                                                        <?php echo e(in_array($event->full_name, $duplicateFullNames, true) ? 'data-duplicate="1"' : ''); ?>>
+                                                        <?php echo e(in_array($event->full_name, $duplicateFullNames, true) ? 'data-duplicate="1" title="Duplicate name - excluded from Select All"' : ''); ?>>
                                                 <?php endif; ?>
                                             </td>
                                             <td class="fw-semibold"><?php echo e($event->full_name); ?></td>
@@ -421,30 +440,112 @@
             const bulkTransferCount = document.getElementById('bulkTransferCount');
             const confirmBulkTransferBtn = document.getElementById('confirmBulkTransferBtn');
             let selectedBulkTransferIds = [];
+            const totalMatchingEvents = <?php echo json_encode($events->total(), 15, 512) ?>;
+            let allPagesSelected = false;
 
             if (selectAll) {
                 const selectableCheckboxes = () => eventCheckboxes.filter((checkbox) => !checkbox.dataset.duplicate && !checkbox.disabled);
 
-                const syncSelectAllState = () => {
+                const hasMorePages = <?php echo json_encode($events->lastPage() > 1, 15, 512) ?>;
+
+                const bar = document.getElementById('selectAllPagesBar');
+                const barText = document.getElementById('selectAllPagesText');
+                const clearBtn = document.getElementById('clearSelectionBtn');
+
+                const hideBar = () => {
+                    if (bar) {
+                        bar.classList.add('d-none');
+                        bar.classList.remove('d-flex');
+                    }
+                };
+
+                const showBarPrompt = () => {
+                    if (!bar || !barText) {
+                        return;
+                    }
+                    bar.classList.remove('d-none');
+                    bar.classList.add('d-flex');
+                    if (clearBtn) {
+                        clearBtn.classList.add('d-none');
+                    }
+                    const checkedCount = selectableCheckboxes().filter((checkbox) => checkbox.checked).length;
+                    barText.innerHTML = checkedCount + ' selected on this page. <a href="#" id="selectAllPagesLink">Click here</a> to select all ' +
+                        totalMatchingEvents + ' matching events across all pages.';
+                    const link = document.getElementById('selectAllPagesLink');
+                    if (link) {
+                        link.addEventListener('click', function(event) {
+                            event.preventDefault();
+                            allPagesSelected = true;
+                            selectableCheckboxes().forEach((checkbox) => {
+                                checkbox.checked = true;
+                            });
+                            syncSelectAllState();
+                        });
+                    }
+                };
+
+                const showBarAllSelected = () => {
+                    if (!bar || !barText) {
+                        return;
+                    }
+                    bar.classList.remove('d-none');
+                    bar.classList.add('d-flex');
+                    if (clearBtn) {
+                        clearBtn.classList.remove('d-none');
+                    }
+                    barText.innerHTML = '<i class="ri-check-double-line me-1"></i><strong>All ' +
+                        totalMatchingEvents + '</strong> matching events are selected (across all pages).';
+                };
+
+                const clearAllSelection = () => {
+                    allPagesSelected = false;
+                    eventCheckboxes.forEach((checkbox) => {
+                        checkbox.checked = false;
+                    });
+                    selectAll.checked = false;
+                    selectAll.indeterminate = false;
+                    hideBar();
+                    syncSelectAllState();
+                };
+
+                if (clearBtn) {
+                    clearBtn.addEventListener('click', clearAllSelection);
+                }
+
+                var syncSelectAllState = () => {
                     const selectable = selectableCheckboxes();
                     const checkedCount = selectable.filter((checkbox) => checkbox.checked).length;
-                    selectAll.checked = selectable.length > 0 && checkedCount === selectable.length;
+                    selectAll.checked = !allPagesSelected && selectable.length > 0 && checkedCount === selectable.length;
                     selectAll.indeterminate = checkedCount > 0 && checkedCount < selectable.length;
                     selectAll.disabled = selectable.length === 0;
                     if (bulkTransferBtn) {
-                        bulkTransferBtn.disabled = checkedCount === 0;
+                        // Any manual selection (including duplicate-named rows) enables the button.
+                        const anyChecked = eventCheckboxes.some((checkbox) => checkbox.checked);
+                        bulkTransferBtn.disabled = !allPagesSelected && !anyChecked;
                     }
                 };
 
                 selectAll.addEventListener('change', function() {
+                    allPagesSelected = false;
                     selectableCheckboxes().forEach((checkbox) => {
                         checkbox.checked = selectAll.checked;
                     });
+                    if (selectAll.checked && hasMorePages) {
+                        showBarPrompt();
+                    } else {
+                        hideBar();
+                    }
                     syncSelectAllState();
                 });
 
                 eventCheckboxes.forEach((checkbox) => {
-                    checkbox.addEventListener('change', syncSelectAllState);
+                    checkbox.addEventListener('change', function() {
+                        if (!checkbox.checked) {
+                            allPagesSelected = false;
+                            hideBar();
+                        }
+                        syncSelectAllState();
+                    });
                 });
 
                 syncSelectAllState();
@@ -458,32 +559,60 @@
                         .filter((checkbox) => checkbox.checked)
                         .map((checkbox) => checkbox.value);
 
-                    if (selectedBulkTransferIds.length === 0) {
+                    if (selectedBulkTransferIds.length === 0 && !allPagesSelected) {
                         return;
                     }
 
                     if (bulkTransferCount) {
-                        bulkTransferCount.textContent = selectedBulkTransferIds.length;
+                        bulkTransferCount.textContent = allPagesSelected
+                            ? totalMatchingEvents
+                            : selectedBulkTransferIds.length;
                     }
 
                     bulkTransferConfirmModal.show();
                 });
 
                 confirmBulkTransferBtn.addEventListener('click', function() {
-                    if (selectedBulkTransferIds.length === 0) {
-                        return;
-                    }
-
                     confirmBulkTransferBtn.disabled = true;
-                    bulkTransferForm.querySelectorAll('input[name="event_ids[]"]').forEach((input) => input
-                        .remove());
-                    selectedBulkTransferIds.forEach((id) => {
-                        const input = document.createElement('input');
-                        input.type = 'hidden';
-                        input.name = 'event_ids[]';
-                        input.value = id;
-                        bulkTransferForm.appendChild(input);
-                    });
+
+                    // Reset previous payload.
+                    bulkTransferForm.querySelectorAll('input[name="event_ids[]"], input[name="select_all"], input[data-list-filter]')
+                        .forEach((input) => input.remove());
+
+                    if (allPagesSelected) {
+                        const allInput = document.createElement('input');
+                        allInput.type = 'hidden';
+                        allInput.name = 'select_all';
+                        allInput.value = '1';
+                        bulkTransferForm.appendChild(allInput);
+
+                        // Carry over the active list filters so the backend
+                        // targets exactly the rows shown across pages.
+                        ['search', 'contact', 'age_from', 'age_to', 'date_from', 'date_to', 'duplicate_names']
+                            .forEach((name) => {
+                                const value = new URLSearchParams(window.location.search).get(name);
+                                if (value !== null && value !== '') {
+                                    const input = document.createElement('input');
+                                    input.type = 'hidden';
+                                    input.name = name;
+                                    input.setAttribute('data-list-filter', '1');
+                                    input.value = value;
+                                    bulkTransferForm.appendChild(input);
+                                }
+                            });
+                    } else {
+                        if (selectedBulkTransferIds.length === 0) {
+                            confirmBulkTransferBtn.disabled = false;
+                            return;
+                        }
+                        selectedBulkTransferIds.forEach((id) => {
+                            const input = document.createElement('input');
+                            input.type = 'hidden';
+                            input.name = 'event_ids[]';
+                            input.value = id;
+                            bulkTransferForm.appendChild(input);
+                        });
+                    }
 
                     bulkTransferForm.submit();
                 });
