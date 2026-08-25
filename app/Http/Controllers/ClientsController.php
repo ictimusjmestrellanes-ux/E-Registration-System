@@ -119,8 +119,7 @@ class ClientsController extends Controller
                     $query->where('client_id', $client->client_id)
                         ->orWhere('transaction_id', 'LIKE', $client->client_id . '-%');
                 })
-                ->orderByDesc('transaction_date')
-                ->orderByDesc('transaction_id')
+                ->orderByDesc('id')
                 ->paginate($perPage)
                 ->withQueryString();
         } catch (\Exception $e) {
@@ -261,6 +260,9 @@ class ClientsController extends Controller
                 ];
             })
             ->filter()
+            // Alphabetical order (natural, case-insensitive) for provinces,
+            // cities/municipalities and barangays.
+            ->sortBy('name', SORT_NATURAL | SORT_FLAG_CASE)
             ->values()
             ->all();
     }

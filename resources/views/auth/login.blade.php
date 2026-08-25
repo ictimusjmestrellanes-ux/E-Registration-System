@@ -235,13 +235,13 @@
                 <div class="brand-lockup">
                     {{-- <img src="{{ asset('assets/images/logo-dark.png') }}" alt="PESO logo"> --}}
                     <div class="brand-copy">
-                        E-REGISTRATION SYSTEM
+                        E-REGISTRATION MANAGEMENT SYSTEM
                     </div>
                 </div>
 
                 <h1 class="hero-title">Monitor clients in real time.</h1>
                 <p class="hero-copy">
-                    The E-Registration System streamlines client registration and
+                    The E-Registration Management System streamlines client registration and
                     monitoring for the City Government of Imus — faster, simpler, and
                     more reliable than ever.
                 </p>
