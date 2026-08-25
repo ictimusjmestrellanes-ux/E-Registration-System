@@ -11,22 +11,62 @@
             position: relative;
             z-index: 6;
         }
+
+        .sidebar-brand-content {
+            display: inline-flex;
+            align-items: center;
+            gap: .5rem;
+            max-width: 100%;
+            vertical-align: middle;
+        }
+
+        .sidebar-brand-name {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            line-height: 1.1;
+        }
+
+        .sidebar-brand-name > span {
+            white-space: nowrap;
+        }
+
+        .sidebar-brand-logo {
+            width: auto;
+            height: 40px;
+        }
     </style>
     <div class="app-menu navbar-menu">
         <!-- LOGO -->
         <div class="navbar-brand-box">
             <!-- Dark Logo-->
             <a href="{{ route('dashboard') }}" class="logo logo-dark">
-                <span class="logo-lg d-inline-flex align-items-center gap-2">
-                    <img src="{{ asset('assets/images/City-Logo.png') }}" alt="City Logo" style="height: 40px; width: auto;">
-                    <span class="fw-bold fs-5 text-white" style="white-space: nowrap;">E-Reg System</span>
+                <span class="logo-sm">
+                    <img src="{{ asset('assets/images/City-Logo.png') }}" class="sidebar-brand-logo" alt="City Logo">
+                </span>
+                <span class="logo-lg">
+                    <span class="sidebar-brand-content">
+                        <img src="{{ asset('assets/images/City-Logo.png') }}" class="sidebar-brand-logo" alt="City Logo">
+                        <span class="sidebar-brand-name fw-bold fs-5 text-white">
+                            <span>E-Registration</span>
+                            <span>System</span>
+                        </span>
+                    </span>
                 </span>
             </a>
             <!-- Light Logo-->
             <a href="{{ route('dashboard') }}" class="logo logo-light">
-                <span class="logo-lg d-inline-flex align-items-center gap-2">
-                    <img src="{{ asset('assets/images/City-Logo.png') }}" alt="City Logo" style="height: 40px; width: auto;">
-                    <span class="fw-bold fs-5 text-white" style="white-space: nowrap;">E-Reg System</span>
+                <span class="logo-sm">
+                    <img src="{{ asset('assets/images/City-Logo.png') }}" class="sidebar-brand-logo" alt="City Logo">
+                </span>
+                <span class="logo-lg">
+                    <span class="sidebar-brand-content">
+                        <img src="{{ asset('assets/images/City-Logo.png') }}" class="sidebar-brand-logo" alt="City Logo">
+                        <span class="sidebar-brand-name fw-bold fs-5 text-white">
+                            <span>E-Registration</span>
+                            <span>System</span>
+                        </span>
+                    </span>
                 </span>
             </a>
             <button type="button" class="btn btn-sm p-0 fs-20 header-item float-end btn-vertical-sm-hover"
