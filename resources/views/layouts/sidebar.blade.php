@@ -126,12 +126,12 @@
                     <li class="menu-title"><span data-key="t-menu">Clients</span></li>
 
                     <li class="nav-item">
-                        <a class="nav-link menu-link {{ set_active(['clients', 'client.list', 'archive.list']) }}" href="#sidebarClients"
+                        <a class="nav-link menu-link {{ set_active(['clients', 'clients/*', 'client-list', 'client-list/*', 'archive', 'archive/*']) }}" href="#sidebarClients"
                             data-bs-toggle="collapse" role="button"
-                            aria-expanded="{{ set_expanded(['clients', 'client.list', 'archive.list']) }}" aria-controls="sidebarClients">
+                            aria-expanded="{{ set_expanded(['clients', 'clients/*', 'client-list', 'client-list/*', 'archive', 'archive/*']) }}" aria-controls="sidebarClients">
                             <i class="ri-group-line"></i> <span data-key="t-clients">Clients</span>
                         </a>
-                        <div class="collapse menu-dropdown {{ set_show(['clients', 'client.list', 'archive.list']) }}"
+                        <div class="collapse menu-dropdown {{ set_show(['clients', 'clients/*', 'client-list', 'client-list/*', 'archive', 'archive/*']) }}"
                             id="sidebarClients">
                             <ul class="nav nav-sm flex-column">
                                 @if ($showCreateClient)
@@ -143,15 +143,15 @@
                                 @if ($showClientList)
                                 <li class="nav-item">
                                     <a href="{{ route('client.list') }}"
-                                        class="nav-link {{ set_active(['client.list']) }}"
-                                        data-key="t-client-list">Client List</a>
+                                        class="nav-link {{ set_active(['client-list', 'client-list/*', 'clients/*']) }}"
+                                        data-key="t-client-list">Clients Management</a>
                                 </li>
                                 @endif
                                 @if ($showArchiveList)
                                 <li class="nav-item">
                                     <a href="{{ route('archive.list') }}"
-                                        class="nav-link {{ set_active(['archive.list']) }}"
-                                        data-key="t-archive-list">Archive</a>
+                                        class="nav-link {{ set_active(['archive', 'archive/*']) }}"
+                                        data-key="t-archive-list">Archive Clients</a>
                                 </li>
                                 @endif
                             </ul>
@@ -169,31 +169,40 @@
 
                     @if ($showEventsSection)
                     <li class="menu-title"><span data-key="t-menu">Events</span></li>
-                    @endif
-                    @if ($showEvents)
                     <li class="nav-item">
-                        <a class="nav-link menu-link {{ set_active(['transaction-events']) }}"
-                            href="{{ route('transaction-events.index') }}">
+                        <a class="nav-link menu-link {{ set_active(['transaction-events', 'transaction-events/*']) }}"
+                            href="#sidebarEvents" data-bs-toggle="collapse" role="button"
+                            aria-expanded="{{ set_expanded(['transaction-events', 'transaction-events/*']) }}"
+                            aria-controls="sidebarEvents">
                             <i class="ri-calendar-event-line"></i> <span>Events</span>
                         </a>
-                    </li>
-                    @endif
+                        <div class="collapse menu-dropdown {{ set_show(['transaction-events', 'transaction-events/*']) }}"
+                            id="sidebarEvents">
+                            <ul class="nav nav-sm flex-column">
+                                @if ($showEvents)
+                                <li class="nav-item">
+                                    <a href="{{ route('transaction-events.index') }}"
+                                        class="nav-link {{ set_active(['transaction-events', 'transaction-events/duplicate-review', 'transaction-events/removed-duplicates']) }}">Events Management</a>
+                                </li>
+                                @endif
 
-                    @if ($showEventRecords)
-                    <li class="nav-item">
-                        <a class="nav-link menu-link {{ set_active(['transaction-events/records']) }}"
-                            href="{{ route('transaction-events.records') }}">
-                            <i class="ri-file-list-3-line"></i> <span data-key="t-events-records">Events Records</span>
-                        </a>
-                    </li>
-                    @endif
+                                @if ($showEventRecords)
+                                <li class="nav-item">
+                                    <a href="{{ route('transaction-events.records') }}"
+                                        class="nav-link {{ set_active(['transaction-events/records']) }}"
+                                        data-key="t-events-records">Events Records</a>
+                                </li>
+                                @endif
 
-                    @if ($showArchiveFiles)
-                    <li class="nav-item">
-                        <a class="nav-link menu-link {{ set_active(['transaction-events/archives']) }}"
-                            href="{{ route('transaction-events.archives') }}">
-                            <i class="ri-archive-2-line"></i> <span data-key="t-archive-files">View Archive Files</span>
-                        </a>
+                                @if ($showArchiveFiles)
+                                <li class="nav-item">
+                                    <a href="{{ route('transaction-events.archives') }}"
+                                        class="nav-link {{ set_active(['transaction-events/archives', 'transaction-events/archives/*']) }}"
+                                        data-key="t-archive-files">View Archive Files</a>
+                                </li>
+                                @endif
+                            </ul>
+                        </div>
                     </li>
                     @endif
 
