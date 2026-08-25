@@ -156,7 +156,7 @@
                 </div>
 
                 <!-- Transaction Trend + Service Category Charts -->
-                <div class="row">
+                <div class="row mt-4">
                     <div class="col-lg-6">
                         <div class="card material-shadow h-100">
                             <div class="card-header">
