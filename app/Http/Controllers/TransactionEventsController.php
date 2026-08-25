@@ -1552,7 +1552,8 @@ class TransactionEventsController extends Controller
             'client_id' => $client->client_id,
             'client_category' => $event['client_category'] ?: $client->sector,
             'transaction_id' => $this->nextTransferredTransactionId($client->client_id),
-            'transaction_date' => now(),
+            // Use the CSV row's event date when provided.
+            'transaction_date' => $event['event_date'] ?? now(),
             'category' => TransactionHistory::normalizeCategory($event['transaction_category'] ?? ''),
             'type' => $event['transaction_type'] ?? '',
             'source' => 'E-Registration',

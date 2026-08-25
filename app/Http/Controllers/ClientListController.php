@@ -17,6 +17,11 @@ class ClientListController extends Controller
     {
         $matchedClientId = $request->query('matched_client');
 
+        $perPage = (int) $request->input('per_page', 10);
+        if (!in_array($perPage, [10, 15, 25, 50, 100], true)) {
+            $perPage = 10;
+        }
+
         $clients = Client::query()
             ->select([
                 'id', 'client_id', 'first_name', 'middle_name', 'last_name', 'suffix',
@@ -60,7 +65,7 @@ class ClientListController extends Controller
             ->when($matchedClientId, function ($query, $matchedClientId) {
                 $query->where('id', $matchedClientId);
             })
-            ->paginate(25)
+            ->paginate($perPage)
             ->withQueryString();
 
         $clientCities = Client::whereNotNull('city')->distinct()->orderBy('city')->pluck('city');

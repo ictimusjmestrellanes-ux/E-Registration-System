@@ -101,7 +101,7 @@
                             <i class="ri-time-line me-1"></i> Clock
                         </h6>
                         <div class="d-flex justify-content-center">
-                            <canvas id="analogClock" width="200" height="200" style="max-width: 100%;"></canvas>
+                            <canvas id="analogClock" width="250" height="250" style="max-width: 100%;"></canvas>
                         </div>
                         <div class="text-center mt-3">
                             <span id="digitalClockDisplay" class="fs-5 fw-semibold text-primary"></span>

@@ -47,9 +47,9 @@
                 <span class="logo-lg">
                     <span class="sidebar-brand-content">
                         <img src="{{ asset('assets/images/City-Logo.png') }}" class="sidebar-brand-logo" alt="City Logo">
-                        <span class="sidebar-brand-name fw-bold fs-5 text-white">
+                        <span class="sidebar-brand-name fw-bold fs-6 text-white">
                             <span>E-Registration</span>
-                            <span>System</span>
+                            <span>Management System</span>
                         </span>
                     </span>
                 </span>
@@ -62,9 +62,9 @@
                 <span class="logo-lg">
                     <span class="sidebar-brand-content">
                         <img src="{{ asset('assets/images/City-Logo.png') }}" class="sidebar-brand-logo" alt="City Logo">
-                        <span class="sidebar-brand-name fw-bold fs-5 text-white">
+                        <span class="sidebar-brand-name fw-bold fs-6 text-white">
                             <span>E-Registration</span>
-                            <span>System</span>
+                            <span>Management System</span>
                         </span>
                     </span>
                 </span>

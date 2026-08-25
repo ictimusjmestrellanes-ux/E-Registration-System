@@ -187,8 +187,18 @@
                                     </button>
                                     <a href="<?php echo e(route('client.list')); ?>" class="btn btn-soft-secondary"
                                         id="clientFiltersResetBtn">Reset</a>
+                                    <select class="form-select form-select-sm w-auto"
+                                        id="clientPerPageSelect"
+                                        aria-label="Clients per page" title="Clients per page">
+                                        <?php $__currentLoopData = [10, 15, 25, 50, 100]; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $size): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                            <option value="<?php echo e($size); ?>"
+                                                <?php echo e(request('per_page', 10) == $size ? 'selected' : ''); ?>>
+                                                <?php echo e($size); ?> / page
+                                            </option>
+                                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                                    </select>
                                     
-                                    <span class="badge rounded-pill px-3 py-2" id="clientFiltersCountBadge"><?php echo e($clients->total()); ?> clients</span>
+                                    
                                 </div>
                             </div>
 
@@ -355,7 +365,7 @@
                                                     <img src="<?php echo e($clientPhoto); ?>" alt="Client Photo"
                                                         onerror="this.onerror=null;this.src='<?php echo e($defaultClientPhoto); ?>';"
                                                         class="rounded-3 border object-fit-cover"
-                                                        style="width: 72px; height: 72px;">
+                                                        style="width: 50px; height: 50px;">
                                                 </button>
                                             </td>
                                             <td>
@@ -669,7 +679,7 @@
                 fingerprintScanAgainBtn || !clientKeywordInput || !clientSexFilter || !clientCivilStatusFilter || !
                 clientCityFilter || !clientBarangayFilter || !clientRecordTypeFilter || !
                 clientFiltersToggleBtn || !clientFiltersFormEl || !clientDateFrom || !clientDateTo || !
-                clientDateApplyBtn || !clientFiltersCountBadge || !clientSearchSummary || !clientSearchNoResultsRow
+                clientDateApplyBtn || !clientSearchSummary || !clientSearchNoResultsRow
             ) {
                 return;
             }
@@ -983,6 +993,14 @@
                 sessionStorage.setItem(VISIBILITY_KEY, '1');
                 clientFiltersFormEl.submit();
             };
+
+            // ----- Per page selector -----
+            document.getElementById('clientPerPageSelect')?.addEventListener('change', function() {
+                const url = new URL(window.location.href);
+                url.searchParams.set('per_page', this.value);
+                url.searchParams.delete('page');
+                window.location.href = url.toString();
+            });
 
             clientKeywordInput.addEventListener('input', function() {
                 clearTimeout(autoSearchDebounce);

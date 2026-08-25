@@ -191,11 +191,21 @@
                                     </button>
                                     <a href="{{ route('client.list') }}" class="btn btn-soft-secondary"
                                         id="clientFiltersResetBtn">Reset</a>
+                                    <select class="form-select form-select-sm w-auto"
+                                        id="clientPerPageSelect"
+                                        aria-label="Clients per page" title="Clients per page">
+                                        @foreach ([10, 15, 25, 50, 100] as $size)
+                                            <option value="{{ $size }}"
+                                                {{ request('per_page', 10) == $size ? 'selected' : '' }}>
+                                                {{ $size }} / page
+                                            </option>
+                                        @endforeach
+                                    </select>
                                     {{-- <a href="{{ route('client.list', array_merge(request()->except('page'), ['duplicate_names' => 1])) }}"
                                         class="btn btn-sm {{ request()->boolean('duplicate_names') ? 'btn-warning' : 'btn-outline-warning' }}" style="font-size: 13px; padding: 7px;">
                                         <i class="ri-file-copy-2-line"></i> Duplicate Names
                                     </a> --}}
-                                    <span class="badge rounded-pill px-3 py-2" id="clientFiltersCountBadge">{{ $clients->total() }} clients</span>
+                                    {{-- <span class="badge rounded-pill px-3 py-2" id="clientFiltersCountBadge">{{ $clients->total() }} clients</span> --}}
                                 </div>
                             </div>
 
@@ -361,7 +371,7 @@
                                                     <img src="{{ $clientPhoto }}" alt="Client Photo"
                                                         onerror="this.onerror=null;this.src='{{ $defaultClientPhoto }}';"
                                                         class="rounded-3 border object-fit-cover"
-                                                        style="width: 72px; height: 72px;">
+                                                        style="width: 50px; height: 50px;">
                                                 </button>
                                             </td>
                                             <td>
@@ -671,7 +681,7 @@
                 fingerprintScanAgainBtn || !clientKeywordInput || !clientSexFilter || !clientCivilStatusFilter || !
                 clientCityFilter || !clientBarangayFilter || !clientRecordTypeFilter || !
                 clientFiltersToggleBtn || !clientFiltersFormEl || !clientDateFrom || !clientDateTo || !
-                clientDateApplyBtn || !clientFiltersCountBadge || !clientSearchSummary || !clientSearchNoResultsRow
+                clientDateApplyBtn || !clientSearchSummary || !clientSearchNoResultsRow
             ) {
                 return;
             }
@@ -985,6 +995,14 @@
                 sessionStorage.setItem(VISIBILITY_KEY, '1');
                 clientFiltersFormEl.submit();
             };
+
+            // ----- Per page selector -----
+            document.getElementById('clientPerPageSelect')?.addEventListener('change', function() {
+                const url = new URL(window.location.href);
+                url.searchParams.set('per_page', this.value);
+                url.searchParams.delete('page');
+                window.location.href = url.toString();
+            });
 
             clientKeywordInput.addEventListener('input', function() {
                 clearTimeout(autoSearchDebounce);

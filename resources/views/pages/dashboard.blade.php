@@ -35,6 +35,12 @@
             '#e9b876',
             '#a8a29a',
         ];
+        $timeGreeting =
+            now()->hour >= 0 && now()->hour <= 11
+                ? 'Good Morning'
+                : (now()->hour >= 12 && now()->hour <= 17
+                    ? 'Good Afternoon'
+                    : 'Good Evening');
     @endphp
 
     <style>
@@ -59,7 +65,7 @@
                         <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
                             <div>
                                 <h4 class="mb-1">Dashboard</h4>
-                                <p class="text-muted mb-0">Welcome back, {{ auth()->user()?->name ?? 'User' }}.</p>
+                                <p class="text-muted mb-0">{{ $timeGreeting }}, {{ auth()->user()?->name ?? 'User' }}.</p>
                             </div>
                         </div>
                     </div>
@@ -196,7 +202,7 @@
                             <i class="ri-time-line me-1"></i> Clock
                         </h6>
                         <div class="d-flex justify-content-center">
-                            <canvas id="dashAnalogClock" width="200" height="200" style="max-width: 100%;"></canvas>
+                            <canvas id="dashAnalogClock" width="300" height="300" style="max-width: 100%;"></canvas>
                         </div>
                         <div class="text-center mt-3">
                             <span id="dashDigitalClock" class="fs-5 fw-semibold text-primary"></span>
