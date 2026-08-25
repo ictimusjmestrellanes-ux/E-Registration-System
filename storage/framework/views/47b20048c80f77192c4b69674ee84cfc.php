@@ -1,15 +1,61 @@
 <?php $__env->startSection('title', 'ERS | Transaction Events'); ?>
 
 <?php $__env->startSection('content'); ?>
+    <style>
+        #eventFiltersCard {
+            background: #ffffff;
+            border: 1px solid #e3e8ef;
+            box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
+        }
+
+        #eventFiltersCard .form-label,
+        #eventFiltersCard .small,
+        #eventFiltersCard .fw-bold,
+        #eventFiltersCard .fw-semibold {
+            color: #1f2937 !important;
+        }
+
+        #eventFiltersCard .input-group-text,
+        #eventFiltersCard .form-control,
+        #eventFiltersCard .form-select {
+            background-color: #f8fafc;
+            color: #111827;
+            border-color: #d5dbe3;
+        }
+
+        #eventFiltersCard .input-group-text {
+            color: #475569;
+        }
+
+        #eventFiltersCard .form-control::placeholder {
+            color: #94a3b8;
+        }
+
+        #eventFiltersCard .form-control:focus,
+        #eventFiltersCard .form-select:focus {
+            border-color: #4d63d6;
+            box-shadow: 0 0 0 0.2rem rgba(77, 99, 214, 0.14);
+        }
+
+        #eventFiltersCard .client-filters-toggle-btn {
+            transition: background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+        }
+
+        #eventFiltersCard .client-filters-toggle-btn:hover,
+        #eventFiltersCard .client-filters-toggle-btn:focus,
+        #eventFiltersCard .client-filters-toggle-btn:active {
+            background: #eef2ff;
+            color: #2f49c5;
+            border-color: #6276df;
+            box-shadow: 0 0 0 0.2rem rgba(77, 99, 214, 0.12);
+        }
+
+        #eventFiltersCard .btn-primary {
+            background: linear-gradient(135deg, #4d63d6, #5a73ff);
+            border-color: transparent;
+        }
+    </style>
     <div class="container-fluid">
-        <div class="row">
-            <div class="col-12">
-                <div class="mb-4">
-                    <h4 class="mb-1 fw-semibold">Events</h4>
-                    <p class="text-muted mb-0">Manage and import data events.</p>
-                </div>
-            </div>
-        </div>
 
         <?php if(session('success')): ?>
             <div class="alert alert-success alert-dismissible fade show" role="alert">
@@ -39,9 +85,13 @@
         <div class="row">
             <div class="col-12">
                 <div class="card">
-                    <div class="card-header d-flex align-items-center justify-content-between">
-                        <h5 class="card-title mb-0">Event List</h5>
-                        <div class="d-flex align-items-center gap-2">
+                    <div class="card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+                        <div class="mb-0">
+                            <h5 class="card-title mb-0">Event Management</h5>
+                            <p class="text-muted mb-0">Manage and import data events.</p>
+                        </div>
+
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
                             <a href="<?php echo e(route('transaction-events.duplicate-review')); ?>"
                                 class="btn btn-sm <?php echo e($totalDuplicateGroups ? 'btn-warning' : 'btn-outline-warning'); ?>">
                                 <i class="ri-file-copy-2-line me-1"></i> Duplicate Names
@@ -65,8 +115,7 @@
                                 <i class="ri-archive-line me-1"></i> View Archives
                             </a>
                             <?php if (! (auth()->user()?->role_name === 'Viewer')): ?>
-                                <a href="<?php echo e(route('transaction-events.template')); ?>"
-                                    class="btn btn-soft-primary btn-sm">
+                                <a href="<?php echo e(route('transaction-events.template')); ?>" class="btn btn-soft-primary btn-sm">
                                     <i class="ri-download-2-line me-1"></i> Excel Template
                                 </a>
                                 <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal"
@@ -78,53 +127,175 @@
                         </div>
                     </div>
                     <div class="card-body">
-                        <form method="GET" class="row g-2 mb-3">
-                            <div class="col-md-2">
-                                <input type="text" class="form-control form-control-sm" name="search"
-                                    placeholder="Search name..." value="<?php echo e(request('search')); ?>">
+                        <div class="border rounded-4 p-3 mb-3" id="eventFiltersCard">
+                            <div class="d-flex flex-wrap gap-3 align-items-start justify-content-between mb-2">
+                                <div>
+                                    <div class="fw-bold fs-5">Filter Events</div>
+                                    <div class="text-muted small">Narrow pending events by keyword, contact, age,
+                                        and created date range.</div>
+                                </div>
+                                <div class="d-flex flex-wrap gap-2 align-items-center">
+                                    <button type="button" class="btn btn-outline-primary client-filters-toggle-btn"
+                                        id="eventFiltersToggleBtn">
+                                        Show Filters <i class="ri-arrow-down-s-line ms-1"></i>
+                                    </button>
+                                    <?php if(request()->hasAny([
+                                            'search',
+                                            'contact',
+                                            'age_from',
+                                            'age_to',
+                                            'date_from',
+                                            'date_to',
+                                            'client_category',
+                                            'transaction_category',
+                                            'transaction_type',
+                                        ])): ?>
+                                        <a href="<?php echo e(route('transaction-events.index')); ?>"
+                                            class="btn btn-soft-secondary">Reset</a>
+                                    <?php endif; ?>
+                                    <select class="form-select form-select-sm w-auto"
+                                        onchange="(function (u) { u.searchParams.set('per_page', this.value); u.searchParams.delete('page'); window.location = u; }).call(this, new URL(window.location))"
+                                        aria-label="Records per page" title="Records per page">
+                                        <?php $__currentLoopData = [15, 25, 50, 100]; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $size): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                            <option value="<?php echo e($size); ?>"
+                                                <?php echo e(request('per_page', 15) == $size ? 'selected' : ''); ?>>
+                                                <?php echo e($size); ?> / page
+                                            </option>
+                                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                                    </select>
+                                    <button type="button" class="btn btn-soft-primary btn-sm text-nowrap"
+                                        data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false"
+                                        title="Manage Columns">
+                                        <i class="ri-layout-column-line me-1"></i> Manage Columns
+                                    </button>
+                                    <div class="dropdown-menu dropdown-menu-end p-3" style="min-width: 230px;">
+                                        <h6 class="dropdown-header px-0">Manage Columns</h6>
+                                        <?php $__currentLoopData = [
+                                                'full_name' => 'Full Name',
+                                                'age' => 'Age',
+                                                'birth_date' => 'Birth Date',
+                                                'contact_no' => 'Contact No.',
+                                                'address' => 'Address',
+                                                'client_category' => 'Client Category',
+                                                'transaction_category' => 'Transaction Category',
+                                                'transaction_type' => 'Transaction Type',
+                                                'event_date' => 'Event Date',
+                                                'created_at' => 'Imported',
+                                            ]; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $key => $label): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                            <div class="form-check">
+                                                <input class="form-check-input event-list-column-toggle" type="checkbox"
+                                                    id="evcol-<?php echo e($key); ?>" value="<?php echo e($key); ?>" checked>
+                                                <label class="form-check-label"
+                                                    for="evcol-<?php echo e($key); ?>"><?php echo e($label); ?></label>
+                                            </div>
+                                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                                        <hr class="dropdown-divider my-2">
+                                        <button type="button" class="dropdown-item text-warning p-1"
+                                            id="resetEventListColumnsBtn">
+                                            <i class="ri-arrow-go-back-line me-1"></i> Reset to Default
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
-                            <div class="col-md-2">
-                                <input type="text" class="form-control form-control-sm" name="contact"
-                                    placeholder="Search contact..." value="<?php echo e(request('contact')); ?>">
-                            </div>
-                            <div class="col-md-2">
-                                <input type="number" class="form-control form-control-sm" name="age_from"
-                                    placeholder="Age from" value="<?php echo e(request('age_from')); ?>">
-                            </div>
-                            <div class="col-md-2">
-                                <input type="number" class="form-control form-control-sm" name="age_to"
-                                    placeholder="Age to" value="<?php echo e(request('age_to')); ?>">
-                            </div>
-                            <div class="col-md-1">
-                                <input type="date" class="form-control form-control-sm" name="date_from"
-                                    value="<?php echo e(request('date_from')); ?>">
-                            </div>
-                            <div class="col-md-1">
-                                <input type="date" class="form-control form-control-sm" name="date_to"
-                                    value="<?php echo e(request('date_to')); ?>">
-                            </div>
-                            <div class="col-md-1">
-                                <select name="per_page" class="form-select form-select-sm"
-                                    onchange="this.form.submit()" aria-label="Records per page">
-                                    <?php $__currentLoopData = [15, 25, 50, 100]; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $size): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                        <option value="<?php echo e($size); ?>" <?php echo e(request('per_page', 15) == $size ? 'selected' : ''); ?>>
-                                            <?php echo e($size); ?> / page
-                                        </option>
-                                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
-                                </select>
-                            </div>
-                            <div class="col-md-1 d-flex gap-1">
-                                <button type="submit" class="btn btn-primary btn-sm flex-fill">
-                                    <i class="ri-search-line"></i>
-                                </button>
-                                <?php if(request()->hasAny(['search', 'contact', 'age_from', 'age_to', 'date_from', 'date_to', 'duplicate_names'])): ?>
-                                    <a href="<?php echo e(route('transaction-events.index')); ?>"
-                                        class="btn btn-light btn-sm flex-fill">
-                                        <i class="ri-close-line"></i>
-                                    </a>
-                                <?php endif; ?>
-                            </div>
-                        </form>
+
+                            <form method="GET" id="eventFiltersForm"
+                                class="<?php echo e(request()->hasAny(['search', 'contact', 'age_from', 'age_to', 'date_from', 'date_to', 'client_category', 'transaction_category', 'transaction_type']) ? '' : 'd-none'); ?>">
+                                <div class="row g-3">
+                                    <div class="col-12 col-xl-4">
+                                        <label for="eventKeywordInput"
+                                            class="form-label fw-semibold text-uppercase small">Keyword Search</label>
+                                        <div class="input-group">
+                                            <span class="input-group-text"><i class="ri-search-line"></i></span>
+                                            <input type="text" class="form-control" id="eventKeywordInput"
+                                                name="search" placeholder="Full name" value="<?php echo e(request('search')); ?>">
+                                        </div>
+                                    </div>
+                                    <div class="col-12 col-md-6 col-xl-2">
+                                        <label for="eventContactFilter"
+                                            class="form-label fw-semibold text-uppercase small">Contact</label>
+                                        <input type="text" class="form-control" id="eventContactFilter"
+                                            name="contact" placeholder="Contact no." value="<?php echo e(request('contact')); ?>">
+                                    </div>
+                                    <div class="col-6 col-md-6 col-xl-2">
+                                        <label for="eventAgeFrom" class="form-label fw-semibold text-uppercase small">Age
+                                            From</label>
+                                        <input type="number" min="0" max="120" class="form-control"
+                                            id="eventAgeFrom" name="age_from" placeholder="From"
+                                            value="<?php echo e(request('age_from')); ?>">
+                                    </div>
+                                    <div class="col-6 col-md-6 col-xl-2">
+                                        <label for="eventAgeTo" class="form-label fw-semibold text-uppercase small">Age
+                                            To</label>
+                                        <input type="number" min="0" max="120" class="form-control"
+                                            id="eventAgeTo" name="age_to" placeholder="To"
+                                            value="<?php echo e(request('age_to')); ?>">
+                                    </div>
+                                    <div class="col-12 col-md-6 col-xl-2">
+                                        <label for="eventDateFrom"
+                                            class="form-label fw-semibold text-uppercase small">Date From</label>
+                                        <input type="date" class="form-control" id="eventDateFrom" name="date_from"
+                                            value="<?php echo e(request('date_from')); ?>">
+                                    </div>
+                                </div>
+
+                                <div class="row g-3 mt-1 align-items-end">
+                                    <div class="col-12 col-md-6 col-xl-2">
+                                        <label for="eventDateTo" class="form-label fw-semibold text-uppercase small">Date
+                                            To</label>
+                                        <input type="date" class="form-control" id="eventDateTo" name="date_to"
+                                            value="<?php echo e(request('date_to')); ?>">
+                                    </div>
+                                    <div class="col-12 col-md-6 col-xl-2">
+                                        <label for="eventClientCategory"
+                                            class="form-label fw-semibold text-uppercase small">Client Category</label>
+                                        <select class="form-select" id="eventClientCategory" name="client_category">
+                                            <option value="">All client categories</option>
+                                            <?php $__currentLoopData = $clientCategories; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $clientCategory): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                                <option value="<?php echo e($clientCategory); ?>"
+                                                    <?php echo e(request('client_category') === $clientCategory ? 'selected' : ''); ?>>
+                                                    <?php echo e($clientCategory); ?></option>
+                                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                                        </select>
+                                    </div>
+                                    <div class="col-12 col-md-6 col-xl-2">
+                                        <label for="eventTransactionCategory"
+                                            class="form-label fw-semibold text-uppercase small">Transaction
+                                            Category</label>
+                                        <select class="form-select" id="eventTransactionCategory"
+                                            name="transaction_category">
+                                            <option value="">All categories</option>
+                                            <?php $__currentLoopData = $transactionCategories; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $txCategory): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                                <option value="<?php echo e($txCategory); ?>"
+                                                    <?php echo e(request('transaction_category') === $txCategory ? 'selected' : ''); ?>>
+                                                    <?php echo e($txCategory); ?></option>
+                                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                                        </select>
+                                    </div>
+                                    <div class="col-12 col-md-6 col-xl-2">
+                                        <label for="eventTransactionType"
+                                            class="form-label fw-semibold text-uppercase small">Transaction Type</label>
+                                        <select class="form-select" id="eventTransactionType" name="transaction_type">
+                                            <option value="">All types</option>
+                                            <?php $__currentLoopData = $transactionTypes; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $txType): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                                <option value="<?php echo e($txType); ?>"
+                                                    <?php echo e(request('transaction_type') === $txType ? 'selected' : ''); ?>>
+                                                    <?php echo e($txType); ?></option>
+                                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                                        </select>
+                                    </div>
+                                    <div class="col-12 col-xl-4 d-flex gap-2 justify-content-xl-end">
+                                        <button type="submit" class="btn btn-primary px-4">
+                                            <i class="ri-filter-3-fill me-1"></i> Apply Filters
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="small mt-3" id="eventSearchSummary">
+                                    <?php echo e(request()->hasAny(['search', 'contact', 'age_from', 'age_to', 'date_from', 'date_to', 'client_category', 'transaction_category', 'transaction_type']) ? 'Filtered events are shown below.' : 'Showing all pending events.'); ?>
+
+                                </div>
+                            </form>
+                        </div>
 
                         <?php if(request()->boolean('duplicate_names')): ?>
                             <div class="alert alert-warning py-2 mb-3">
@@ -142,7 +313,7 @@
                         </div>
 
                         <div class="table-responsive">
-                            <table class="table table-hover align-middle mb-0">
+                            <table class="table table-hover align-middle mb-0" id="eventListTable">
                                 <thead class="table-light">
                                     <tr>
                                         <th style="width: 120px;" class="text-center">
@@ -156,15 +327,16 @@
                                                 <?php endif; ?>
                                             </div>
                                         </th>
-                                        <th>Full Name</th>
-                                        <th>Age</th>
-                                        <th>Birth Date</th>
-                                        <th>Contact No.</th>
-                                        <th>Address</th>
-                                        <th>Client Category</th>
-                                        <th>Transaction Category</th>
-                                        <th>Transaction Type</th>
-                                        <th style="width: 100px;">Date</th>
+                                        <th data-column="full_name">Full Name</th>
+                                        <th data-column="age">Age</th>
+                                        <th data-column="birth_date">Birth Date</th>
+                                        <th data-column="contact_no">Contact No.</th>
+                                        <th data-column="address">Address</th>
+                                        <th data-column="client_category">Client Category</th>
+                                        <th data-column="transaction_category">Transaction Category</th>
+                                        <th data-column="transaction_type">Transaction Type</th>
+                                        <th data-column="event_date">Event Date</th>
+                                        <th style="width: 100px;" data-column="created_at">Imported</th>
                                         <th style="width: 100px; text-align: center;">Action</th>
                                     </tr>
                                 </thead>
@@ -184,15 +356,24 @@
                                                         <?php echo e(in_array($event->full_name, $duplicateFullNames, true) ? 'data-duplicate="1" title="Duplicate name - excluded from Select All"' : ''); ?>>
                                                 <?php endif; ?>
                                             </td>
-                                            <td class="fw-semibold"><?php echo e($event->full_name); ?></td>
-                                            <td><?php echo e($event->age ?? '-'); ?></td>
-                                            <td><?php echo e($event->birth_date ? $event->birth_date->format('M d, Y') : '-'); ?></td>
-                                            <td><?php echo e(str_replace('-', '', $event->contact_no)); ?></td>
-                                            <td><?php echo e($event->address ?? '-'); ?></td>
-                                            <td class="small"><?php echo e($event->client_category ?? '-'); ?></td>
-                                            <td class="small"><?php echo e($event->transaction_category ?? '-'); ?></td>
-                                            <td class="small"><?php echo e($event->transaction_type ?? '-'); ?></td>
-                                            <td class="small"><?php echo e($event->created_at?->format('M d, Y')); ?></td>
+                                            <td data-column="full_name" class="fw-semibold"><?php echo e($event->full_name); ?></td>
+                                            <td data-column="age"><?php echo e($event->age ?? '-'); ?></td>
+                                            <td data-column="birth_date">
+                                                <?php echo e($event->birth_date ? $event->birth_date->format('M d, Y') : '-'); ?></td>
+                                            <td data-column="contact_no"><?php echo e(str_replace('-', '', $event->contact_no)); ?>
+
+                                            </td>
+                                            <td data-column="address"><?php echo e($event->address ?? '-'); ?></td>
+                                            <td data-column="client_category" class="small">
+                                                <?php echo e($event->client_category ?? '-'); ?></td>
+                                            <td data-column="transaction_category" class="small">
+                                                <?php echo e($event->transaction_category ?? '-'); ?></td>
+                                            <td data-column="transaction_type" class="small">
+                                                <?php echo e($event->transaction_type ?? '-'); ?></td>
+                                            <td data-column="event_date" class="small">
+                                                <?php echo e(optional($event->event_date)->format('M d, Y') ?? '-'); ?></td>
+                                            <td data-column="created_at" class="small">
+                                                <?php echo e(optional($event->created_at)->format('M d, Y')); ?></td>
                                             <td class="text-center">
                                                 <?php if($isTransferred): ?>
                                                     <span class="badge bg-success-subtle text-success px-3 py-2">
@@ -219,7 +400,7 @@
                                         </tr>
                                     <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                                         <tr>
-                                            <td colspan="11" class="text-center text-muted py-5">
+                                            <td colspan="12" class="text-center text-muted py-5">
                                                 No transaction events found.
                                             </td>
                                         </tr>
@@ -312,7 +493,7 @@
                             <strong>CSV Format:</strong> The file should have the following columns (with header
                             row):<br>
                             <code>full_name, contact_no, address, age, birth_date, client_category, transaction_category,
-                                transaction_type</code><br>
+                                transaction_type, event_date</code><br>
                             <a href="<?php echo e(route('transaction-events.template')); ?>" class="alert-link mt-1 d-inline-block">
                                 <i class="ri-download-2-line me-1"></i>Download the Excel template
                             </a> to get started, then save as CSV.
@@ -361,6 +542,7 @@
                                             <th>Client Category</th>
                                             <th>Transaction Category</th>
                                             <th>Transaction Type</th>
+                                            <th>Event Date</th>
                                             <th>Contact No.</th>
                                             <th>Address</th>
                                         </tr>
@@ -399,8 +581,8 @@
         </div>
 
         <!-- Import Progress Modal (Step 3: Live progress bar) -->
-        <div class="modal fade" id="importProgressModal" tabindex="-1" aria-hidden="true"
-            data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal fade" id="importProgressModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static"
+            data-bs-keyboard="false">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content">
                     <div class="modal-header">
@@ -411,7 +593,8 @@
                     <div class="modal-body">
                         <div class="progress" style="height: 22px;">
                             <div id="importProgressBar" class="progress-bar progress-bar-striped progress-bar-animated"
-                                role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                                role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0"
+                                aria-valuemax="100"></div>
                         </div>
                         <div class="d-flex justify-content-between mt-2">
                             <span id="importProgressText" class="text-muted small">Preparing import...</span>
@@ -427,6 +610,81 @@
 <?php $__env->startPush('scripts'); ?>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            // ----- Filter Records card toggle (Client List style) -----
+            const eventFiltersToggleBtn = document.getElementById('eventFiltersToggleBtn');
+            const eventFiltersForm = document.getElementById('eventFiltersForm');
+
+            const setEventFiltersVisible = (visible) => {
+                if (!eventFiltersForm || !eventFiltersToggleBtn) return;
+                eventFiltersForm.classList.toggle('d-none', !visible);
+                eventFiltersToggleBtn.innerHTML = visible ?
+                    'Hide Filters <i class="ri-arrow-up-s-line ms-1"></i>' :
+                    'Show Filters <i class="ri-arrow-down-s-line ms-1"></i>';
+            };
+
+            eventFiltersToggleBtn?.addEventListener('click', function() {
+                setEventFiltersVisible(eventFiltersForm.classList.contains('d-none'));
+            });
+
+            <?php if(request()->hasAny([
+                    'search',
+                    'contact',
+                    'age_from',
+                    'age_to',
+                    'date_from',
+                    'date_to',
+                    'client_category',
+                    'transaction_category',
+                    'transaction_type',
+                ])): ?>
+                setEventFiltersVisible(true);
+            <?php endif; ?>
+
+            // ----- Event List: Manage Columns -----
+            const EV_COLUMNS_KEY = 'eventListHiddenColumns-<?php echo e(auth()->id()); ?>';
+            const evTable = document.getElementById('eventListTable');
+            const evToggles = Array.from(document.querySelectorAll('.event-list-column-toggle'));
+
+            const evGetHidden = () => {
+                try {
+                    return JSON.parse(localStorage.getItem(EV_COLUMNS_KEY)) || [];
+                } catch (e) {
+                    return [];
+                }
+            };
+            const evApply = () => {
+                if (!evTable) return;
+                const hidden = evGetHidden();
+                evTable.querySelectorAll('[data-column]').forEach((cell) => {
+                    cell.style.display = hidden.includes(cell.dataset.column) ? 'none' : '';
+                });
+            };
+            const evSyncToggles = () => {
+                const hidden = evGetHidden();
+                evToggles.forEach((t) => {
+                    t.checked = !hidden.includes(t.value);
+                });
+            };
+            evToggles.forEach((toggle) => {
+                toggle.addEventListener('change', function() {
+                    if (!toggle.checked && evToggles.every((t) => !t.checked)) {
+                        toggle.checked = true;
+                        return;
+                    }
+                    localStorage.setItem(EV_COLUMNS_KEY, JSON.stringify(evToggles.filter((t) => !t
+                        .checked).map(
+                        (t) => t.value)));
+                    evApply();
+                });
+            });
+            document.getElementById('resetEventListColumnsBtn')?.addEventListener('click', function() {
+                localStorage.removeItem(EV_COLUMNS_KEY);
+                evSyncToggles();
+                evApply();
+            });
+            evSyncToggles();
+            evApply();
+
             const selectAll = document.getElementById('selectAllTransactionEvents');
             const eventCheckboxes = Array.from(document.querySelectorAll('.transaction-event-checkbox'));
             const transferConfirmModalEl = document.getElementById('transferConfirmModal');
@@ -444,7 +702,8 @@
             let allPagesSelected = false;
 
             if (selectAll) {
-                const selectableCheckboxes = () => eventCheckboxes.filter((checkbox) => !checkbox.dataset.duplicate && !checkbox.disabled);
+                const selectableCheckboxes = () => eventCheckboxes.filter((checkbox) => !checkbox.dataset
+                    .duplicate && !checkbox.disabled);
 
                 const hasMorePages = <?php echo json_encode($events->lastPage() > 1, 15, 512) ?>;
 
@@ -469,7 +728,8 @@
                         clearBtn.classList.add('d-none');
                     }
                     const checkedCount = selectableCheckboxes().filter((checkbox) => checkbox.checked).length;
-                    barText.innerHTML = checkedCount + ' selected on this page. <a href="#" id="selectAllPagesLink">Click here</a> to select all ' +
+                    barText.innerHTML = checkedCount +
+                        ' selected on this page. <a href="#" id="selectAllPagesLink">Click here</a> to select all ' +
                         totalMatchingEvents + ' matching events across all pages.';
                     const link = document.getElementById('selectAllPagesLink');
                     if (link) {
@@ -515,7 +775,8 @@
                 var syncSelectAllState = () => {
                     const selectable = selectableCheckboxes();
                     const checkedCount = selectable.filter((checkbox) => checkbox.checked).length;
-                    selectAll.checked = !allPagesSelected && selectable.length > 0 && checkedCount === selectable.length;
+                    selectAll.checked = !allPagesSelected && selectable.length > 0 && checkedCount ===
+                        selectable.length;
                     selectAll.indeterminate = checkedCount > 0 && checkedCount < selectable.length;
                     selectAll.disabled = selectable.length === 0;
                     if (bulkTransferBtn) {
@@ -564,9 +825,9 @@
                     }
 
                     if (bulkTransferCount) {
-                        bulkTransferCount.textContent = allPagesSelected
-                            ? totalMatchingEvents
-                            : selectedBulkTransferIds.length;
+                        bulkTransferCount.textContent = allPagesSelected ?
+                            totalMatchingEvents :
+                            selectedBulkTransferIds.length;
                     }
 
                     bulkTransferConfirmModal.show();
@@ -576,7 +837,8 @@
                     confirmBulkTransferBtn.disabled = true;
 
                     // Reset previous payload.
-                    bulkTransferForm.querySelectorAll('input[name="event_ids[]"], input[name="select_all"], input[data-list-filter]')
+                    bulkTransferForm.querySelectorAll(
+                            'input[name="event_ids[]"], input[name="select_all"], input[data-list-filter]')
                         .forEach((input) => input.remove());
 
                     if (allPagesSelected) {
@@ -588,18 +850,20 @@
 
                         // Carry over the active list filters so the backend
                         // targets exactly the rows shown across pages.
-                        ['search', 'contact', 'age_from', 'age_to', 'date_from', 'date_to', 'duplicate_names']
-                            .forEach((name) => {
-                                const value = new URLSearchParams(window.location.search).get(name);
-                                if (value !== null && value !== '') {
-                                    const input = document.createElement('input');
-                                    input.type = 'hidden';
-                                    input.name = name;
-                                    input.setAttribute('data-list-filter', '1');
-                                    input.value = value;
-                                    bulkTransferForm.appendChild(input);
-                                }
-                            });
+                        ['search', 'contact', 'age_from', 'age_to', 'date_from', 'date_to',
+                            'duplicate_names', 'client_category', 'transaction_category', 'transaction_type'
+                        ]
+                        .forEach((name) => {
+                            const value = new URLSearchParams(window.location.search).get(name);
+                            if (value !== null && value !== '') {
+                                const input = document.createElement('input');
+                                input.type = 'hidden';
+                                input.name = name;
+                                input.setAttribute('data-list-filter', '1');
+                                input.value = value;
+                                bulkTransferForm.appendChild(input);
+                            }
+                        });
                     } else {
                         if (selectedBulkTransferIds.length === 0) {
                             confirmBulkTransferBtn.disabled = false;
@@ -750,6 +1014,7 @@
                                 <td>${escapeHtml(row.client_category || '-')}</td>
                                 <td>${escapeHtml(row.transaction_category || '-')}</td>
                                 <td>${escapeHtml(row.transaction_type || '-')}</td>
+                                <td>${escapeHtml(row.event_date || '-')}</td>
                                 <td>${escapeHtml(row.contact_no || '-')}</td>
                                 <td>${escapeHtml(row.address || '-')}</td>
                             `;
@@ -757,7 +1022,7 @@
                         });
                     } else {
                         previewTableBody.innerHTML =
-                            '<tr><td colspan="9" class="text-center text-muted py-4">No valid rows found in the CSV file.</td></tr>';
+                            '<tr><td colspan="11" class="text-center text-muted py-4">No valid rows found in the CSV file.</td></tr>';
                     }
 
                     if (data.skipped_rows && data.skipped_rows.length > 0) {
@@ -792,7 +1057,8 @@
                 }
 
                 const file = csvFileHidden.files[0];
-                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute(
+                    'content') || '';
                 const apiHeaders = {
                     'X-CSRF-TOKEN': csrfToken,
                     'Accept': 'application/json',
@@ -828,11 +1094,12 @@
                     const prepareForm = new FormData();
                     prepareForm.append('csv_file', file);
 
-                    const prepareRes = await fetch('<?php echo e(route('transaction-events.import.prepare')); ?>', {
-                        method: 'POST',
-                        headers: apiHeaders,
-                        body: prepareForm,
-                    });
+                    const prepareRes = await fetch(
+                        '<?php echo e(route('transaction-events.import.prepare')); ?>', {
+                            method: 'POST',
+                            headers: apiHeaders,
+                            body: prepareForm,
+                        });
                     const prepareData = await prepareRes.json();
 
                     if (!prepareRes.ok || !prepareData.success) {
@@ -859,15 +1126,17 @@
                         chunkBody.append('offset', offset);
                         chunkBody.append('limit', CHUNK_SIZE);
 
-                        const chunkRes = await fetch('<?php echo e(route('transaction-events.import.process')); ?>', {
-                            method: 'POST',
-                            headers: apiHeaders,
-                            body: chunkBody,
-                        });
+                        const chunkRes = await fetch(
+                            '<?php echo e(route('transaction-events.import.process')); ?>', {
+                                method: 'POST',
+                                headers: apiHeaders,
+                                body: chunkBody,
+                            });
                         const chunkData = await chunkRes.json();
 
                         if (!chunkRes.ok || !chunkData.success) {
-                            throw new Error(chunkData.message || 'Import failed while processing rows.');
+                            throw new Error(chunkData.message ||
+                                'Import failed while processing rows.');
                         }
 
                         offset = chunkData.processed;
@@ -900,7 +1169,8 @@
                 } catch (error) {
                     progressModal.hide();
                     confirmBtn.disabled = false;
-                    new Message('imessage').show(error.message || 'Import failed.', 'fail', 'top-center');
+                    new Message('imessage').show(error.message || 'Import failed.', 'fail',
+                        'top-center');
                 }
             });
 

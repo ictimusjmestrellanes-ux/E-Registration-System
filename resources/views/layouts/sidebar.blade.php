@@ -52,8 +52,29 @@
                 <div id="two-column-menu"></div>
                 <ul class="navbar-nav" id="navbar-nav">
 
+                    @php
+                        // Resolve each module's visibility once.
+                        $showDashboard = feature_allowed_uri('dashboard');
+                        $showCreateClient = feature_allowed_uri('clients');
+                        $showClientList = feature_allowed_uri('client-list');
+                        $showArchiveList = feature_allowed_uri('archive');
+                        $showDuplicateReview = feature_allowed_uri('duplicate-review');
+                        $showEvents = feature_allowed_uri('transaction-events');
+                        $showEventRecords = feature_allowed_uri('transaction-events/records');
+                        $showArchiveFiles = feature_allowed_uri('transaction-events/archives');
+                        $canManage = !in_array(auth()->user()?->role_name, ['DSWD', 'Staff']);
+                        $showUserManagement = $canManage && feature_allowed_uri('users');
+                        $showActivityLogs = feature_allowed_uri('activity-logs');
+
+                        // A section title only renders when it has at least one visible item.
+                        $showMenuSection = $showDashboard;
+                        $showClientsSection = $showCreateClient || $showClientList || $showArchiveList || $showDuplicateReview;
+                        $showEventsSection = $showEvents || $showEventRecords || $showArchiveFiles;
+                        $showSettingsSection = $showUserManagement || $showActivityLogs;
+                    @endphp
+
+                    @if ($showMenuSection)
                     <li class="menu-title"><span data-key="t-menu">Menu</span></li>
-                    @if (feature_allowed_uri('dashboard'))
                     <li class="nav-item">
                         <a class="nav-link menu-link {{ set_active(['dashboard']) }}" href="{{ route('dashboard') }}">
                             <i class="ri-dashboard-2-line"></i> <span data-key="t-dashboard">Dashboard</span>
@@ -61,9 +82,9 @@
                     </li>
                     @endif
 
+                    @if ($showClientsSection)
                     <li class="menu-title"><span data-key="t-menu">Clients</span></li>
 
-                    @if (feature_allowed_uri('clients') || feature_allowed_uri('client-list') || feature_allowed_uri('archive'))
                     <li class="nav-item">
                         <a class="nav-link menu-link {{ set_active(['clients', 'client.list', 'archive.list']) }}" href="#sidebarClients"
                             data-bs-toggle="collapse" role="button"
@@ -73,20 +94,20 @@
                         <div class="collapse menu-dropdown {{ set_show(['clients', 'client.list', 'archive.list']) }}"
                             id="sidebarClients">
                             <ul class="nav nav-sm flex-column">
-                                @if (feature_allowed_uri('clients'))
+                                @if ($showCreateClient)
                                 <li class="nav-item">
                                     <a href="{{ route('clients') }}" class="nav-link {{ set_active(['clients']) }}"
                                         data-key="t-create-client">Create Client</a>
                                 </li>
                                 @endif
-                                @if (feature_allowed_uri('client-list'))
+                                @if ($showClientList)
                                 <li class="nav-item">
                                     <a href="{{ route('client.list') }}"
                                         class="nav-link {{ set_active(['client.list']) }}"
                                         data-key="t-client-list">Client List</a>
                                 </li>
                                 @endif
-                                @if (feature_allowed_uri('archive'))
+                                @if ($showArchiveList)
                                 <li class="nav-item">
                                     <a href="{{ route('archive.list') }}"
                                         class="nav-link {{ set_active(['archive.list']) }}"
@@ -97,7 +118,7 @@
                         </div>
                     </li>
                     @endif
-                    @if (feature_allowed_uri('duplicate-review'))
+                    @if ($showDuplicateReview)
                     <li class="nav-item">
                         <a class="nav-link menu-link {{ set_active(['duplicate.review']) }}"
                             href="{{ route('duplicate.review') }}">
@@ -106,8 +127,10 @@
                     </li>
                     @endif
 
+                    @if ($showEventsSection)
                     <li class="menu-title"><span data-key="t-menu">Events</span></li>
-                    @if (feature_allowed_uri('transaction-events'))
+                    @endif
+                    @if ($showEvents)
                     <li class="nav-item">
                         <a class="nav-link menu-link {{ set_active(['transaction-events']) }}"
                             href="{{ route('transaction-events.index') }}">
@@ -116,7 +139,7 @@
                     </li>
                     @endif
 
-                    @if (feature_allowed_uri('transaction-events/records'))
+                    @if ($showEventRecords)
                     <li class="nav-item">
                         <a class="nav-link menu-link {{ set_active(['transaction-events/records']) }}"
                             href="{{ route('transaction-events.records') }}">
@@ -125,7 +148,7 @@
                     </li>
                     @endif
 
-                    @if (feature_allowed_uri('transaction-events/archives'))
+                    @if ($showArchiveFiles)
                     <li class="nav-item">
                         <a class="nav-link menu-link {{ set_active(['transaction-events/archives']) }}"
                             href="{{ route('transaction-events.archives') }}">
@@ -134,8 +157,10 @@
                     </li>
                     @endif
 
+                    @if ($showSettingsSection)
                     <li class="menu-title"><span data-key="t-menu">Settings</span></li>
-                    @if(auth()->user()?->role_name !== 'DSWD' && auth()->user()?->role_name !== 'Staff' && feature_allowed_uri('users'))
+                    @endif
+                    @if ($showUserManagement)
                     <li class="nav-item">
                         <a class="nav-link menu-link {{ set_active(['users.index', 'roles.index', 'permissions.index']) }}" href="#sidebarSettings"
                             data-bs-toggle="collapse" role="button"
@@ -165,7 +190,7 @@
                     </li>
                     @endif
 
-                    @if (feature_allowed_uri('activity-logs'))
+                    @if ($showActivityLogs)
                     <li class="nav-item">
                         <a class="nav-link menu-link {{ set_active(['activity.logs']) }}"
                             href="{{ route('activity.logs') }}">

@@ -44,6 +44,15 @@ class TransactionEventsController extends Controller
 
         $events = $query->paginate($perPage)->withQueryString();
 
+        // Distinct values (from pending events) for the dropdown filters.
+        $pendingBase = TransactionEvent::whereNull('transferred_at')->where('not_duplicate', false);
+        $clientCategories = (clone $pendingBase)->select('client_category')->distinct()
+            ->pluck('client_category')->filter()->sort()->values();
+        $transactionCategories = (clone $pendingBase)->select('transaction_category')->distinct()
+            ->pluck('transaction_category')->filter()->sort()->values();
+        $transactionTypes = (clone $pendingBase)->select('transaction_type')->distinct()
+            ->pluck('transaction_type')->filter()->sort()->values();
+
         // Scope to the pending list so the duplicate-names filter count
         // matches what the filtered Event List can actually show.
         $totalDuplicateGroups = TransactionEvent::query()
@@ -56,7 +65,8 @@ class TransactionEventsController extends Controller
             ->havingRaw('COUNT(*) > 1')
             ->count();
 
-        return view('pages.transaction_events.transactionEvents', compact('events', 'totalDuplicateGroups', 'duplicateFullNames'));
+        return view('pages.transaction_events.transactionEvents',
+            compact('events', 'totalDuplicateGroups', 'duplicateFullNames', 'clientCategories', 'transactionCategories', 'transactionTypes'));
     }
 
     /**
@@ -88,6 +98,18 @@ class TransactionEventsController extends Controller
         if ($dateTo = $request->input('date_to')) {
             $query->whereDate('created_at', '<=', $dateTo);
         }
+
+        if ($clientCategory = $request->input('client_category')) {
+            $query->where('client_category', $clientCategory);
+        }
+
+        if ($txCategory = $request->input('transaction_category')) {
+            $query->where('transaction_category', $txCategory);
+        }
+
+        if ($txType = $request->input('transaction_type')) {
+            $query->where('transaction_type', $txType);
+        }
     }
 
     private function duplicateFullNamesList(): array
@@ -118,12 +140,49 @@ class TransactionEventsController extends Controller
             $query->where('full_name', 'like', "%{$search}%");
         }
 
+        if ($contact = $request->input('contact')) {
+            $query->where('contact_no', 'like', "%{$contact}%");
+        }
+
+        if ($ageFrom = $request->input('age_from')) {
+            $query->where('age', '>=', (int) $ageFrom);
+        }
+
+        if ($ageTo = $request->input('age_to')) {
+            $query->where('age', '<=', (int) $ageTo);
+        }
+
+        // Date range applies to when the record was transferred.
+        if ($from = $request->input('date_from')) {
+            $query->whereDate('transferred_at', '>=', $from);
+        }
+
+        if ($to = $request->input('date_to')) {
+            $query->whereDate('transferred_at', '<=', $to);
+        }
+
+        if ($category = $request->input('transaction_category')) {
+            $query->where('transaction_category', $category);
+        }
+
+        if ($type = $request->input('transaction_type')) {
+            $query->where('transaction_type', $type);
+        }
+
         $events = $query->with('transferredTransaction:id,transaction_id')
             ->orderByDesc('id')
             ->paginate(15)
             ->withQueryString();
 
-        return view('pages.transaction_events.eventRecords', compact('events'));
+        // Distinct values (from transferred records) for the dropdown filters.
+        $categories = TransactionEvent::whereNotNull('transferred_at')
+            ->select('transaction_category')->distinct()
+            ->pluck('transaction_category')->filter()->sort()->values();
+        $types = TransactionEvent::whereNotNull('transferred_at')
+            ->select('transaction_type')->distinct()
+            ->pluck('transaction_type')->filter()->sort()->values();
+
+        return view('pages.transaction_events.eventRecords', compact('events', 'categories', 'types'));
     }
 
     public function duplicateReview()
@@ -197,11 +256,14 @@ class TransactionEventsController extends Controller
 
     private function findEventExactDuplicates(): Collection
     {
+        // A true exact match needs a real birth date on both records.
+        // Pairs with missing birth dates belong to Likely Match instead.
         $keys = TransactionEvent::query()
-            ->selectRaw("CONCAT(LOWER(TRIM(full_name)), '|', COALESCE(birth_date,'')) as keyval")
+            ->selectRaw("CONCAT(LOWER(TRIM(full_name)), '|', birth_date) as keyval")
             ->whereNull('transferred_at')
             ->whereNotNull('full_name')
             ->where('full_name', '<>', '')
+            ->whereNotNull('birth_date')
             ->where('not_duplicate', false)
             ->groupBy('keyval')
             ->havingRaw('COUNT(*) > 1')
@@ -209,7 +271,7 @@ class TransactionEventsController extends Controller
             ->map(fn ($v) => (string) $v)
             ->toArray();
 
-        return $this->groupEventsByKey($keys, "CONCAT(LOWER(TRIM(full_name)), '|', COALESCE(birth_date,''))");
+        return $this->groupEventsByKey($keys, "CONCAT(LOWER(TRIM(full_name)), '|', birth_date)");
     }
 
     private function findEventLikelyDuplicates(): Collection
@@ -419,18 +481,20 @@ class TransactionEventsController extends Controller
             'address',
             'age',
             'birth_date',
+            'event_date',
             'client_category',
             'transaction_category',
             'transaction_type',
         ];
 
-        $widths = [28, 16, 35, 8, 14, 22, 24, 24];
+        $widths = [28, 16, 35, 8, 14, 14, 22, 24, 24];
         $exampleRow = [
             'Juan Dela Cruz',
             '09171234567',
             'Brgy. Poblacion, City Hall',
             '45',
             '1981-03-15',
+            now()->format('Y-m-d'),
             'INDIGENT',
             'CARAVAN',
             'FOOD ASSISTANCE',
@@ -800,7 +864,8 @@ class TransactionEventsController extends Controller
             'client_id' => $client->client_id,
             'client_category' => $clientCategory,
             'transaction_id' => $transactionId,
-            'transaction_date' => now(),
+            // Use the event's own event date when available.
+            'transaction_date' => $event->event_date ?? now(),
             'category' => TransactionHistory::normalizeCategory($event->transaction_category),
             'type' => $event->transaction_type,
             'source' => 'E-Registration',
@@ -996,7 +1061,8 @@ class TransactionEventsController extends Controller
                 'client_id' => $client->client_id,
                 'client_category' => $clientCategory,
                 'transaction_id' => $transactionId,
-                'transaction_date' => now(),
+                // Use the event's own event date when available.
+                'transaction_date' => $event->event_date ?? now(),
                 'category' => TransactionHistory::normalizeCategory($event->transaction_category),
                 'type' => $event->transaction_type,
                 'source' => 'E-Registration',
@@ -1222,6 +1288,16 @@ class TransactionEventsController extends Controller
             }
 
             $birthDate = $this->parseImportedDate($data['birth_date'] ?? $data['birthdate'] ?? null);
+            $eventDate = $this->parseImportedDate($data['event_date'] ?? $data['eventdate'] ?? null);
+            if (($data['event_date'] ?? $data['eventdate'] ?? '') !== '' && $eventDate === null) {
+                $skippedRows[] = [
+                    'line' => $lineNumber,
+                    'reason' => 'Invalid event_date value',
+                    'data' => $data,
+                ];
+
+                continue;
+            }
             $eventKey = $this->normalizeImportedEventKey($fullName, $birthDate);
 
             $eventKeyCounts[$eventKey] = ($eventKeyCounts[$eventKey] ?? 0) + 1;
@@ -1235,6 +1311,7 @@ class TransactionEventsController extends Controller
                 'client_category' => $data['client_category'] ?? '',
                 'transaction_category' => $data['transaction_category'] ?? '',
                 'transaction_type' => $data['transaction_type'] ?? '',
+                'event_date' => $eventDate,
                 'event_key' => $eventKey,
             ];
         }
@@ -1251,6 +1328,7 @@ class TransactionEventsController extends Controller
                 'client_category' => $tempRow['client_category'],
                 'transaction_category' => $tempRow['transaction_category'],
                 'transaction_type' => $tempRow['transaction_type'],
+                'event_date' => $tempRow['event_date'],
                 'duplicate' => $duplicate,
             ];
         }
@@ -1334,15 +1412,16 @@ class TransactionEventsController extends Controller
 
             $transaction = $this->createTransactionHistoryFromImportedEvent($client, $event);
             TransactionEvent::create([
-                'full_name' => $event['full_name'],
-                'contact_no' => $event['contact_no'] ?? '',
-                'address' => $event['address'] ?? '',
-                'age' => $event['age'] ?? null,
-                'birth_date' => $event['birth_date'] ?? null,
-                'client_category' => $event['client_category'] ?? '',
-                'transaction_category' => $event['transaction_category'] ?? '',
-                'transaction_type' => $event['transaction_type'] ?? '',
-                'transferred_at' => now(),
+                'full_name'                  => $event['full_name'],
+                'contact_no'                 => $event['contact_no'] ?? '',
+                'address'                    => $event['address'] ?? '',
+                'age'                        => $event['age'] ?? null,
+                'birth_date'                 => $event['birth_date'] ?? null,
+                'client_category'            => $event['client_category'] ?? '',
+                'transaction_category'       => $event['transaction_category'] ?? '',
+                'transaction_type'           => $event['transaction_type'] ?? '',
+                'event_date'                 => $event['event_date'] ?? null,
+                'transferred_at'             => now(),
                 'transferred_transaction_id' => $transaction->id,
             ]);
         }
@@ -1352,14 +1431,15 @@ class TransactionEventsController extends Controller
     {
         foreach ($events as $event) {
             TransactionEvent::create([
-                'full_name' => $event['full_name'],
-                'contact_no' => $event['contact_no'] ?? '',
-                'address' => $event['address'] ?? '',
-                'age' => $event['age'] ?? null,
-                'birth_date' => $event['birth_date'] ?? null,
-                'client_category' => $event['client_category'] ?? '',
+                'full_name'           => $event['full_name'],
+                'contact_no'          => $event['contact_no'] ?? '',
+                'address'             => $event['address'] ?? '',
+                'age'                 => $event['age'] ?? null,
+                'birth_date'          => $event['birth_date'] ?? null,
+                'client_category'     => $event['client_category'] ?? '',
                 'transaction_category' => $event['transaction_category'] ?? '',
-                'transaction_type' => $event['transaction_type'] ?? '',
+                'transaction_type'    => $event['transaction_type'] ?? '',
+                'event_date'          => $event['event_date'] ?? null,
             ]);
         }
     }
@@ -1494,6 +1574,7 @@ class TransactionEventsController extends Controller
                 'client_category' => $event->client_category,
                 'transaction_category' => $event->transaction_category,
                 'transaction_type' => $event->transaction_type,
+                'event_date' => $event->event_date?->format('Y-m-d'),
             ];
         }, $events);
 
@@ -1518,6 +1599,7 @@ class TransactionEventsController extends Controller
             'client_category',
             'transaction_category',
             'transaction_type',
+            'event_date',
         ];
 
         $stream = fopen('php://temp', 'r+');
@@ -1533,6 +1615,7 @@ class TransactionEventsController extends Controller
                 $event['client_category'],
                 $event['transaction_category'],
                 $event['transaction_type'],
+                $event['event_date'] ?? '',
             ]);
         }
 

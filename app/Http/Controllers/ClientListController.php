@@ -26,6 +26,19 @@ class ClientListController extends Controller
                 'education', 'course', 'sector', 'position_organization',
                 'photo_path', 'created_at',
             ])
+            // Server-side keyword search so results span every page.
+            ->when($request->filled('search'), function ($q) use ($request) {
+                $keyword = strtolower(trim($request->input('search')));
+                $q->where(function ($sub) use ($keyword) {
+                    $sub->whereRaw("LOWER(CONCAT_WS(' ', first_name, middle_name, last_name, suffix)) LIKE ?", ["%{$keyword}%"]);
+                });
+            })
+            ->when($request->filled('gender'), fn ($q) => $q->where('gender', $request->input('gender')))
+            ->when($request->filled('civil_status'), fn ($q) => $q->where('civil_status', $request->input('civil_status')))
+            ->when($request->filled('city'), fn ($q) => $q->where('city', $request->input('city')))
+            ->when($request->filled('barangay'), fn ($q) => $q->where('barangay', $request->input('barangay')))
+            ->when($request->filled('date_from'), fn ($q) => $q->whereDate('created_at', '>=', $request->input('date_from')))
+            ->when($request->filled('date_to'), fn ($q) => $q->whereDate('created_at', '<=', $request->input('date_to')))
             ->when($request->boolean('duplicate_names'), function ($q) {
                 // find duplicate keys using first+middle+last name + birth_date
                 $duplicates = Client::query()
@@ -47,7 +60,8 @@ class ClientListController extends Controller
             ->when($matchedClientId, function ($query, $matchedClientId) {
                 $query->where('id', $matchedClientId);
             })
-            ->paginate(25);
+            ->paginate(25)
+            ->withQueryString();
 
         $clientCities = Client::whereNotNull('city')->distinct()->orderBy('city')->pluck('city');
         $clientBarangays = Client::whereNotNull('barangay')->distinct()->orderBy('barangay')->pluck('barangay');

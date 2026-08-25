@@ -52,8 +52,29 @@
                 <div id="two-column-menu"></div>
                 <ul class="navbar-nav" id="navbar-nav">
 
+                    <?php
+                        // Resolve each module's visibility once.
+                        $showDashboard = feature_allowed_uri('dashboard');
+                        $showCreateClient = feature_allowed_uri('clients');
+                        $showClientList = feature_allowed_uri('client-list');
+                        $showArchiveList = feature_allowed_uri('archive');
+                        $showDuplicateReview = feature_allowed_uri('duplicate-review');
+                        $showEvents = feature_allowed_uri('transaction-events');
+                        $showEventRecords = feature_allowed_uri('transaction-events/records');
+                        $showArchiveFiles = feature_allowed_uri('transaction-events/archives');
+                        $canManage = !in_array(auth()->user()?->role_name, ['DSWD', 'Staff']);
+                        $showUserManagement = $canManage && feature_allowed_uri('users');
+                        $showActivityLogs = feature_allowed_uri('activity-logs');
+
+                        // A section title only renders when it has at least one visible item.
+                        $showMenuSection = $showDashboard;
+                        $showClientsSection = $showCreateClient || $showClientList || $showArchiveList || $showDuplicateReview;
+                        $showEventsSection = $showEvents || $showEventRecords || $showArchiveFiles;
+                        $showSettingsSection = $showUserManagement || $showActivityLogs;
+                    ?>
+
+                    <?php if($showMenuSection): ?>
                     <li class="menu-title"><span data-key="t-menu">Menu</span></li>
-                    <?php if(feature_allowed_uri('dashboard')): ?>
                     <li class="nav-item">
                         <a class="nav-link menu-link <?php echo e(set_active(['dashboard'])); ?>" href="<?php echo e(route('dashboard')); ?>">
                             <i class="ri-dashboard-2-line"></i> <span data-key="t-dashboard">Dashboard</span>
@@ -61,9 +82,9 @@
                     </li>
                     <?php endif; ?>
 
+                    <?php if($showClientsSection): ?>
                     <li class="menu-title"><span data-key="t-menu">Clients</span></li>
 
-                    <?php if(feature_allowed_uri('clients') || feature_allowed_uri('client-list') || feature_allowed_uri('archive')): ?>
                     <li class="nav-item">
                         <a class="nav-link menu-link <?php echo e(set_active(['clients', 'client.list', 'archive.list'])); ?>" href="#sidebarClients"
                             data-bs-toggle="collapse" role="button"
@@ -73,20 +94,20 @@
                         <div class="collapse menu-dropdown <?php echo e(set_show(['clients', 'client.list', 'archive.list'])); ?>"
                             id="sidebarClients">
                             <ul class="nav nav-sm flex-column">
-                                <?php if(feature_allowed_uri('clients')): ?>
+                                <?php if($showCreateClient): ?>
                                 <li class="nav-item">
                                     <a href="<?php echo e(route('clients')); ?>" class="nav-link <?php echo e(set_active(['clients'])); ?>"
                                         data-key="t-create-client">Create Client</a>
                                 </li>
                                 <?php endif; ?>
-                                <?php if(feature_allowed_uri('client-list')): ?>
+                                <?php if($showClientList): ?>
                                 <li class="nav-item">
                                     <a href="<?php echo e(route('client.list')); ?>"
                                         class="nav-link <?php echo e(set_active(['client.list'])); ?>"
                                         data-key="t-client-list">Client List</a>
                                 </li>
                                 <?php endif; ?>
-                                <?php if(feature_allowed_uri('archive')): ?>
+                                <?php if($showArchiveList): ?>
                                 <li class="nav-item">
                                     <a href="<?php echo e(route('archive.list')); ?>"
                                         class="nav-link <?php echo e(set_active(['archive.list'])); ?>"
@@ -97,7 +118,7 @@
                         </div>
                     </li>
                     <?php endif; ?>
-                    <?php if(feature_allowed_uri('duplicate-review')): ?>
+                    <?php if($showDuplicateReview): ?>
                     <li class="nav-item">
                         <a class="nav-link menu-link <?php echo e(set_active(['duplicate.review'])); ?>"
                             href="<?php echo e(route('duplicate.review')); ?>">
@@ -106,8 +127,10 @@
                     </li>
                     <?php endif; ?>
 
+                    <?php if($showEventsSection): ?>
                     <li class="menu-title"><span data-key="t-menu">Events</span></li>
-                    <?php if(feature_allowed_uri('transaction-events')): ?>
+                    <?php endif; ?>
+                    <?php if($showEvents): ?>
                     <li class="nav-item">
                         <a class="nav-link menu-link <?php echo e(set_active(['transaction-events'])); ?>"
                             href="<?php echo e(route('transaction-events.index')); ?>">
@@ -116,7 +139,7 @@
                     </li>
                     <?php endif; ?>
 
-                    <?php if(feature_allowed_uri('transaction-events/records')): ?>
+                    <?php if($showEventRecords): ?>
                     <li class="nav-item">
                         <a class="nav-link menu-link <?php echo e(set_active(['transaction-events/records'])); ?>"
                             href="<?php echo e(route('transaction-events.records')); ?>">
@@ -125,7 +148,7 @@
                     </li>
                     <?php endif; ?>
 
-                    <?php if(feature_allowed_uri('transaction-events/archives')): ?>
+                    <?php if($showArchiveFiles): ?>
                     <li class="nav-item">
                         <a class="nav-link menu-link <?php echo e(set_active(['transaction-events/archives'])); ?>"
                             href="<?php echo e(route('transaction-events.archives')); ?>">
@@ -134,8 +157,10 @@
                     </li>
                     <?php endif; ?>
 
+                    <?php if($showSettingsSection): ?>
                     <li class="menu-title"><span data-key="t-menu">Settings</span></li>
-                    <?php if(auth()->user()?->role_name !== 'DSWD' && auth()->user()?->role_name !== 'Staff' && feature_allowed_uri('users')): ?>
+                    <?php endif; ?>
+                    <?php if($showUserManagement): ?>
                     <li class="nav-item">
                         <a class="nav-link menu-link <?php echo e(set_active(['users.index', 'roles.index', 'permissions.index'])); ?>" href="#sidebarSettings"
                             data-bs-toggle="collapse" role="button"
@@ -165,7 +190,7 @@
                     </li>
                     <?php endif; ?>
 
-                    <?php if(feature_allowed_uri('activity-logs')): ?>
+                    <?php if($showActivityLogs): ?>
                     <li class="nav-item">
                         <a class="nav-link menu-link <?php echo e(set_active(['activity.logs'])); ?>"
                             href="<?php echo e(route('activity.logs')); ?>">

@@ -21,6 +21,7 @@ class TransactionEvent extends Model
         'client_category',
         'transaction_category',
         'transaction_type',
+        'event_date',
         'transferred_at',
         'transferred_transaction_id',
         'not_duplicate',
@@ -28,6 +29,7 @@ class TransactionEvent extends Model
 
     protected $casts = [
         'birth_date' => 'date',
+        'event_date' => 'date',
         'transferred_at' => 'datetime',
         'transferred_transaction_id' => 'integer',
         'age' => 'integer',
