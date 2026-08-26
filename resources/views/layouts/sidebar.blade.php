@@ -102,6 +102,7 @@
                         $showEvents = feature_allowed_uri('transaction-events');
                         $showEventRecords = feature_allowed_uri('transaction-events/records');
                         $showArchiveFiles = feature_allowed_uri('transaction-events/archives');
+                        $showEventsDuplicateReview = feature_allowed_uri('transaction-events/duplicate-review');
                         $canManage = !in_array(auth()->user()?->role_name, ['DSWD', 'Staff']);
                         $showUserManagement = $canManage && feature_allowed_uri('users');
                         $showActivityLogs = feature_allowed_uri('activity-logs');
@@ -109,7 +110,7 @@
                         // A section title only renders when it has at least one visible item.
                         $showMenuSection = $showDashboard;
                         $showClientsSection = $showCreateClient || $showClientList || $showArchiveList || $showDuplicateReview;
-                        $showEventsSection = $showEvents || $showEventRecords || $showArchiveFiles;
+                        $showEventsSection = $showEvents || $showEventRecords || $showArchiveFiles || $showEventsDuplicateReview;
                         $showSettingsSection = $showUserManagement || $showActivityLogs;
                     @endphp
 
@@ -128,10 +129,10 @@
                     <li class="nav-item">
                         <a class="nav-link menu-link {{ set_active(['clients', 'clients/*', 'client-list', 'client-list/*', 'archive', 'archive/*']) }}" href="#sidebarClients"
                             data-bs-toggle="collapse" role="button"
-                            aria-expanded="{{ set_expanded(['clients', 'clients/*', 'client-list', 'client-list/*', 'archive', 'archive/*']) }}" aria-controls="sidebarClients">
+                            aria-expanded="true" aria-controls="sidebarClients">
                             <i class="ri-group-line"></i> <span data-key="t-clients">Clients</span>
                         </a>
-                        <div class="collapse menu-dropdown {{ set_show(['clients', 'clients/*', 'client-list', 'client-list/*', 'archive', 'archive/*']) }}"
+                        <div class="collapse menu-dropdown show"
                             id="sidebarClients">
                             <ul class="nav nav-sm flex-column">
                                 @if ($showCreateClient)
@@ -154,16 +155,16 @@
                                         data-key="t-archive-list">Archive Clients</a>
                                 </li>
                                 @endif
+                                @if ($showDuplicateReview)
+                                <li class="nav-item">
+                                    <a href="{{ route('duplicate.review') }}"
+                                        class="nav-link {{ set_active(['duplicate-review']) }}">
+                                        Duplicate Clients Review
+                                    </a>
+                                </li>
+                                @endif
                             </ul>
                         </div>
-                    </li>
-                    @endif
-                    @if ($showDuplicateReview)
-                    <li class="nav-item">
-                        <a class="nav-link menu-link {{ set_active(['duplicate.review']) }}"
-                            href="{{ route('duplicate.review') }}">
-                            <i class="ri-file-copy-2-line"></i> <span data-key="t-duplicate-review">Duplicate Clients Review</span>
-                        </a>
                     </li>
                     @endif
 
@@ -172,17 +173,16 @@
                     <li class="nav-item">
                         <a class="nav-link menu-link {{ set_active(['transaction-events', 'transaction-events/*']) }}"
                             href="#sidebarEvents" data-bs-toggle="collapse" role="button"
-                            aria-expanded="{{ set_expanded(['transaction-events', 'transaction-events/*']) }}"
-                            aria-controls="sidebarEvents">
+                            aria-expanded="true" aria-controls="sidebarEvents">
                             <i class="ri-calendar-event-line"></i> <span>Events</span>
                         </a>
-                        <div class="collapse menu-dropdown {{ set_show(['transaction-events', 'transaction-events/*']) }}"
+                        <div class="collapse menu-dropdown show"
                             id="sidebarEvents">
                             <ul class="nav nav-sm flex-column">
                                 @if ($showEvents)
                                 <li class="nav-item">
                                     <a href="{{ route('transaction-events.index') }}"
-                                        class="nav-link {{ set_active(['transaction-events', 'transaction-events/duplicate-review', 'transaction-events/removed-duplicates']) }}">Events Management</a>
+                                        class="nav-link {{ set_active(['transaction-events']) }}">Events Management</a>
                                 </li>
                                 @endif
 
@@ -201,8 +201,18 @@
                                         data-key="t-archive-files">View Archive Files</a>
                                 </li>
                                 @endif
+
+                                @if ($showEventsDuplicateReview)
+                                <li class="nav-item">
+                                    <a href="{{ route('transaction-events.duplicate-review') }}"
+                                        class="nav-link {{ set_active(['transaction-events/duplicate-review']) }}">
+                                        Duplicate Events Review
+                                    </a>
+                                </li>
+                                @endif
                             </ul>
                         </div>
+
                     </li>
                     @endif
 
@@ -263,3 +273,20 @@
         </div>
         <div class="sidebar-background"></div>
     </div>
+
+@push('scripts')
+    <script>
+        // Keep Clients / Events (and other groups) open when another
+        // top-level menu is opened. The template JS normally closes all
+        // sibling menus on "show.bs.collapse"; intercept that per group.
+        document.addEventListener('DOMContentLoaded', function() {
+            ['sidebarClients', 'sidebarEvents', 'sidebarSettings'].forEach(function(id) {
+                var el = document.getElementById(id);
+                if (!el) return;
+                el.addEventListener('show.bs.collapse', function(e) {
+                    e.stopImmediatePropagation();
+                }, true);
+            });
+        });
+    </script>
+@endpush

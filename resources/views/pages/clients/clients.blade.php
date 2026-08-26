@@ -33,16 +33,17 @@
             }
         }
         $educationOptions = [
-            'ELEMENTARY GRADUATE',
             'ELEMENTARY LEVEL (IN SCHOOL)',
             'ELEMENTARY UNDERGRADUATE',
-            'HIGH SCHOOL GRADUATE',
+            'ELEMENTARY GRADUATE',
             'HIGH SCHOOL LEVEL (IN SCHOOL)',
             'HIGH SCHOOL UNDERGRADUATE',
-            'N/A',
+            'HIGH SCHOOL GRADUATE',
             'POST-GRADUATE STUDIES',
+            'COLLEGE GRADUATE',
             'SENIOR HS (IN SCHOOL)',
             'SENIOR HS GRADUATE',
+            'N/A',
         ];
         $sectorOptions = [
             'COMMON CITIZEN',
@@ -52,9 +53,9 @@
             'INDUSTRY / BUSINESS',
             'LGU',
             'NGOS',
-            'OTHERS',
             'PEACE AND ORDER',
             'PERSONS WITH DISABILITIES',
+            'OTHERS',
         ];
         if (!$editingClient && $selectedProvince === '') {
             $selectedProvince = 'CAVITE';
@@ -184,8 +185,7 @@
 
                                 <div class="col-12">
                                     <div class="border rounded-4 p-3 bg-light-subtle">
-                                        <div
-                                            class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+                                        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
                                             <div>
                                                 <h5 class="mb-1">Personal Information</h5>
                                                 <p class="text-muted mb-0 small">Basic identity and demographic details.
@@ -320,8 +320,7 @@
 
                                             <div class="col-lg-4">
                                                 <label for="province" class="form-label">Province</label>
-                                                <select class="form-select" id="province" name="province_select"
-                                                    >
+                                                <select class="form-select" id="province" name="province_select">
                                                     <option value="">Select province</option>
                                                 </select>
                                                 <input type="hidden" id="provinceHidden" name="province"
@@ -334,7 +333,7 @@
 
                                             <div class="col-lg-4">
                                                 <label for="city" class="form-label">City</label>
-                                                <select class="form-select" id="city" name="city_select" >
+                                                <select class="form-select" id="city" name="city_select">
                                                     <option value="">Select city</option>
                                                 </select>
                                                 <input type="hidden" id="cityHidden" name="city"
@@ -346,7 +345,7 @@
 
                                             <div class="col-lg-4">
                                                 <label for="barangay" class="form-label">Barangay</label>
-                                                <select class="form-select" id="barangay" name="barangay" >
+                                                <select class="form-select" id="barangay" name="barangay">
                                                     <option value="">Select barangay</option>
                                                 </select>
                                                 <input type="text" class="form-control d-none mt-2"
@@ -421,7 +420,7 @@
                                             </div>
 
                                             <div class="col-lg-3">
-                                                <label class="form-label">Sector</label>
+                                                <label for="sector" class="form-label">Sector</label>
                                                 @php
                                                     $selectedSectors = old(
                                                         'sectors',
@@ -435,7 +434,8 @@
                                                 @endphp
                                                 <div class="dropdown w-100" id="sectorDropdown"
                                                     data-bs-auto-close="outside">
-                                                    <button class="btn dropdown-toggle w-100 text-start d-flex align-items-center justify-content-between gap-2 sector-dropdown-btn form-select"
+                                                    <button
+                                                        class="btn dropdown-toggle w-100 text-start d-flex align-items-center justify-content-between gap-2 sector-dropdown-btn form-select"
                                                         type="button" id="sectorDropdownBtn" data-bs-toggle="dropdown"
                                                         aria-expanded="false">
                                                         <span class="text-truncate sector-dropdown-label text-muted"
@@ -478,7 +478,7 @@
                                 </div>
 
                                 <div class="col-12">
-                                    <div class="d-flex justify-content-end gap-2 mt-2">
+                                    <div class="d-flex justify-content-left gap-2 mt-2">
                                         <button type="submit"
                                             class="btn btn-primary">{{ $editingClient ? 'Update Client' : 'Save Client' }}</button>
                                     </div>
@@ -505,7 +505,8 @@
                         <div id="cameraUnsupportedMessage"
                             class="d-none d-flex flex-column justify-content-center align-items-center text-center text-muted h-100">
                             <div class="fw-semibold mb-2">Camera is unavailable.</div>
-                            <div id="cameraUnsupportedReason">Please allow camera permissions or use the Upload Photo button.</div>
+                            <div id="cameraUnsupportedReason">Please allow camera permissions or use the Upload Photo
+                                button.</div>
                         </div>
                     </div>
                     <p class="text-muted small mt-2 mb-0">Position the camera, then click Capture Photo.</p>
@@ -654,7 +655,8 @@
 
             if (!openCameraBtn || !capturePhotoBtn || !retakePhotoBtn || !cameraWrapper || !cameraView || !
                 cameraCanvas || !clientPhotoData || !birthDateInput || !ageInput || !preview || !form || !
-                contactInput || !contactError || !contact2Input || !contact2Error || !cameraModalEl || !clientPhotoFileInput || !provinceSelect || !citySelect || !barangaySelect || !
+                contactInput || !contactError || !contact2Input || !contact2Error || !cameraModalEl || !
+                clientPhotoFileInput || !provinceSelect || !citySelect || !barangaySelect || !
                 provinceHidden || !cityHidden || !
                 provinceManual || !cityManual || !barangayManual || !sameAsHomeAddress || !openFingerprintBtn || !
                 clearFingerprintBtn || !
@@ -1117,7 +1119,8 @@
 
             const startCamera = async () => {
                 if (!window.isSecureContext && window.location.hostname !== 'localhost') {
-                    showCameraError('Camera requires a secure connection. Open the site via HTTPS or localhost.');
+                    showCameraError(
+                        'Camera requires a secure connection. Open the site via HTTPS or localhost.');
                     return;
                 }
 
@@ -1143,7 +1146,8 @@
                         NotFoundError: 'No camera was found on this device.',
                         NotReadableError: 'The camera is already in use by another application.',
                     };
-                    showCameraError(reasons[error.name] || 'Camera error: ' + (error.message || error.name));
+                    showCameraError(reasons[error.name] || 'Camera error: ' + (error.message || error
+                        .name));
                 }
             };
 
