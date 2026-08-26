@@ -42,18 +42,50 @@ class Client extends Model
         $year = now()->format('y');
         $prefix = $year;
 
-        $latest = self::query()
-            ->where('client_id', 'like', "{$prefix}%")
-            ->orderBy('client_id', 'desc')
-            ->value('client_id');
+        // Consider live clients AND archived clients so an ID is never reused
+        // after a client is archived and later restored.
+        $latest = max(
+            (string) self::query()
+                ->where('client_id', 'like', "{$prefix}%")
+                ->orderBy('client_id', 'desc')
+                ->value('client_id'),
+            (string) \App\Models\ArchivedClient::query()
+                ->where('client_id', 'like', "{$prefix}%")
+                ->orderBy('client_id', 'desc')
+                ->value('client_id')
+        );
 
-        if ($latest) {
-            $num = (int) substr($latest, -5) + 1;
-        } else {
+        if ($latest === '') {
             $num = 1;
+        } else {
+            $num = (int) substr($latest, -5) + 1;
         }
 
         return $prefix . str_pad((string) $num, 5, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * Create a client with an auto-generated client_id, retrying with a fresh
+     * ID if a concurrent insert claims the same one first. An explicit
+     * client_id (archive restore) is honored on the first attempt.
+     */
+    public static function createWithGeneratedId(array $attributes): self
+    {
+        $preferredId = $attributes['client_id'] ?? null;
+
+        for ($attempt = 0; $attempt < 5; $attempt++) {
+            try {
+                $attributes['client_id'] = ($attempt === 0 && filled($preferredId))
+                    ? $preferredId
+                    : self::generateClientId();
+
+                return static::create($attributes);
+            } catch (\Illuminate\Database\UniqueConstraintViolationException) {
+                continue; // ID taken — fall through to a freshly generated one
+            }
+        }
+
+        throw new \RuntimeException('Unable to generate a unique client ID. Please try again.');
     }
 
     protected $casts = [

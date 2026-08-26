@@ -57,13 +57,25 @@
         }
     </style>
     @php
-        $activeRecordFilters = request()->hasAny(['search', 'contact', 'age_from', 'age_to', 'date_from', 'date_to', 'transaction_category', 'transaction_type']);
+        $activeRecordFilters = request()->hasAny([
+            'search',
+            'contact',
+            'age_from',
+            'age_to',
+            'date_from',
+            'date_to',
+            'transaction_category',
+            'transaction_type',
+        ]);
     @endphp
     <div class="container-fluid">
-        <div class="row">
-            <div class="col-12 mb-0">
-                <h4 class="mb-1 fw-semibold">Event - Records</h4>
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+            <div>
+                <h4 class="mb-1 fw-semibold">Event Records</h4>
                 <p class="text-muted mb-0">List of transaction events that have been transferred to records.</p>
+            </div>
+            <div class="d-flex flex-wrap align-items-center gap-2">
+                <span class="badge bg-primary-subtle text-primary px-4 py-2">{{ $events->total() }} total</span>
             </div>
         </div>
 
@@ -91,9 +103,10 @@
                                     <div class="fw-bold fs-5">Filter Records</div>
                                     <div class="text-muted small">Narrow transferred records by keyword, contact, age,
                                         and transferred date range.</div>
+
                                 </div>
                                 <div class="d-flex flex-wrap gap-2 align-items-center">
-                                    <button type="button" class="btn btn-outline-primary client-filters-toggle-btn"
+                                    <button type="button" class="btn btn-sm btn-outline-primary client-filters-toggle-btn"
                                         id="recordFiltersToggleBtn">
                                         Show Filters <i class="ri-arrow-down-s-line ms-1"></i>
                                     </button>
@@ -101,40 +114,57 @@
                                         <a href="{{ route('transaction-events.records') }}"
                                             class="btn btn-soft-secondary">Reset</a>
                                     @endif
+                                    <a href="{{ route('transaction-events.records-duplicates') }}"
+                                        class="btn btn-sm btn-outline-warning">
+                                        <i class="ri-file-copy-2-line me-1"></i> Duplicate Records
+                                    </a>
+
+                                    <select class="form-select form-select-sm w-auto" id="recordPerPageSelect"
+                                        aria-label="Records per page" title="Records per page">
+                                        @foreach ([10, 15, 25, 50, 100] as $size)
+                                            <option value="{{ $size }}"
+                                                {{ request('per_page', 15) == $size ? 'selected' : '' }}>
+                                                {{ $size }} / page
+                                            </option>
+                                        @endforeach
+                                    </select>
                                     <div class="dropdown">
                                         <button type="button" class="btn btn-soft-primary btn-sm text-nowrap"
-                                            data-bs-toggle="dropdown" data-bs-auto-close="outside"
+                                            id="recordColumnsBtn" data-bs-toggle="dropdown" data-bs-auto-close="outside"
                                             aria-expanded="false" title="Manage Columns">
                                             <i class="ri-layout-column-line me-1"></i> Manage Columns
                                         </button>
                                         <div class="dropdown-menu dropdown-menu-end p-3" style="min-width: 230px;">
                                             <h6 class="dropdown-header px-0">Manage Columns</h6>
-                                    @foreach ([
-                                        'id' => 'ID',
-                                        'transaction_id' => 'Transaction ID',
-                                        'full_name' => 'Full Name',
-                                        'age' => 'Age',
-                                        'birth_date' => 'Birth Date',
-                                        'contact' => 'Contact No.',
-                                        'address' => 'Address',
-                                        'client_category' => 'Category',
-                                        'transaction_category' => 'Transaction Category',
-                                        'transaction_type' => 'Transaction Type',
-                                        'event_date' => 'Event Date',
-                                        'transferred_at' => 'Transferred At',
-                                        'status' => 'Status',
-                                    ] as $key => $label)
+                                            @foreach ([
+            'id' => 'ID',
+            'transaction_id' => 'Transaction ID',
+            'full_name' => 'Full Name',
+            'age' => 'Age',
+            'birth_date' => 'Birth Date',
+            'contact' => 'Contact No.',
+            'address' => 'Address',
+            'client_category' => 'Category',
+            'transaction_category' => 'Transaction Category',
+            'transaction_type' => 'Transaction Type',
+            'event_date' => 'Event Date',
+            'transferred_at' => 'Transferred At',
+            'status' => 'Status',
+        ] as $key => $label)
                                                 <div class="form-check">
                                                     <input class="form-check-input column-toggle" type="checkbox"
                                                         id="col-{{ $key }}" value="{{ $key }}" checked>
-                                                    <label class="form-check-label" for="col-{{ $key }}">{{ $label }}</label>
+                                                    <label class="form-check-label"
+                                                        for="col-{{ $key }}">{{ $label }}</label>
                                                 </div>
                                             @endforeach
                                             <hr class="dropdown-divider my-2">
-                                            <button type="button" class="dropdown-item text-warning p-1"
-                                                id="resetColumnsBtn">
-                                                <i class="ri-arrow-go-back-line me-1"></i> Reset to Default
-                                            </button>
+                                            <div class="d-flex gap-2">
+                                                <button type="button" class="btn btn-sm btn-light flex-fill"
+                                                    id="resetColumnsBtn">Reset</button>
+                                                <button type="button" class="btn btn-primary btn-sm flex-fill"
+                                                    id="applyRecordColumnsBtn">Apply</button>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -161,14 +191,16 @@
                                     <div class="col-6 col-md-6 col-xl-2">
                                         <label for="recordAgeFrom" class="form-label fw-semibold text-uppercase small">Age
                                             From</label>
-                                        <input type="number" min="0" max="120" class="form-control" id="recordAgeFrom"
-                                            name="age_from" placeholder="From" value="{{ request('age_from') }}">
+                                        <input type="number" min="0" max="120" class="form-control"
+                                            id="recordAgeFrom" name="age_from" placeholder="From"
+                                            value="{{ request('age_from') }}">
                                     </div>
                                     <div class="col-6 col-md-6 col-xl-2">
                                         <label for="recordAgeTo" class="form-label fw-semibold text-uppercase small">Age
                                             To</label>
-                                        <input type="number" min="0" max="120" class="form-control" id="recordAgeTo"
-                                            name="age_to" placeholder="To" value="{{ request('age_to') }}">
+                                        <input type="number" min="0" max="120" class="form-control"
+                                            id="recordAgeTo" name="age_to" placeholder="To"
+                                            value="{{ request('age_to') }}">
                                     </div>
                                 </div>
 
@@ -226,7 +258,8 @@
 
                         <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
                             <span class="badge rounded-pill px-3 py-2" id="recordFiltersCountBadge">
-                                Showing {{ $events->firstItem() ?? 0 }}–{{ $events->lastItem() ?? 0 }} of {{ $events->total() }} record(s)
+                                Showing {{ $events->firstItem() ?? 0 }}–{{ $events->lastItem() ?? 0 }} of
+                                {{ $events->total() }} record(s)
                             </span>
                         </div>
 
@@ -256,17 +289,26 @@
                                     @forelse ($events as $event)
                                         <tr>
                                             <td data-column="id">{{ $event->id }}</td>
-                                            <td data-column="transaction_id" class="fw-semibold" style="width: 150px">{{ $event->transferredTransaction?->transaction_id ?? '-' }}</td>
+                                            <td data-column="transaction_id" class="fw-semibold" style="width: 150px">
+                                                {{ $event->transferredTransaction?->transaction_id ?? '-' }}</td>
                                             <td data-column="full_name" class="fw-semibold">{{ $event->full_name }}</td>
                                             <td data-column="age">{{ $event->age ?? '-' }}</td>
-                                            <td data-column="birth_date">{{ optional($event->birth_date)->format('M d, Y') ?? '-' }}</td>
-                                            <td data-column="contact">{{ str_replace('-', '', $event->contact_no ?? '') ?: '-' }}</td>
+                                            <td data-column="birth_date">
+                                                {{ optional($event->birth_date)->format('M d, Y') ?? '-' }}</td>
+                                            <td data-column="contact">
+                                                {{ str_replace('-', '', $event->contact_no ?? '') ?: '-' }}</td>
                                             <td data-column="address" class="small">{{ $event->address ?? '-' }}</td>
-                                            <td data-column="client_category" class="small">{{ $event->client_category ?? '-' }}</td>
-                                            <td data-column="transaction_category" class="small">{{ $event->transaction_category ?? '-' }}</td>
-                                            <td data-column="transaction_type" class="small">{{ $event->transaction_type ?? '-' }}</td>
-                                            <td data-column="event_date" class="small">{{ optional($event->event_date)->format('M d, Y') ?? '-' }}</td>
-                                            <td data-column="transferred_at">{{ optional($event->transferred_at)->timezone('Asia/Manila')->format('M d, Y H:i:s') }}</td>
+                                            <td data-column="client_category" class="small">
+                                                {{ $event->client_category ?? '-' }}</td>
+                                            <td data-column="transaction_category" class="small">
+                                                {{ $event->transaction_category ?? '-' }}</td>
+                                            <td data-column="transaction_type" class="small">
+                                                {{ $event->transaction_type ?? '-' }}</td>
+                                            <td data-column="event_date" class="small">
+                                                {{ optional($event->event_date)->format('M d, Y') ?? '-' }}</td>
+                                            <td data-column="transferred_at">
+                                                {{ optional($event->transferred_at)->timezone('Asia/Manila')->format('M d, Y H:i:s') }}
+                                            </td>
                                             <td data-column="status" class="text-center">
                                                 <span class="badge bg-success-subtle text-success px-3 py-2">
                                                     <i class="ri-check-line me-1"></i>Approved
@@ -274,8 +316,8 @@
                                             </td>
                                             @if (auth()->user()?->role_name !== 'Viewer')
                                                 <td class="text-center" style="width: 50px">
-                                                    <form action="{{ route('transaction-events.undo-transfer', $event) }}" method="POST"
-                                                        class="m-0">
+                                                    <form action="{{ route('transaction-events.undo-transfer', $event) }}"
+                                                        method="POST" class="m-0">
                                                         @csrf
                                                         <button type="submit" class="btn btn-sm btn-soft-warning"
                                                             onclick="return confirm('Undo this transfer? The created transaction record will be removed and this event will return to pending. The client record will remain.');">
@@ -287,7 +329,8 @@
                                         </tr>
                                     @empty
                                         <tr>
-                                            <td colspan="{{ auth()->user()?->role_name !== 'Viewer' ? 14 : 13 }}" class="text-center text-muted py-5">
+                                            <td colspan="{{ auth()->user()?->role_name !== 'Viewer' ? 14 : 13 }}"
+                                                class="text-center text-muted py-5">
                                                 <i class="ri-inbox-line fs-1 d-block mb-2"></i>
                                                 No transferred event records found.
                                             </td>
@@ -317,13 +360,21 @@
             const setFiltersVisible = (visible) => {
                 if (!filtersForm || !filtersToggleBtn) return;
                 filtersForm.classList.toggle('d-none', !visible);
-                filtersToggleBtn.innerHTML = visible
-                    ? 'Hide Filters <i class="ri-arrow-up-s-line ms-1"></i>'
-                    : 'Show Filters <i class="ri-arrow-down-s-line ms-1"></i>';
+                filtersToggleBtn.innerHTML = visible ?
+                    'Hide Filters <i class="ri-arrow-up-s-line ms-1"></i>' :
+                    'Show Filters <i class="ri-arrow-down-s-line ms-1"></i>';
             };
 
             filtersToggleBtn?.addEventListener('click', function() {
                 setFiltersVisible(filtersForm.classList.contains('d-none'));
+            });
+
+            // ----- Per page selector -----
+            document.getElementById('recordPerPageSelect')?.addEventListener('change', function() {
+                const url = new URL(window.location.href);
+                url.searchParams.set('per_page', this.value);
+                url.searchParams.delete('page');
+                window.location.href = url.toString();
             });
 
             // Auto-expand when filters are active.
@@ -359,16 +410,20 @@
                 });
             };
 
-            // apply instantly; prevent hiding every column
+            // selection is committed only on Apply; prevent hiding every column
             toggles.forEach((toggle) => {
                 toggle.addEventListener('change', function() {
                     if (!toggle.checked && toggles.every((t) => !t.checked)) {
                         toggle.checked = true;
-                        return;
                     }
-                    localStorage.setItem(STORAGE_KEY, JSON.stringify(toggles.filter((t) => !t.checked).map((t) => t.value)));
-                    applyColumns();
                 });
+            });
+
+            document.getElementById('applyRecordColumnsBtn')?.addEventListener('click', function() {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(toggles.filter((t) => !t.checked).map((
+                    t) => t.value)));
+                applyColumns();
+                bootstrap.Dropdown.getInstance(document.getElementById('recordColumnsBtn'))?.hide();
             });
 
             resetBtn?.addEventListener('click', function() {

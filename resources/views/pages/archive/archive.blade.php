@@ -11,7 +11,7 @@
                                 <h4 class="mb-1">Archived Clients</h4>
                                 <p class="text-muted mb-0">View clients that have been moved to the archive.</p>
                             </div>
-                            <a href="{{ route('client.list') }}" class="btn btn-primary">Back to Client List</a>
+                            <a href="{{ route('client.list') }}" class="btn btn-sm btn-primary">Back to Client List</a>
                         </div>
 
                         <div class="table-responsive">

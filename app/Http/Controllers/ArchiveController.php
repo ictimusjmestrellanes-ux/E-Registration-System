@@ -30,8 +30,8 @@ class ArchiveController extends Controller
                 ->with('error', 'Archived clients must have both a photo and fingerprint before they can be restored.');
         }
 
-        $client = Client::create([
-            'client_id' => $archivedClient->client_id ?? Client::generateClientId(),
+        $client = Client::createWithGeneratedId([
+            'client_id' => $archivedClient->client_id,
             'first_name' => $archivedClient->first_name,
             'middle_name' => $archivedClient->middle_name,
             'last_name' => $archivedClient->last_name,

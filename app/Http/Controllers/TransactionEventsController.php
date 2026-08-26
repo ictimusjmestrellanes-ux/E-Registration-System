@@ -169,9 +169,14 @@ class TransactionEventsController extends Controller
             $query->where('transaction_type', $type);
         }
 
+        $perPage = (int) $request->input('per_page', 10);
+        if (!in_array($perPage, [10, 15, 25, 50, 100], true)) {
+            $perPage = 10;
+        }
+
         $events = $query->with('transferredTransaction:id,transaction_id')
             ->orderByDesc('id')
-            ->paginate(15)
+            ->paginate($perPage)
             ->withQueryString();
 
         // Distinct values (from transferred records) for the dropdown filters.
@@ -183,6 +188,80 @@ class TransactionEventsController extends Controller
             ->pluck('transaction_type')->filter()->sort()->values();
 
         return view('pages.transaction_events.eventRecords', compact('events', 'categories', 'types'));
+    }
+
+    /**
+     * Duplicate review for transferred events (Events - Records).
+     */
+    public function recordsDuplicates()
+    {
+        if (!feature_allowed('Events Records Duplicates')) {
+            abort(403, 'You do not have permission to view Duplicate Events Records.');
+        }
+
+        $base = fn () => TransactionEvent::whereNotNull('transferred_at')
+            ->whereNotNull('full_name')
+            ->where('full_name', '<>', '');
+
+        // ----- Exact: same name + real birth date -----
+        $exactKeys = $base()
+            ->selectRaw("CONCAT(LOWER(TRIM(full_name)), '|', birth_date) as keyval")
+            ->whereNotNull('birth_date')
+            ->groupBy('keyval')
+            ->havingRaw('COUNT(*) > 1')
+            ->pluck('keyval');
+
+        $exactGroups = collect();
+        if ($exactKeys->isNotEmpty()) {
+            $exactGroups = $base()
+                ->whereIn(DB::raw("CONCAT(LOWER(TRIM(full_name)), '|', birth_date)"), $exactKeys)
+                ->with('transferredTransaction:id,transaction_id')
+                ->get()
+                ->groupBy(fn ($e) => strtolower(trim($e->full_name)) . '|' . optional($e->birth_date)->format('Y-m-d'))
+                ->filter(fn ($g) => $g->count() > 1)
+                ->map(fn ($items) => $this->eventGroupPayload($items))
+                ->values();
+        }
+
+        // ----- Likely: same name, missing or year-only birth dates -----
+        $likelyGroups = $base()
+            ->with('transferredTransaction:id,transaction_id')
+            ->get()
+            ->groupBy(fn ($e) => strtolower(trim($e->full_name)))
+            ->filter(function ($items) {
+                if ($items->count() < 2) {
+                    return false;
+                }
+                $dates = $items->pluck('birth_date')->filter()->map(fn ($d) => $d->format('Y-m-d'));
+                if ($dates->count() === $items->count() && $dates->unique()->count() === 1) {
+                    return false; // fully identical known dates belong to Exact
+                }
+                return true;
+            })
+            ->map(fn ($items) => $this->eventGroupPayload($items))
+            ->values();
+
+        // ----- Similar spelling: SOUNDEX of the full name -----
+        $similarKeys = $base()
+            ->selectRaw("SOUNDEX(LOWER(TRIM(full_name))) as keyval")
+            ->groupBy('keyval')
+            ->havingRaw('COUNT(*) > 1')
+            ->pluck('keyval');
+
+        $similarGroups = collect();
+        if ($similarKeys->isNotEmpty()) {
+            $similarGroups = $base()
+                ->whereIn(DB::raw('SOUNDEX(LOWER(TRIM(full_name)))'), $similarKeys)
+                ->with('transferredTransaction:id,transaction_id')
+                ->get()
+                ->groupBy(fn ($e) => (string) soundex(strtolower(trim($e->full_name))))
+                ->filter(fn ($g) => $g->count() > 1)
+                ->map(fn ($items) => $this->eventGroupPayload($items))
+                ->values();
+        }
+
+        return view('pages.transaction_events.recordsDuplicates',
+            compact('exactGroups', 'likelyGroups', 'similarGroups'));
     }
 
     public function duplicateReview()
@@ -473,9 +552,68 @@ class TransactionEventsController extends Controller
         ]);
     }
 
-    public function downloadTemplate()
+    /**
+     * Check how many rows of the uploaded CSV already exist in transaction
+     * history (same client + category/type + event date when provided).
+     */
+    public function importDuplicatesCheck(Request $request)
     {
-        $headers = [
+        $request->validate([
+            'csv_file' => 'required|file|mimes:csv,txt|max:5120',
+        ]);
+
+        $result = $this->parseCsv($request->file('csv_file'));
+
+        if (!empty($result['errors'])) {
+            return response()->json(['success' => false, 'message' => $result['errors'][0]], 422);
+        }
+
+        $duplicates = [];
+
+        foreach ($result['rows'] as $row) {
+            $nameParts = $this->splitFullName($row['full_name']);
+
+            if (empty($nameParts['first_name']) || empty($nameParts['last_name'])) {
+                continue;
+            }
+
+            $clientIds = Client::query()
+                ->whereRaw('LOWER(TRIM(first_name)) = ?', [strtolower(trim($nameParts['first_name']))])
+                ->whereRaw('LOWER(TRIM(last_name)) = ?', [strtolower(trim($nameParts['last_name']))])
+                ->pluck('client_id');
+
+            if ($clientIds->isEmpty()) {
+                continue;
+            }
+
+            $history = TransactionHistory::whereIn('client_id', $clientIds)
+                ->where('category', TransactionHistory::normalizeCategory($row['transaction_category'] ?? ''))
+                ->where('type', $row['transaction_type'] ?? '');
+
+            if (!empty($row['event_date'])) {
+                $history->whereDate('transaction_date', $row['event_date']);
+            }
+
+            if ($history->exists()) {
+                $duplicates[] = [
+                    'full_name' => $row['full_name'],
+                    'event_date' => $row['event_date'] ?? '',
+                    'transaction_category' => $row['transaction_category'] ?? '',
+                    'transaction_type' => $row['transaction_type'] ?? '',
+                ];
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'total_rows' => count($result['rows']),
+            'duplicates_count' => count($duplicates),
+            'duplicates' => $duplicates,
+        ]);
+    }
+
+    public function downloadTemplate()
+    {        $headers = [
             'full_name',
             'contact_no',
             'address',
@@ -1525,7 +1663,6 @@ class TransactionEventsController extends Controller
         $nameParts = $this->splitFullName($event['full_name']);
 
         $clientData = [
-            'client_id' => Client::generateClientId(),
             'first_name' => $nameParts['first_name'],
             'middle_name' => $nameParts['middle_name'],
             'last_name' => $nameParts['last_name'],
@@ -1543,7 +1680,7 @@ class TransactionEventsController extends Controller
             $clientData['sector'] = $event['client_category'];
         }
 
-        return Client::create($clientData);
+        return Client::createWithGeneratedId($clientData);
     }
 
     private function createTransactionHistoryFromImportedEvent(Client $client, array $event): TransactionHistory

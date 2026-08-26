@@ -101,6 +101,7 @@
                         $showDuplicateReview = feature_allowed_uri('duplicate-review');
                         $showEvents = feature_allowed_uri('transaction-events');
                         $showEventRecords = feature_allowed_uri('transaction-events/records');
+                        $showRecordsDuplicates = feature_allowed_uri('transaction-events/records/duplicates');
                         $showArchiveFiles = feature_allowed_uri('transaction-events/archives');
                         $showEventsDuplicateReview = feature_allowed_uri('transaction-events/duplicate-review');
                         $canManage = !in_array(auth()->user()?->role_name, ['DSWD', 'Staff']);
@@ -110,7 +111,7 @@
                         // A section title only renders when it has at least one visible item.
                         $showMenuSection = $showDashboard;
                         $showClientsSection = $showCreateClient || $showClientList || $showArchiveList || $showDuplicateReview;
-                        $showEventsSection = $showEvents || $showEventRecords || $showArchiveFiles || $showEventsDuplicateReview;
+                        $showEventsSection = $showEvents || $showEventRecords || $showArchiveFiles || $showEventsDuplicateReview || $showRecordsDuplicates;
                         $showSettingsSection = $showUserManagement || $showActivityLogs;
                     ?>
 
@@ -130,7 +131,7 @@
                         <a class="nav-link menu-link <?php echo e(set_active(['clients', 'clients/*', 'client-list', 'client-list/*', 'archive', 'archive/*'])); ?>" href="#sidebarClients"
                             data-bs-toggle="collapse" role="button"
                             aria-expanded="true" aria-controls="sidebarClients">
-                            <i class="ri-group-line"></i> <span data-key="t-clients">Clients</span>
+                            <i class="ri-group-line"></i> <span data-key="t-clients">Client Management</span>
                         </a>
                         <div class="collapse menu-dropdown show"
                             id="sidebarClients">
@@ -145,7 +146,7 @@
                                 <li class="nav-item">
                                     <a href="<?php echo e(route('client.list')); ?>"
                                         class="nav-link <?php echo e(set_active(['client-list', 'client-list/*', 'clients/*'])); ?>"
-                                        data-key="t-client-list">Clients Management</a>
+                                        data-key="t-client-list">Client List</a>
                                 </li>
                                 <?php endif; ?>
                                 <?php if($showArchiveList): ?>
@@ -174,7 +175,7 @@
                         <a class="nav-link menu-link <?php echo e(set_active(['transaction-events', 'transaction-events/*'])); ?>"
                             href="#sidebarEvents" data-bs-toggle="collapse" role="button"
                             aria-expanded="true" aria-controls="sidebarEvents">
-                            <i class="ri-calendar-event-line"></i> <span>Events</span>
+                            <i class="ri-calendar-event-line"></i> <span>Events Management</span>
                         </a>
                         <div class="collapse menu-dropdown show"
                             id="sidebarEvents">
@@ -182,37 +183,19 @@
                                 <?php if($showEvents): ?>
                                 <li class="nav-item">
                                     <a href="<?php echo e(route('transaction-events.index')); ?>"
-                                        class="nav-link <?php echo e(set_active(['transaction-events'])); ?>">Events Management</a>
+                                        class="nav-link <?php echo e(set_active(['transaction-events', 'transaction-events/duplicate-review', 'transaction-events/archives'])); ?>">Import Events</a>
                                 </li>
                                 <?php endif; ?>
 
                                 <?php if($showEventRecords): ?>
                                 <li class="nav-item">
                                     <a href="<?php echo e(route('transaction-events.records')); ?>"
-                                        class="nav-link <?php echo e(set_active(['transaction-events/records'])); ?>"
-                                        data-key="t-events-records">Events Records</a>
-                                </li>
-                                <?php endif; ?>
-
-                                <?php if($showArchiveFiles): ?>
-                                <li class="nav-item">
-                                    <a href="<?php echo e(route('transaction-events.archives')); ?>"
-                                        class="nav-link <?php echo e(set_active(['transaction-events/archives', 'transaction-events/archives/*'])); ?>"
-                                        data-key="t-archive-files">View Archive Files</a>
-                                </li>
-                                <?php endif; ?>
-
-                                <?php if($showEventsDuplicateReview): ?>
-                                <li class="nav-item">
-                                    <a href="<?php echo e(route('transaction-events.duplicate-review')); ?>"
-                                        class="nav-link <?php echo e(set_active(['transaction-events/duplicate-review'])); ?>">
-                                        Duplicate Events Review
-                                    </a>
+                                        class="nav-link <?php echo e(set_active(['transaction-events/records', 'transaction-events/records/duplicates'])); ?>"
+                                        data-key="t-events-records">Event Records</a>
                                 </li>
                                 <?php endif; ?>
                             </ul>
                         </div>
-
                     </li>
                     <?php endif; ?>
 

@@ -137,7 +137,7 @@
             <div class="col-12">
                 <div class="card">
                     <div class="card-body">
-                        <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-1">
+                        <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-3">
                             <div>
                                 <h4 class="mb-1">Client List</h4>
                                 <p class="text-muted mb-0">
@@ -146,12 +146,12 @@
                             </div>
                             <div class="d-flex flex-wrap gap-2">
                                 @if ($matchedClientId)
-                                    <a href="{{ route('client.list') }}" class="btn btn-soft-secondary">Show All Clients</a>
+                                    <a href="{{ route('client.list') }}" class="btn btn-sm btn-soft-secondary">Show All Clients</a>
                                 @endif
-                                <button type="button" class="btn btn-soft-primary" id="searchFingerprintBtn">Search by
+                                <button type="button" class="btn btn-sm btn-soft-primary" id="searchFingerprintBtn">Search by
                                     Fingerprint</button>
                                 @unless (auth()->user()?->role_name === 'Viewer')
-                                    <a href="{{ route('clients') }}" class="btn btn-primary">Add Client</a>
+                                    <a href="{{ route('clients') }}" class="btn btn-sm btn-primary">Add Client</a>
                                 @endunless
                             </div>
                         </div>
@@ -178,18 +178,18 @@
                         @endif --}}
 
                         <div class="border rounded-4 p-3 mb-3" id="clientFiltersCard">
-                            <div class="d-flex flex-wrap gap-3 align-items-start justify-content-between mb-3">
+                            <div class="d-flex flex-wrap gap-3 align-items-start justify-content-between mb-0">
                                 <div>
                                     <div class="fw-bold fs-5">Filter Clients</div>
                                     <div class="text-muted small">Narrow records by keyword, sex, civil status, location,
                                         and created date range. Search covers all pages.</div>
                                 </div>
                                 <div class="d-flex flex-wrap gap-2 align-items-center">
-                                    <button type="button" class="btn btn-outline-primary client-filters-toggle-btn"
+                                    <button type="button" class="btn btn-sm btn-outline-primary client-filters-toggle-btn"
                                         id="clientFiltersToggleBtn">
                                         Show Filters <i class="ri-arrow-down-s-line ms-1"></i>
                                     </button>
-                                    <a href="{{ route('client.list') }}" class="btn btn-soft-secondary"
+                                    <a href="{{ route('client.list') }}" class="btn btn-sm btn-soft-secondary"
                                         id="clientFiltersResetBtn">Reset</a>
                                     <select class="form-select form-select-sm w-auto"
                                         id="clientPerPageSelect"

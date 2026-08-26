@@ -80,9 +80,10 @@
                     <div class="card-body">
                         <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-4">
                             <div>
-                                <h4 class="mb-1">Clients</h4>
+                                <h4 class="mb-1">Client List</h4>
                                 <p class="text-muted mb-0">Add and manage client information here.</p>
                             </div>
+                            <a href="{{ route('client.list') }}" class="btn btn-sm btn-primary">Clients List</a>
                         </div>
 
                         @if ($errors->any())
@@ -480,7 +481,7 @@
                                 <div class="col-12">
                                     <div class="d-flex justify-content-left gap-2 mt-2">
                                         <button type="submit"
-                                            class="btn btn-primary">{{ $editingClient ? 'Update Client' : 'Save Client' }}</button>
+                                            class="btn btn-sm btn-primary">{{ $editingClient ? 'Update Client' : 'Save Client' }}</button>
                                     </div>
                                 </div>
                             </div>

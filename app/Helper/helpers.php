@@ -67,6 +67,7 @@ function feature_route_map(): array
         'Archive' => ['archive'],
         'Events' => ['transaction-events'],
         'Event Records' => ['transaction-events/records'],
+        'Events Records Duplicates' => ['transaction-events/records/duplicates'],
         'View Archive Files' => ['transaction-events/archives'],
         'Duplicate Clients Review' => ['duplicate-review'],
         'Events - Duplicate Review' => ['transaction-events/duplicate-review'],

@@ -67,8 +67,7 @@ class ClientsController extends Controller
             $fingerprintTemplate = $validated['fingerprint_template'] ?? null;
         }
 
-        $client = Client::create([
-            'client_id' => Client::generateClientId(),
+        $client = Client::createWithGeneratedId([
             'first_name' => $validated['first_name'],
             'middle_name' => $validated['middle_name'] ?? null,
             'last_name' => $validated['last_name'],

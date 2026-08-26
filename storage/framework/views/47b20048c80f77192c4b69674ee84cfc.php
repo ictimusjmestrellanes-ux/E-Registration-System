@@ -1,7 +1,6 @@
-@extends('layouts.master')
-@section('title', 'ERS | Transaction Events')
+<?php $__env->startSection('title', 'ERS | Transaction Events'); ?>
 
-@section('content')
+<?php $__env->startSection('content'); ?>
     <style>
         #eventFiltersCard {
             background: #ffffff;
@@ -58,28 +57,30 @@
     </style>
     <div class="container-fluid">
 
-        @if (session('success'))
+        <?php if(session('success')): ?>
             <div class="alert alert-success alert-dismissible fade show" role="alert">
-                {{ session('success') }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
-        @endif
+                <?php echo e(session('success')); ?>
 
-        @if (session('error'))
-            <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                {{ session('error') }}
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
-        @endif
+        <?php endif; ?>
 
-        @if ($errors->any())
+        <?php if(session('error')): ?>
             <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                @foreach ($errors->all() as $error)
-                    <div>{{ $error }}</div>
-                @endforeach
+                <?php echo e(session('error')); ?>
+
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
-        @endif
+        <?php endif; ?>
+
+        <?php if($errors->any()): ?>
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <?php $__currentLoopData = $errors->all(); $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $error): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                    <div><?php echo e($error); ?></div>
+                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        <?php endif; ?>
 
         <div class="row">
             <div class="col-12">
@@ -91,38 +92,38 @@
                         </div>
 
                         <div class="d-flex align-items-center gap-2 flex-wrap">
-                            <a href="{{ route('transaction-events.duplicate-review') }}"
-                                class="btn btn-sm {{ $totalDuplicateGroups ? 'btn-warning' : 'btn-outline-warning' }}">
+                            <a href="<?php echo e(route('transaction-events.duplicate-review')); ?>"
+                                class="btn btn-sm <?php echo e($totalDuplicateGroups ? 'btn-warning' : 'btn-outline-warning'); ?>">
                                 <i class="ri-file-copy-2-line me-1"></i> Duplicate Names
-                                @if ($totalDuplicateGroups)
-                                    <span class="badge bg-danger text-white ms-1">{{ $totalDuplicateGroups }}</span>
-                                @endif
+                                <?php if($totalDuplicateGroups): ?>
+                                    <span class="badge bg-danger text-white ms-1"><?php echo e($totalDuplicateGroups); ?></span>
+                                <?php endif; ?>
                             </a>
-                            <a href="{{ route('transaction-events.archives') }}" class="btn btn-outline-secondary btn-sm">
+                            <a href="<?php echo e(route('transaction-events.archives')); ?>" class="btn btn-outline-secondary btn-sm">
                                 <i class="ri-archive-line me-1"></i> View Archives
                             </a>
                             <div class="d-flex align-items-center gap-2">
-                                @unless (auth()->user()?->role_name === 'Viewer')
+                                <?php if (! (auth()->user()?->role_name === 'Viewer')): ?>
                                     <button type="button" class="btn btn-success btn-sm" id="bulkTransferBtn" disabled>
                                         <i class="ri-exchange-box-line me-1"></i> Transfer Selected
                                     </button>
-                                @endunless
+                                <?php endif; ?>
                             </div>
 
-                            <form id="bulkTransferForm" action="{{ route('transaction-events.transfer-selected') }}"
+                            <form id="bulkTransferForm" action="<?php echo e(route('transaction-events.transfer-selected')); ?>"
                                 method="POST" class="d-none">
-                                @csrf
+                                <?php echo csrf_field(); ?>
                             </form>
-                            @unless (auth()->user()?->role_name === 'Viewer')
-                                <a href="{{ route('transaction-events.template') }}" class="btn btn-soft-primary btn-sm">
+                            <?php if (! (auth()->user()?->role_name === 'Viewer')): ?>
+                                <a href="<?php echo e(route('transaction-events.template')); ?>" class="btn btn-soft-primary btn-sm">
                                     <i class="ri-download-2-line me-1"></i> Excel Template
                                 </a>
                                 <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal"
                                     data-bs-target="#importModal">
                                     <i class="ri-upload-2-line me-1"></i> Import CSV
                                 </button>
-                            @endunless
-                            <span class="badge bg-primary-subtle text-primary px-4 py-2">{{ $events->total() }} total</span>
+                            <?php endif; ?>
+                            <span class="badge bg-primary-subtle text-primary px-4 py-2"><?php echo e($events->total()); ?> total</span>
                         </div>
                     </div>
                     <div class="card-body">
@@ -138,7 +139,7 @@
                                         id="eventFiltersToggleBtn">
                                         Show Filters <i class="ri-arrow-down-s-line ms-1"></i>
                                     </button>
-                                    @if (request()->hasAny([
+                                    <?php if(request()->hasAny([
                                             'search',
                                             'contact',
                                             'age_from',
@@ -148,19 +149,19 @@
                                             'client_category',
                                             'transaction_category',
                                             'transaction_type',
-                                        ]))
-                                        <a href="{{ route('transaction-events.index') }}"
+                                        ])): ?>
+                                        <a href="<?php echo e(route('transaction-events.index')); ?>"
                                             class="btn btn-soft-secondary">Reset</a>
-                                    @endif
+                                    <?php endif; ?>
                                     <select class="form-select form-select-sm w-auto"
                                         onchange="(function (u) { u.searchParams.set('per_page', this.value); u.searchParams.delete('page'); window.location = u; }).call(this, new URL(window.location))"
                                         aria-label="Records per page" title="Records per page">
-                                        @foreach ([15, 25, 50, 100] as $size)
-                                            <option value="{{ $size }}"
-                                                {{ request('per_page', 15) == $size ? 'selected' : '' }}>
-                                                {{ $size }} / page
+                                        <?php $__currentLoopData = [15, 25, 50, 100]; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $size): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                            <option value="<?php echo e($size); ?>"
+                                                <?php echo e(request('per_page', 15) == $size ? 'selected' : ''); ?>>
+                                                <?php echo e($size); ?> / page
                                             </option>
-                                        @endforeach
+                                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                     </select>
                                     <button type="button" class="btn btn-soft-primary btn-sm text-nowrap"
                                         id="eventListColumnsBtn"
@@ -170,7 +171,7 @@
                                     </button>
                                     <div class="dropdown-menu dropdown-menu-end p-3" style="min-width: 230px;">
                                         <h6 class="dropdown-header px-0">Manage Columns</h6>
-                                        @foreach ([
+                                        <?php $__currentLoopData = [
                                             'full_name' => 'Full Name',
                                             'age' => 'Age',
                                             'birth_date' => 'Birth Date',
@@ -181,13 +182,13 @@
                                             'transaction_type' => 'Transaction Type',
                                             'event_date' => 'Event Date',
                                             'created_at' => 'Imported',
-                                        ] as $key => $label)
+                                        ]; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $key => $label): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                             <div class="form-check">
                                                 <input class="form-check-input event-list-column-toggle" type="checkbox"
-                                                    id="evcol-{{ $key }}" value="{{ $key }}" checked>
-                                                <label class="form-check-label" for="evcol-{{ $key }}">{{ $label }}</label>
+                                                    id="evcol-<?php echo e($key); ?>" value="<?php echo e($key); ?>" checked>
+                                                <label class="form-check-label" for="evcol-<?php echo e($key); ?>"><?php echo e($label); ?></label>
                                             </div>
-                                        @endforeach
+                                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                         <hr class="dropdown-divider my-2">
                                         <div class="d-flex gap-2">
                                             <button type="button" class="btn btn-sm btn-light flex-fill"
@@ -200,7 +201,7 @@
                             </div>
 
                             <form method="GET" id="eventFiltersForm"
-                                class="{{ request()->hasAny(['search', 'contact', 'age_from', 'age_to', 'date_from', 'date_to', 'client_category', 'transaction_category', 'transaction_type']) ? '' : 'd-none' }}">
+                                class="<?php echo e(request()->hasAny(['search', 'contact', 'age_from', 'age_to', 'date_from', 'date_to', 'client_category', 'transaction_category', 'transaction_type']) ? '' : 'd-none'); ?>">
                                 <div class="row g-3">
                                     <div class="col-12 col-xl-4">
                                         <label for="eventKeywordInput"
@@ -208,34 +209,34 @@
                                         <div class="input-group">
                                             <span class="input-group-text"><i class="ri-search-line"></i></span>
                                             <input type="text" class="form-control" id="eventKeywordInput"
-                                                name="search" placeholder="Full name" value="{{ request('search') }}">
+                                                name="search" placeholder="Full name" value="<?php echo e(request('search')); ?>">
                                         </div>
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
                                         <label for="eventContactFilter"
                                             class="form-label fw-semibold text-uppercase small">Contact</label>
                                         <input type="text" class="form-control" id="eventContactFilter"
-                                            name="contact" placeholder="Contact no." value="{{ request('contact') }}">
+                                            name="contact" placeholder="Contact no." value="<?php echo e(request('contact')); ?>">
                                     </div>
                                     <div class="col-6 col-md-6 col-xl-2">
                                         <label for="eventAgeFrom" class="form-label fw-semibold text-uppercase small">Age
                                             From</label>
                                         <input type="number" min="0" max="120" class="form-control"
                                             id="eventAgeFrom" name="age_from" placeholder="From"
-                                            value="{{ request('age_from') }}">
+                                            value="<?php echo e(request('age_from')); ?>">
                                     </div>
                                     <div class="col-6 col-md-6 col-xl-2">
                                         <label for="eventAgeTo" class="form-label fw-semibold text-uppercase small">Age
                                             To</label>
                                         <input type="number" min="0" max="120" class="form-control"
                                             id="eventAgeTo" name="age_to" placeholder="To"
-                                            value="{{ request('age_to') }}">
+                                            value="<?php echo e(request('age_to')); ?>">
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
                                         <label for="eventDateFrom"
                                             class="form-label fw-semibold text-uppercase small">Date From</label>
                                         <input type="date" class="form-control" id="eventDateFrom" name="date_from"
-                                            value="{{ request('date_from') }}">
+                                            value="<?php echo e(request('date_from')); ?>">
                                     </div>
                                 </div>
 
@@ -244,18 +245,18 @@
                                         <label for="eventDateTo" class="form-label fw-semibold text-uppercase small">Date
                                             To</label>
                                         <input type="date" class="form-control" id="eventDateTo" name="date_to"
-                                            value="{{ request('date_to') }}">
+                                            value="<?php echo e(request('date_to')); ?>">
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
                                         <label for="eventClientCategory"
                                             class="form-label fw-semibold text-uppercase small">Client Category</label>
                                         <select class="form-select" id="eventClientCategory" name="client_category">
                                             <option value="">All client categories</option>
-                                            @foreach ($clientCategories as $clientCategory)
-                                                <option value="{{ $clientCategory }}"
-                                                    {{ request('client_category') === $clientCategory ? 'selected' : '' }}>
-                                                    {{ $clientCategory }}</option>
-                                            @endforeach
+                                            <?php $__currentLoopData = $clientCategories; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $clientCategory): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                                <option value="<?php echo e($clientCategory); ?>"
+                                                    <?php echo e(request('client_category') === $clientCategory ? 'selected' : ''); ?>>
+                                                    <?php echo e($clientCategory); ?></option>
+                                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                         </select>
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
@@ -265,11 +266,11 @@
                                         <select class="form-select" id="eventTransactionCategory"
                                             name="transaction_category">
                                             <option value="">All categories</option>
-                                            @foreach ($transactionCategories as $txCategory)
-                                                <option value="{{ $txCategory }}"
-                                                    {{ request('transaction_category') === $txCategory ? 'selected' : '' }}>
-                                                    {{ $txCategory }}</option>
-                                            @endforeach
+                                            <?php $__currentLoopData = $transactionCategories; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $txCategory): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                                <option value="<?php echo e($txCategory); ?>"
+                                                    <?php echo e(request('transaction_category') === $txCategory ? 'selected' : ''); ?>>
+                                                    <?php echo e($txCategory); ?></option>
+                                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                         </select>
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
@@ -277,11 +278,11 @@
                                             class="form-label fw-semibold text-uppercase small">Transaction Type</label>
                                         <select class="form-select" id="eventTransactionType" name="transaction_type">
                                             <option value="">All types</option>
-                                            @foreach ($transactionTypes as $txType)
-                                                <option value="{{ $txType }}"
-                                                    {{ request('transaction_type') === $txType ? 'selected' : '' }}>
-                                                    {{ $txType }}</option>
-                                            @endforeach
+                                            <?php $__currentLoopData = $transactionTypes; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $txType): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                                <option value="<?php echo e($txType); ?>"
+                                                    <?php echo e(request('transaction_type') === $txType ? 'selected' : ''); ?>>
+                                                    <?php echo e($txType); ?></option>
+                                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                         </select>
                                     </div>
                                     <div class="col-12 col-xl-4 d-flex gap-2 justify-content-xl-end">
@@ -292,16 +293,17 @@
                                 </div>
 
                                 <div class="small mt-3" id="eventSearchSummary">
-                                    {{ request()->hasAny(['search', 'contact', 'age_from', 'age_to', 'date_from', 'date_to', 'client_category', 'transaction_category', 'transaction_type']) ? 'Filtered events are shown below.' : 'Showing all pending events.' }}
+                                    <?php echo e(request()->hasAny(['search', 'contact', 'age_from', 'age_to', 'date_from', 'date_to', 'client_category', 'transaction_category', 'transaction_type']) ? 'Filtered events are shown below.' : 'Showing all pending events.'); ?>
+
                                 </div>
                             </form>
                         </div>
 
-                        @if (request()->boolean('duplicate_names'))
+                        <?php if(request()->boolean('duplicate_names')): ?>
                             <div class="alert alert-warning py-2 mb-3">
                                 Showing transaction events with duplicate names.
                             </div>
-                        @endif
+                        <?php endif; ?>
 
                         <div id="selectAllPagesBar"
                             class="alert alert-primary py-2 px-3 mb-3 d-none align-items-center justify-content-between flex-wrap gap-2"
@@ -319,12 +321,12 @@
                                         <th style="width: 120px;" class="text-center">
                                             <div
                                                 class="d-inline-flex align-items-center justify-content-center gap-2 text-nowrap">
-                                                @unless (auth()->user()?->role_name === 'Viewer')
+                                                <?php if (! (auth()->user()?->role_name === 'Viewer')): ?>
                                                     <input type="checkbox" class="form-check-input"
                                                         id="selectAllTransactionEvents"
                                                         aria-label="Select all transaction events on this page">
                                                     <span>Select all</span>
-                                                @endunless
+                                                <?php endif; ?>
                                             </div>
                                         </th>
                                         <th data-column="full_name">Full Name</th>
@@ -341,73 +343,77 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    @forelse ($events as $event)
-                                        @php
+                                    <?php $__empty_1 = true; $__currentLoopData = $events; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $event): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
+                                        <?php
                                             $isTransferred = !is_null($event->transferred_at);
-                                        @endphp
-                                        <tr class="{{ $isTransferred ? 'table-secondary text-muted' : '' }}">
+                                        ?>
+                                        <tr class="<?php echo e($isTransferred ? 'table-secondary text-muted' : ''); ?>">
                                             <td class="text-center">
-                                                @unless (auth()->user()?->role_name === 'Viewer')
+                                                <?php if (! (auth()->user()?->role_name === 'Viewer')): ?>
                                                     <input type="checkbox" class="form-check-input transaction-event-checkbox"
-                                                        value="{{ $event->id }}"
-                                                        aria-label="Select transaction event {{ $event->id }}"
-                                                        {{ $isTransferred ? 'disabled' : '' }}
-                                                        {{ in_array($event->full_name, $duplicateFullNames, true) ? 'data-duplicate="1" title="Duplicate name - excluded from Select All"' : '' }}>
-                                                @endunless
+                                                        value="<?php echo e($event->id); ?>"
+                                                        aria-label="Select transaction event <?php echo e($event->id); ?>"
+                                                        <?php echo e($isTransferred ? 'disabled' : ''); ?>
+
+                                                        <?php echo e(in_array($event->full_name, $duplicateFullNames, true) ? 'data-duplicate="1" title="Duplicate name - excluded from Select All"' : ''); ?>>
+                                                <?php endif; ?>
                                             </td>
-                                            <td data-column="full_name" class="fw-semibold">{{ $event->full_name }}</td>
-                                            <td data-column="age">{{ $event->age ?? '-' }}</td>
+                                            <td data-column="full_name" class="fw-semibold"><?php echo e($event->full_name); ?></td>
+                                            <td data-column="age"><?php echo e($event->age ?? '-'); ?></td>
                                             <td data-column="birth_date">
-                                                {{ $event->birth_date ? $event->birth_date->format('M d, Y') : '-' }}</td>
-                                            <td data-column="contact_no">{{ str_replace('-', '', $event->contact_no) }}
+                                                <?php echo e($event->birth_date ? $event->birth_date->format('M d, Y') : '-'); ?></td>
+                                            <td data-column="contact_no"><?php echo e(str_replace('-', '', $event->contact_no)); ?>
+
                                             </td>
-                                            <td data-column="address">{{ $event->address ?? '-' }}</td>
+                                            <td data-column="address"><?php echo e($event->address ?? '-'); ?></td>
                                             <td data-column="client_category" class="small">
-                                                {{ $event->client_category ?? '-' }}</td>
+                                                <?php echo e($event->client_category ?? '-'); ?></td>
                                             <td data-column="transaction_category" class="small">
-                                                {{ $event->transaction_category ?? '-' }}</td>
+                                                <?php echo e($event->transaction_category ?? '-'); ?></td>
                                             <td data-column="transaction_type" class="small">
-                                                {{ $event->transaction_type ?? '-' }}</td>
+                                                <?php echo e($event->transaction_type ?? '-'); ?></td>
                                             <td data-column="event_date" class="small">
-                                                {{ optional($event->event_date)->format('M d, Y') ?? '-' }}</td>
+                                                <?php echo e(optional($event->event_date)->format('M d, Y') ?? '-'); ?></td>
                                             <td data-column="created_at" class="small">
-                                                {{ optional($event->created_at)->format('M d, Y') }}</td>
+                                                <?php echo e(optional($event->created_at)->format('M d, Y')); ?></td>
                                             <td class="text-center">
-                                                @if ($isTransferred)
+                                                <?php if($isTransferred): ?>
                                                     <span class="badge bg-success-subtle text-success px-3 py-2">
                                                         <i class="ri-check-line me-1"></i>Approved
                                                     </span>
-                                                @elseif (auth()->user()?->role_name === 'Viewer')
+                                                <?php elseif(auth()->user()?->role_name === 'Viewer'): ?>
                                                     <span class="badge bg-secondary-subtle text-secondary px-3 py-2">
                                                         <i class="ri-time-line me-1"></i>Pending
                                                     </span>
-                                                @else
-                                                    <form action="{{ route('transaction-events.transfer', $event) }}"
+                                                <?php else: ?>
+                                                    <form action="<?php echo e(route('transaction-events.transfer', $event)); ?>"
                                                         method="POST" class="transaction-transfer-form"
-                                                        data-event-name="{{ $event->full_name }}">
-                                                        @csrf
+                                                        data-event-name="<?php echo e($event->full_name); ?>">
+                                                        <?php echo csrf_field(); ?>
                                                         <button type="submit" class="btn btn-sm btn-soft-success"
-                                                            {{ empty($event->transaction_category) && empty($event->transaction_type) ? 'disabled' : '' }}
-                                                            title="{{ empty($event->transaction_category) && empty($event->transaction_type) ? 'No transaction category or type to transfer' : 'Transfer to transaction' }}">
+                                                            <?php echo e(empty($event->transaction_category) && empty($event->transaction_type) ? 'disabled' : ''); ?>
+
+                                                            title="<?php echo e(empty($event->transaction_category) && empty($event->transaction_type) ? 'No transaction category or type to transfer' : 'Transfer to transaction'); ?>">
                                                             <i class="ri-exchange-line"></i> Transfer
                                                         </button>
                                                     </form>
-                                                @endif
+                                                <?php endif; ?>
                                             </td>
                                         </tr>
-                                    @empty
+                                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                                         <tr>
                                             <td colspan="12" class="text-center text-muted py-5">
                                                 No transaction events found.
                                             </td>
                                         </tr>
-                                    @endforelse
+                                    <?php endif; ?>
                                 </tbody>
                             </table>
                         </div>
 
                         <div class="d-flex justify-content-end mt-3">
-                            {{ $events->links('pagination::bootstrap-5') }}
+                            <?php echo e($events->links('pagination::bootstrap-5')); ?>
+
                         </div>
                     </div>
                 </div>
@@ -465,9 +471,9 @@
         </div>
 
         <!-- Import form (hidden, used by both modals) -->
-        <form id="importForm" action="{{ route('transaction-events.import') }}" method="POST"
+        <form id="importForm" action="<?php echo e(route('transaction-events.import')); ?>" method="POST"
             enctype="multipart/form-data" class="d-none">
-            @csrf
+            <?php echo csrf_field(); ?>
             <input type="file" id="csv_file" name="csv_file" accept=".csv">
         </form>
 
@@ -490,7 +496,7 @@
                             row):<br>
                             <code>full_name, contact_no, address, age, birth_date, client_category, transaction_category,
                                 transaction_type, event_date</code><br>
-                            <a href="{{ route('transaction-events.template') }}" class="alert-link mt-1 d-inline-block">
+                            <a href="<?php echo e(route('transaction-events.template')); ?>" class="alert-link mt-1 d-inline-block">
                                 <i class="ri-download-2-line me-1"></i>Download the Excel template
                             </a> to get started, then save as CSV.
                         </div>
@@ -641,9 +647,9 @@
             </div>
         </div>
     </div>
-@endsection
+<?php $__env->stopSection(); ?>
 
-@push('scripts')
+<?php $__env->startPush('scripts'); ?>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             // ----- Filter Records card toggle (Client List style) -----
@@ -662,7 +668,7 @@
                 setEventFiltersVisible(eventFiltersForm.classList.contains('d-none'));
             });
 
-            @if (request()->hasAny([
+            <?php if(request()->hasAny([
                     'search',
                     'contact',
                     'age_from',
@@ -672,12 +678,12 @@
                     'client_category',
                     'transaction_category',
                     'transaction_type',
-                ]))
+                ])): ?>
                 setEventFiltersVisible(true);
-            @endif
+            <?php endif; ?>
 
             // ----- Event List: Manage Columns -----
-            const EV_COLUMNS_KEY = 'eventListHiddenColumns-{{ auth()->id() }}';
+            const EV_COLUMNS_KEY = 'eventListHiddenColumns-<?php echo e(auth()->id()); ?>';
             const evTable = document.getElementById('eventListTable');
             const evToggles = Array.from(document.querySelectorAll('.event-list-column-toggle'));
 
@@ -736,14 +742,14 @@
             const bulkTransferCount = document.getElementById('bulkTransferCount');
             const confirmBulkTransferBtn = document.getElementById('confirmBulkTransferBtn');
             let selectedBulkTransferIds = [];
-            const totalMatchingEvents = @json($events->total());
+            const totalMatchingEvents = <?php echo json_encode($events->total(), 15, 512) ?>;
             let allPagesSelected = false;
 
             if (selectAll) {
                 const selectableCheckboxes = () => eventCheckboxes.filter((checkbox) => !checkbox.dataset
                     .duplicate && !checkbox.disabled);
 
-                const hasMorePages = @json($events->lastPage() > 1);
+                const hasMorePages = <?php echo json_encode($events->lastPage() > 1, 15, 512) ?>;
 
                 const bar = document.getElementById('selectAllPagesBar');
                 const barText = document.getElementById('selectAllPagesText');
@@ -1018,7 +1024,7 @@
                 previewTableBody.innerHTML = '';
 
                 try {
-                    const response = await fetch('{{ route('transaction-events.preview') }}', {
+                    const response = await fetch('<?php echo e(route('transaction-events.preview')); ?>', {
                         method: 'POST',
                         headers: {
                             'X-CSRF-TOKEN': csrfToken,
@@ -1133,7 +1139,7 @@
                     prepareForm.append('csv_file', file);
 
                     const prepareRes = await fetch(
-                        '{{ route('transaction-events.import.prepare') }}', {
+                        '<?php echo e(route('transaction-events.import.prepare')); ?>', {
                             method: 'POST',
                             headers: apiHeaders,
                             body: prepareForm,
@@ -1165,7 +1171,7 @@
                         chunkBody.append('limit', CHUNK_SIZE);
 
                         const chunkRes = await fetch(
-                            '{{ route('transaction-events.import.process') }}', {
+                            '<?php echo e(route('transaction-events.import.process')); ?>', {
                                 method: 'POST',
                                 headers: apiHeaders,
                                 body: chunkBody,
@@ -1189,7 +1195,7 @@
                     const finishBody = new URLSearchParams();
                     finishBody.append('token', prepareData.token);
 
-                    const finishRes = await fetch('{{ route('transaction-events.import.finish') }}', {
+                    const finishRes = await fetch('<?php echo e(route('transaction-events.import.finish')); ?>', {
                         method: 'POST',
                         headers: apiHeaders,
                         body: finishBody,
@@ -1202,7 +1208,7 @@
 
                     setProgress(100, 'Done!');
                     setTimeout(function() {
-                        window.location.href = '{{ route('transaction-events.index') }}';
+                        window.location.href = '<?php echo e(route('transaction-events.index')); ?>';
                     }, 500);
                 } catch (error) {
                     progressModal.hide();
@@ -1226,7 +1232,7 @@
                     const checkForm = new FormData();
                     checkForm.append('csv_file', file);
 
-                    const res = await fetch('{{ route('transaction-events.import.check-duplicates') }}', {
+                    const res = await fetch('<?php echo e(route('transaction-events.import.check-duplicates')); ?>', {
                         method: 'POST',
                         headers: {
                             'X-CSRF-TOKEN': csrfToken,
@@ -1287,4 +1293,6 @@
             }
         });
     </script>
-@endpush
+<?php $__env->stopPush(); ?>
+
+<?php echo $__env->make('layouts.master', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH C:\xampp\htdocs\E-Reg-System\resources\views/pages/transaction_events/transactionEvents.blade.php ENDPATH**/ ?>

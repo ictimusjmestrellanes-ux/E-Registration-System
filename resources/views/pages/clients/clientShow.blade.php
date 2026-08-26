@@ -238,6 +238,7 @@
                                     </form>
                                 <div class="dropdown">
                                     <button type="button" class="btn btn-soft-primary btn-sm"
+                                        id="txHistoryColumnsBtn"
                                         data-bs-toggle="dropdown" data-bs-auto-close="outside"
                                         aria-expanded="false" title="Manage Columns">
                                         <i class="ri-layout-column-line me-1"></i> Manage Columns
@@ -264,10 +265,12 @@
                                             </div>
                                         @endforeach
                                         <hr class="dropdown-divider my-2">
-                                        <button type="button" class="dropdown-item text-warning p-1"
-                                            id="resetTxColumnsBtn">
-                                            <i class="ri-arrow-go-back-line me-1"></i> Reset to Default
-                                        </button>
+                                        <div class="d-flex gap-2">
+                                            <button type="button" class="btn btn-sm btn-light flex-fill"
+                                                id="resetTxColumnsBtn">Reset</button>
+                                            <button type="button" class="btn btn-primary btn-sm flex-fill"
+                                                id="applyTxColumnsBtn">Apply</button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -549,16 +552,20 @@
                 });
             };
 
+            // selection is committed only on Apply; prevent hiding every column
             toggles.forEach((toggle) => {
                 toggle.addEventListener('change', function() {
                     if (!toggle.checked && toggles.every((t) => !t.checked)) {
                         toggle.checked = true;
-                        return;
                     }
-                    const hidden = toggles.filter((t) => !t.checked).map((t) => t.value);
-                    localStorage.setItem(STORAGE_KEY, JSON.stringify(hidden));
-                    applyColumns();
                 });
+            });
+
+            document.getElementById('applyTxColumnsBtn')?.addEventListener('click', function() {
+                const hidden = toggles.filter((t) => !t.checked).map((t) => t.value);
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(hidden));
+                applyColumns();
+                bootstrap.Dropdown.getInstance(document.getElementById('txHistoryColumnsBtn'))?.hide();
             });
 
             resetBtn?.addEventListener('click', function() {

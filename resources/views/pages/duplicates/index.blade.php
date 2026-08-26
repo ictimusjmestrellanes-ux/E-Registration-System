@@ -49,10 +49,9 @@
                                 <h4 class="mb-1">Duplicate Clients Review</h4>
                                 <p class="text-muted mb-0">Review potential duplicate client records before taking action.</p>
                             </div>
-                            <div class="d-flex gap-2">
-                                <span class="badge bg-primary-subtle text-primary fs-13">{{ $totalGroups }} group(s)</span>
-                                <span class="badge bg-danger-subtle text-danger fs-13">{{ $totalDuplicates }} record(s)</span>
-                            </div>
+                            <a href="{{ route('client.list') }}" class="btn btn-outline-secondary btn-sm">
+                                <i class="ri-arrow-left-line me-1"></i> Back to Client List
+                            </a>
                         </div>
                     </div>
                 </div>
@@ -83,7 +82,10 @@
                                 </a>
                             </li>
                         </ul>
-
+                        <div class="d-flex gap-2">
+                                <span class="badge bg-primary-subtle text-primary fs-13">{{ $totalGroups }} group(s)</span>
+                                <span class="badge bg-danger-subtle text-danger fs-13">{{ $totalDuplicates }} record(s)</span>
+                            </div>
                         <div class="tab-content">
                             <div class="tab-pane fade show active" id="exact-tab" role="tabpanel">
                                 <div class="alert alert-danger-subtle alert-dismissible d-flex align-items-center mb-3 py-2" role="alert">

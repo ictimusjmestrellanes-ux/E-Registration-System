@@ -118,6 +118,7 @@ Route::group(['namespace' => 'App\Http\Controllers'], function () {
         // --------------------- Transaction Events ------------------//
         Route::get('transaction-events', [TransactionEventsController::class, 'index'])->name('transaction-events.index');
         Route::get('transaction-events/records', [TransactionEventsController::class, 'records'])->name('transaction-events.records');
+        Route::get('transaction-events/records/duplicates', [TransactionEventsController::class, 'recordsDuplicates'])->name('transaction-events.records-duplicates');
         Route::get('transaction-events/duplicate-review', [TransactionEventsController::class, 'duplicateReview'])->name('transaction-events.duplicate-review');
         Route::get('transaction-events/removed-duplicates', [TransactionEventsController::class, 'removedDuplicates'])->name('transaction-events.removed-duplicates');
         Route::post('transaction-events/{event}/not-duplicate', [TransactionEventsController::class, 'markNotDuplicate'])->name('transaction-events.not-duplicate');
@@ -125,6 +126,7 @@ Route::group(['namespace' => 'App\Http\Controllers'], function () {
         Route::get('transaction-events/archives', [TransactionEventsController::class, 'archives'])->name('transaction-events.archives');
         Route::get('transaction-events/archives/{filename}', [TransactionEventsController::class, 'downloadArchive'])->name('transaction-events.archives.download');
         Route::post('transaction-events/preview', [TransactionEventsController::class, 'preview'])->name('transaction-events.preview');
+        Route::post('transaction-events/import/check-duplicates', [TransactionEventsController::class, 'importDuplicatesCheck'])->name('transaction-events.import.check-duplicates');
         Route::post('transaction-events/import', [TransactionEventsController::class, 'import'])->name('transaction-events.import');
 Route::post('transaction-events/import/prepare', [TransactionEventsController::class, 'prepareImport'])->name('transaction-events.import.prepare');
 Route::post('transaction-events/import/process', [TransactionEventsController::class, 'processImportChunk'])->name('transaction-events.import.process');
