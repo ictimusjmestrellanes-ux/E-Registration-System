@@ -21,7 +21,8 @@ class PermissionsController extends Controller
         ['feature' => 'Activity Logs', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
         ['feature' => 'Send Transactions', 'DSWD' => false, 'Staff' => true, 'Admin' => true, 'Super Admin' => true],
         ['feature' => 'Event Records', 'DSWD' => true, 'Staff' => true, 'Admin' => true, 'Super Admin' => true],
-        ['feature' => 'View Archive Files', 'DSWD' => true, 'Staff' => true, 'Admin' => true, 'Super Admin' => true],
+        ['feature' => 'Events Records Duplicates', 'DSWD' => true, 'Staff' => true, 'Admin' => true, 'Super Admin' => true],
+        ['feature' => 'View Archive Files', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
     ];
 
     public function __construct()

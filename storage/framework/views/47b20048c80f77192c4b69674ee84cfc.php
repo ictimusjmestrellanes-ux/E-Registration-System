@@ -315,7 +315,7 @@
                         </div>
 
                         <div class="table-responsive">
-                            <table class="table table-hover align-middle mb-0" id="eventListTable">
+                            <table class="table table-bordered table-hover align-middle mb-0" id="eventListTable">
                                 <thead class="table-light">
                                     <tr>
                                         <th style="width: 120px;" class="text-center">

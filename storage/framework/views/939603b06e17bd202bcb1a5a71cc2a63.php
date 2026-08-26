@@ -1,7 +1,6 @@
-@extends('layouts.master')
-@section('title', 'ERS | Events - Records')
+<?php $__env->startSection('title', 'ERS | Events - Records'); ?>
 
-@section('content')
+<?php $__env->startSection('content'); ?>
     <style>
         #recordFiltersCard {
             background: #ffffff;
@@ -56,7 +55,7 @@
             border-color: transparent;
         }
     </style>
-    @php
+    <?php
         $activeRecordFilters = request()->hasAny([
             'search',
             'contact',
@@ -67,7 +66,7 @@
             'transaction_category',
             'transaction_type',
         ]);
-    @endphp
+    ?>
     <div class="container-fluid">
         <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
             <div>
@@ -75,23 +74,25 @@
                 <p class="text-muted mb-0">List of transaction events that have been transferred to records.</p>
             </div>
             <div class="d-flex flex-wrap align-items-center gap-2">
-                <span class="badge bg-primary-subtle text-primary px-4 py-2">{{ $events->total() }} total</span>
+                <span class="badge bg-primary-subtle text-primary px-4 py-2"><?php echo e($events->total()); ?> total</span>
             </div>
         </div>
 
-        @if (session('success'))
+        <?php if(session('success')): ?>
             <div class="alert alert-success alert-dismissible fade show" role="alert">
-                {{ session('success') }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
-        @endif
+                <?php echo e(session('success')); ?>
 
-        @if (session('error'))
-            <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                {{ session('error') }}
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
-        @endif
+        <?php endif; ?>
+
+        <?php if(session('error')): ?>
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <?php echo e(session('error')); ?>
+
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        <?php endif; ?>
 
         <div class="row">
             <div class="col-12">
@@ -110,23 +111,23 @@
                                         id="recordFiltersToggleBtn">
                                         Show Filters <i class="ri-arrow-down-s-line ms-1"></i>
                                     </button>
-                                    @if ($activeRecordFilters)
-                                        <a href="{{ route('transaction-events.records') }}"
+                                    <?php if($activeRecordFilters): ?>
+                                        <a href="<?php echo e(route('transaction-events.records')); ?>"
                                             class="btn btn-soft-secondary">Reset</a>
-                                    @endif
-                                    <a href="{{ route('transaction-events.records-duplicates') }}"
+                                    <?php endif; ?>
+                                    <a href="<?php echo e(route('transaction-events.records-duplicates')); ?>"
                                         class="btn btn-sm btn-outline-warning">
                                         <i class="ri-file-copy-2-line me-1"></i> Duplicate Records
                                     </a>
 
                                     <select class="form-select form-select-sm w-auto" id="recordPerPageSelect"
                                         aria-label="Records per page" title="Records per page">
-                                        @foreach ([10, 15, 25, 50, 100] as $size)
-                                            <option value="{{ $size }}"
-                                                {{ request('per_page', 15) == $size ? 'selected' : '' }}>
-                                                {{ $size }} / page
+                                        <?php $__currentLoopData = [10, 15, 25, 50, 100]; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $size): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                            <option value="<?php echo e($size); ?>"
+                                                <?php echo e(request('per_page', 15) == $size ? 'selected' : ''); ?>>
+                                                <?php echo e($size); ?> / page
                                             </option>
-                                        @endforeach
+                                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                     </select>
                                     <div class="dropdown">
                                         <button type="button" class="btn btn-soft-primary btn-sm text-nowrap"
@@ -136,7 +137,7 @@
                                         </button>
                                         <div class="dropdown-menu dropdown-menu-end p-3" style="min-width: 230px;">
                                             <h6 class="dropdown-header px-0">Manage Columns</h6>
-                                            @foreach ([
+                                            <?php $__currentLoopData = [
                                                     'id' => 'ID',
                                                     'transaction_id' => 'Transaction ID',
                                                     'full_name' => 'Full Name',
@@ -150,14 +151,14 @@
                                                     'event_date' => 'Event Date',
                                                     'transferred_at' => 'Transferred At',
                                                     'status' => 'Status',
-                                                ] as $key => $label)
+                                                ]; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $key => $label): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                                 <div class="form-check">
                                                     <input class="form-check-input column-toggle" type="checkbox"
-                                                        id="col-{{ $key }}" value="{{ $key }}" checked>
+                                                        id="col-<?php echo e($key); ?>" value="<?php echo e($key); ?>" checked>
                                                     <label class="form-check-label"
-                                                        for="col-{{ $key }}">{{ $label }}</label>
+                                                        for="col-<?php echo e($key); ?>"><?php echo e($label); ?></label>
                                                 </div>
-                                            @endforeach
+                                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                             <hr class="dropdown-divider my-2">
                                             <div class="d-flex gap-2">
                                                 <button type="button" class="btn btn-sm btn-light flex-fill"
@@ -170,8 +171,8 @@
                                 </div>
                             </div>
 
-                            <form method="GET" action="{{ route('transaction-events.records') }}" id="recordFiltersForm"
-                                class="{{ $activeRecordFilters ? '' : 'd-none' }}">
+                            <form method="GET" action="<?php echo e(route('transaction-events.records')); ?>" id="recordFiltersForm"
+                                class="<?php echo e($activeRecordFilters ? '' : 'd-none'); ?>">
                                 <div class="row g-3">
                                     <div class="col-12 col-xl-4">
                                         <label for="recordKeywordInput"
@@ -179,28 +180,28 @@
                                         <div class="input-group">
                                             <span class="input-group-text"><i class="ri-search-line"></i></span>
                                             <input type="text" class="form-control" id="recordKeywordInput"
-                                                name="search" placeholder="Full name" value="{{ request('search') }}">
+                                                name="search" placeholder="Full name" value="<?php echo e(request('search')); ?>">
                                         </div>
                                     </div>
                                     <div class="col-12 col-md-2 col-xl-2">
                                         <label for="recordContactFilter"
                                             class="form-label fw-semibold text-uppercase small">Contact</label>
                                         <input type="text" class="form-control" id="recordContactFilter" name="contact"
-                                            placeholder="Contact no." value="{{ request('contact') }}">
+                                            placeholder="Contact no." value="<?php echo e(request('contact')); ?>">
                                     </div>
                                     <div class="col-6 col-md-6 col-xl-2">
                                         <label for="recordAgeFrom" class="form-label fw-semibold text-uppercase small">Age
                                             From</label>
                                         <input type="number" min="0" max="120" class="form-control"
                                             id="recordAgeFrom" name="age_from" placeholder="From"
-                                            value="{{ request('age_from') }}">
+                                            value="<?php echo e(request('age_from')); ?>">
                                     </div>
                                     <div class="col-6 col-md-6 col-xl-2">
                                         <label for="recordAgeTo" class="form-label fw-semibold text-uppercase small">Age
                                             To</label>
                                         <input type="number" min="0" max="120" class="form-control"
                                             id="recordAgeTo" name="age_to" placeholder="To"
-                                            value="{{ request('age_to') }}">
+                                            value="<?php echo e(request('age_to')); ?>">
                                     </div>
                                 </div>
 
@@ -212,11 +213,11 @@
                                         <select class="form-select" id="recordCategoryFilter"
                                             name="transaction_category">
                                             <option value="">All categories</option>
-                                            @foreach ($categories as $category)
-                                                <option value="{{ $category }}"
-                                                    {{ request('transaction_category') === $category ? 'selected' : '' }}>
-                                                    {{ $category }}</option>
-                                            @endforeach
+                                            <?php $__currentLoopData = $categories; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $category): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                                <option value="<?php echo e($category); ?>"
+                                                    <?php echo e(request('transaction_category') === $category ? 'selected' : ''); ?>>
+                                                    <?php echo e($category); ?></option>
+                                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                         </select>
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
@@ -224,24 +225,24 @@
                                             class="form-label fw-semibold text-uppercase small">Transaction Type</label>
                                         <select class="form-select" id="recordTypeFilter" name="transaction_type">
                                             <option value="">All types</option>
-                                            @foreach ($types as $type)
-                                                <option value="{{ $type }}"
-                                                    {{ request('transaction_type') === $type ? 'selected' : '' }}>
-                                                    {{ $type }}</option>
-                                            @endforeach
+                                            <?php $__currentLoopData = $types; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $type): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                                <option value="<?php echo e($type); ?>"
+                                                    <?php echo e(request('transaction_type') === $type ? 'selected' : ''); ?>>
+                                                    <?php echo e($type); ?></option>
+                                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                         </select>
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-3">
                                         <label for="recordDateFrom"
                                             class="form-label fw-semibold text-uppercase small">Transferred From</label>
                                         <input type="date" class="form-control" id="recordDateFrom" name="date_from"
-                                            value="{{ request('date_from') }}">
+                                            value="<?php echo e(request('date_from')); ?>">
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-3">
                                         <label for="recordDateTo"
                                             class="form-label fw-semibold text-uppercase small">Transferred To</label>
                                         <input type="date" class="form-control" id="recordDateTo" name="date_to"
-                                            value="{{ request('date_to') }}">
+                                            value="<?php echo e(request('date_to')); ?>">
                                     </div>
                                     <div class="col-12 col-xl-2 d-flex gap-2 justify-content-xl-end">
                                         <button type="submit" class="btn btn-primary px-4">
@@ -251,17 +252,13 @@
                                 </div>
 
                                 <div class="small mt-2" id="recordSearchSummary">
-                                    {{ $activeRecordFilters ? 'Filtered records are shown below.' : 'Showing all records.' }}
+                                    <?php echo e($activeRecordFilters ? 'Filtered records are shown below.' : 'Showing all records.'); ?>
+
                                 </div>
                             </form>
                         </div>
 
-                        {{-- <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
-                            <span class="badge rounded-pill px-3 py-2" id="recordFiltersCountBadge">
-                                Showing {{ $events->firstItem() ?? 0 }}–{{ $events->lastItem() ?? 0 }} of
-                                {{ $events->total() }} record(s)
-                            </span>
-                        </div> --}}
+                        
 
                         <div class="table-responsive">
                             <table class="table table-bordered table-hover align-middle mb-0" id="eventRecordsTable">
@@ -280,77 +277,79 @@
                                         <th data-column="event_date">Event Date</th>
                                         <th style="width: 160px;" data-column="transferred_at">Transferred At</th>
                                         <th style="width: 120px;" class="text-center" data-column="status">Status</th>
-                                        @if (auth()->user()?->role_name !== 'Viewer')
+                                        <?php if(auth()->user()?->role_name !== 'Viewer'): ?>
                                             <th style="width: 140px;" class="text-center">Action</th>
-                                        @endif
+                                        <?php endif; ?>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    @forelse ($events as $event)
+                                    <?php $__empty_1 = true; $__currentLoopData = $events; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $event): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
                                         <tr>
-                                            <td data-column="id">{{ $event->id }}</td>
+                                            <td data-column="id"><?php echo e($event->id); ?></td>
                                             <td data-column="transaction_id" class="fw-semibold" style="width: 150px">
-                                                {{ $event->transferredTransaction?->transaction_id ?? '-' }}</td>
-                                            <td data-column="full_name" class="fw-semibold">{{ $event->full_name }}</td>
-                                            <td data-column="age">{{ $event->age ?? '-' }}</td>
+                                                <?php echo e($event->transferredTransaction?->transaction_id ?? '-'); ?></td>
+                                            <td data-column="full_name" class="fw-semibold"><?php echo e($event->full_name); ?></td>
+                                            <td data-column="age"><?php echo e($event->age ?? '-'); ?></td>
                                             <td data-column="birth_date">
-                                                {{ optional($event->birth_date)->format('M d, Y') ?? '-' }}</td>
+                                                <?php echo e(optional($event->birth_date)->format('M d, Y') ?? '-'); ?></td>
                                             <td data-column="contact">
-                                                {{ str_replace('-', '', $event->contact_no ?? '') ?: '-' }}</td>
-                                            <td data-column="address" class="small">{{ $event->address ?? '-' }}</td>
+                                                <?php echo e(str_replace('-', '', $event->contact_no ?? '') ?: '-'); ?></td>
+                                            <td data-column="address" class="small"><?php echo e($event->address ?? '-'); ?></td>
                                             <td data-column="client_category" class="small">
-                                                {{ $event->client_category ?? '-' }}</td>
+                                                <?php echo e($event->client_category ?? '-'); ?></td>
                                             <td data-column="transaction_category" class="small">
-                                                {{ $event->transaction_category ?? '-' }}</td>
+                                                <?php echo e($event->transaction_category ?? '-'); ?></td>
                                             <td data-column="transaction_type" class="small">
-                                                {{ $event->transaction_type ?? '-' }}</td>
+                                                <?php echo e($event->transaction_type ?? '-'); ?></td>
                                             <td data-column="event_date" class="small">
-                                                {{ optional($event->event_date)->format('M d, Y') ?? '-' }}</td>
+                                                <?php echo e(optional($event->event_date)->format('M d, Y') ?? '-'); ?></td>
                                             <td data-column="transferred_at">
-                                                {{ optional($event->transferred_at)->timezone('Asia/Manila')->format('M d, Y H:i:s') }}
+                                                <?php echo e(optional($event->transferred_at)->timezone('Asia/Manila')->format('M d, Y H:i:s')); ?>
+
                                             </td>
                                             <td data-column="status" class="text-center">
                                                 <span class="badge bg-success-subtle text-success px-3 py-2">
                                                     <i class="ri-check-line me-1"></i>Approved
                                                 </span>
                                             </td>
-                                            @if (auth()->user()?->role_name !== 'Viewer')
+                                            <?php if(auth()->user()?->role_name !== 'Viewer'): ?>
                                                 <td class="text-center" style="width: 50px">
-                                                    <form action="{{ route('transaction-events.undo-transfer', $event) }}"
+                                                    <form action="<?php echo e(route('transaction-events.undo-transfer', $event)); ?>"
                                                         method="POST" class="m-0">
-                                                        @csrf
+                                                        <?php echo csrf_field(); ?>
                                                         <button type="submit" class="btn btn-sm btn-soft-warning"
                                                             onclick="return confirm('Undo this transfer? The created transaction record will be removed and this event will return to pending. The client record will remain.');">
                                                             <i class="ri-arrow-go-back-line me-1"></i> Undo Transfer
                                                         </button>
                                                     </form>
                                                 </td>
-                                            @endif
+                                            <?php endif; ?>
                                         </tr>
-                                    @empty
+                                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                                         <tr>
-                                            <td colspan="{{ auth()->user()?->role_name !== 'Viewer' ? 14 : 13 }}"
+                                            <td colspan="<?php echo e(auth()->user()?->role_name !== 'Viewer' ? 14 : 13); ?>"
                                                 class="text-center text-muted py-5">
                                                 <i class="ri-inbox-line fs-1 d-block mb-2"></i>
                                                 No transferred event records found.
                                             </td>
                                         </tr>
-                                    @endforelse
+                                    <?php endif; ?>
                                 </tbody>
                             </table>
                         </div>
 
                         <div class="d-flex justify-content-end mt-3">
-                            {{ $events->links('pagination::bootstrap-5') }}
+                            <?php echo e($events->links('pagination::bootstrap-5')); ?>
+
                         </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-@endsection
+<?php $__env->stopSection(); ?>
 
-@push('scripts')
+<?php $__env->startPush('scripts'); ?>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             // ----- Filter Records card toggle (Client List style) -----
@@ -378,11 +377,11 @@
             });
 
             // Auto-expand when filters are active.
-            @if ($activeRecordFilters)
+            <?php if($activeRecordFilters): ?>
                 setFiltersVisible(true);
-            @endif
+            <?php endif; ?>
 
-            const STORAGE_KEY = 'eventRecordsHiddenColumns-{{ auth()->id() }}';
+            const STORAGE_KEY = 'eventRecordsHiddenColumns-<?php echo e(auth()->id()); ?>';
             const table = document.getElementById('eventRecordsTable');
             const toggles = Array.from(document.querySelectorAll('.column-toggle'));
             const resetBtn = document.getElementById('resetColumnsBtn');
@@ -436,4 +435,6 @@
             applyColumns();
         });
     </script>
-@endpush
+<?php $__env->stopPush(); ?>
+
+<?php echo $__env->make('layouts.master', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH C:\xampp\htdocs\E-Reg-System\resources\views/pages/transaction_events/eventRecords.blade.php ENDPATH**/ ?>

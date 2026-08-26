@@ -1,7 +1,6 @@
-@extends('layouts.master')
-@section('title', 'ERS | Events - Removed Duplicates')
+<?php $__env->startSection('title', 'ERS | Events - Removed Duplicates'); ?>
 
-@section('content')
+<?php $__env->startSection('content'); ?>
     <div class="container-fluid">
         <div class="row">
             <div class="col-12 mb-4">
@@ -10,26 +9,28 @@
                         <h4 class="mb-1 fw-semibold">Events - Removed Duplicates</h4>
                         <p class="text-muted mb-0">List of transaction events removed during duplicate review.</p>
                     </div>
-                    <a href="{{ route('transaction-events.duplicate-review') }}" class="btn btn-outline-secondary btn-sm">
+                    <a href="<?php echo e(route('transaction-events.duplicate-review')); ?>" class="btn btn-outline-secondary btn-sm">
                         <i class="ri-arrow-left-line me-1"></i> Back to Duplicate Review
                     </a>
                 </div>
             </div>
         </div>
 
-        @if (session('success'))
+        <?php if(session('success')): ?>
             <div class="alert alert-success alert-dismissible fade show" role="alert">
-                {{ session('success') }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
-        @endif
+                <?php echo e(session('success')); ?>
 
-        @if (session('error'))
-            <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                {{ session('error') }}
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
-        @endif
+        <?php endif; ?>
+
+        <?php if(session('error')): ?>
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <?php echo e(session('error')); ?>
+
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        <?php endif; ?>
 
         <div class="row">
             <div class="col-12">
@@ -46,51 +47,54 @@
                                         <th>Address</th>
                                         <th>Category</th>
                                         <th style="width: 160px;">Removed At</th>
-                                        @if (auth()->user()?->role_name !== 'Viewer')
+                                        <?php if(auth()->user()?->role_name !== 'Viewer'): ?>
                                             <th style="width: 140px;" class="text-center">Action</th>
-                                        @endif
+                                        <?php endif; ?>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    @forelse ($events as $event)
+                                    <?php $__empty_1 = true; $__currentLoopData = $events; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $event): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
                                         <tr>
-                                            <td>{{ $event->id }}</td>
-                                            <td class="fw-semibold">{{ $event->full_name }}</td>
-                                            <td>{{ optional($event->birth_date)->format('M d, Y') ?? '-' }}</td>
-                                            <td>{{ str_replace('-', '', $event->contact_no ?? '') ?: '-' }}</td>
-                                            <td class="small">{{ $event->address ?? '-' }}</td>
-                                            <td class="small">{{ $event->client_category ?? '-' }}</td>
-                                            <td>{{ optional($event->updated_at)->timezone('Asia/Manila')->format('M d, Y H:i:s') }}</td>
-                                            @if (auth()->user()?->role_name !== 'Viewer')
+                                            <td><?php echo e($event->id); ?></td>
+                                            <td class="fw-semibold"><?php echo e($event->full_name); ?></td>
+                                            <td><?php echo e(optional($event->birth_date)->format('M d, Y') ?? '-'); ?></td>
+                                            <td><?php echo e(str_replace('-', '', $event->contact_no ?? '') ?: '-'); ?></td>
+                                            <td class="small"><?php echo e($event->address ?? '-'); ?></td>
+                                            <td class="small"><?php echo e($event->client_category ?? '-'); ?></td>
+                                            <td><?php echo e(optional($event->updated_at)->timezone('Asia/Manila')->format('M d, Y H:i:s')); ?></td>
+                                            <?php if(auth()->user()?->role_name !== 'Viewer'): ?>
                                                 <td class="text-center">
-                                                    <form action="{{ route('transaction-events.reset-duplicate', $event) }}" method="POST" class="m-0">
-                                                        @csrf
+                                                    <form action="<?php echo e(route('transaction-events.reset-duplicate', $event)); ?>" method="POST" class="m-0">
+                                                        <?php echo csrf_field(); ?>
                                                         <button type="submit" class="btn btn-sm btn-soft-warning"
                                                             onclick="return confirm('Restore this event back to duplicate review?');">
                                                             <i class="ri-arrow-go-back-line me-1"></i> Undo
                                                         </button>
                                                     </form>
                                                 </td>
-                                            @endif
+                                            <?php endif; ?>
                                         </tr>
-                                    @empty
+                                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                                         <tr>
                                             <td colspan="8" class="text-center text-muted py-5">
                                                 <i class="ri-inbox-line fs-1 d-block mb-2"></i>
                                                 No removed duplicates found.
                                             </td>
                                         </tr>
-                                    @endforelse
+                                    <?php endif; ?>
                                 </tbody>
                             </table>
                         </div>
 
                         <div class="d-flex justify-content-end mt-3">
-                            {{ $events->links('pagination::bootstrap-5') }}
+                            <?php echo e($events->links('pagination::bootstrap-5')); ?>
+
                         </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-@endsection
+<?php $__env->stopSection(); ?>
+
+<?php echo $__env->make('layouts.master', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH C:\xampp\htdocs\E-Reg-System\resources\views/pages/transaction_events/removedDuplicates.blade.php ENDPATH**/ ?>

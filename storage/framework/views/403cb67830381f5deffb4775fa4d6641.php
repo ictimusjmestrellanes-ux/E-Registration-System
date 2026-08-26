@@ -1,7 +1,6 @@
-@extends('layouts.master')
-@section('title', 'ERS | Transaction Event Archives')
+<?php $__env->startSection('title', 'ERS | Transaction Event Archives'); ?>
 
-@section('content')
+<?php $__env->startSection('content'); ?>
     <div class="container-fluid">
         <div class="row">
             <div class="col-12 mb-4">
@@ -10,28 +9,29 @@
             </div>
         </div>
 
-        @if (session('success'))
+        <?php if(session('success')): ?>
             <div class="alert alert-success alert-dismissible fade show" role="alert">
-                {{ session('success') }}
+                <?php echo e(session('success')); ?>
+
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
-        @endif
+        <?php endif; ?>
 
         <div class="row">
             <div class="col-12">
                 <div class="card">
                     <div class="card-header d-flex align-items-center justify-content-between">
                         <h5 class="card-title mb-0">Archive Files</h5>
-                        <a href="{{ route('transaction-events.index') }}" class="btn btn-sm btn-outline-primary">
+                        <a href="<?php echo e(route('transaction-events.index')); ?>" class="btn btn-sm btn-outline-primary">
                             <i class="ri-arrow-left-line me-1"></i> Back to Transaction Events
                         </a>
                     </div>
                     <div class="card-body">
-                        @if ($files->isEmpty())
+                        <?php if($files->isEmpty()): ?>
                             <div class="alert alert-info mb-0">
                                 No archive files found yet. Import a CSV file to create archive records.
                             </div>
-                        @else
+                        <?php else: ?>
                             <div class="table-responsive">
                                 <table class="table table-bordered table-hover align-middle mb-0">
                                     <thead class="table-light">
@@ -44,35 +44,38 @@
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        @foreach ($files as $file)
+                                        <?php $__currentLoopData = $files; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $file): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                             <tr>
-                                                <td>{{ $file['name'] }}</td>
+                                                <td><?php echo e($file['name']); ?></td>
                                                 <td>
-                                                    @if (!empty($file['imported_by']))
-                                                        {{ $file['imported_by']['imported_by'] }}
-                                                        @if (!empty($file['imported_by']['role']))
-                                                            <span class="badge badge-soft-secondary ms-1">{{ $file['imported_by']['role'] }}</span>
-                                                        @endif
-                                                    @else
+                                                    <?php if(!empty($file['imported_by'])): ?>
+                                                        <?php echo e($file['imported_by']['imported_by']); ?>
+
+                                                        <?php if(!empty($file['imported_by']['role'])): ?>
+                                                            <span class="badge badge-soft-secondary ms-1"><?php echo e($file['imported_by']['role']); ?></span>
+                                                        <?php endif; ?>
+                                                    <?php else: ?>
                                                         <span class="text-muted">—</span>
-                                                    @endif
+                                                    <?php endif; ?>
                                                 </td>
-                                                <td>{{ \Carbon\Carbon::createFromTimestamp($file['uploaded_at'])->timezone('Asia/Manila')->format('M d, Y H:i:s') }}</td>
-                                                <td>{{ number_format($file['size'] / 1024, 2) }} KB</td>
+                                                <td><?php echo e(\Carbon\Carbon::createFromTimestamp($file['uploaded_at'])->timezone('Asia/Manila')->format('M d, Y H:i:s')); ?></td>
+                                                <td><?php echo e(number_format($file['size'] / 1024, 2)); ?> KB</td>
                                                 <td class="text-center">
-                                                    <a href="{{ $file['download_url'] }}" class="btn btn-sm btn-primary">
+                                                    <a href="<?php echo e($file['download_url']); ?>" class="btn btn-sm btn-primary">
                                                         <i class="ri-download-line me-1"></i> Download
                                                     </a>
                                                 </td>
                                             </tr>
-                                        @endforeach
+                                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                     </tbody>
                                 </table>
                             </div>
-                        @endif
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-@endsection
+<?php $__env->stopSection(); ?>
+
+<?php echo $__env->make('layouts.master', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH C:\xampp\htdocs\E-Reg-System\resources\views/pages/transaction_events/transactionEventArchives.blade.php ENDPATH**/ ?>

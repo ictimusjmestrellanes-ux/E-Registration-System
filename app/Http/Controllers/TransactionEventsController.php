@@ -131,7 +131,7 @@ class TransactionEventsController extends Controller
     public function records(Request $request)
     {
         if (!feature_allowed('Event Records')) {
-            abort(403, 'You do not have permission to view Events - Records.');
+            abort(404);
         }
 
         $query = TransactionEvent::whereNotNull('transferred_at');
@@ -196,7 +196,7 @@ class TransactionEventsController extends Controller
     public function recordsDuplicates()
     {
         if (!feature_allowed('Events Records Duplicates')) {
-            abort(403, 'You do not have permission to view Duplicate Events Records.');
+            abort(404);
         }
 
         $base = fn () => TransactionEvent::whereNotNull('transferred_at')
@@ -468,7 +468,7 @@ class TransactionEventsController extends Controller
     public function archives()
     {
         if (!feature_allowed('View Archive Files')) {
-            abort(403, 'You do not have permission to view Archive Files.');
+            abort(404);
         }
 
         $directory = 'transaction-events-archive';

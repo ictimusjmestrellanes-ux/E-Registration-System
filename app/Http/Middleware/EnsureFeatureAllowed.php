@@ -31,7 +31,9 @@ class EnsureFeatureAllowed
         }
 
         if (! (bool) $allowed) {
-            abort(403, "You do not have permission to access {$feature}.");
+            // Feature disabled for this role — show 404 so the module's
+            // existence stays hidden.
+            abort(404);
         }
 
         return $next($request);
