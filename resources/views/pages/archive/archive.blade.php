@@ -71,9 +71,15 @@
                                                 @unless (auth()->user()?->role_name === 'Viewer')
                                                     <form action="{{ route('archive.restore', $client) }}" method="POST" onsubmit="return confirm('Restore this client back to the active list?');">
                                                         @csrf
+                                                        @if (feature_allowed('Restore Archive'))
                                                         <button type="submit" class="btn btn-sm btn-soft-success">
-                                                            Restore
+                                                            Restore Client
                                                         </button>
+                                                        @else
+                                                        <button type="button" class="btn btn-sm btn-soft-success" disabled>
+                                                            Not Allowed to Restore Client
+                                                        </button>
+                                                        @endif
                                                     </form>
                                                 @endunless
                                             </td>

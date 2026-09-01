@@ -72,9 +72,15 @@
                                                 <?php if (! (auth()->user()?->role_name === 'Viewer')): ?>
                                                     <form action="<?php echo e(route('archive.restore', $client)); ?>" method="POST" onsubmit="return confirm('Restore this client back to the active list?');">
                                                         <?php echo csrf_field(); ?>
+                                                        <?php if(feature_allowed('Restore Archive')): ?>
                                                         <button type="submit" class="btn btn-sm btn-soft-success">
-                                                            Restore
+                                                            Restore Client
                                                         </button>
+                                                        <?php else: ?>
+                                                        <button type="button" class="btn btn-sm btn-soft-success" disabled>
+                                                            Not Allowed to Restore Client
+                                                        </button>
+                                                        <?php endif; ?>
                                                     </form>
                                                 <?php endif; ?>
                                             </td>

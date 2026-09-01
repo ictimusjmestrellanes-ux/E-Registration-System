@@ -1,6 +1,6 @@
 <?php $__env->startSection('title', 'ERS | Permissions'); ?>
 <?php $__env->startSection('content'); ?>
-<?php $canEdit = in_array(auth()->user()?->role_name, ['Admin', 'Super Admin']); ?>
+    <?php $canEdit = in_array(auth()->user()?->role_name, ['Admin', 'Super Admin']); ?>
     <div class="container-fluid">
         <div class="row">
             <div class="col-12">
@@ -13,13 +13,26 @@
                             </div>
                             <div class="d-flex align-items-center gap-2">
                                 <?php if($canEdit): ?>
+                                    <?php if(feature_allowed('Add Permissions')): ?>
                                     <button type="button" class="btn btn-primary" data-bs-toggle="modal"
                                         data-bs-target="#addPermissionModal">
                                         <i class="ri-add-line align-bottom me-1"></i> Add Permission
                                     </button>
-                                    <button type="submit" form="permissionsForm" class="btn btn-success">
-                                        <i class="ri-save-line align-bottom me-1"></i> Save Changes
+                                    <?php else: ?>
+                                    <button type="button" class="btn btn-primary" data-bs-toggle="modal"
+                                        data-bs-target="#addPermissionModal" disabled>
+                                        <i class="ri-add-line align-bottom me-1"></i> Not Allowed to Add Permission
                                     </button>
+                                    <?php endif; ?>
+                                    <?php if(feature_allowed('Save Permissions')): ?>
+                                        <button type="submit" form="permissionsForm" class="btn btn-success">
+                                            <i class="ri-save-line align-bottom me-1"></i> Save Changes
+                                        </button>
+                                    <?php else: ?>
+                                        <button type="submit" form="permissionsForm" class="btn btn-success" disabled>
+                                            <i class="ri-save-line align-bottom me-1"></i>Not allowed to Save Changes
+                                        </button>
+                                    <?php endif; ?>
                                 <?php endif; ?>
                             </div>
                         </div>
@@ -65,29 +78,43 @@
                                             <?php $__currentLoopData = $roles; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $role): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                                 <td class="text-center">
                                                     <?php if($canEdit): ?>
-                                                        <div class="form-check form-switch form-switch-lg d-inline-block mb-0">
-                                                            <input type="checkbox" class="form-check-input" id="perm-<?php echo e($permission['feature']); ?>-<?php echo e($role); ?>"
+                                                        <div
+                                                            class="form-check form-switch form-switch-lg d-inline-block mb-0">
+                                                            <input type="checkbox" class="form-check-input"
+                                                                id="perm-<?php echo e($permission['feature']); ?>-<?php echo e($role); ?>"
                                                                 name="allowed[<?php echo e($permission['feature']); ?>][<?php echo e($role); ?>]"
                                                                 <?php if($permission[$role] ?? false): echo 'checked'; endif; ?>>
-                                                            <label class="form-check-label" for="perm-<?php echo e($permission['feature']); ?>-<?php echo e($role); ?>"></label>
+                                                            <label class="form-check-label"
+                                                                for="perm-<?php echo e($permission['feature']); ?>-<?php echo e($role); ?>"></label>
                                                         </div>
                                                     <?php else: ?>
                                                         <?php if($permission[$role] ?? false): ?>
-                                                            <span class="badge bg-success-subtle text-success"><i class="ri-check-line align-bottom"></i> Allowed</span>
+                                                            <span class="badge bg-success-subtle text-success"><i
+                                                                    class="ri-check-line align-bottom"></i> Allowed</span>
                                                         <?php else: ?>
-                                                            <span class="badge bg-danger-subtle text-danger"><i class="ri-close-line align-bottom"></i> Denied</span>
+                                                            <span class="badge bg-danger-subtle text-danger"><i
+                                                                    class="ri-close-line align-bottom"></i> Denied</span>
                                                         <?php endif; ?>
                                                     <?php endif; ?>
                                                 </td>
                                             <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                             <?php if($canEdit): ?>
                                                 <td class="text-center">
-                                                    <button type="button" class="btn btn-sm btn-soft-danger"
-                                                        data-bs-toggle="modal"
-                                                        data-bs-target="#deletePermissionModal-<?php echo e(str_replace(' ', '-', $permission['feature'])); ?>"
-                                                        title="Delete Permission">
-                                                        <i class="ri-delete-bin-line"></i>
-                                                    </button>
+                                                    <?php if(feature_allowed('Delete Permissions')): ?>
+                                                        <button type="button" class="btn btn-sm btn-soft-danger"
+                                                            data-bs-toggle="modal"
+                                                            data-bs-target="#deletePermissionModal-<?php echo e(str_replace(' ', '-', $permission['feature'])); ?>"
+                                                            title="Delete Permission">
+                                                            <i class="ri-delete-bin-line"></i>
+                                                        </button>
+                                                    <?php else: ?>
+                                                        <button type="button" class="btn btn-sm btn-soft-danger"
+                                                            data-bs-toggle="modal"
+                                                            data-bs-target="#deletePermissionModal-<?php echo e(str_replace(' ', '-', $permission['feature'])); ?>"
+                                                            title="Delete Permission" disabled>
+                                                            <i class="ri-delete-bin-line"></i>
+                                                        </button>
+                                                    <?php endif; ?>
                                                 </td>
                                             <?php endif; ?>
                                         </tr>
@@ -148,7 +175,8 @@ unset($__errorArgs, $__bag); ?>
         </div>
 
         <?php $__currentLoopData = $permissions; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $permission): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-            <div class="modal fade" id="deletePermissionModal-<?php echo e(str_replace(' ', '-', $permission['feature'])); ?>" tabindex="-1" aria-hidden="true">
+            <div class="modal fade" id="deletePermissionModal-<?php echo e(str_replace(' ', '-', $permission['feature'])); ?>"
+                tabindex="-1" aria-hidden="true">
                 <div class="modal-dialog modal-dialog-centered">
                     <div class="modal-content">
                         <form method="POST" action="<?php echo e(route('permissions.destroy')); ?>">
@@ -161,7 +189,8 @@ unset($__errorArgs, $__bag); ?>
                             </div>
                             <div class="modal-body">
                                 <p class="mb-0">Are you sure you want to delete the permission
-                                    <strong><?php echo e($permission['feature']); ?></strong>? It will be removed for all roles.</p>
+                                    <strong><?php echo e($permission['feature']); ?></strong>? It will be removed for all roles.
+                                </p>
                             </div>
                             <div class="modal-footer">
                                 <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
@@ -174,4 +203,5 @@ unset($__errorArgs, $__bag); ?>
         <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
     <?php endif; ?>
 <?php $__env->stopSection(); ?>
+
 <?php echo $__env->make('layouts.master', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH C:\xampp\htdocs\E-Reg-System\resources\views/pages/permissions/index.blade.php ENDPATH**/ ?>

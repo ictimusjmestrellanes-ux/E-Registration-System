@@ -115,10 +115,17 @@
                                         <a href="<?php echo e(route('transaction-events.records')); ?>"
                                             class="btn btn-soft-secondary">Reset</a>
                                     <?php endif; ?>
-                                    <a href="<?php echo e(route('transaction-events.records-duplicates')); ?>"
-                                        class="btn btn-sm btn-outline-warning">
-                                        <i class="ri-file-copy-2-line me-1"></i> Duplicate Records
-                                    </a>
+                                    <?php if(feature_allowed('Events Records Duplicates')): ?>
+                                        <a href="<?php echo e(route('transaction-events.records-duplicates')); ?>"
+                                            class="btn btn-sm btn-outline-warning">
+                                            <i class="ri-file-copy-2-line me-1"></i>View Duplicate Records
+                                        </a>
+                                    <?php else: ?>
+                                        <button type="button" class="btn btn-sm btn-outline-warning" disabled
+                                            title="Feature not allowed">
+                                            <i class="ri-file-copy-2-line me-1"></i>Not Allowed to View Duplicate Records
+                                        </button>
+                                    <?php endif; ?>
 
                                     <select class="form-select form-select-sm w-auto" id="recordPerPageSelect"
                                         aria-label="Records per page" title="Records per page">
@@ -138,20 +145,20 @@
                                         <div class="dropdown-menu dropdown-menu-end p-3" style="min-width: 230px;">
                                             <h6 class="dropdown-header px-0">Manage Columns</h6>
                                             <?php $__currentLoopData = [
-                                                    'id' => 'ID',
-                                                    'transaction_id' => 'Transaction ID',
-                                                    'full_name' => 'Full Name',
-                                                    'age' => 'Age',
-                                                    'birth_date' => 'Birth Date',
-                                                    'contact' => 'Contact No.',
-                                                    'address' => 'Address',
-                                                    'client_category' => 'Category',
-                                                    'transaction_category' => 'Transaction Category',
-                                                    'transaction_type' => 'Transaction Type',
-                                                    'event_date' => 'Event Date',
-                                                    'transferred_at' => 'Transferred At',
-                                                    'status' => 'Status',
-                                                ]; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $key => $label): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+            'id' => 'ID',
+            'transaction_id' => 'Transaction ID',
+            'full_name' => 'Full Name',
+            'age' => 'Age',
+            'birth_date' => 'Birth Date',
+            'contact' => 'Contact No.',
+            'address' => 'Address',
+            'client_category' => 'Category',
+            'transaction_category' => 'Transaction Category',
+            'transaction_type' => 'Transaction Type',
+            'event_date' => 'Event Date',
+            'transferred_at' => 'Transferred At',
+            'status' => 'Status',
+        ]; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $key => $label): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                                 <div class="form-check">
                                                     <input class="form-check-input column-toggle" type="checkbox"
                                                         id="col-<?php echo e($key); ?>" value="<?php echo e($key); ?>" checked>
@@ -317,10 +324,18 @@
                                                     <form action="<?php echo e(route('transaction-events.undo-transfer', $event)); ?>"
                                                         method="POST" class="m-0">
                                                         <?php echo csrf_field(); ?>
-                                                        <button type="submit" class="btn btn-sm btn-soft-warning"
-                                                            onclick="return confirm('Undo this transfer? The created transaction record will be removed and this event will return to pending. The client record will remain.');">
-                                                            <i class="ri-arrow-go-back-line me-1"></i> Undo Transfer
-                                                        </button>
+                                                        <?php if(feature_allowed('Undo Transfer')): ?>
+                                                            <button type="submit" class="btn btn-sm btn-soft-warning"
+                                                                onclick="return confirm('Undo this transfer? The created transaction record will be removed and this event will return to pending. The client record will remain.');">
+                                                                <i class="ri-arrow-go-back-line me-1"></i> Undo Transfer
+                                                            </button>
+                                                        <?php else: ?>
+                                                            <button type="button" class="btn btn-sm btn-soft-warning"
+                                                                disabled title="Feature not allowed">
+                                                                <i class="ri-arrow-go-back-line me-1"></i>Not Allowed to
+                                                                Undo Transfer
+                                                            </button>
+                                                        <?php endif; ?>
                                                     </form>
                                                 </td>
                                             <?php endif; ?>

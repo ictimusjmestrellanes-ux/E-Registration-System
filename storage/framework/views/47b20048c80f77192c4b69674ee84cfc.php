@@ -92,21 +92,43 @@
                         </div>
 
                         <div class="d-flex align-items-center gap-2 flex-wrap">
-                            <a href="<?php echo e(route('transaction-events.duplicate-review')); ?>"
-                                class="btn btn-sm <?php echo e($totalDuplicateGroups ? 'btn-warning' : 'btn-outline-warning'); ?>">
-                                <i class="ri-file-copy-2-line me-1"></i> Duplicate Names
-                                <?php if($totalDuplicateGroups): ?>
-                                    <span class="badge bg-danger text-white ms-1"><?php echo e($totalDuplicateGroups); ?></span>
-                                <?php endif; ?>
-                            </a>
-                            <a href="<?php echo e(route('transaction-events.archives')); ?>" class="btn btn-outline-secondary btn-sm">
-                                <i class="ri-archive-line me-1"></i> View Archives
-                            </a>
+                            <?php if(feature_allowed('Duplicate Review')): ?>
+                                <a href="<?php echo e(route('transaction-events.duplicate-review')); ?>"
+                                    class="btn btn-sm <?php echo e($totalDuplicateGroups ? 'btn-warning' : 'btn-outline-warning'); ?>">
+                                    <i class="ri-file-copy-2-line me-1"></i> Duplicate Names
+                                    <?php if($totalDuplicateGroups): ?>
+                                        <span class="badge bg-danger text-white ms-1"><?php echo e($totalDuplicateGroups); ?></span>
+                                    <?php endif; ?>
+                                </a>
+                            <?php else: ?>
+                                <button type="button" class="btn btn-sm btn-outline-warning" disabled
+                                    title="You do not have permission to view duplicate names.">
+                                    <i class="ri-file-copy-2-line me-1"></i> Not Allowed to View Duplicate Names
+                                </button>
+                            <?php endif; ?>
+                            <?php if(feature_allowed('View Archive Files')): ?>
+                                <a href="<?php echo e(route('transaction-events.archives')); ?>"
+                                    class="btn btn-outline-secondary btn-sm">
+                                    <i class="ri-archive-line me-1"></i> View Archives Files
+                                </a>
+                            <?php else: ?>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" disabled
+                                    title="You do not have permission to view archive files.">
+                                    <i class="ri-archive-line me-1"></i> Not Allowed to View Archives
+                                </button>
+                            <?php endif; ?>
                             <div class="d-flex align-items-center gap-2">
                                 <?php if (! (auth()->user()?->role_name === 'Viewer')): ?>
-                                    <button type="button" class="btn btn-success btn-sm" id="bulkTransferBtn" disabled>
-                                        <i class="ri-exchange-box-line me-1"></i> Transfer Selected
-                                    </button>
+                                    <?php if(feature_allowed('Transfer Selected')): ?>
+                                        <button type="button" class="btn btn-success btn-sm" id="bulkTransferBtn" disabled>
+                                            <i class="ri-exchange-box-line me-1"></i> Transfer Selected
+                                        </button>
+                                    <?php else: ?>
+                                        <button type="button" class="btn btn-success btn-sm" disabled
+                                            title="You do not have permission to transfer selected events.">
+                                            <i class="ri-exchange-box-line me-1"></i> Not Allowed to Transfer Selected
+                                        </button>
+                                    <?php endif; ?>
                                 <?php endif; ?>
                             </div>
 
@@ -115,13 +137,27 @@
                                 <?php echo csrf_field(); ?>
                             </form>
                             <?php if (! (auth()->user()?->role_name === 'Viewer')): ?>
-                                <a href="<?php echo e(route('transaction-events.template')); ?>" class="btn btn-soft-primary btn-sm">
-                                    <i class="ri-download-2-line me-1"></i> Excel Template
-                                </a>
-                                <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal"
-                                    data-bs-target="#importModal">
-                                    <i class="ri-upload-2-line me-1"></i> Import CSV
-                                </button>
+                                <?php if(feature_allowed('Download Template')): ?>
+                                    <a href="<?php echo e(route('transaction-events.template')); ?>" class="btn btn-soft-primary btn-sm">
+                                        <i class="ri-download-2-line me-1"></i> Excel Template
+                                    </a>
+                                <?php else: ?>
+                                    <button type="button" class="btn btn-soft-primary btn-sm" disabled
+                                        title="You do not have permission to download the Excel template.">
+                                        <i class="ri-download-2-line me-1"></i> Not Allowed to Download Template
+                                    </button>
+                                <?php endif; ?>
+                                <?php if(feature_allowed('Import CSV')): ?>
+                                    <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal"
+                                        data-bs-target="#importModal">
+                                        <i class="ri-upload-2-line me-1"></i> Import CSV
+                                    </button>
+                                <?php else: ?>
+                                    <button type="button" class="btn btn-primary btn-sm" disabled
+                                        title="You do not have permission to import CSV files.">
+                                        <i class="ri-upload-2-line me-1"></i> Not Allowed to Import CSV
+                                    </button>
+                                <?php endif; ?>
                             <?php endif; ?>
                             <span class="badge bg-primary-subtle text-primary px-4 py-2"><?php echo e($events->total()); ?> total</span>
                         </div>
@@ -164,29 +200,29 @@
                                         <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                     </select>
                                     <button type="button" class="btn btn-soft-primary btn-sm text-nowrap"
-                                        id="eventListColumnsBtn"
-                                        data-bs-toggle="dropdown" data-bs-auto-close="outside"
+                                        id="eventListColumnsBtn" data-bs-toggle="dropdown" data-bs-auto-close="outside"
                                         aria-expanded="false" title="Manage Columns">
                                         <i class="ri-layout-column-line me-1"></i> Manage Columns
                                     </button>
                                     <div class="dropdown-menu dropdown-menu-end p-3" style="min-width: 230px;">
                                         <h6 class="dropdown-header px-0">Manage Columns</h6>
                                         <?php $__currentLoopData = [
-                                            'full_name' => 'Full Name',
-                                            'age' => 'Age',
-                                            'birth_date' => 'Birth Date',
-                                            'contact_no' => 'Contact No.',
-                                            'address' => 'Address',
-                                            'client_category' => 'Client Category',
-                                            'transaction_category' => 'Transaction Category',
-                                            'transaction_type' => 'Transaction Type',
-                                            'event_date' => 'Event Date',
-                                            'created_at' => 'Imported',
-                                        ]; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $key => $label): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+            'full_name' => 'Full Name',
+            'age' => 'Age',
+            'birth_date' => 'Birth Date',
+            'contact_no' => 'Contact No.',
+            'address' => 'Address',
+            'client_category' => 'Client Category',
+            'transaction_category' => 'Transaction Category',
+            'transaction_type' => 'Transaction Type',
+            'event_date' => 'Event Date',
+            'created_at' => 'Imported',
+        ]; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $key => $label): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                             <div class="form-check">
                                                 <input class="form-check-input event-list-column-toggle" type="checkbox"
                                                     id="evcol-<?php echo e($key); ?>" value="<?php echo e($key); ?>" checked>
-                                                <label class="form-check-label" for="evcol-<?php echo e($key); ?>"><?php echo e($label); ?></label>
+                                                <label class="form-check-label"
+                                                    for="evcol-<?php echo e($key); ?>"><?php echo e($label); ?></label>
                                             </div>
                                         <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                         <hr class="dropdown-divider my-2">
@@ -390,12 +426,20 @@
                                                         method="POST" class="transaction-transfer-form"
                                                         data-event-name="<?php echo e($event->full_name); ?>">
                                                         <?php echo csrf_field(); ?>
-                                                        <button type="submit" class="btn btn-sm btn-soft-success"
-                                                            <?php echo e(empty($event->transaction_category) && empty($event->transaction_type) ? 'disabled' : ''); ?>
+                                                        <?php if(feature_allowed('Transfer Event')): ?>
+                                                            <button type="submit" class="btn btn-sm btn-soft-success"
+                                                                <?php echo e(empty($event->transaction_category) && empty($event->transaction_type) ? 'disabled' : ''); ?>
 
-                                                            title="<?php echo e(empty($event->transaction_category) && empty($event->transaction_type) ? 'No transaction category or type to transfer' : 'Transfer to transaction'); ?>">
-                                                            <i class="ri-exchange-line"></i> Transfer
-                                                        </button>
+                                                                title="<?php echo e(empty($event->transaction_category) && empty($event->transaction_type) ? 'No transaction category or type to transfer' : 'Transfer to transaction'); ?>">
+                                                                <i class="ri-exchange-line"></i> Transfer
+                                                            </button>
+                                                        <?php else: ?>
+                                                            <button type="button" class="btn btn-sm btn-soft-success"
+                                                                disabled
+                                                                title="You do not have permission to transfer this event.">
+                                                                <i class="ri-exchange-line"></i> Not Allowed to Transfer
+                                                            </button>
+                                                        <?php endif; ?>
                                                     </form>
                                                 <?php endif; ?>
                                             </td>
@@ -583,8 +627,8 @@
         </div>
 
         <!-- Already-imported warning modal -->
-        <div class="modal fade" id="importDuplicateModal" tabindex="-1"
-            aria-labelledby="importDuplicateModalLabel" aria-hidden="true">
+        <div class="modal fade" id="importDuplicateModal" tabindex="-1" aria-labelledby="importDuplicateModalLabel"
+            aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered modal-lg">
                 <div class="modal-content">
                     <div class="modal-header bg-warning-subtle">
@@ -1225,21 +1269,23 @@
                 }
 
                 const file = csvFileHidden.files[0];
-                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute(
+                    'content') || '';
 
                 confirmBtn.disabled = true;
                 try {
                     const checkForm = new FormData();
                     checkForm.append('csv_file', file);
 
-                    const res = await fetch('<?php echo e(route('transaction-events.import.check-duplicates')); ?>', {
-                        method: 'POST',
-                        headers: {
-                            'X-CSRF-TOKEN': csrfToken,
-                            Accept: 'application/json',
-                        },
-                        body: checkForm,
-                    });
+                    const res = await fetch(
+                        '<?php echo e(route('transaction-events.import.check-duplicates')); ?>', {
+                            method: 'POST',
+                            headers: {
+                                'X-CSRF-TOKEN': csrfToken,
+                                Accept: 'application/json',
+                            },
+                            body: checkForm,
+                        });
                     const data = await res.json();
 
                     if (!res.ok || !data.success) {
@@ -1261,14 +1307,16 @@
                         });
                         document.getElementById('importDuplicateSummary').textContent =
                             `${data.duplicates_count} of ${data.total_rows} row(s) in this file already exist in Transaction History.`;
-                        bootstrap.Modal.getOrCreateInstance(document.getElementById('importDuplicateModal')).show();
+                        bootstrap.Modal.getOrCreateInstance(document.getElementById(
+                            'importDuplicateModal')).show();
                         confirmBtn.disabled = false;
                         return; // wait for user choice; "Import Anyway" calls runImport
                     }
 
                     await runImport();
                 } catch (error) {
-                    new Message('imessage').show(error.message || 'Duplicate check failed.', 'fail', 'top-center');
+                    new Message('imessage').show(error.message || 'Duplicate check failed.', 'fail',
+                        'top-center');
                     confirmBtn.disabled = false;
                 }
             });

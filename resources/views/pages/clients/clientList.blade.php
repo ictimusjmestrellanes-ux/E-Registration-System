@@ -146,9 +146,11 @@
                             </div>
                             <div class="d-flex flex-wrap gap-2">
                                 @if ($matchedClientId)
-                                    <a href="{{ route('client.list') }}" class="btn btn-sm btn-soft-secondary">Show All Clients</a>
+                                    <a href="{{ route('client.list') }}" class="btn btn-sm btn-soft-secondary">Show All
+                                        Clients</a>
                                 @endif
-                                <button type="button" class="btn btn-sm btn-soft-primary" id="searchFingerprintBtn">Search by
+                                <button type="button" class="btn btn-sm btn-soft-primary" id="searchFingerprintBtn">Search
+                                    by
                                     Fingerprint</button>
                                 @unless (auth()->user()?->role_name === 'Viewer')
                                     <a href="{{ route('clients') }}" class="btn btn-sm btn-primary">Add Client</a>
@@ -191,8 +193,7 @@
                                     </button>
                                     <a href="{{ route('client.list') }}" class="btn btn-sm btn-soft-secondary"
                                         id="clientFiltersResetBtn">Reset</a>
-                                    <select class="form-select form-select-sm w-auto"
-                                        id="clientPerPageSelect"
+                                    <select class="form-select form-select-sm w-auto" id="clientPerPageSelect"
                                         aria-label="Clients per page" title="Clients per page">
                                         @foreach ([10, 15, 25, 50, 100] as $size)
                                             <option value="{{ $size }}"
@@ -221,8 +222,7 @@
                                         <div class="input-group">
                                             <span class="input-group-text"><i class="ri-search-line"></i></span>
                                             <input type="text" class="form-control" id="clientKeywordInput"
-                                                name="search" placeholder="Name"
-                                                value="{{ request('search') }}">
+                                                name="search" placeholder="Name" value="{{ request('search') }}">
                                         </div>
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
@@ -230,9 +230,12 @@
                                             class="form-label fw-semibold text-uppercase small">Gender</label>
                                         <select class="form-select" id="clientSexFilter" name="gender">
                                             <option value="">All Gender</option>
-                                            <option value="male" {{ request('gender') === 'male' ? 'selected' : '' }}>Male</option>
-                                            <option value="female" {{ request('gender') === 'female' ? 'selected' : '' }}>Female</option>
-                                            <option value="other" {{ request('gender') === 'other' ? 'selected' : '' }}>Other</option>
+                                            <option value="male" {{ request('gender') === 'male' ? 'selected' : '' }}>
+                                                Male</option>
+                                            <option value="female" {{ request('gender') === 'female' ? 'selected' : '' }}>
+                                                Female</option>
+                                            <option value="other" {{ request('gender') === 'other' ? 'selected' : '' }}>
+                                                Other</option>
                                         </select>
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
@@ -242,7 +245,8 @@
                                             <option value="">All civil statuses</option>
                                             @foreach ($clientCivilStatuses as $civilStatus)
                                                 <option value="{{ strtolower($civilStatus) }}"
-                                                    {{ strtolower(request('civil_status', '')) === strtolower($civilStatus) ? 'selected' : '' }}>{{ $civilStatus }}</option>
+                                                    {{ strtolower(request('civil_status', '')) === strtolower($civilStatus) ? 'selected' : '' }}>
+                                                    {{ $civilStatus }}</option>
                                             @endforeach
                                         </select>
                                     </div>
@@ -253,7 +257,8 @@
                                             <option value="">All cities</option>
                                             @foreach ($clientCities as $city)
                                                 <option value="{{ strtolower($city) }}"
-                                                    {{ strtolower(request('city', '')) === strtolower($city) ? 'selected' : '' }}>{{ $city }}</option>
+                                                    {{ strtolower(request('city', '')) === strtolower($city) ? 'selected' : '' }}>
+                                                    {{ $city }}</option>
                                             @endforeach
                                         </select>
                                     </div>
@@ -264,7 +269,8 @@
                                             <option value="">All barangays</option>
                                             @foreach ($clientBarangays as $barangay)
                                                 <option value="{{ strtolower($barangay) }}"
-                                                    {{ strtolower(request('barangay', '')) === strtolower($barangay) ? 'selected' : '' }}>{{ $barangay }}</option>
+                                                    {{ strtolower(request('barangay', '')) === strtolower($barangay) ? 'selected' : '' }}>
+                                                    {{ $barangay }}</option>
                                             @endforeach
                                         </select>
                                     </div>
@@ -390,21 +396,45 @@
                                             </td>
                                             <td>
                                                 <div class="d-flex gap-2 text-center justify-content-center">
-                                                    <a href="{{ route('clients.show', $client) }}"
-                                                        class="btn btn-sm btn-soft-info">
-                                                        View
-                                                    </a>
-                                                    @unless (auth()->user()?->role_name === 'Viewer')
-                                                        <a href="{{ route('clients.edit', $client) }}"
-                                                            class="btn btn-sm btn-soft-primary">
-                                                            Edit
+                                                    @if (feature_allowed('View Client'))
+                                                        <a href="{{ route('clients.show', $client) }}"
+                                                            class="btn btn-sm btn-soft-info">
+                                                            View
                                                         </a>
+                                                    @else
+                                                        <a href="{{ route('clients.show', $client) }}"
+                                                            class="btn btn-sm btn-soft-info disabled"
+                                                            aria-disabled="true">
+                                                            Not Allowed to View
+                                                        </a>
+                                                    @endif
+                                                    @unless (auth()->user()?->role_name === 'Viewer')
+                                                        @if (feature_allowed('Edit Client'))
+                                                            <a href="{{ route('clients.edit', $client) }}"
+                                                                class="btn btn-sm btn-soft-primary">
+                                                                Edit
+                                                            </a>
+                                                        @else
+                                                            <a href="{{ route('clients.edit', $client) }}"
+                                                                class="btn btn-sm btn-soft-primary disabled"
+                                                                aria-disabled="true">
+                                                                Not Allowed to Edit
+                                                            </a>
+                                                        @endif
                                                         <form action="{{ route('clients.archive', $client) }}" method="POST"
                                                             onsubmit="return confirm('Are you sure you want to archive this client?');">
                                                             @csrf
-                                                            <button type="submit" class="btn btn-sm btn-soft-warning">
-                                                                Archive
-                                                            </button>
+                                                            @if (feature_allowed('Archive Clients'))
+                                                                <button type="submit" class="btn btn-sm btn-soft-warning">
+                                                                    Archive
+                                                                </button>
+                                                            @else
+                                                                <button type="submit"
+                                                                    class="btn btn-sm btn-soft-warning"
+                                                                    disabled>
+                                                                    Not Allowed to Archive
+                                                                </button>
+                                                            @endif
                                                         </form>
                                                     @endunless
                                                 </div>
@@ -549,13 +579,13 @@
 
                         @if (request()->boolean('duplicate_names'))
                             <script>
-                                document.addEventListener('DOMContentLoaded', function () {
+                                document.addEventListener('DOMContentLoaded', function() {
                                     try {
                                         var resetBtn = document.getElementById('clientFiltersResetBtn');
                                         if (resetBtn) {
                                             // ensure clickable and redirect clears duplicate filter
                                             resetBtn.disabled = false;
-                                            resetBtn.addEventListener('click', function (ev) {
+                                            resetBtn.addEventListener('click', function(ev) {
                                                 ev.preventDefault();
                                                 window.location = '{{ route('client.list') }}';
                                             });
@@ -1021,7 +1051,8 @@
             @if (request()->filled('search'))
                 setFiltersVisibility(true);
                 clientKeywordInput.focus();
-                clientKeywordInput.setSelectionRange(clientKeywordInput.value.length, clientKeywordInput.value.length);
+                clientKeywordInput.setSelectionRange(clientKeywordInput.value.length, clientKeywordInput.value
+                    .length);
             @endif
 
             clientFiltersToggleBtn.addEventListener('click', function() {

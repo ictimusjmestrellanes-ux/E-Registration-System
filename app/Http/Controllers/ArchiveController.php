@@ -24,11 +24,11 @@ class ArchiveController extends Controller
 
     public function restore(ArchivedClient $archivedClient)
     {
-        if (!$this->clientHasStoredPhoto($archivedClient) || !$this->clientHasStoredFingerprint($archivedClient)) {
-            return redirect()
-                ->route('archive.list')
-                ->with('error', 'Archived clients must have both a photo and fingerprint before they can be restored.');
-        }
+        // if (!$this->clientHasStoredPhoto($archivedClient) || !$this->clientHasStoredFingerprint($archivedClient)) {
+        //     return redirect()
+        //         ->route('archive.list')
+        //         ->with('error', 'Archived clients must have both a photo and fingerprint before they can be restored.');
+        // }
 
         $client = Client::createWithGeneratedId([
             'client_id' => $archivedClient->client_id,

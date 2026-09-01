@@ -1,6 +1,6 @@
 <?php $__env->startSection('title', 'ERS | Roles'); ?>
 <?php $__env->startSection('content'); ?>
-<?php $canManage = in_array(auth()->user()?->role_name, ['Admin', 'Super Admin']); ?>
+    <?php $canManage = in_array(auth()->user()?->role_name, ['Admin', 'Super Admin']); ?>
     <div class="container-fluid">
         <div class="row">
             <div class="col-12">
@@ -16,10 +16,16 @@
                                     <?php echo e($totalUsers); ?> Total User(s)
                                 </span>
                                 <?php if($canManage): ?>
-                                    <button type="button" class="btn btn-primary" data-bs-toggle="modal"
-                                        data-bs-target="#addRoleModal">
-                                        <i class="ri-add-line align-bottom me-1"></i> Add Role
-                                    </button>
+                                    <?php if(feature_allowed('Add Roles')): ?>
+                                        <button type="button" class="btn btn-primary" data-bs-toggle="modal"
+                                            data-bs-target="#addRoleModal">
+                                            <i class="ri-add-line align-bottom me-1"></i> Add Role
+                                        </button>
+                                    <?php else: ?>
+                                        <button type="button" class="btn btn-primary" disabled>
+                                            <i class="ri-add-line align-bottom me-1"></i>Not Allowed to Add Role
+                                        </button>
+                                    <?php endif; ?>
                                 <?php endif; ?>
                             </div>
                         </div>
@@ -48,11 +54,16 @@
                                 </div>
                                 <div class="d-flex align-items-center gap-2">
                                     <?php if($canManage): ?>
-                                        <button type="button" class="btn btn-sm btn-soft-danger" data-bs-toggle="modal"
-                                            data-bs-target="#deleteRoleModal-<?php echo e($role['id']); ?>"
-                                            title="Delete Role">
-                                            <i class="ri-delete-bin-line"></i>
-                                        </button>
+                                        <?php if(feature_allowed('Delete Roles')): ?>
+                                            <button type="button" class="btn btn-sm btn-soft-danger" data-bs-toggle="modal"
+                                                data-bs-target="#deleteRoleModal-<?php echo e($role['id']); ?>" title="Delete Role">
+                                                <i class="ri-delete-bin-line"></i>
+                                            </button>
+                                        <?php else: ?>
+                                            <button type="button" class="btn btn-sm btn-soft-danger" disabled title="Not Allowed to Delete Role">
+                                                <i class="ri-delete-bin-line"></i>
+                                            </button>
+                                        <?php endif; ?>
                                     <?php endif; ?>
                                     <div class="avatar-sm">
                                         <div class="avatar-title bg-primary-subtle text-primary rounded fs-4">
@@ -128,7 +139,8 @@ unset($__errorArgs, $__bag); ?>
                             </div>
                             <div class="modal-body">
                                 <p class="mb-0">Are you sure you want to delete the role
-                                    <strong><?php echo e($role['name']); ?></strong>? Its permissions will also be removed.</p>
+                                    <strong><?php echo e($role['name']); ?></strong>? Its permissions will also be removed.
+                                </p>
                             </div>
                             <div class="modal-footer">
                                 <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
@@ -141,4 +153,5 @@ unset($__errorArgs, $__bag); ?>
         <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
     <?php endif; ?>
 <?php $__env->stopSection(); ?>
+
 <?php echo $__env->make('layouts.master', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH C:\xampp\htdocs\E-Reg-System\resources\views/pages/roles/index.blade.php ENDPATH**/ ?>

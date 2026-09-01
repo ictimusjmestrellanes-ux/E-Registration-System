@@ -1,7 +1,7 @@
 @extends('layouts.master')
 @section('title', 'ERS | Roles')
 @section('content')
-@php $canManage = in_array(auth()->user()?->role_name, ['Admin', 'Super Admin']); @endphp
+    @php $canManage = in_array(auth()->user()?->role_name, ['Admin', 'Super Admin']); @endphp
     <div class="container-fluid">
         <div class="row">
             <div class="col-12">
@@ -17,10 +17,16 @@
                                     {{ $totalUsers }} Total User(s)
                                 </span>
                                 @if ($canManage)
-                                    <button type="button" class="btn btn-primary" data-bs-toggle="modal"
-                                        data-bs-target="#addRoleModal">
-                                        <i class="ri-add-line align-bottom me-1"></i> Add Role
-                                    </button>
+                                    @if (feature_allowed('Add Roles'))
+                                        <button type="button" class="btn btn-primary" data-bs-toggle="modal"
+                                            data-bs-target="#addRoleModal">
+                                            <i class="ri-add-line align-bottom me-1"></i> Add Role
+                                        </button>
+                                    @else
+                                        <button type="button" class="btn btn-primary" disabled>
+                                            <i class="ri-add-line align-bottom me-1"></i>Not Allowed to Add Role
+                                        </button>
+                                    @endif
                                 @endif
                             </div>
                         </div>
@@ -48,11 +54,16 @@
                                 </div>
                                 <div class="d-flex align-items-center gap-2">
                                     @if ($canManage)
-                                        <button type="button" class="btn btn-sm btn-soft-danger" data-bs-toggle="modal"
-                                            data-bs-target="#deleteRoleModal-{{ $role['id'] }}"
-                                            title="Delete Role">
-                                            <i class="ri-delete-bin-line"></i>
-                                        </button>
+                                        @if (feature_allowed('Delete Roles'))
+                                            <button type="button" class="btn btn-sm btn-soft-danger" data-bs-toggle="modal"
+                                                data-bs-target="#deleteRoleModal-{{ $role['id'] }}" title="Delete Role">
+                                                <i class="ri-delete-bin-line"></i>
+                                            </button>
+                                        @else
+                                            <button type="button" class="btn btn-sm btn-soft-danger" disabled title="Not Allowed to Delete Role">
+                                                <i class="ri-delete-bin-line"></i>
+                                            </button>
+                                        @endif
                                     @endif
                                     <div class="avatar-sm">
                                         <div class="avatar-title bg-primary-subtle text-primary rounded fs-4">
@@ -114,7 +125,8 @@
                             </div>
                             <div class="modal-body">
                                 <p class="mb-0">Are you sure you want to delete the role
-                                    <strong>{{ $role['name'] }}</strong>? Its permissions will also be removed.</p>
+                                    <strong>{{ $role['name'] }}</strong>? Its permissions will also be removed.
+                                </p>
                             </div>
                             <div class="modal-footer">
                                 <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>

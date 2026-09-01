@@ -60,15 +60,26 @@
                                             <td>{{ str_replace('-', '', $event->contact_no ?? '') ?: '-' }}</td>
                                             <td class="small">{{ $event->address ?? '-' }}</td>
                                             <td class="small">{{ $event->client_category ?? '-' }}</td>
-                                            <td>{{ optional($event->updated_at)->timezone('Asia/Manila')->format('M d, Y H:i:s') }}</td>
+                                            <td>{{ optional($event->updated_at)->timezone('Asia/Manila')->format('M d, Y H:i:s') }}
+                                            </td>
                                             @if (auth()->user()?->role_name !== 'Viewer')
                                                 <td class="text-center">
-                                                    <form action="{{ route('transaction-events.reset-duplicate', $event) }}" method="POST" class="m-0">
+                                                    <form
+                                                        action="{{ route('transaction-events.reset-duplicate', $event) }}"
+                                                        method="POST" class="m-0">
                                                         @csrf
-                                                        <button type="submit" class="btn btn-sm btn-soft-warning"
-                                                            onclick="return confirm('Restore this event back to duplicate review?');">
-                                                            <i class="ri-arrow-go-back-line me-1"></i> Undo
-                                                        </button>
+                                                        @if (feature_allowed('Reset Duplicate Review'))
+                                                            <button type="submit" class="btn btn-sm btn-soft-warning"
+                                                                onclick="return confirm('Restore this event back to duplicate review?');">
+                                                                <i class="ri-arrow-go-back-line me-1"></i> Undo Duplicate
+                                                            </button>
+                                                        @else
+                                                            <button type="button" class="btn btn-sm btn-soft-warning"
+                                                                disabled>
+                                                                <i class="ri-arrow-go-back-line me-1"></i>Not Allowed to
+                                                                Undo Duplicate
+                                                            </button>
+                                                        @endif
                                                     </form>
                                                 </td>
                                             @endif

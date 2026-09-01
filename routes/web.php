@@ -48,25 +48,25 @@ Route::group(['namespace' => 'App\Http\Controllers'], function () {
 
         // --------------------- Roles & Permissions ------------------//
         Route::get('roles', [RolesController::class, 'index'])->name('roles.index');
-        Route::post('roles', [RolesController::class, 'store'])->name('roles.store');
-        Route::delete('roles/{role}', [RolesController::class, 'destroy'])->name('roles.destroy');
+        Route::post('roles/add', [RolesController::class, 'store'])->name('roles.store');
+        Route::delete('roles/delete', [RolesController::class, 'destroy'])->name('roles.destroy');
         Route::get('permissions', [PermissionsController::class, 'index'])->name('permissions.index');
-        Route::put('permissions', [PermissionsController::class, 'update'])->name('permissions.update');
-        Route::post('permissions', [PermissionsController::class, 'store'])->name('permissions.store');
-        Route::delete('permissions', [PermissionsController::class, 'destroy'])->name('permissions.destroy');
+        Route::put('permissions/save', [PermissionsController::class, 'update'])->name('permissions.update');
+        Route::post('permissions/add', [PermissionsController::class, 'store'])->name('permissions.store');
+        Route::delete('permissions/delete', [PermissionsController::class, 'destroy'])->name('permissions.destroy');
 
         // --------------------- Clients (Create) ------------------//
         Route::get('clients', [ClientsController::class, 'create'])->name('clients');
-        Route::post('clients', [ClientsController::class, 'store'])->name('clients.store');
+        Route::post('clients/create', [ClientsController::class, 'store'])->name('clients.store');
 
         // --------------------- Client View/Delete/Archive ------------------//
         Route::get('clients/{client}', [ClientsController::class, 'show'])->name('clients.show');
-        Route::delete('clients/{client}', [ClientsController::class, 'destroy'])->name('clients.destroy');
+        Route::delete('clients/{client}/delete', [ClientsController::class, 'destroy'])->name('clients.destroy');
         Route::post('clients/{client}/archive', [ClientsController::class, 'archive'])->name('clients.archive');
 
         // --------------------- Client Edit ------------------//
         Route::get('clients/{client}/edit', [ClientEditController::class, 'edit'])->name('clients.edit');
-        Route::put('clients/{client}', [ClientEditController::class, 'update'])->name('clients.update');
+        Route::put('clients/{client}/update', [ClientEditController::class, 'update'])->name('clients.update');
 
         // --------------------- Client List ------------------//
         Route::get('client-list', [ClientListController::class, 'index'])->name('client.list');

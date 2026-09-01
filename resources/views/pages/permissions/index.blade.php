@@ -1,7 +1,7 @@
 @extends('layouts.master')
 @section('title', 'ERS | Permissions')
 @section('content')
-@php $canEdit = in_array(auth()->user()?->role_name, ['Admin', 'Super Admin']); @endphp
+    @php $canEdit = in_array(auth()->user()?->role_name, ['Admin', 'Super Admin']); @endphp
     <div class="container-fluid">
         <div class="row">
             <div class="col-12">
@@ -14,13 +14,26 @@
                             </div>
                             <div class="d-flex align-items-center gap-2">
                                 @if ($canEdit)
+                                    @if (feature_allowed('Add Permissions'))
                                     <button type="button" class="btn btn-primary" data-bs-toggle="modal"
                                         data-bs-target="#addPermissionModal">
                                         <i class="ri-add-line align-bottom me-1"></i> Add Permission
                                     </button>
-                                    <button type="submit" form="permissionsForm" class="btn btn-success">
-                                        <i class="ri-save-line align-bottom me-1"></i> Save Changes
+                                    @else
+                                    <button type="button" class="btn btn-primary" data-bs-toggle="modal"
+                                        data-bs-target="#addPermissionModal" disabled>
+                                        <i class="ri-add-line align-bottom me-1"></i> Not Allowed to Add Permission
                                     </button>
+                                    @endif
+                                    @if (feature_allowed('Save Permissions'))
+                                        <button type="submit" form="permissionsForm" class="btn btn-success">
+                                            <i class="ri-save-line align-bottom me-1"></i> Save Changes
+                                        </button>
+                                    @else
+                                        <button type="submit" form="permissionsForm" class="btn btn-success" disabled>
+                                            <i class="ri-save-line align-bottom me-1"></i>Not allowed to Save Changes
+                                        </button>
+                                    @endif
                                 @endif
                             </div>
                         </div>
@@ -65,29 +78,43 @@
                                             @foreach ($roles as $role)
                                                 <td class="text-center">
                                                     @if ($canEdit)
-                                                        <div class="form-check form-switch form-switch-lg d-inline-block mb-0">
-                                                            <input type="checkbox" class="form-check-input" id="perm-{{ $permission['feature'] }}-{{ $role }}"
+                                                        <div
+                                                            class="form-check form-switch form-switch-lg d-inline-block mb-0">
+                                                            <input type="checkbox" class="form-check-input"
+                                                                id="perm-{{ $permission['feature'] }}-{{ $role }}"
                                                                 name="allowed[{{ $permission['feature'] }}][{{ $role }}]"
                                                                 @checked($permission[$role] ?? false)>
-                                                            <label class="form-check-label" for="perm-{{ $permission['feature'] }}-{{ $role }}"></label>
+                                                            <label class="form-check-label"
+                                                                for="perm-{{ $permission['feature'] }}-{{ $role }}"></label>
                                                         </div>
                                                     @else
                                                         @if ($permission[$role] ?? false)
-                                                            <span class="badge bg-success-subtle text-success"><i class="ri-check-line align-bottom"></i> Allowed</span>
+                                                            <span class="badge bg-success-subtle text-success"><i
+                                                                    class="ri-check-line align-bottom"></i> Allowed</span>
                                                         @else
-                                                            <span class="badge bg-danger-subtle text-danger"><i class="ri-close-line align-bottom"></i> Denied</span>
+                                                            <span class="badge bg-danger-subtle text-danger"><i
+                                                                    class="ri-close-line align-bottom"></i> Denied</span>
                                                         @endif
                                                     @endif
                                                 </td>
                                             @endforeach
                                             @if ($canEdit)
                                                 <td class="text-center">
-                                                    <button type="button" class="btn btn-sm btn-soft-danger"
-                                                        data-bs-toggle="modal"
-                                                        data-bs-target="#deletePermissionModal-{{ str_replace(' ', '-', $permission['feature']) }}"
-                                                        title="Delete Permission">
-                                                        <i class="ri-delete-bin-line"></i>
-                                                    </button>
+                                                    @if (feature_allowed('Delete Permissions'))
+                                                        <button type="button" class="btn btn-sm btn-soft-danger"
+                                                            data-bs-toggle="modal"
+                                                            data-bs-target="#deletePermissionModal-{{ str_replace(' ', '-', $permission['feature']) }}"
+                                                            title="Delete Permission">
+                                                            <i class="ri-delete-bin-line"></i>
+                                                        </button>
+                                                    @else
+                                                        <button type="button" class="btn btn-sm btn-soft-danger"
+                                                            data-bs-toggle="modal"
+                                                            data-bs-target="#deletePermissionModal-{{ str_replace(' ', '-', $permission['feature']) }}"
+                                                            title="Delete Permission" disabled>
+                                                            <i class="ri-delete-bin-line"></i>
+                                                        </button>
+                                                    @endif
                                                 </td>
                                             @endif
                                         </tr>
@@ -134,7 +161,8 @@
         </div>
 
         @foreach ($permissions as $permission)
-            <div class="modal fade" id="deletePermissionModal-{{ str_replace(' ', '-', $permission['feature']) }}" tabindex="-1" aria-hidden="true">
+            <div class="modal fade" id="deletePermissionModal-{{ str_replace(' ', '-', $permission['feature']) }}"
+                tabindex="-1" aria-hidden="true">
                 <div class="modal-dialog modal-dialog-centered">
                     <div class="modal-content">
                         <form method="POST" action="{{ route('permissions.destroy') }}">
@@ -147,7 +175,8 @@
                             </div>
                             <div class="modal-body">
                                 <p class="mb-0">Are you sure you want to delete the permission
-                                    <strong>{{ $permission['feature'] }}</strong>? It will be removed for all roles.</p>
+                                    <strong>{{ $permission['feature'] }}</strong>? It will be removed for all roles.
+                                </p>
                             </div>
                             <div class="modal-footer">
                                 <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>

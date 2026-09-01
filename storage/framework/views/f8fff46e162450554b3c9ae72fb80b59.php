@@ -1,6 +1,6 @@
 <?php $__env->startSection('title', 'ERS | Users'); ?>
 <?php $__env->startSection('content'); ?>
-<?php $canEditRole = in_array(auth()->user()?->role_name, ['Admin', 'Super Admin']); ?>
+    <?php $canEditRole = in_array(auth()->user()?->role_name, ['Admin', 'Super Admin']); ?>
     <div class="container-fluid">
         <div class="row">
             <div class="col-12">
@@ -32,7 +32,9 @@
                                 <select class="form-select" id="role" name="role">
                                     <option value="">All roles</option>
                                     <?php $__currentLoopData = $roles; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $role): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                        <option value="<?php echo e($role); ?>" <?php if($selectedRole === $role): echo 'selected'; endif; ?>><?php echo e($role); ?></option>
+                                        <option value="<?php echo e($role); ?>" <?php if($selectedRole === $role): echo 'selected'; endif; ?>><?php echo e($role); ?>
+
+                                        </option>
                                     <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                 </select>
                             </div>
@@ -73,30 +75,43 @@
                                                 </div>
                                             </td>
                                             <td>
-                                                <span class="badge bg-primary-subtle text-primary"><?php echo e($user->role_name ?? '-'); ?></span>
+                                                <span
+                                                    class="badge bg-primary-subtle text-primary"><?php echo e($user->role_name ?? '-'); ?></span>
                                             </td>
                                             <td>
                                                 <?php if($user->status === 'Active'): ?>
                                                     <span class="badge bg-success-subtle text-success">Active</span>
                                                 <?php else: ?>
-                                                    <span class="badge bg-secondary-subtle text-secondary"><?php echo e($user->status ?? 'Inactive'); ?></span>
+                                                    <span
+                                                        class="badge bg-secondary-subtle text-secondary"><?php echo e($user->status ?? 'Inactive'); ?></span>
                                                 <?php endif; ?>
                                             </td>
                                             <td><?php echo e(ucfirst($user->auth_provider ?? 'local')); ?></td>
                                             <td><?php echo e($user->last_login ?? '-'); ?></td>
                                             <?php if($canEditRole): ?>
                                                 <td class="text-center">
-                                                    <button type="button" class="btn btn-sm btn-soft-warning" data-bs-toggle="modal"
-                                                        data-bs-target="#editRoleModal-<?php echo e($user->id); ?>">
-                                                        <i class="ri-edit-box-line align-bottom"></i> Edit Role
-                                                    </button>
+                                                    <?php if(feature_allowed('Edit User Roles')): ?>
+                                                        <button type="button" class="btn btn-sm btn-soft-warning"
+                                                            data-bs-toggle="modal"
+                                                            data-bs-target="#editRoleModal-<?php echo e($user->id); ?>">
+                                                            <i class="ri-edit-box-line align-bottom"></i> Edit Role
+                                                        </button>
+                                                    <?php else: ?>
+                                                        <button type="button" class="btn btn-sm btn-soft-warning"
+                                                            data-bs-toggle="modal"
+                                                            data-bs-target="#editRoleModal-<?php echo e($user->id); ?>" disabled>
+                                                            <i class="ri-edit-box-line align-bottom"></i>Not Allowed to Edit
+                                                            Role
+                                                        </button>
+                                                    <?php endif; ?>
                                                 </td>
                                             <?php endif; ?>
                                         </tr>
 
                                     <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                                         <tr>
-                                            <td colspan="<?php echo e($canEditRole ? 6 : 5); ?>" class="text-center text-muted py-5">No users found.</td>
+                                            <td colspan="<?php echo e($canEditRole ? 6 : 5); ?>" class="text-center text-muted py-5">No
+                                                users found.</td>
                                         </tr>
                                     <?php endif; ?>
                                 </tbody>
@@ -111,7 +126,8 @@
 
                     <?php if($canEditRole): ?>
                         <?php $__currentLoopData = $users; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $user): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                            <div class="modal fade" id="editRoleModal-<?php echo e($user->id); ?>" tabindex="-1" aria-hidden="true">
+                            <div class="modal fade" id="editRoleModal-<?php echo e($user->id); ?>" tabindex="-1"
+                                aria-hidden="true">
                                 <div class="modal-dialog modal-dialog-centered">
                                     <div class="modal-content">
                                         <form method="POST" action="<?php echo e(route('users.updateRole', $user)); ?>">
@@ -123,16 +139,20 @@
                                             </div>
                                             <div class="modal-body">
                                                 <div class="mb-3">
-                                                    <label for="role_name-<?php echo e($user->id); ?>" class="form-label">Role</label>
-                                                    <select class="form-select" id="role_name-<?php echo e($user->id); ?>" name="role_name">
+                                                    <label for="role_name-<?php echo e($user->id); ?>"
+                                                        class="form-label">Role</label>
+                                                    <select class="form-select" id="role_name-<?php echo e($user->id); ?>"
+                                                        name="role_name">
                                                         <?php $__currentLoopData = $roles; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $role): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                                            <option value="<?php echo e($role); ?>" <?php if($user->role_name === $role): echo 'selected'; endif; ?>><?php echo e($role); ?></option>
+                                                            <option value="<?php echo e($role); ?>"
+                                                                <?php if($user->role_name === $role): echo 'selected'; endif; ?>><?php echo e($role); ?></option>
                                                         <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                                     </select>
                                                 </div>
                                             </div>
                                             <div class="modal-footer">
-                                                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                                                <button type="button" class="btn btn-light"
+                                                    data-bs-dismiss="modal">Cancel</button>
                                                 <button type="submit" class="btn btn-primary">Update Role</button>
                                             </div>
                                         </form>

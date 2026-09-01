@@ -114,10 +114,17 @@
                                         <a href="{{ route('transaction-events.records') }}"
                                             class="btn btn-soft-secondary">Reset</a>
                                     @endif
-                                    <a href="{{ route('transaction-events.records-duplicates') }}"
-                                        class="btn btn-sm btn-outline-warning">
-                                        <i class="ri-file-copy-2-line me-1"></i> Duplicate Records
-                                    </a>
+                                    @if (feature_allowed('Events Records Duplicates'))
+                                        <a href="{{ route('transaction-events.records-duplicates') }}"
+                                            class="btn btn-sm btn-outline-warning">
+                                            <i class="ri-file-copy-2-line me-1"></i>View Duplicate Records
+                                        </a>
+                                    @else
+                                        <button type="button" class="btn btn-sm btn-outline-warning" disabled
+                                            title="Feature not allowed">
+                                            <i class="ri-file-copy-2-line me-1"></i>Not Allowed to View Duplicate Records
+                                        </button>
+                                    @endif
 
                                     <select class="form-select form-select-sm w-auto" id="recordPerPageSelect"
                                         aria-label="Records per page" title="Records per page">
@@ -137,20 +144,20 @@
                                         <div class="dropdown-menu dropdown-menu-end p-3" style="min-width: 230px;">
                                             <h6 class="dropdown-header px-0">Manage Columns</h6>
                                             @foreach ([
-                                                    'id' => 'ID',
-                                                    'transaction_id' => 'Transaction ID',
-                                                    'full_name' => 'Full Name',
-                                                    'age' => 'Age',
-                                                    'birth_date' => 'Birth Date',
-                                                    'contact' => 'Contact No.',
-                                                    'address' => 'Address',
-                                                    'client_category' => 'Category',
-                                                    'transaction_category' => 'Transaction Category',
-                                                    'transaction_type' => 'Transaction Type',
-                                                    'event_date' => 'Event Date',
-                                                    'transferred_at' => 'Transferred At',
-                                                    'status' => 'Status',
-                                                ] as $key => $label)
+            'id' => 'ID',
+            'transaction_id' => 'Transaction ID',
+            'full_name' => 'Full Name',
+            'age' => 'Age',
+            'birth_date' => 'Birth Date',
+            'contact' => 'Contact No.',
+            'address' => 'Address',
+            'client_category' => 'Category',
+            'transaction_category' => 'Transaction Category',
+            'transaction_type' => 'Transaction Type',
+            'event_date' => 'Event Date',
+            'transferred_at' => 'Transferred At',
+            'status' => 'Status',
+        ] as $key => $label)
                                                 <div class="form-check">
                                                     <input class="form-check-input column-toggle" type="checkbox"
                                                         id="col-{{ $key }}" value="{{ $key }}" checked>
@@ -319,10 +326,18 @@
                                                     <form action="{{ route('transaction-events.undo-transfer', $event) }}"
                                                         method="POST" class="m-0">
                                                         @csrf
-                                                        <button type="submit" class="btn btn-sm btn-soft-warning"
-                                                            onclick="return confirm('Undo this transfer? The created transaction record will be removed and this event will return to pending. The client record will remain.');">
-                                                            <i class="ri-arrow-go-back-line me-1"></i> Undo Transfer
-                                                        </button>
+                                                        @if (feature_allowed('Undo Transfer'))
+                                                            <button type="submit" class="btn btn-sm btn-soft-warning"
+                                                                onclick="return confirm('Undo this transfer? The created transaction record will be removed and this event will return to pending. The client record will remain.');">
+                                                                <i class="ri-arrow-go-back-line me-1"></i> Undo Transfer
+                                                            </button>
+                                                        @else
+                                                            <button type="button" class="btn btn-sm btn-soft-warning"
+                                                                disabled title="Feature not allowed">
+                                                                <i class="ri-arrow-go-back-line me-1"></i>Not Allowed to
+                                                                Undo Transfer
+                                                            </button>
+                                                        @endif
                                                     </form>
                                                 </td>
                                             @endif

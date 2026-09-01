@@ -6,7 +6,8 @@
         <div class="row">
             <div class="col-12 mb-4">
                 <h4 class="mb-1 fw-semibold">Transaction Event Archives</h4>
-                <p class="text-muted mb-0">Browse and download CSV archive files generated from imported transaction events.</p>
+                <p class="text-muted mb-0">Browse and download CSV archive files generated from imported transaction events.
+                </p>
             </div>
         </div>
 
@@ -51,18 +52,28 @@
                                                     @if (!empty($file['imported_by']))
                                                         {{ $file['imported_by']['imported_by'] }}
                                                         @if (!empty($file['imported_by']['role']))
-                                                            <span class="badge badge-soft-secondary ms-1">{{ $file['imported_by']['role'] }}</span>
+                                                            <span
+                                                                class="badge badge-soft-secondary ms-1">{{ $file['imported_by']['role'] }}</span>
                                                         @endif
                                                     @else
                                                         <span class="text-muted">—</span>
                                                     @endif
                                                 </td>
-                                                <td>{{ \Carbon\Carbon::createFromTimestamp($file['uploaded_at'])->timezone('Asia/Manila')->format('M d, Y H:i:s') }}</td>
+                                                <td>{{ \Carbon\Carbon::createFromTimestamp($file['uploaded_at'])->timezone('Asia/Manila')->format('M d, Y H:i:s') }}
+                                                </td>
                                                 <td>{{ number_format($file['size'] / 1024, 2) }} KB</td>
                                                 <td class="text-center">
-                                                    <a href="{{ $file['download_url'] }}" class="btn btn-sm btn-primary">
-                                                        <i class="ri-download-line me-1"></i> Download
-                                                    </a>
+                                                    @if (feature_allowed('Download Archive'))
+                                                        <a href="{{ $file['download_url'] }}"
+                                                            class="btn btn-sm btn-primary">
+                                                            <i class="ri-download-line me-1"></i> Download
+                                                        </a>
+                                                    @else
+                                                        <a href="{{ $file['download_url'] }}"
+                                                            class="btn btn-sm btn-primary disabled" aria-disabled="true">
+                                                            <i class="ri-download-line me-1"></i>Not Allowed to Download
+                                                        </a>
+                                                    @endif
                                                 </td>
                                             </tr>
                                         @endforeach

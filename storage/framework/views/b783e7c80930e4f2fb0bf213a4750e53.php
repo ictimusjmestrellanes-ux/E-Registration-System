@@ -146,9 +146,11 @@
                             </div>
                             <div class="d-flex flex-wrap gap-2">
                                 <?php if($matchedClientId): ?>
-                                    <a href="<?php echo e(route('client.list')); ?>" class="btn btn-sm btn-soft-secondary">Show All Clients</a>
+                                    <a href="<?php echo e(route('client.list')); ?>" class="btn btn-sm btn-soft-secondary">Show All
+                                        Clients</a>
                                 <?php endif; ?>
-                                <button type="button" class="btn btn-sm btn-soft-primary" id="searchFingerprintBtn">Search by
+                                <button type="button" class="btn btn-sm btn-soft-primary" id="searchFingerprintBtn">Search
+                                    by
                                     Fingerprint</button>
                                 <?php if (! (auth()->user()?->role_name === 'Viewer')): ?>
                                     <a href="<?php echo e(route('clients')); ?>" class="btn btn-sm btn-primary">Add Client</a>
@@ -187,8 +189,7 @@
                                     </button>
                                     <a href="<?php echo e(route('client.list')); ?>" class="btn btn-sm btn-soft-secondary"
                                         id="clientFiltersResetBtn">Reset</a>
-                                    <select class="form-select form-select-sm w-auto"
-                                        id="clientPerPageSelect"
+                                    <select class="form-select form-select-sm w-auto" id="clientPerPageSelect"
                                         aria-label="Clients per page" title="Clients per page">
                                         <?php $__currentLoopData = [10, 15, 25, 50, 100]; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $size): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                             <option value="<?php echo e($size); ?>"
@@ -214,8 +215,7 @@
                                         <div class="input-group">
                                             <span class="input-group-text"><i class="ri-search-line"></i></span>
                                             <input type="text" class="form-control" id="clientKeywordInput"
-                                                name="search" placeholder="Name"
-                                                value="<?php echo e(request('search')); ?>">
+                                                name="search" placeholder="Name" value="<?php echo e(request('search')); ?>">
                                         </div>
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
@@ -223,9 +223,12 @@
                                             class="form-label fw-semibold text-uppercase small">Gender</label>
                                         <select class="form-select" id="clientSexFilter" name="gender">
                                             <option value="">All Gender</option>
-                                            <option value="male" <?php echo e(request('gender') === 'male' ? 'selected' : ''); ?>>Male</option>
-                                            <option value="female" <?php echo e(request('gender') === 'female' ? 'selected' : ''); ?>>Female</option>
-                                            <option value="other" <?php echo e(request('gender') === 'other' ? 'selected' : ''); ?>>Other</option>
+                                            <option value="male" <?php echo e(request('gender') === 'male' ? 'selected' : ''); ?>>
+                                                Male</option>
+                                            <option value="female" <?php echo e(request('gender') === 'female' ? 'selected' : ''); ?>>
+                                                Female</option>
+                                            <option value="other" <?php echo e(request('gender') === 'other' ? 'selected' : ''); ?>>
+                                                Other</option>
                                         </select>
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
@@ -235,7 +238,8 @@
                                             <option value="">All civil statuses</option>
                                             <?php $__currentLoopData = $clientCivilStatuses; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $civilStatus): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                                 <option value="<?php echo e(strtolower($civilStatus)); ?>"
-                                                    <?php echo e(strtolower(request('civil_status', '')) === strtolower($civilStatus) ? 'selected' : ''); ?>><?php echo e($civilStatus); ?></option>
+                                                    <?php echo e(strtolower(request('civil_status', '')) === strtolower($civilStatus) ? 'selected' : ''); ?>>
+                                                    <?php echo e($civilStatus); ?></option>
                                             <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                         </select>
                                     </div>
@@ -246,7 +250,8 @@
                                             <option value="">All cities</option>
                                             <?php $__currentLoopData = $clientCities; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $city): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                                 <option value="<?php echo e(strtolower($city)); ?>"
-                                                    <?php echo e(strtolower(request('city', '')) === strtolower($city) ? 'selected' : ''); ?>><?php echo e($city); ?></option>
+                                                    <?php echo e(strtolower(request('city', '')) === strtolower($city) ? 'selected' : ''); ?>>
+                                                    <?php echo e($city); ?></option>
                                             <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                         </select>
                                     </div>
@@ -257,7 +262,8 @@
                                             <option value="">All barangays</option>
                                             <?php $__currentLoopData = $clientBarangays; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $barangay): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                                 <option value="<?php echo e(strtolower($barangay)); ?>"
-                                                    <?php echo e(strtolower(request('barangay', '')) === strtolower($barangay) ? 'selected' : ''); ?>><?php echo e($barangay); ?></option>
+                                                    <?php echo e(strtolower(request('barangay', '')) === strtolower($barangay) ? 'selected' : ''); ?>>
+                                                    <?php echo e($barangay); ?></option>
                                             <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                         </select>
                                     </div>
@@ -386,21 +392,45 @@
                                             </td>
                                             <td>
                                                 <div class="d-flex gap-2 text-center justify-content-center">
-                                                    <a href="<?php echo e(route('clients.show', $client)); ?>"
-                                                        class="btn btn-sm btn-soft-info">
-                                                        View
-                                                    </a>
-                                                    <?php if (! (auth()->user()?->role_name === 'Viewer')): ?>
-                                                        <a href="<?php echo e(route('clients.edit', $client)); ?>"
-                                                            class="btn btn-sm btn-soft-primary">
-                                                            Edit
+                                                    <?php if(feature_allowed('View Client')): ?>
+                                                        <a href="<?php echo e(route('clients.show', $client)); ?>"
+                                                            class="btn btn-sm btn-soft-info">
+                                                            View
                                                         </a>
+                                                    <?php else: ?>
+                                                        <a href="<?php echo e(route('clients.show', $client)); ?>"
+                                                            class="btn btn-sm btn-soft-info disabled"
+                                                            aria-disabled="true">
+                                                            Not Allowed to View
+                                                        </a>
+                                                    <?php endif; ?>
+                                                    <?php if (! (auth()->user()?->role_name === 'Viewer')): ?>
+                                                        <?php if(feature_allowed('Edit Client')): ?>
+                                                            <a href="<?php echo e(route('clients.edit', $client)); ?>"
+                                                                class="btn btn-sm btn-soft-primary">
+                                                                Edit
+                                                            </a>
+                                                        <?php else: ?>
+                                                            <a href="<?php echo e(route('clients.edit', $client)); ?>"
+                                                                class="btn btn-sm btn-soft-primary disabled"
+                                                                aria-disabled="true">
+                                                                Not Allowed to Edit
+                                                            </a>
+                                                        <?php endif; ?>
                                                         <form action="<?php echo e(route('clients.archive', $client)); ?>" method="POST"
                                                             onsubmit="return confirm('Are you sure you want to archive this client?');">
                                                             <?php echo csrf_field(); ?>
-                                                            <button type="submit" class="btn btn-sm btn-soft-warning">
-                                                                Archive
-                                                            </button>
+                                                            <?php if(feature_allowed('Archive Clients')): ?>
+                                                                <button type="submit" class="btn btn-sm btn-soft-warning">
+                                                                    Archive
+                                                                </button>
+                                                            <?php else: ?>
+                                                                <button type="submit"
+                                                                    class="btn btn-sm btn-soft-warning"
+                                                                    disabled>
+                                                                    Not Allowed to Archive
+                                                                </button>
+                                                            <?php endif; ?>
                                                         </form>
                                                     <?php endif; ?>
                                                 </div>
@@ -547,13 +577,13 @@
 
                         <?php if(request()->boolean('duplicate_names')): ?>
                             <script>
-                                document.addEventListener('DOMContentLoaded', function () {
+                                document.addEventListener('DOMContentLoaded', function() {
                                     try {
                                         var resetBtn = document.getElementById('clientFiltersResetBtn');
                                         if (resetBtn) {
                                             // ensure clickable and redirect clears duplicate filter
                                             resetBtn.disabled = false;
-                                            resetBtn.addEventListener('click', function (ev) {
+                                            resetBtn.addEventListener('click', function(ev) {
                                                 ev.preventDefault();
                                                 window.location = '<?php echo e(route('client.list')); ?>';
                                             });
@@ -1019,7 +1049,8 @@
             <?php if(request()->filled('search')): ?>
                 setFiltersVisibility(true);
                 clientKeywordInput.focus();
-                clientKeywordInput.setSelectionRange(clientKeywordInput.value.length, clientKeywordInput.value.length);
+                clientKeywordInput.setSelectionRange(clientKeywordInput.value.length, clientKeywordInput.value
+                    .length);
             <?php endif; ?>
 
             clientFiltersToggleBtn.addEventListener('click', function() {

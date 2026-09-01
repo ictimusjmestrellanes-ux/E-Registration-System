@@ -1,7 +1,7 @@
 @extends('layouts.master')
 @section('title', 'ERS | Users')
 @section('content')
-@php $canEditRole = in_array(auth()->user()?->role_name, ['Admin', 'Super Admin']); @endphp
+    @php $canEditRole = in_array(auth()->user()?->role_name, ['Admin', 'Super Admin']); @endphp
     <div class="container-fluid">
         <div class="row">
             <div class="col-12">
@@ -33,7 +33,8 @@
                                 <select class="form-select" id="role" name="role">
                                     <option value="">All roles</option>
                                     @foreach ($roles as $role)
-                                        <option value="{{ $role }}" @selected($selectedRole === $role)>{{ $role }}</option>
+                                        <option value="{{ $role }}" @selected($selectedRole === $role)>{{ $role }}
+                                        </option>
                                     @endforeach
                                 </select>
                             </div>
@@ -74,30 +75,43 @@
                                                 </div>
                                             </td>
                                             <td>
-                                                <span class="badge bg-primary-subtle text-primary">{{ $user->role_name ?? '-' }}</span>
+                                                <span
+                                                    class="badge bg-primary-subtle text-primary">{{ $user->role_name ?? '-' }}</span>
                                             </td>
                                             <td>
                                                 @if ($user->status === 'Active')
                                                     <span class="badge bg-success-subtle text-success">Active</span>
                                                 @else
-                                                    <span class="badge bg-secondary-subtle text-secondary">{{ $user->status ?? 'Inactive' }}</span>
+                                                    <span
+                                                        class="badge bg-secondary-subtle text-secondary">{{ $user->status ?? 'Inactive' }}</span>
                                                 @endif
                                             </td>
                                             <td>{{ ucfirst($user->auth_provider ?? 'local') }}</td>
                                             <td>{{ $user->last_login ?? '-' }}</td>
                                             @if ($canEditRole)
                                                 <td class="text-center">
-                                                    <button type="button" class="btn btn-sm btn-soft-warning" data-bs-toggle="modal"
-                                                        data-bs-target="#editRoleModal-{{ $user->id }}">
-                                                        <i class="ri-edit-box-line align-bottom"></i> Edit Role
-                                                    </button>
+                                                    @if (feature_allowed('Edit User Roles'))
+                                                        <button type="button" class="btn btn-sm btn-soft-warning"
+                                                            data-bs-toggle="modal"
+                                                            data-bs-target="#editRoleModal-{{ $user->id }}">
+                                                            <i class="ri-edit-box-line align-bottom"></i> Edit Role
+                                                        </button>
+                                                    @else
+                                                        <button type="button" class="btn btn-sm btn-soft-warning"
+                                                            data-bs-toggle="modal"
+                                                            data-bs-target="#editRoleModal-{{ $user->id }}" disabled>
+                                                            <i class="ri-edit-box-line align-bottom"></i>Not Allowed to Edit
+                                                            Role
+                                                        </button>
+                                                    @endif
                                                 </td>
                                             @endif
                                         </tr>
 
                                     @empty
                                         <tr>
-                                            <td colspan="{{ $canEditRole ? 6 : 5 }}" class="text-center text-muted py-5">No users found.</td>
+                                            <td colspan="{{ $canEditRole ? 6 : 5 }}" class="text-center text-muted py-5">No
+                                                users found.</td>
                                         </tr>
                                     @endforelse
                                 </tbody>
@@ -111,7 +125,8 @@
 
                     @if ($canEditRole)
                         @foreach ($users as $user)
-                            <div class="modal fade" id="editRoleModal-{{ $user->id }}" tabindex="-1" aria-hidden="true">
+                            <div class="modal fade" id="editRoleModal-{{ $user->id }}" tabindex="-1"
+                                aria-hidden="true">
                                 <div class="modal-dialog modal-dialog-centered">
                                     <div class="modal-content">
                                         <form method="POST" action="{{ route('users.updateRole', $user) }}">
@@ -123,16 +138,20 @@
                                             </div>
                                             <div class="modal-body">
                                                 <div class="mb-3">
-                                                    <label for="role_name-{{ $user->id }}" class="form-label">Role</label>
-                                                    <select class="form-select" id="role_name-{{ $user->id }}" name="role_name">
+                                                    <label for="role_name-{{ $user->id }}"
+                                                        class="form-label">Role</label>
+                                                    <select class="form-select" id="role_name-{{ $user->id }}"
+                                                        name="role_name">
                                                         @foreach ($roles as $role)
-                                                            <option value="{{ $role }}" @selected($user->role_name === $role)>{{ $role }}</option>
+                                                            <option value="{{ $role }}"
+                                                                @selected($user->role_name === $role)>{{ $role }}</option>
                                                         @endforeach
                                                     </select>
                                                 </div>
                                             </div>
                                             <div class="modal-footer">
-                                                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                                                <button type="button" class="btn btn-light"
+                                                    data-bs-dismiss="modal">Cancel</button>
                                                 <button type="submit" class="btn btn-primary">Update Role</button>
                                             </div>
                                         </form>
