@@ -104,6 +104,35 @@
                                                             Role
                                                         </button>
                                                     @endif
+
+                                                    @if (feature_allowed('Update User Status'))
+                                                        @if ($user->status === 'Active')
+                                                            <form method="POST" class="d-inline"
+                                                                action="{{ route('users.updateStatus', $user) }}"
+                                                                onsubmit="return confirm('Deactivate {{ $user->name }}? This will prevent them from signing in.');">
+                                                                @csrf
+                                                                @method('PUT')
+                                                                <input type="hidden" name="status" value="Inactive">
+                                                                <button type="submit"
+                                                                    class="btn btn-sm btn-soft-danger">
+                                                                    <i class="ri-user-unfollow-line align-bottom"></i>
+                                                                    Deactivate
+                                                                </button>
+                                                            </form>
+                                                        @else
+                                                            <form method="POST" class="d-inline"
+                                                                action="{{ route('users.updateStatus', $user) }}">
+                                                                @csrf
+                                                                @method('PUT')
+                                                                <input type="hidden" name="status" value="Active">
+                                                                <button type="submit"
+                                                                    class="btn btn-sm btn-soft-success">
+                                                                    <i class="ri-user-follow-line align-bottom"></i>
+                                                                    Activate
+                                                                </button>
+                                                            </form>
+                                                        @endif
+                                                    @endif
                                                 </td>
                                             @endif
                                         </tr>

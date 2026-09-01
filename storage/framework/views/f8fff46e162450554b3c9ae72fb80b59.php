@@ -104,6 +104,35 @@
                                                             Role
                                                         </button>
                                                     <?php endif; ?>
+
+                                                    <?php if(feature_allowed('Update User Status')): ?>
+                                                        <?php if($user->status === 'Active'): ?>
+                                                            <form method="POST" class="d-inline"
+                                                                action="<?php echo e(route('users.updateStatus', $user)); ?>"
+                                                                onsubmit="return confirm('Deactivate <?php echo e($user->name); ?>? This will prevent them from signing in.');">
+                                                                <?php echo csrf_field(); ?>
+                                                                <?php echo method_field('PUT'); ?>
+                                                                <input type="hidden" name="status" value="Inactive">
+                                                                <button type="submit"
+                                                                    class="btn btn-sm btn-soft-danger">
+                                                                    <i class="ri-user-unfollow-line align-bottom"></i>
+                                                                    Deactivate
+                                                                </button>
+                                                            </form>
+                                                        <?php else: ?>
+                                                            <form method="POST" class="d-inline"
+                                                                action="<?php echo e(route('users.updateStatus', $user)); ?>">
+                                                                <?php echo csrf_field(); ?>
+                                                                <?php echo method_field('PUT'); ?>
+                                                                <input type="hidden" name="status" value="Active">
+                                                                <button type="submit"
+                                                                    class="btn btn-sm btn-soft-success">
+                                                                    <i class="ri-user-follow-line align-bottom"></i>
+                                                                    Activate
+                                                                </button>
+                                                            </form>
+                                                        <?php endif; ?>
+                                                    <?php endif; ?>
                                                 </td>
                                             <?php endif; ?>
                                         </tr>

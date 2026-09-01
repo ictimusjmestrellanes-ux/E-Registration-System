@@ -60,7 +60,6 @@
                             e(route('transaction-events.not-duplicate', $event)) .
                             '" method="POST" class="d-inline me-1" onsubmit="return confirm(\'Remove this duplicate event?\');">';
                         $out .= csrf_field();
-                        $out .= '@if (feature_allowed())';
                         $out .=
                             '<button type="submit" class="btn btn-sm btn-soft-secondary" title="Remove as duplicate"><i class="ri-close-circle-line me-1"></i>Remove Duplicate</button>';
                         $out .= '</form>';

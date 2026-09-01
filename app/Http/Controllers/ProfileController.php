@@ -95,6 +95,32 @@ class ProfileController extends Controller
             return ['labels' => $labels, 'data' => $data];
         });
 
-        return view('pages.dashboard', compact('totalClients', 'categoryCounts', 'categories', 'clientTrend', 'transactionTrend'));
+        $caravanTrend = Cache::remember('dashboard.caravan_trend', 300, function () {
+            $start = Carbon::create(2026, 1, 1)->startOfMonth();
+
+            $rows = TransactionHistory::query()
+                ->selectRaw("DATE_FORMAT(transaction_date, '%Y-%m') as month, count(*) as total")
+                ->where('transaction_date', '>=', $start)
+                ->where('category', 'events')
+                ->where('type', 'caravan')
+                ->groupBy('month')
+                ->orderBy('month')
+                ->pluck('total', 'month')
+                ->toArray();
+
+            $labels = [];
+            $data = [];
+            $cursor = $start->copy();
+            while ($cursor->lte(now())) {
+                $key = $cursor->format('Y-m');
+                $labels[] = $cursor->format('M Y');
+                $data[] = $rows[$key] ?? 0;
+                $cursor->addMonth();
+            }
+
+            return ['labels' => $labels, 'data' => $data];
+        });
+
+        return view('pages.dashboard', compact('totalClients', 'categoryCounts', 'categories', 'clientTrend', 'transactionTrend', 'caravanTrend'));
     }
 }

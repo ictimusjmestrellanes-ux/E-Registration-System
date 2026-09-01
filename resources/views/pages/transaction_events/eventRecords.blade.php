@@ -112,7 +112,7 @@
                                     </button>
                                     @if ($activeRecordFilters)
                                         <a href="{{ route('transaction-events.records') }}"
-                                            class="btn btn-soft-secondary">Reset</a>
+                                            class="btn btn-sm btn-soft-secondary">Reset</a>
                                     @endif
                                     @if (feature_allowed('Events Records Duplicates'))
                                         <a href="{{ route('transaction-events.records-duplicates') }}"
@@ -251,7 +251,7 @@
                                             value="{{ request('date_to') }}">
                                     </div>
                                     <div class="col-12 col-xl-2 d-flex gap-2 justify-content-xl-end">
-                                        <button type="submit" class="btn btn-primary px-4">
+                                        <button type="submit" class="btn btn-sm btn-primary px-4">
                                             <i class="ri-filter-3-fill me-1"></i> Apply Filters
                                         </button>
                                     </div>

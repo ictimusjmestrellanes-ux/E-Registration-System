@@ -290,7 +290,7 @@
                                             value="<?php echo e(request('date_to')); ?>">
                                     </div>
                                     <div class="col-12 col-lg-3 d-flex gap-2 justify-content-lg-end">
-                                        <button type="submit" class="btn btn-primary px-4" id="clientDateApplyBtn">
+                                        <button type="submit" class="btn btn-sm btn-primary px-4" id="clientDateApplyBtn">
                                             <i class="ri-filter-3-fill me-1"></i> Apply Filters
                                         </button>
                                     </div>

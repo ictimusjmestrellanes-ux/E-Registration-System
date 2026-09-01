@@ -102,6 +102,26 @@ class TransactionController extends Controller
 
         $transaction = TransactionHistory::create($validated);
 
+        $client = Client::where('client_id', $validated['client_id'])->first();
+
+        if (!$client) {
+            return redirect()->route('client.list')->with('error', 'Client not found.');
+        }
+
+        \App\Models\TransactionEvent::create([
+            'full_name'                  => $client->full_name,
+            'contact_no'                 => $client->contact ?? '',
+            'address'                    => $client->address ?? '',
+            'age'                        => $client->age ?? null,
+            'birth_date'                 => $client->birth_date ? $client->birth_date->format('Y-m-d') : null,
+            'client_category'            => $client->sector ?? '',
+            'transaction_category'       => $validated['category'],
+            'transaction_type'           => $validated['type'],
+            'event_date'                 => $validated['transaction_date'],
+            'transferred_at'             => now(),
+            'transferred_transaction_id' => $transaction->id,
+        ]);
+
         TransactionHistory::flushDashboardCache();
 
         ActivityLog::create([
@@ -112,12 +132,6 @@ class TransactionController extends Controller
             'subject_id' => $transaction->id,
             'properties' => json_encode(['transaction_id' => $transaction->id]),
         ]);
-
-        $client = Client::where('client_id', $validated['client_id'])->first();
-
-        if (!$client) {
-            return redirect()->route('client.list')->with('error', 'Client not found.');
-        }
 
         if ($request->wantsJson()) {
             return response()->json([

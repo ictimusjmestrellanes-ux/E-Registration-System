@@ -91,7 +91,11 @@ class LoginController extends Controller
             Log::warning('Socialite InvalidStateException for provider ' . $provider . ': ' . $e->getMessage());
 
             try {
-                $socialiteUser = $this->socialiteDriver($provider)->stateless()->user();
+                $driver = $this->socialiteDriver($provider);
+                if (method_exists($driver, 'stateless')) {
+                    $driver = $driver->stateless();
+                }
+                $socialiteUser = $driver->user();
             } catch (\Throwable $e2) {
                 report($e2);
 
@@ -134,7 +138,7 @@ class LoginController extends Controller
 
     private function providerIsConfigured(string $provider): bool
     {
-        $config = config("services.{$provider}");
+        $config = config('services.' . $provider);
 
         return filled($config['client_id'] ?? null)
             && filled($config['client_secret'] ?? null)

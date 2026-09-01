@@ -203,43 +203,33 @@ class TransactionEventsController extends Controller
             ->whereNotNull('full_name')
             ->where('full_name', '<>', '');
 
-        // ----- Exact: same name + real birth date -----
-        $exactKeys = $base()
-            ->selectRaw("CONCAT(LOWER(TRIM(full_name)), '|', birth_date) as keyval")
-            ->whereNotNull('birth_date')
-            ->groupBy('keyval')
-            ->havingRaw('COUNT(*) > 1')
-            ->pluck('keyval');
-
-        $exactGroups = collect();
-        if ($exactKeys->isNotEmpty()) {
-            $exactGroups = $base()
-                ->whereIn(DB::raw("CONCAT(LOWER(TRIM(full_name)), '|', birth_date)"), $exactKeys)
-                ->with('transferredTransaction:id,transaction_id')
-                ->get()
-                ->groupBy(fn ($e) => strtolower(trim($e->full_name)) . '|' . optional($e->birth_date)->format('Y-m-d'))
-                ->filter(fn ($g) => $g->count() > 1)
-                ->map(fn ($items) => $this->eventGroupPayload($items))
-                ->values();
-        }
-
-        // ----- Likely: same name, missing or year-only birth dates -----
-        $likelyGroups = $base()
+        $events = $base()
             ->with('transferredTransaction:id,transaction_id')
-            ->get()
-            ->groupBy(fn ($e) => strtolower(trim($e->full_name)))
-            ->filter(function ($items) {
-                if ($items->count() < 2) {
-                    return false;
-                }
-                $dates = $items->pluck('birth_date')->filter()->map(fn ($d) => $d->format('Y-m-d'));
-                if ($dates->count() === $items->count() && $dates->unique()->count() === 1) {
-                    return false; // fully identical known dates belong to Exact
-                }
-                return true;
-            })
+            ->get();
+
+        // ----- Exact: Full Name + Birthday + Event Date + Transaction Category + Transaction Type -----
+        $exactGroups = $events
+            ->filter(fn ($e) => $e->birth_date !== null)
+            ->groupBy(fn ($e) => $this->exactEventDuplicateKey($e))
+            ->filter(fn ($g) => $g->count() > 1)
             ->map(fn ($items) => $this->eventGroupPayload($items))
             ->values();
+
+        // ----- Likely: Full Name + Birthday + any 2 of {Event Date, Category, Type} -----
+        // Records already grouped as exact are excluded so tabs don't overlap.
+        $exactEventIds = $exactGroups->flatMap(fn ($g) => $g['events'])->pluck('id')->flip();
+
+        $likelyCandidates = $events->reject(fn ($e) => $exactEventIds->has($e->id));
+
+        $likelyGroups = collect();
+
+        foreach ($this->eventLikelyComboKeys() as $comboKeys) {
+            $likelyCandidates->groupBy(fn ($e) => $comboKeys($e))
+                ->filter(fn ($g) => $g->count() > 1)
+                ->each(fn ($items) => $likelyGroups->push($this->eventGroupPayload($items)));
+        }
+
+        $likelyGroups = $likelyGroups->values();
 
         // ----- Similar spelling: SOUNDEX of the full name -----
         $similarKeys = $base()
@@ -262,6 +252,44 @@ class TransactionEventsController extends Controller
 
         return view('pages.transaction_events.recordsDuplicates',
             compact('exactGroups', 'likelyGroups', 'similarGroups'));
+    }
+
+    private function exactEventDuplicateKey(TransactionEvent $event): string
+    {
+        return implode('|', [
+            strtolower(trim($event->full_name)),
+            $event->birth_date?->format('Y-m-d'),
+            $event->event_date?->format('Y-m-d'),
+            strtolower(trim((string) $event->transaction_category)),
+            strtolower(trim((string) $event->transaction_type)),
+        ]);
+    }
+
+    private function eventLikelyComboKeys(): array
+    {
+        return [
+            // (Full Name, Birthday, Transaction Category, Transaction Type)
+            fn (TransactionEvent $e) => implode('|', [
+                strtolower(trim($e->full_name)),
+                $e->birth_date?->format('Y-m-d'),
+                strtolower(trim((string) $e->transaction_category)),
+                strtolower(trim((string) $e->transaction_type)),
+            ]),
+            // (Full Name, Birthday, Event Date, Transaction Type)
+            fn (TransactionEvent $e) => implode('|', [
+                strtolower(trim($e->full_name)),
+                $e->birth_date?->format('Y-m-d'),
+                $e->event_date?->format('Y-m-d'),
+                strtolower(trim((string) $e->transaction_type)),
+            ]),
+            // (Full Name, Birthday, Event Date, Transaction Category)
+            fn (TransactionEvent $e) => implode('|', [
+                strtolower(trim($e->full_name)),
+                $e->birth_date?->format('Y-m-d'),
+                $e->event_date?->format('Y-m-d'),
+                strtolower(trim((string) $e->transaction_category)),
+            ]),
+        ];
     }
 
     public function duplicateReview()
@@ -1285,6 +1313,36 @@ class TransactionEventsController extends Controller
         }
 
         return redirect()->route('transaction-events.index')->with('error', $message);
+    }
+
+    public function destroy(TransactionEvent $event)
+    {
+        $authUser = auth()->user();
+        if ($authUser->role_name === 'Viewer') {
+            abort(403, 'Viewer role is read-only.');
+        }
+
+        if (! is_null($event->transferred_at)) {
+            return redirect()->route('transaction-events.index')
+                ->with('error', 'Event #'.$event->id.' is already approved/transferred and cannot be deleted.');
+        }
+
+        $fullName = $event->full_name;
+        $eventId = $event->id;
+
+        $event->delete();
+
+        ActivityLog::create([
+            'user_id' => auth()->id(),
+            'action' => 'event_deleted',
+            'description' => "Deleted transaction event #{$eventId} ({$fullName}) from the Import Events list.",
+            'subject_type' => 'TransactionEvent',
+            'subject_id' => $eventId,
+            'properties' => json_encode(['event_id' => $eventId, 'full_name' => $fullName], JSON_INVALID_UTF8_SUBSTITUTE),
+        ]);
+
+        return redirect()->route('transaction-events.index')
+            ->with('success', "Event #{$eventId} ({$fullName}) deleted successfully.");
     }
 
     private function nextTransferredTransactionId(string $clientId): string

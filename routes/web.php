@@ -45,6 +45,7 @@ Route::group(['namespace' => 'App\Http\Controllers'], function () {
         // --------------------- Users ------------------//
         Route::get('users', [UsersController::class, 'index'])->name('users.index');
         Route::put('users/{user}/role', [UsersController::class, 'updateRole'])->name('users.updateRole');
+        Route::put('users/{user}/status', [UsersController::class, 'updateStatus'])->name('users.updateStatus');
 
         // --------------------- Roles & Permissions ------------------//
         Route::get('roles', [RolesController::class, 'index'])->name('roles.index');
@@ -135,6 +136,7 @@ Route::post('transaction-events/import/finish', [TransactionEventsController::cl
         Route::post('transaction-events/{event}/transfer', [TransactionEventsController::class, 'transfer'])->name('transaction-events.transfer');
         Route::post('transaction-events/{event}/undo-transfer', [TransactionEventsController::class, 'undoTransfer'])->name('transaction-events.undo-transfer');
         Route::post('transaction-events/transfer-selected', [TransactionEventsController::class, 'transferSelected'])->name('transaction-events.transfer-selected');
+        Route::delete('transaction-events/{event}/delete', [TransactionEventsController::class, 'destroy'])->name('transaction-events.delete');
     
         });
     });

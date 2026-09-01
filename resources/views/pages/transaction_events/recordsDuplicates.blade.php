@@ -45,7 +45,7 @@
                                 $out .= '<div class="table-responsive">';
                                 $out .= '<table class="table table-sm table-hover align-middle mb-0">';
                                 $out .= '<thead class="table-light"><tr>';
-                                $out .= '<th>ID</th><th>Transaction ID</th><th>Full Name</th><th>Age</th><th>Birth Date</th><th>Contact No.</th><th>Category</th><th>Status</th>';
+                                $out .= '<th>ID</th><th>Transaction ID</th><th>Full Name</th><th>Age</th><th>Birth Date</th><th>Contact No.</th><th>Category</th><th>Transaction Category</th><th>Transaction Type</th><th>Event Date</th><th>Status</th>';
                                 $out .= '</tr></thead><tbody>';
                                 foreach ($group['events'] as $event) {
                                     $txId = $event->transferredTransaction?->transaction_id ?? '-';
@@ -57,6 +57,9 @@
                                     $out .= '<td>' . e(optional($event->birth_date)->format('M d, Y') ?? '-') . '</td>';
                                     $out .= '<td>' . e(str_replace('-', '', $event->contact_no ?? '') ?: '-') . '</td>';
                                     $out .= '<td class="small">' . e($event->client_category ?? '-') . '</td>';
+                                    $out .= '<td class="small">' . e($event->transaction_category ?? '-') . '</td>';
+                                    $out .= '<td class="small">' . e($event->transaction_type ?? '-') . '</td>';
+                                    $out .= '<td>' . e(optional($event->event_date)->format('M d, Y') ?? '-') . '</td>';
                                     $out .= '<td><span class="badge bg-success-subtle text-success"><i class="ri-check-line me-1"></i>Approved</span></td>';
                                     $out .= '</tr>';
                                 }
@@ -95,7 +98,7 @@
                             <div class="tab-pane fade show active" id="rexact-tab" role="tabpanel">
                                 <div class="alert alert-danger-subtle d-flex align-items-center mb-3 py-2" role="alert">
                                     <i class="ri-error-warning-line fs-4 me-2"></i>
-                                    <div class="small">Exact-same name and birth date. High confidence duplicates.</div>
+                                    <div class="small">Same full name, birth date, event date, transaction category and transaction type. High confidence duplicates.</div>
                                 </div>
                                 @forelse ($exactGroups as $group)
                                     {!! $renderGroup($group) !!}
@@ -110,7 +113,7 @@
                             <div class="tab-pane fade" id="rlikely-tab" role="tabpanel">
                                 <div class="alert alert-warning-subtle d-flex align-items-center mb-3 py-2" role="alert">
                                     <i class="ri-alert-line fs-4 me-2"></i>
-                                    <div class="small">Same name, birth date missing or year-only match. Review before acting.</div>
+                                    <div class="small">Same full name and birth date matching on any two of event date, transaction category and transaction type. Review before acting.</div>
                                 </div>
                                 @forelse ($likelyGroups as $group)
                                     {!! $renderGroup($group) !!}

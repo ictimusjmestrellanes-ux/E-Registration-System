@@ -28,7 +28,7 @@
                         </a>
                     </div>
                     <div class="card-body">
-                        @if ($files->isEmpty())
+                        @if (empty($files))
                             <div class="alert alert-info mb-0">
                                 No archive files found yet. Import a CSV file to create archive records.
                             </div>

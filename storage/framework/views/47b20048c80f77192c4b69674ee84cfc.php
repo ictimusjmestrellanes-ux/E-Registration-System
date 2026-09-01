@@ -187,10 +187,9 @@
                                             'transaction_type',
                                         ])): ?>
                                         <a href="<?php echo e(route('transaction-events.index')); ?>"
-                                            class="btn btn-soft-secondary">Reset</a>
+                                            class="btn btn-sm btn-soft-secondary">Reset</a>
                                     <?php endif; ?>
-                                    <select class="form-select form-select-sm w-auto"
-                                        onchange="(function (u) { u.searchParams.set('per_page', this.value); u.searchParams.delete('page'); window.location = u; }).call(this, new URL(window.location))"
+                                    <select class="form-select form-select-sm w-auto" id="eventPerPageSelect"
                                         aria-label="Records per page" title="Records per page">
                                         <?php $__currentLoopData = [15, 25, 50, 100]; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $size): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                             <option value="<?php echo e($size); ?>"
@@ -322,7 +321,7 @@
                                         </select>
                                     </div>
                                     <div class="col-12 col-xl-4 d-flex gap-2 justify-content-xl-end">
-                                        <button type="submit" class="btn btn-primary px-4">
+                                        <button type="submit" class="btn btn-sm btn-primary px-4">
                                             <i class="ri-filter-3-fill me-1"></i> Apply Filters
                                         </button>
                                     </div>
@@ -354,14 +353,13 @@
                             <table class="table table-bordered table-hover align-middle mb-0" id="eventListTable">
                                 <thead class="table-light">
                                     <tr>
-                                        <th style="width: 120px;" class="text-center">
+                                        <th class="text-center">
                                             <div
                                                 class="d-inline-flex align-items-center justify-content-center gap-2 text-nowrap">
                                                 <?php if (! (auth()->user()?->role_name === 'Viewer')): ?>
                                                     <input type="checkbox" class="form-check-input"
                                                         id="selectAllTransactionEvents"
-                                                        aria-label="Select all transaction events on this page">
-                                                    <span>Select all</span>
+                                                        aria-label="Select all transaction events on this page" title="Select all">
                                                 <?php endif; ?>
                                             </div>
                                         </th>
@@ -375,7 +373,7 @@
                                         <th data-column="transaction_type">Transaction Type</th>
                                         <th data-column="event_date">Event Date</th>
                                         <th style="width: 100px;" data-column="created_at">Imported</th>
-                                        <th style="width: 100px; text-align: center;">Action</th>
+                                        <th style="width: 250px; text-align: center;">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -422,25 +420,43 @@
                                                         <i class="ri-time-line me-1"></i>Pending
                                                     </span>
                                                 <?php else: ?>
-                                                    <form action="<?php echo e(route('transaction-events.transfer', $event)); ?>"
-                                                        method="POST" class="transaction-transfer-form"
-                                                        data-event-name="<?php echo e($event->full_name); ?>">
-                                                        <?php echo csrf_field(); ?>
-                                                        <?php if(feature_allowed('Transfer Event')): ?>
-                                                            <button type="submit" class="btn btn-sm btn-soft-success"
-                                                                <?php echo e(empty($event->transaction_category) && empty($event->transaction_type) ? 'disabled' : ''); ?>
+                                                    <div class="d-flex align-items-center justify-content-center gap-1">
+                                                        <form action="<?php echo e(route('transaction-events.transfer', $event)); ?>"
+                                                            method="POST" class="transaction-transfer-form"
+                                                            data-event-name="<?php echo e($event->full_name); ?>">
+                                                            <?php echo csrf_field(); ?>
+                                                            <?php if(feature_allowed('Transfer Event')): ?>
+                                                                <button type="submit" class="btn btn-sm btn-soft-success"
+                                                                    <?php echo e(empty($event->transaction_category) && empty($event->transaction_type) ? 'disabled' : ''); ?>
 
-                                                                title="<?php echo e(empty($event->transaction_category) && empty($event->transaction_type) ? 'No transaction category or type to transfer' : 'Transfer to transaction'); ?>">
-                                                                <i class="ri-exchange-line"></i> Transfer
-                                                            </button>
-                                                        <?php else: ?>
-                                                            <button type="button" class="btn btn-sm btn-soft-success"
-                                                                disabled
-                                                                title="You do not have permission to transfer this event.">
-                                                                <i class="ri-exchange-line"></i> Not Allowed to Transfer
-                                                            </button>
+                                                                    title="<?php echo e(empty($event->transaction_category) && empty($event->transaction_type) ? 'No transaction category or type to transfer' : 'Transfer to transaction'); ?>">
+                                                                    <i class="ri-exchange-line"></i> Transfer
+                                                                </button>
+                                                            <?php else: ?>
+                                                                <button type="button" class="btn btn-sm btn-soft-success"
+                                                                    disabled
+                                                                    title="You do not have permission to transfer this event.">
+                                                                    <i class="ri-exchange-line"></i> Not Allowed to
+                                                                    Transfer
+                                                                </button>
+                                                            <?php endif; ?>
+                                                        </form>
+                                                        <?php if(feature_allowed('Delete Event')): ?>
+                                                            <form
+                                                                action="<?php echo e(route('transaction-events.delete', $event)); ?>"
+                                                                method="POST"
+                                                                onsubmit="return confirm('Delete this event (<?php echo e($event->full_name); ?>) from the Import Events list? This cannot be undone.');">
+                                                                <?php echo csrf_field(); ?>
+                                                                <?php echo method_field('DELETE'); ?>
+                                                                <?php if(feature_allowed('Delete Event')): ?>
+                                                                    <button type="submit" class="btn btn-sm btn-soft-danger"
+                                                                        title="Delete Event">
+                                                                        <i class="ri-delete-bin-line"></i> Delete
+                                                                    </button>
+                                                                <?php endif; ?>
+                                                            </form>
                                                         <?php endif; ?>
-                                                    </form>
+                                                    </div>
                                                 <?php endif; ?>
                                             </td>
                                         </tr>
@@ -712,6 +728,14 @@
                 setEventFiltersVisible(eventFiltersForm.classList.contains('d-none'));
             });
 
+            // ----- Per page selector -----
+            document.getElementById('eventPerPageSelect')?.addEventListener('change', function() {
+                const url = new URL(window.location.href);
+                url.searchParams.set('per_page', this.value);
+                url.searchParams.delete('page');
+                window.location.href = url.toString();
+            });
+
             <?php if(request()->hasAny([
                     'search',
                     'contact',
@@ -806,32 +830,6 @@
                     }
                 };
 
-                const showBarPrompt = () => {
-                    if (!bar || !barText) {
-                        return;
-                    }
-                    bar.classList.remove('d-none');
-                    bar.classList.add('d-flex');
-                    if (clearBtn) {
-                        clearBtn.classList.add('d-none');
-                    }
-                    const checkedCount = selectableCheckboxes().filter((checkbox) => checkbox.checked).length;
-                    barText.innerHTML = checkedCount +
-                        ' selected on this page. <a href="#" id="selectAllPagesLink">Click here</a> to select all ' +
-                        totalMatchingEvents + ' matching events across all pages.';
-                    const link = document.getElementById('selectAllPagesLink');
-                    if (link) {
-                        link.addEventListener('click', function(event) {
-                            event.preventDefault();
-                            allPagesSelected = true;
-                            selectableCheckboxes().forEach((checkbox) => {
-                                checkbox.checked = true;
-                            });
-                            syncSelectAllState();
-                        });
-                    }
-                };
-
                 const showBarAllSelected = () => {
                     if (!bar || !barText) {
                         return;
@@ -863,8 +861,8 @@
                 var syncSelectAllState = () => {
                     const selectable = selectableCheckboxes();
                     const checkedCount = selectable.filter((checkbox) => checkbox.checked).length;
-                    selectAll.checked = !allPagesSelected && selectable.length > 0 && checkedCount ===
-                        selectable.length;
+                    selectAll.checked = allPagesSelected ||
+                        (selectable.length > 0 && checkedCount === selectable.length);
                     selectAll.indeterminate = checkedCount > 0 && checkedCount < selectable.length;
                     selectAll.disabled = selectable.length === 0;
                     if (bulkTransferBtn) {
@@ -875,13 +873,16 @@
                 };
 
                 selectAll.addEventListener('change', function() {
-                    allPagesSelected = false;
                     selectableCheckboxes().forEach((checkbox) => {
                         checkbox.checked = selectAll.checked;
                     });
                     if (selectAll.checked && hasMorePages) {
-                        showBarPrompt();
+                        // Selecting everything on this page means all pages:
+                        // mark every matching event across all pages as selected.
+                        allPagesSelected = true;
+                        showBarAllSelected();
                     } else {
+                        allPagesSelected = false;
                         hideBar();
                     }
                     syncSelectAllState();
