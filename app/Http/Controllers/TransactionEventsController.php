@@ -577,24 +577,51 @@ class TransactionEventsController extends Controller
                 continue;
             }
 
+            $matched = false;
+
+            // 1) Existing Client in clients table + matching Transaction History
             $clientIds = Client::query()
                 ->whereRaw('LOWER(TRIM(first_name)) = ?', [strtolower(trim($nameParts['first_name']))])
                 ->whereRaw('LOWER(TRIM(last_name)) = ?', [strtolower(trim($nameParts['last_name']))])
                 ->pluck('client_id');
 
-            if ($clientIds->isEmpty()) {
-                continue;
+            if ($clientIds->isNotEmpty()) {
+                $history = TransactionHistory::whereIn('client_id', $clientIds)
+                    ->where('category', TransactionHistory::normalizeCategory($row['transaction_category'] ?? ''))
+                    ->where('type', $row['transaction_type'] ?? '');
+
+                if (!empty($row['event_date'])) {
+                    $history->whereDate('transaction_date', $row['event_date']);
+                }
+
+                if ($history->exists()) {
+                    $matched = true;
+                }
             }
 
-            $history = TransactionHistory::whereIn('client_id', $clientIds)
-                ->where('category', TransactionHistory::normalizeCategory($row['transaction_category'] ?? ''))
-                ->where('type', $row['transaction_type'] ?? '');
+            // 2) Exact duplicate already in the Import Events module
+            if (!$matched) {
+                $eventQuery = TransactionEvent::query()
+                    ->whereRaw('LOWER(TRIM(full_name)) = ?', [strtolower(trim($row['full_name']))]);
 
-            if (!empty($row['event_date'])) {
-                $history->whereDate('transaction_date', $row['event_date']);
+                if (!empty($row['event_date'])) {
+                    $eventQuery->whereDate('event_date', $row['event_date']);
+                }
+
+                if (!empty($row['transaction_category'])) {
+                    $eventQuery->where('transaction_category', $row['transaction_category']);
+                }
+
+                if (!empty($row['transaction_type'])) {
+                    $eventQuery->where('transaction_type', $row['transaction_type']);
+                }
+
+                if ($eventQuery->exists()) {
+                    $matched = true;
+                }
             }
 
-            if ($history->exists()) {
+            if ($matched) {
                 $duplicates[] = [
                     'full_name' => $row['full_name'],
                     'event_date' => $row['event_date'] ?? '',
@@ -805,6 +832,7 @@ class TransactionEventsController extends Controller
 
         $rows = $result['rows'];
         $hasDuplicateRows = collect($rows)->contains(fn ($row) => ! empty($row['duplicate']));
+        $eventsOnly = $request->boolean('events_only');
 
         $token = md5(uniqid((string) auth()->id(), true));
         $this->cleanupStaleImportSessions();
@@ -813,7 +841,8 @@ class TransactionEventsController extends Controller
         Storage::disk('local')->put(
             self::IMPORT_SESSION_DIR.'/'.$token.'.json',
             json_encode([
-                'mode' => $hasDuplicateRows ? 'events_only' : 'direct',
+                'mode' => ($eventsOnly || $hasDuplicateRows) ? 'events_only' : 'direct',
+                'force_events_only' => $eventsOnly,
                 'rows' => $rows,
                 'original_filename' => $request->file('csv_file')->getClientOriginalName(),
                 'skipped' => $result['skipped'],
@@ -884,16 +913,19 @@ class TransactionEventsController extends Controller
         $rows = $sessionData['rows'];
         $imported = count($rows);
         $skipped = $sessionData['skipped'];
-        $hasDuplicateRows = $sessionData['mode'] === 'events_only';
+        $isEventsOnly = $sessionData['mode'] === 'events_only';
+        $forceEventsOnly = $sessionData['force_events_only'] ?? false;
         $archiveFile = '';
 
         if ($imported > 0) {
             $archiveFile = $this->storeImportedEventArchive($rows, $sessionData['original_filename']);
         }
 
-        $message = $hasDuplicateRows
-            ? "Imported {$imported} event(s) to the event list because duplicate rows were found in the selected file."
-            : "Successfully imported {$imported} event(s).";
+        $message = match (true) {
+            $forceEventsOnly => "Imported {$imported} event(s) to the Import Events list because the data already exists in the system.",
+            $isEventsOnly => "Imported {$imported} event(s) to the event list because duplicate rows were found in the selected file.",
+            default => "Successfully imported {$imported} event(s).",
+        };
 
         if ($skipped > 0) {
             $message .= " Skipped {$skipped} invalid row(s).";

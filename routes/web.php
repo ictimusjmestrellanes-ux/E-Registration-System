@@ -49,7 +49,7 @@ Route::group(['namespace' => 'App\Http\Controllers'], function () {
         // --------------------- Roles & Permissions ------------------//
         Route::get('roles', [RolesController::class, 'index'])->name('roles.index');
         Route::post('roles/add', [RolesController::class, 'store'])->name('roles.store');
-        Route::delete('roles/delete', [RolesController::class, 'destroy'])->name('roles.destroy');
+        Route::delete('roles/{role}/delete', [RolesController::class, 'destroy'])->name('roles.destroy');
         Route::get('permissions', [PermissionsController::class, 'index'])->name('permissions.index');
         Route::put('permissions/save', [PermissionsController::class, 'update'])->name('permissions.update');
         Route::post('permissions/add', [PermissionsController::class, 'store'])->name('permissions.store');

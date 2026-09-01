@@ -74,7 +74,7 @@ function feature_route_map(): array
         'Manage Users' => ['users', 'users/*', 'roles', 'permissions'],
         'Roles' => ['roles'],
         'Add Roles' => ['roles/add'],
-        'Delete Roles' => ['roles/delete'],
+        'Delete Roles' => ['roles/*/delete'],
         'Permissions' => ['permissions'],
         'Save Permissions' => ['permissions/save'],
         'Add Permissions' => ['permissions/add'],
@@ -106,18 +106,22 @@ function resolve_feature_for_path(string $path): ?string
 {
     $best = null;
     $bestLength = -1;
+    $normalizedPath = trim($path, '/');
 
     foreach (feature_route_map() as $feature => $patterns) {
         foreach ($patterns as $pattern) {
-            $matches = str_ends_with($pattern, '*')
-                ? str_starts_with($path, rtrim($pattern, '*'))
-                : $pattern === $path;
+            $normalizedPattern = trim($pattern, '/');
+
+            // Patterns containing * act as wildcards (matching across segments).
+            $matches = str_contains($normalizedPattern, '*')
+                ? preg_match('#^'.str_replace('\*', '.*', preg_quote($normalizedPattern, '#')).'$#', $normalizedPath) === 1
+                : $normalizedPattern === $normalizedPath;
 
             // Later map entries win ties so specific features
             // (Roles/Permissions) override the broad Manage Users entry.
-            if ($matches && strlen($pattern) >= $bestLength) {
+            if ($matches && strlen($normalizedPattern) >= $bestLength) {
                 $best = $feature;
-                $bestLength = strlen($pattern);
+                $bestLength = strlen($normalizedPattern);
             }
         }
     }

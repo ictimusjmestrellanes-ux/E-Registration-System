@@ -639,7 +639,7 @@
                     </div>
                     <div class="modal-body">
                         <p class="mb-2" id="importDuplicateSummary"></p>
-                        <p class="text-muted small mb-2">Matching rows found in Transaction History:</p>
+                        <p class="text-muted small mb-2">Matching rows found in Transaction History or Import Events:</p>
                         <div class="table-responsive" style="max-height: 260px; overflow-y: auto;">
                             <table class="table table-sm table-bordered align-middle mb-0">
                                 <thead class="table-light">
@@ -1139,7 +1139,7 @@
                 }
             });
 
-            const runImport = async function() {
+            const runImport = async function(eventsOnly = false) {
                 if (csvFileHidden.files.length === 0) {
                     return;
                 }
@@ -1181,6 +1181,7 @@
                 try {
                     const prepareForm = new FormData();
                     prepareForm.append('csv_file', file);
+                    prepareForm.append('events_only', eventsOnly ? '1' : '0');
 
                     const prepareRes = await fetch(
                         '<?php echo e(route('transaction-events.import.prepare')); ?>', {
@@ -1306,7 +1307,7 @@
                             body.appendChild(tr);
                         });
                         document.getElementById('importDuplicateSummary').textContent =
-                            `${data.duplicates_count} of ${data.total_rows} row(s) in this file already exist in Transaction History.`;
+                            `${data.duplicates_count} of ${data.total_rows} row(s) in this file already exist in the system (Transaction History or Import Events).`;
                         bootstrap.Modal.getOrCreateInstance(document.getElementById(
                             'importDuplicateModal')).show();
                         confirmBtn.disabled = false;
@@ -1323,7 +1324,7 @@
 
             document.getElementById('importDuplicateContinueBtn')?.addEventListener('click', function() {
                 bootstrap.Modal.getInstance(document.getElementById('importDuplicateModal'))?.hide();
-                runImport();
+                runImport(true);
             });
 
             previewModalEl.addEventListener('hidden.bs.modal', function() {
