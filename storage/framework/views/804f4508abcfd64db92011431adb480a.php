@@ -59,7 +59,6 @@
                             e(route('transaction-events.not-duplicate', $event)) .
                             '" method="POST" class="d-inline me-1" onsubmit="return confirm(\'Remove this duplicate event?\');">';
                         $out .= csrf_field();
-                        $out .= '@if (feature_allowed())';
                         $out .=
                             '<button type="submit" class="btn btn-sm btn-soft-secondary" title="Remove as duplicate"><i class="ri-close-circle-line me-1"></i>Remove Duplicate</button>';
                         $out .= '</form>';
@@ -231,4 +230,4 @@
     </div>
 <?php $__env->stopSection(); ?>
 
-<?php echo $__env->make('layouts.master', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH C:\xampp\htdocs\E-Reg-System\resources\views\pages\transaction_events\duplicateReview.blade.php ENDPATH**/ ?>
+<?php echo $__env->make('layouts.master', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH C:\xampp\htdocs\E-Reg-System\resources\views/pages/transaction_events/duplicateReview.blade.php ENDPATH**/ ?>

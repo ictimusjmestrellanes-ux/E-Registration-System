@@ -927,7 +927,7 @@
 
                     // Reset previous payload.
                     bulkTransferForm.querySelectorAll(
-                            'input[name="event_ids[]"], input[name="select_all"], input[data-list-filter]')
+                            'input[name="event_ids[]"], input[name="select_all"], input[data-list-filter], input[name="exclude_duplicates"]')
                         .forEach((input) => input.remove());
 
                     if (allPagesSelected) {
@@ -936,6 +936,13 @@
                         allInput.name = 'select_all';
                         allInput.value = '1';
                         bulkTransferForm.appendChild(allInput);
+
+                        // Always exclude duplicates when using select all
+                        const excludeDupesInput = document.createElement('input');
+                        excludeDupesInput.type = 'hidden';
+                        excludeDupesInput.name = 'exclude_duplicates';
+                        excludeDupesInput.value = '1';
+                        bulkTransferForm.appendChild(excludeDupesInput);
 
                         // Carry over the active list filters so the backend
                         // targets exactly the rows shown across pages.

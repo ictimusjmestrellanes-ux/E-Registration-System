@@ -1191,6 +1191,9 @@ class TransactionEventsController extends Controller
 
             if ($request->boolean('duplicate_names')) {
                 $query->whereIn('full_name', $this->duplicateFullNamesList());
+            } elseif ($request->boolean('exclude_duplicates')) {
+                // When using select all, always exclude duplicates unless specifically viewing duplicates
+                $query->whereNotIn('full_name', $this->duplicateFullNamesList());
             }
 
             $events = $query->get();
