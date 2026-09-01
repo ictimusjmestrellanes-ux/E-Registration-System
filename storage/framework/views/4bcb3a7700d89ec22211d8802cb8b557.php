@@ -1254,4 +1254,4 @@
         });
     }
 </script>
-<?php /**PATH C:\xampp\htdocs\E-Reg-System\resources\views/pages/client_transaction/newTransaction.blade.php ENDPATH**/ ?>
+<?php /**PATH C:\xampp\htdocs\E-Reg-System\resources\views\pages\client_transaction\newTransaction.blade.php ENDPATH**/ ?>

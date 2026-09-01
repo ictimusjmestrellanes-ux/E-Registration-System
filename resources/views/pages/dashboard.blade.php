@@ -74,19 +74,18 @@
         </div>
         <!--end welcome row-->
 
-        <div class="row">
-            <!-- Left: Main Content -->
-            <div class="col-lg-12">
+        <div class="row g-4">
+            <!-- Left: Main Content (col-lg-8) -->
+            <div class="col-lg-8">
                 <!-- Stat Cards -->
-                <div class="row">
-                    <div class="col-lg-4">
+                <div class="row g-3">
+                    <div class="col-lg-4 col-md-4 col-sm-12">
                         <a href="{{ route('client.list') }}" class="text-decoration-none">
                             <div class="card material-shadow border-primary border-opacity-25 stat-card h-100">
                                 <div class="card-body">
                                     <div class="d-flex align-items-center">
                                         <div class="flex-shrink-0 me-3">
-                                            <div
-                                                class="avatar-sm bg-primary bg-opacity-10 rounded-3 d-flex align-items-center justify-content-center">
+                                            <div class="avatar-sm bg-primary bg-opacity-10 rounded-3 d-flex align-items-center justify-content-center">
                                                 <i class="fa-solid fa-users text-primary fs-4"></i>
                                             </div>
                                         </div>
@@ -99,15 +98,13 @@
                             </div>
                         </a>
                     </div>
-
-                    <div class="col-lg-4">
+                    <div class="col-lg-4 col-md-4 col-sm-12">
                         <a href="#service-categories" class="text-decoration-none">
                             <div class="card material-shadow border-success border-opacity-25 stat-card h-100">
                                 <div class="card-body">
                                     <div class="d-flex align-items-center">
                                         <div class="flex-shrink-0 me-3">
-                                            <div
-                                                class="avatar-sm bg-success bg-opacity-10 rounded-3 d-flex align-items-center justify-content-center">
+                                            <div class="avatar-sm bg-success bg-opacity-10 rounded-3 d-flex align-items-center justify-content-center">
                                                 <i class="fa-solid fa-layer-group text-success fs-4"></i>
                                             </div>
                                         </div>
@@ -120,15 +117,13 @@
                             </div>
                         </a>
                     </div>
-
-                    <div class="col-lg-4">
+                    <div class="col-lg-4 col-md-4 col-sm-12">
                         <a href="{{ route('transactions.index') }}" class="text-decoration-none">
                             <div class="card material-shadow border-info border-opacity-25 stat-card h-100">
                                 <div class="card-body">
                                     <div class="d-flex align-items-center">
                                         <div class="flex-shrink-0 me-3">
-                                            <div
-                                                class="avatar-sm bg-info bg-opacity-10 rounded-3 d-flex align-items-center justify-content-center">
+                                            <div class="avatar-sm bg-info bg-opacity-10 rounded-3 d-flex align-items-center justify-content-center">
                                                 <i class="fa-solid fa-receipt text-info fs-4"></i>
                                             </div>
                                         </div>
@@ -142,27 +137,23 @@
                         </a>
                     </div>
                 </div>
-                <!--end stat cards row-->
+                <!--end stat cards-->
 
                 <!-- Client Trend Chart -->
-                <div class="row mt-4">
-                    <div class="col-12">
-                        <div class="card material-shadow h-100">
-                            <div class="card-header">
-                                <h5 class="mb-0">Total Registered Clients</h5>
-                                <p class="text-muted mb-0">Client registrations per month (January 2026 - present)</p>
-                            </div>
-                            <div class="card-body">
-                                <div class="w-100" style="height: 320px; position: relative;">
-                                    <canvas id="clientTrendChart"></canvas>
-                                </div>
-                            </div>
+                <div class="card material-shadow mt-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">Total Registered Clients</h5>
+                        <p class="text-muted mb-0">Client registrations per month (January 2026 - present)</p>
+                    </div>
+                    <div class="card-body">
+                        <div class="w-100" style="height: 280px; position: relative;">
+                            <canvas id="clientTrendChart"></canvas>
                         </div>
                     </div>
                 </div>
 
                 <!-- Transaction Trend + Service Category Charts -->
-                <div class="row mt-4">
+                <div class="row g-3 mt-1">
                     <div class="col-lg-6">
                         <div class="card material-shadow h-100">
                             <div class="card-header">
@@ -170,7 +161,7 @@
                                 <p class="text-muted mb-0">Transactions per month (January 2026 - present)</p>
                             </div>
                             <div class="card-body">
-                                <div class="w-100" style="height: 320px; position: relative;">
+                                <div class="w-100" style="height: 260px; position: relative;">
                                     <canvas id="transactionTrendChart"></canvas>
                                 </div>
                             </div>
@@ -183,7 +174,7 @@
                                 <p class="text-muted mb-0">Share of transactions per service category</p>
                             </div>
                             <div class="card-body">
-                                <div class="w-100" style="height: 320px; position: relative;">
+                                <div class="w-100" style="height: 260px; position: relative;">
                                     <canvas id="serviceCategoryChart"></canvas>
                                 </div>
                             </div>
@@ -192,78 +183,64 @@
                 </div>
 
                 <!-- CARAVAN Trend Chart -->
-                <div class="row mt-4">
-                    <div class="col-12">
-                        <div class="card material-shadow h-100">
-                            <div class="card-header">
-                                <h5 class="mb-0">CARAVAN Transactions</h5>
-                                <p class="text-muted mb-0">Caravan registrations per month (January 2026 - present)</p>
-                            </div>
-                            <div class="card-body">
-                                <div class="w-100" style="height: 320px; position: relative;">
-                                    <canvas id="caravanTrendChart"></canvas>
-                                </div>
-                            </div>
+                <div class="card material-shadow mt-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">CARAVAN Transactions</h5>
+                        <p class="text-muted mb-0">Caravan registrations per month (January 2026 - present)</p>
+                    </div>
+                    <div class="card-body">
+                        <div class="w-100" style="height: 280px; position: relative;">
+                            <canvas id="caravanTrendChart"></canvas>
                         </div>
                     </div>
                 </div>
             </div>
             <!--end col-lg-8 main content-->
 
-            <!-- Right Sidebar: Clock & Calendar -->
-            <div class="row mt-4">
-                <div class="col-lg-6">
-                    <!-- Analog Clock Card -->
-                    <div class="card material-shadow">
-                        <div class="card-body p-4">
-                            <h6 class="text-muted text-uppercase fw-semibold mb-3 text-center">
-                                <i class="ri-time-line me-1"></i> Clock
-                            </h6>
-                            <div class="d-flex justify-content-center">
-                                <canvas id="dashAnalogClock" width="300" height="300"
-                                    style="max-width: 100%;"></canvas>
-                            </div>
-                            <div class="text-center mt-3">
-                                <span id="dashDigitalClock" class="fs-5 fw-semibold text-primary"></span>
-                                <br>
-                                <span id="dashDigitalDate" class="text-muted small"></span>
-                            </div>
+            <!-- Right Sidebar: Clock & Calendar (col-lg-4) -->
+            <div class="col-lg-4">
+                <!-- Analog Clock Card -->
+                <div class="card material-shadow">
+                    <div class="card-body p-4">
+                        <h6 class="text-muted text-uppercase fw-semibold mb-3 text-center">
+                            <i class="ri-time-line me-1"></i> Clock
+                        </h6>
+                        <div class="d-flex justify-content-center">
+                            <canvas id="dashAnalogClock" width="220" height="220" style="max-width: 100%;"></canvas>
+                        </div>
+                        <div class="text-center mt-3">
+                            <span id="dashDigitalClock" class="fs-5 fw-semibold text-primary"></span>
+                            <br>
+                            <span id="dashDigitalDate" class="text-muted small"></span>
                         </div>
                     </div>
-                    <!--end clock card-->
                 </div>
-                <div class="col-lg-6">
-                    <!-- Calendar Card -->
-                    <div class=" card material-shadow">
-                        <div class="card-body p-4">
-                            <h6 class="text-muted text-uppercase fw-semibold mb-3 text-center">
-                                <i class="ri-calendar-line me-1"></i> Calendar
-                            </h6>
-                            <div id="dashCalendar">
-                                <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <button type="button" class="btn btn-sm btn-soft-primary" id="dashCalPrev">
-                                        <i class="ri-arrow-left-s-line"></i>
-                                    </button>
-                                    <span id="dashCalMonthYear" class="fw-semibold"></span>
-                                    <button type="button" class="btn btn-sm btn-soft-primary" id="dashCalNext">
-                                        <i class="ri-arrow-right-s-line"></i>
-                                    </button>
-                                </div>
-                                <table class="table table-sm table-borderless text-center mb-0">
-                                    <thead>
-                                        <tr class="text-muted small">
-                                            <th>Su</th>
-                                            <th>Mo</th>
-                                            <th>Tu</th>
-                                            <th>We</th>
-                                            <th>Th</th>
-                                            <th>Fr</th>
-                                            <th>Sa</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="dashCalBody"></tbody>
-                                </table>
+                <!--end clock card-->
+
+                <!-- Calendar Card -->
+                <div class="card material-shadow mt-4">
+                    <div class="card-body p-3">
+                        <h6 class="text-muted text-uppercase fw-semibold mb-3 text-center">
+                            <i class="ri-calendar-line me-1"></i> Calendar
+                        </h6>
+                        <div id="dashCalendar">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <button type="button" class="btn btn-sm btn-soft-primary" id="dashCalPrev">
+                                    <i class="ri-arrow-left-s-line"></i>
+                                </button>
+                                <span id="dashCalMonthYear" class="fw-semibold"></span>
+                                <button type="button" class="btn btn-sm btn-soft-primary" id="dashCalNext">
+                                    <i class="ri-arrow-right-s-line"></i>
+                                </button>
                             </div>
+                            <table class="table table-sm table-borderless text-center mb-0">
+                                <thead>
+                                    <tr class="text-muted small">
+                                        <th>Su</th><th>Mo</th><th>Tu</th><th>We</th><th>Th</th><th>Fr</th><th>Sa</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="dashCalBody"></tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
@@ -271,10 +248,11 @@
             </div>
             <!--end col-lg-4 right sidebar-->
         </div>
+        <!--end main 2-column row-->
 
-        <div class="row mt-4" id="service-categories">
+        <div class="row g-3 mt-2" id="service-categories">
             <div class="col-12">
-                <div class="card mb-4">
+                <div class="card mb-0">
                     <div class="card-body">
                         <h5 class="mb-0">Service Categories</h5>
                         <p class="text-muted mb-0">Overview of client service requests</p>
@@ -287,12 +265,11 @@
                     [$icon, $color] = $categoryMeta[$key] ?? ['fa-circle', 'secondary'];
                     $count = $categoryCounts[$key] ?? 0;
                 @endphp
-                <div class="col-xl-3 col-lg-4 col-md-6">
+                <div class="col-xl-3 col-lg-4 col-md-6 col-sm-6">
                     <a href="{{ route('transactions.category', $key) }}" class="text-decoration-none">
                         <div class="card material-shadow h-100 category-card">
                             <div class="card-body text-center">
-                                <div
-                                    class="avatar-md bg-{{ $color }} bg-opacity-10 rounded-circle mx-auto mb-3 d-flex align-items-center justify-content-center">
+                                <div class="avatar-md bg-{{ $color }} bg-opacity-10 rounded-circle mx-auto mb-3 d-flex align-items-center justify-content-center">
                                     <i class="fa-solid {{ $icon }} text-{{ $color }} fs-3"></i>
                                 </div>
                                 <h4 class="mb-1">{{ $count }}</h4>
@@ -302,7 +279,6 @@
                     </a>
                 </div>
             @endforeach
-        </div>
     </div>
 @endsection
 
@@ -541,7 +517,7 @@
     <!-- Dashboard Analog Clock & Calendar -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // ── Analog Clock ─────────────────────────────────────────────
+            // â”€â”€ Analog Clock â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             const clockCanvas = document.getElementById('dashAnalogClock');
             const digitalClock = document.getElementById('dashDigitalClock');
             const digitalDate = document.getElementById('dashDigitalDate');
@@ -659,7 +635,7 @@
                 setInterval(drawClock, 1000);
             }
 
-            // ── Calendar ─────────────────────────────────────────────────
+            // â”€â”€ Calendar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             const calBody = document.getElementById('dashCalBody');
             const calMonthYear = document.getElementById('dashCalMonthYear');
             const calPrev = document.getElementById('dashCalPrev');
@@ -693,14 +669,8 @@
                         td.style.borderRadius = '50%';
                         td.style.padding = '20px 0';
 
-                        const isToday = d === today.getDate() && month === today.getMonth() && year === today
-                            .getFullYear();
-                        if (isToday) {
-                            td.style.background = '#0ab39c';
-                            td.style.color = '#fff';
-                            td.style.fontWeight = 'bold';
-                            td.style.borderRadius = '50%';
-                        }
+                        if (d === today.getDate() && month === today.getMonth() && year === today.getFullYear())
+                            Object.assign(td.style, { background: '#0ab39c', color: '#fff', fontWeight: 'bold', borderRadius: '50%', width: '26px', height: '26px', lineHeight: '26px', padding: '0', margin: 'auto', display: 'inline-block', marginTop: '18px' });
 
                         row.appendChild(td);
                         if ((firstDay + d) % 7 === 0) {

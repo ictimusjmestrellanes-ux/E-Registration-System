@@ -122,20 +122,25 @@ Route::group(['namespace' => 'App\Http\Controllers'], function () {
         Route::get('transaction-events/records/duplicates', [TransactionEventsController::class, 'recordsDuplicates'])->name('transaction-events.records-duplicates');
         Route::get('transaction-events/duplicate-review', [TransactionEventsController::class, 'duplicateReview'])->name('transaction-events.duplicate-review');
         Route::get('transaction-events/removed-duplicates', [TransactionEventsController::class, 'removedDuplicates'])->name('transaction-events.removed-duplicates');
-        Route::post('transaction-events/{event}/not-duplicate', [TransactionEventsController::class, 'markNotDuplicate'])->name('transaction-events.not-duplicate');
-        Route::post('transaction-events/{event}/reset-duplicate', [TransactionEventsController::class, 'resetNotDuplicate'])->name('transaction-events.reset-duplicate');
         Route::get('transaction-events/archives', [TransactionEventsController::class, 'archives'])->name('transaction-events.archives');
         Route::get('transaction-events/archives/{filename}', [TransactionEventsController::class, 'downloadArchive'])->name('transaction-events.archives.download');
+        Route::get('transaction-events/template', [TransactionEventsController::class, 'downloadTemplate'])->name('transaction-events.template');
+
+        // Static POST routes (must be declared before {event} wildcard routes)
+        Route::post('transaction-events/group-not-duplicate', [TransactionEventsController::class, 'markGroupNotDuplicate'])->name('transaction-events.group-not-duplicate');
         Route::post('transaction-events/preview', [TransactionEventsController::class, 'preview'])->name('transaction-events.preview');
         Route::post('transaction-events/import/check-duplicates', [TransactionEventsController::class, 'importDuplicatesCheck'])->name('transaction-events.import.check-duplicates');
+        Route::post('transaction-events/import/prepare', [TransactionEventsController::class, 'prepareImport'])->name('transaction-events.import.prepare');
+        Route::post('transaction-events/import/process', [TransactionEventsController::class, 'processImportChunk'])->name('transaction-events.import.process');
+        Route::post('transaction-events/import/finish', [TransactionEventsController::class, 'finishImport'])->name('transaction-events.import.finish');
         Route::post('transaction-events/import', [TransactionEventsController::class, 'import'])->name('transaction-events.import');
-Route::post('transaction-events/import/prepare', [TransactionEventsController::class, 'prepareImport'])->name('transaction-events.import.prepare');
-Route::post('transaction-events/import/process', [TransactionEventsController::class, 'processImportChunk'])->name('transaction-events.import.process');
-Route::post('transaction-events/import/finish', [TransactionEventsController::class, 'finishImport'])->name('transaction-events.import.finish');
-        Route::get('transaction-events/template', [TransactionEventsController::class, 'downloadTemplate'])->name('transaction-events.template');
+        Route::post('transaction-events/transfer-selected', [TransactionEventsController::class, 'transferSelected'])->name('transaction-events.transfer-selected');
+
+        // {event} wildcard routes (declared last so they don't eat static segments)
+        Route::post('transaction-events/{event}/not-duplicate', [TransactionEventsController::class, 'markNotDuplicate'])->name('transaction-events.not-duplicate');
+        Route::post('transaction-events/{event}/reset-duplicate', [TransactionEventsController::class, 'resetNotDuplicate'])->name('transaction-events.reset-duplicate');
         Route::post('transaction-events/{event}/transfer', [TransactionEventsController::class, 'transfer'])->name('transaction-events.transfer');
         Route::post('transaction-events/{event}/undo-transfer', [TransactionEventsController::class, 'undoTransfer'])->name('transaction-events.undo-transfer');
-        Route::post('transaction-events/transfer-selected', [TransactionEventsController::class, 'transferSelected'])->name('transaction-events.transfer-selected');
         Route::delete('transaction-events/{event}/delete', [TransactionEventsController::class, 'destroy'])->name('transaction-events.delete');
     
         });

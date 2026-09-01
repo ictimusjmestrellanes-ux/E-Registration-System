@@ -12,6 +12,7 @@
 
         $renderGroup = function ($group) use ($isTransferred) {
             $first = $group['events']->first();
+            $groupIds = $group['events']->pluck('id')->implode(',');
             $out = '<div class="border rounded-4 p-3 mb-3">';
             $out .= '<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">';
             $out .= '<div>';
@@ -23,6 +24,13 @@
                 e(optional($first->birth_date)->format('M d, Y') ?? '-');
             $out .= ' &middot; Earliest record: ' . e(optional($group['created_at'])->format('M d, Y')) . '</p>';
             $out .= '</div>';
+            if (auth()->user()?->role_name !== 'Viewer') {
+                $out .= '<form action="' . e(route('transaction-events.group-not-duplicate')) . '" method="POST" class="d-inline" onsubmit="return confirm(\'Mark all ' . $group['total'] . ' record(s) in this group as Not a Duplicate? They will be removed from Duplicate Review.\');">';
+                $out .= csrf_field();
+                $out .= '<input type="hidden" name="event_ids" value="' . e($groupIds) . '">';
+                $out .= '<button type="submit" class="btn btn-sm btn-soft-warning"><i class="ri-close-circle-line me-1"></i>Not a Duplicate (Group)</button>';
+                $out .= '</form>';
+            }
             $out .= '</div>';
             $out .= '<div class="table-responsive">';
             $out .= '<table class="table table-sm table-hover align-middle mb-0">';
@@ -112,6 +120,27 @@
             </div>
         </div>
 
+        @if (session('success'))
+            <div class="row">
+                <div class="col-12">
+                    <div class="alert alert-success alert-dismissible fade show" role="alert">
+                        <i class="ri-check-line me-2"></i>{{ session('success') }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                </div>
+            </div>
+        @endif
+        @if (session('error'))
+            <div class="row">
+                <div class="col-12">
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        <i class="ri-error-warning-line me-2"></i>{{ session('error') }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                </div>
+            </div>
+        @endif
+
         <div class="row">
             <div class="col-12">
                 <div class="card">
@@ -142,7 +171,7 @@
                             <div class="tab-pane fade show active" id="exact-tab" role="tabpanel">
                                 <div class="alert alert-danger-subtle d-flex align-items-center mb-3 py-2" role="alert">
                                     <i class="ri-error-warning-line fs-4 me-2"></i>
-                                    <div class="small">Exact-same name and birth date. High confidence duplicates.</div>
+                                    <div class="small">Same <strong>Full Name</strong>, <strong>Birthday</strong>, <strong>Event Date</strong>, <strong>Transaction Category</strong>, and <strong>Transaction Type</strong>. High confidence duplicates.</div>
                                 </div>
                                 @forelse ($exactGroups as $group)
                                     {!! $renderGroup($group) !!}
@@ -157,8 +186,11 @@
                             <div class="tab-pane fade" id="likely-tab" role="tabpanel">
                                 <div class="alert alert-warning-subtle d-flex align-items-center mb-3 py-2" role="alert">
                                     <i class="ri-alert-line fs-4 me-2"></i>
-                                    <div class="small">Likely-same name, birth date missing or year-only match. Review
-                                        before acting.</div>
+                                    <div class="small">
+                                        Same <strong>Full Name</strong> &amp; <strong>Birthday</strong> plus at least one of:
+                                        Transaction Category + Transaction Type, Event Date + Transaction Type, Event Date + Transaction Category, Event Date only, Transaction Type only, or Transaction Category only.
+                                        Review before acting.
+                                    </div>
                                 </div>
                                 @forelse ($likelyGroups as $group)
                                     {!! $renderGroup($group) !!}

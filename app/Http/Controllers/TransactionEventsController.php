@@ -208,25 +208,42 @@ class TransactionEventsController extends Controller
             ->get();
 
         // ----- Exact: Full Name + Birthday + Event Date + Transaction Category + Transaction Type -----
+        // All 5 fields must be present and non-empty to qualify as an exact match.
         $exactGroups = $events
-            ->filter(fn ($e) => $e->birth_date !== null)
+            ->filter(fn ($e) =>
+                $e->birth_date !== null &&
+                $e->event_date !== null &&
+                trim((string) $e->transaction_category) !== '' &&
+                trim((string) $e->transaction_type) !== ''
+            )
             ->groupBy(fn ($e) => $this->exactEventDuplicateKey($e))
             ->filter(fn ($g) => $g->count() > 1)
             ->map(fn ($items) => $this->eventGroupPayload($items))
             ->values();
 
-        // ----- Likely: Full Name + Birthday + any 2 of {Event Date, Category, Type} -----
+        // ----- Likely: Full Name + Birthday + any combo of {Event Date, Category, Type} -----
         // Records already grouped as exact are excluded so tabs don't overlap.
         $exactEventIds = $exactGroups->flatMap(fn ($g) => $g['events'])->pluck('id')->flip();
 
         $likelyCandidates = $events->reject(fn ($e) => $exactEventIds->has($e->id));
 
+        // Deduplicate across combos: if a pair already matched a stricter combo,
+        // skip it in looser ones so it only appears once.
+        $seenIdSets = [];
         $likelyGroups = collect();
 
-        foreach ($this->eventLikelyComboKeys() as $comboKeys) {
-            $likelyCandidates->groupBy(fn ($e) => $comboKeys($e))
+        foreach ($this->eventLikelyComboKeys() as $comboKey) {
+            $likelyCandidates
+                ->groupBy(fn ($e) => $comboKey($e))
                 ->filter(fn ($g) => $g->count() > 1)
-                ->each(fn ($items) => $likelyGroups->push($this->eventGroupPayload($items)));
+                ->each(function ($items) use (&$seenIdSets, &$likelyGroups) {
+                    $ids = $items->pluck('id')->sort()->values()->implode(',');
+                    if (isset($seenIdSets[$ids])) {
+                        return; // skip — already captured by an earlier (stricter) combo
+                    }
+                    $seenIdSets[$ids] = true;
+                    $likelyGroups->push($this->eventGroupPayload($items));
+                });
         }
 
         $likelyGroups = $likelyGroups->values();
@@ -289,6 +306,24 @@ class TransactionEventsController extends Controller
                 $e->event_date?->format('Y-m-d'),
                 strtolower(trim((string) $e->transaction_category)),
             ]),
+            // (Full Name, Birthday, Event Date)
+            fn (TransactionEvent $e) => implode('|', [
+                strtolower(trim($e->full_name)),
+                $e->birth_date?->format('Y-m-d'),
+                $e->event_date?->format('Y-m-d'),
+            ]),
+            // (Full Name, Birthday, Transaction Type)
+            fn (TransactionEvent $e) => implode('|', [
+                strtolower(trim($e->full_name)),
+                $e->birth_date?->format('Y-m-d'),
+                strtolower(trim((string) $e->transaction_type)),
+            ]),
+            // (Full Name, Birthday, Transaction Category)
+            fn (TransactionEvent $e) => implode('|', [
+                strtolower(trim($e->full_name)),
+                $e->birth_date?->format('Y-m-d'),
+                strtolower(trim((string) $e->transaction_category)),
+            ]),
         ];
     }
 
@@ -339,6 +374,50 @@ class TransactionEventsController extends Controller
             ->with('success', "Event #{$event->id} ({$event->full_name}) removed as duplicate.");
     }
 
+    public function markGroupNotDuplicate(\Illuminate\Http\Request $request)
+    {
+        $authUser = auth()->user();
+        if ($authUser->role_name === 'Viewer') {
+            abort(403, 'Viewer role is read-only.');
+        }
+
+        $ids = array_filter(
+            array_map('intval', explode(',', $request->input('event_ids', ''))),
+            fn ($id) => $id > 0
+        );
+
+        if (empty($ids)) {
+            return redirect()->route('transaction-events.duplicate-review')
+                ->with('error', 'No events specified.');
+        }
+
+        $events = TransactionEvent::whereIn('id', $ids)
+            ->whereNull('transferred_at')
+            ->where('not_duplicate', false)
+            ->get();
+
+        foreach ($events as $event) {
+            $event->update(['not_duplicate' => true]);
+
+            ActivityLog::create([
+                'user_id'      => $authUser->id,
+                'action'       => 'event_marked_not_duplicate',
+                'description'  => "Marked transaction event #{$event->id} ({$event->full_name}) as not a duplicate (group action).",
+                'subject_type' => 'TransactionEvent',
+                'subject_id'   => $event->id,
+                'properties'   => json_encode(
+                    ['event_id' => $event->id, 'full_name' => $event->full_name, 'group_action' => true],
+                    JSON_INVALID_UTF8_SUBSTITUTE
+                ),
+            ]);
+        }
+
+        $count = $events->count();
+
+        return redirect()->route('transaction-events.duplicate-review')
+            ->with('success', "{$count} event(s) in the group marked as not a duplicate and removed from review.");
+    }
+
     public function resetNotDuplicate(TransactionEvent $event)
     {
         $authUser = auth()->user();
@@ -363,72 +442,63 @@ class TransactionEventsController extends Controller
 
     private function findEventExactDuplicates(): Collection
     {
-        // A true exact match needs a real birth date on both records.
-        // Pairs with missing birth dates belong to Likely Match instead.
-        $keys = TransactionEvent::query()
-            ->selectRaw("CONCAT(LOWER(TRIM(full_name)), '|', birth_date) as keyval")
+        // Exact Match: Full Name + Birthday + Event Date + Transaction Category + Transaction Type
+        // All 5 fields must be present and non-empty for a true exact match.
+        $events = TransactionEvent::query()
             ->whereNull('transferred_at')
             ->whereNotNull('full_name')
             ->where('full_name', '<>', '')
-            ->whereNotNull('birth_date')
             ->where('not_duplicate', false)
-            ->groupBy('keyval')
-            ->havingRaw('COUNT(*) > 1')
-            ->pluck('keyval')
-            ->map(fn ($v) => (string) $v)
-            ->toArray();
+            ->get();
 
-        return $this->groupEventsByKey($keys, "CONCAT(LOWER(TRIM(full_name)), '|', birth_date)");
+        return $events
+            ->filter(fn ($e) =>
+                $e->birth_date !== null &&
+                $e->event_date !== null &&
+                trim((string) $e->transaction_category) !== '' &&
+                trim((string) $e->transaction_type) !== ''
+            )
+            ->groupBy(fn ($e) => $this->exactEventDuplicateKey($e))
+            ->filter(fn ($g) => $g->count() > 1)
+            ->map(fn ($items) => $this->eventGroupPayload($items))
+            ->values();
     }
 
     private function findEventLikelyDuplicates(): Collection
     {
-        $nameKeys = TransactionEvent::query()
-            ->selectRaw('LOWER(TRIM(full_name)) as keyval')
+        $events = TransactionEvent::query()
             ->whereNull('transferred_at')
             ->whereNotNull('full_name')
             ->where('full_name', '<>', '')
             ->where('not_duplicate', false)
-            ->groupBy('keyval')
-            ->havingRaw('COUNT(*) > 1')
-            ->pluck('keyval')
-            ->map(fn ($v) => (string) $v)
-            ->toArray();
-
-        if (empty($nameKeys)) {
-            return collect();
-        }
-
-        $events = TransactionEvent::whereIn(DB::raw('LOWER(TRIM(full_name))'), $nameKeys)
-            ->whereNull('transferred_at')
-            ->where('not_duplicate', false)
             ->get();
 
-        return $events->groupBy(fn ($event) => strtolower(trim($event->full_name)))
-            ->filter(function ($items) {
-                if ($items->count() < 2) {
-                    return false;
-                }
+        $exactGroups = $this->findEventExactDuplicates();
+        $exactEventIds = $exactGroups->flatMap(fn ($g) => $g['events'])->pluck('id')->flip();
 
-                $birthDates = $items->pluck('birth_date')->filter()->map(fn ($d) => $d->format('Y-m-d'));
+        $likelyCandidates = $events->reject(fn ($e) => $exactEventIds->has($e->id));
 
-                // Fully identical birth dates belong to the exact tab.
-                if ($birthDates->count() === $items->count() && $birthDates->unique()->count() === 1) {
-                    return false;
-                }
+        // Track which event-ID sets have already been grouped to avoid duplicates
+        // across combo key variations (e.g. a pair that matches both combo 1 & combo 4
+        // should only appear once).
+        $seenIdSets = [];
+        $likelyGroups = collect();
 
-                // Some dates missing -> likely duplicate.
-                if ($birthDates->count() < $items->count()) {
-                    return true;
-                }
+        foreach ($this->eventLikelyComboKeys() as $comboKey) {
+            $likelyCandidates
+                ->groupBy(fn ($e) => $comboKey($e))
+                ->filter(fn ($g) => $g->count() > 1)
+                ->each(function ($items) use (&$seenIdSets, &$likelyGroups) {
+                    $ids = $items->pluck('id')->sort()->values()->implode(',');
+                    if (isset($seenIdSets[$ids])) {
+                        return; // skip — already captured by an earlier (stricter) combo
+                    }
+                    $seenIdSets[$ids] = true;
+                    $likelyGroups->push($this->eventGroupPayload($items));
+                });
+        }
 
-                // Only year-level match -> likely duplicate.
-                $years = $birthDates->map(fn ($d) => substr($d, 0, 4))->unique();
-
-                return $years->count() === 1;
-            })
-            ->map(fn ($items) => $this->eventGroupPayload($items))
-            ->values();
+        return $likelyGroups->values();
     }
 
     private function findEventSimilarSpellingDuplicates(): Collection
@@ -466,22 +536,6 @@ class TransactionEventsController extends Controller
             })
             ->map(fn ($items) => $this->eventGroupPayload($items))
             ->values();
-    }
-
-    private function groupEventsByKey(array $keys, string $keyExpr): Collection
-    {
-        if (empty($keys)) {
-            return collect();
-        }
-
-        $events = TransactionEvent::whereIn(DB::raw($keyExpr), $keys)
-            ->whereNull('transferred_at')
-            ->where('not_duplicate', false)
-            ->get();
-
-        return $events->groupBy(function ($event) {
-            return strtolower(trim($event->full_name)).'|'.($event->birth_date?->format('Y-m-d') ?? '');
-        })->map(fn ($items) => $this->eventGroupPayload($items))->values();
     }
 
     private function eventGroupPayload($items): array
@@ -556,7 +610,7 @@ class TransactionEventsController extends Controller
             abort(404);
         }
 
-        return Storage::disk('local')->download($path, $filename);
+        return response()->download(Storage::disk('local')->path($path), $filename);
     }
 
     public function preview(Request $request)
@@ -1106,7 +1160,7 @@ class TransactionEventsController extends Controller
             $transactionId = DB::transaction(function () use ($event) {
                 $event = TransactionEvent::query()
                     ->lockForUpdate()
-                    ->find($event->id);
+                    ->findOrFail($event->id);
 
                 if (! $event) {
                     throw new \RuntimeException('This event record no longer exists.');

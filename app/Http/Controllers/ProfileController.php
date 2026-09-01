@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Client;
+use App\Models\TransactionEvent;
 use App\Models\TransactionHistory;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
@@ -98,11 +99,12 @@ class ProfileController extends Controller
         $caravanTrend = Cache::remember('dashboard.caravan_trend', 300, function () {
             $start = Carbon::create(2026, 1, 1)->startOfMonth();
 
-            $rows = TransactionHistory::query()
-                ->selectRaw("DATE_FORMAT(transaction_date, '%Y-%m') as month, count(*) as total")
-                ->where('transaction_date', '>=', $start)
-                ->where('category', 'events')
-                ->where('type', 'caravan')
+            $rows = TransactionEvent::query()
+                ->selectRaw("DATE_FORMAT(event_date, '%Y-%m') as month, count(*) as total")
+                ->where('transaction_category', 'CARAVAN')
+                ->whereNotNull('transferred_at')
+                ->whereNotNull('event_date')
+                ->where('event_date', '>=', $start)
                 ->groupBy('month')
                 ->orderBy('month')
                 ->pluck('total', 'month')

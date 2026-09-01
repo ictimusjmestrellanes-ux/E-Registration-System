@@ -357,7 +357,8 @@
                                                 @unless (auth()->user()?->role_name === 'Viewer')
                                                     <input type="checkbox" class="form-check-input"
                                                         id="selectAllTransactionEvents"
-                                                        aria-label="Select all transaction events on this page" title="Select all">
+                                                        aria-label="Select all transaction events on this page"
+                                                        title="Select all">
                                                 @endunless
                                             </div>
                                         </th>
@@ -444,7 +445,8 @@
                                                                 @csrf
                                                                 @method('DELETE')
                                                                 @if (feature_allowed('Delete Event'))
-                                                                    <button type="submit" class="btn btn-sm btn-soft-danger"
+                                                                    <button type="submit"
+                                                                        class="btn btn-sm btn-soft-danger"
                                                                         title="Delete Event">
                                                                         <i class="ri-delete-bin-line"></i> Delete
                                                                     </button>
@@ -921,7 +923,8 @@
 
                     // Reset previous payload.
                     bulkTransferForm.querySelectorAll(
-                            'input[name="event_ids[]"], input[name="select_all"], input[data-list-filter], input[name="exclude_duplicates"]')
+                            'input[name="event_ids[]"], input[name="select_all"], input[data-list-filter], input[name="exclude_duplicates"]'
+                            )
                         .forEach((input) => input.remove());
 
                     if (allPagesSelected) {
