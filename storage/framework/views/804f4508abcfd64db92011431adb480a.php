@@ -27,7 +27,7 @@
             $out .= '<table class="table table-sm table-hover align-middle mb-0">';
             $out .= '<thead class="table-light"><tr>';
             $out .=
-                '<th>ID</th><th>Full Name</th><th>Age</th><th>Birth Date</th><th>Contact No.</th><th>Address</th><th>Category</th><th>Status</th>';
+                '<th>ID</th><th>Full Name</th><th>Age</th><th>Birth Date</th><th>Contact No.</th><th>Address</th><th>Category</th><th>Transaction Category</th><th>Transaction Type</th><th>Event Date</th><th>Status</th>';
             if (auth()->user()?->role_name !== 'Viewer') {
                 $out .= '<th class="text-center">Action</th>';
             }
@@ -42,6 +42,9 @@
                 $out .= '<td>' . e(str_replace('-', '', $event->contact_no ?? '')) . '</td>';
                 $out .= '<td class="small">' . e($event->address ?? '-') . '</td>';
                 $out .= '<td class="small">' . e($event->client_category ?? '-') . '</td>';
+                $out .= '<td class="small">' . e($event->transaction_category ?? '-') . '</td>';
+                $out .= '<td class="small">' . e($event->transaction_type ?? '-') . '</td>';
+                $out .= '<td>' . e(optional($event->event_date)->format('M d, Y') ?? '-') . '</td>';
                 $out .= '<td>';
                 if ($transferred) {
                     $out .=
