@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Cache;
 
 class TransactionEventsController extends Controller
 {
@@ -199,76 +200,82 @@ class TransactionEventsController extends Controller
             abort(404);
         }
 
-        $base = fn () => TransactionEvent::whereNotNull('transferred_at')
-            ->whereNotNull('full_name')
-            ->where('full_name', '<>', '');
+        $cacheKey = 'records_duplicates_v1';
+        $cacheTtl = now()->addSeconds(self::DUPLICATE_REVIEW_CACHE_TTL);
 
-        $events = $base()
-            ->with('transferredTransaction:id,transaction_id')
-            ->get();
+        $groups = Cache::remember($cacheKey, $cacheTtl, function () {
+            $base = fn () => TransactionEvent::whereNotNull('transferred_at')
+                ->whereNotNull('full_name')
+                ->where('full_name', '<>', '');
 
-        // ----- Exact: Full Name + Birthday + Event Date + Transaction Category + Transaction Type -----
-        // All 5 fields must be present and non-empty to qualify as an exact match.
-        $exactGroups = $events
-            ->filter(fn ($e) =>
-                $e->birth_date !== null &&
-                $e->event_date !== null &&
-                trim((string) $e->transaction_category) !== '' &&
-                trim((string) $e->transaction_type) !== ''
-            )
-            ->groupBy(fn ($e) => $this->exactEventDuplicateKey($e))
-            ->filter(fn ($g) => $g->count() > 1)
-            ->map(fn ($items) => $this->eventGroupPayload($items))
-            ->values();
-
-        // ----- Likely: Full Name + Birthday + any combo of {Event Date, Category, Type} -----
-        // Records already grouped as exact are excluded so tabs don't overlap.
-        $exactEventIds = $exactGroups->flatMap(fn ($g) => $g['events'])->pluck('id')->flip();
-
-        $likelyCandidates = $events->reject(fn ($e) => $exactEventIds->has($e->id));
-
-        // Deduplicate across combos: if a pair already matched a stricter combo,
-        // skip it in looser ones so it only appears once.
-        $seenIdSets = [];
-        $likelyGroups = collect();
-
-        foreach ($this->eventLikelyComboKeys() as $comboKey) {
-            $likelyCandidates
-                ->groupBy(fn ($e) => $comboKey($e))
-                ->filter(fn ($g) => $g->count() > 1)
-                ->each(function ($items) use (&$seenIdSets, &$likelyGroups) {
-                    $ids = $items->pluck('id')->sort()->values()->implode(',');
-                    if (isset($seenIdSets[$ids])) {
-                        return; // skip — already captured by an earlier (stricter) combo
-                    }
-                    $seenIdSets[$ids] = true;
-                    $likelyGroups->push($this->eventGroupPayload($items));
-                });
-        }
-
-        $likelyGroups = $likelyGroups->values();
-
-        // ----- Similar spelling: SOUNDEX of the full name -----
-        $similarKeys = $base()
-            ->selectRaw("SOUNDEX(LOWER(TRIM(full_name))) as keyval")
-            ->groupBy('keyval')
-            ->havingRaw('COUNT(*) > 1')
-            ->pluck('keyval');
-
-        $similarGroups = collect();
-        if ($similarKeys->isNotEmpty()) {
-            $similarGroups = $base()
-                ->whereIn(DB::raw('SOUNDEX(LOWER(TRIM(full_name)))'), $similarKeys)
+            $events = $base()
                 ->with('transferredTransaction:id,transaction_id')
-                ->get()
-                ->groupBy(fn ($e) => (string) soundex(strtolower(trim($e->full_name))))
+                ->get();
+
+            // Exact groups
+            $exactGroups = $events
+                ->filter(fn ($e) =>
+                    $e->birth_date !== null &&
+                    $e->event_date !== null &&
+                    trim((string) $e->transaction_category) !== '' &&
+                    trim((string) $e->transaction_type) !== ''
+                )
+                ->groupBy(fn ($e) => $this->exactEventDuplicateKey($e))
                 ->filter(fn ($g) => $g->count() > 1)
                 ->map(fn ($items) => $this->eventGroupPayload($items))
                 ->values();
-        }
 
-        return view('pages.transaction_events.recordsDuplicates',
-            compact('exactGroups', 'likelyGroups', 'similarGroups'));
+            // Likely groups
+            $exactEventIds = $exactGroups->flatMap(fn ($g) => $g['events'])->pluck('id')->flip();
+            $likelyCandidates = $events->reject(fn ($e) => $exactEventIds->has($e->id));
+            $seenIdSets = [];
+            $likelyGroups = collect();
+            foreach ($this->eventLikelyComboKeys() as $comboKey) {
+                $likelyCandidates
+                    ->groupBy(fn ($e) => $comboKey($e))
+                    ->filter(fn ($g) => $g->count() > 1)
+                    ->each(function ($items) use (&$seenIdSets, &$likelyGroups) {
+                        $ids = $items->pluck('id')->sort()->values()->implode(',');
+                        if (isset($seenIdSets[$ids])) {
+                            return;
+                        }
+                        $seenIdSets[$ids] = true;
+                        $likelyGroups->push($this->eventGroupPayload($items));
+                    });
+            }
+            $likelyGroups = $likelyGroups->values();
+
+            // Similar spelling groups
+            $similarKeys = $base()
+                ->selectRaw("SOUNDEX(LOWER(TRIM(full_name))) as keyval")
+                ->groupBy('keyval')
+                ->havingRaw('COUNT(*) > 1')
+                ->pluck('keyval');
+
+            $similarGroups = collect();
+            if ($similarKeys->isNotEmpty()) {
+                $similarGroups = $base()
+                    ->whereIn(DB::raw('SOUNDEX(LOWER(TRIM(full_name)))'), $similarKeys)
+                    ->with('transferredTransaction:id,transaction_id')
+                    ->get()
+                    ->groupBy(fn ($e) => (string) soundex(strtolower(trim($e->full_name))))
+                    ->filter(fn ($g) => $g->count() > 1)
+                    ->map(fn ($items) => $this->eventGroupPayload($items))
+                    ->values();
+            }
+
+            return [
+                'exact' => $exactGroups,
+                'likely' => $likelyGroups,
+                'similar' => $similarGroups,
+            ];
+        });
+
+        $exactGroups = $groups['exact'];
+        $likelyGroups = $groups['likely'];
+        $similarGroups = $groups['similar'];
+
+        return view('pages.transaction_events.recordsDuplicates', compact('exactGroups', 'likelyGroups', 'similarGroups'));
     }
 
     private function exactEventDuplicateKey(TransactionEvent $event): string
@@ -329,9 +336,20 @@ class TransactionEventsController extends Controller
 
     public function duplicateReview()
     {
-        $exactGroups = $this->findEventExactDuplicates();
-        $likelyGroups = $this->findEventLikelyDuplicates();
-        $similarGroups = $this->findEventSimilarSpellingDuplicates();
+        $cacheKey = 'duplicate_review_v1';
+        $cacheTtl = now()->addSeconds(self::DUPLICATE_REVIEW_CACHE_TTL);
+
+        $groups = Cache::remember($cacheKey, $cacheTtl, function () {
+            return [
+                'exact' => $this->findEventExactDuplicates(),
+                'likely' => $this->findEventLikelyDuplicates(),
+                'similar' => $this->findEventSimilarSpellingDuplicates(),
+            ];
+        });
+
+        $exactGroups = $groups['exact'];
+        $likelyGroups = $groups['likely'];
+        $similarGroups = $groups['similar'];
 
         $notDuplicates = TransactionEvent::where('not_duplicate', true)
             ->whereNull('transferred_at')
@@ -369,6 +387,7 @@ class TransactionEventsController extends Controller
             'subject_id' => $event->id,
             'properties' => json_encode(['event_id' => $event->id, 'full_name' => $event->full_name], JSON_INVALID_UTF8_SUBSTITUTE),
         ]);
+        $this->clearDuplicateCaches();
 
         return redirect()->route('transaction-events.removed-duplicates')
             ->with('success', "Event #{$event->id} ({$event->full_name}) removed as duplicate.");
@@ -411,6 +430,7 @@ class TransactionEventsController extends Controller
                 ),
             ]);
         }
+        $this->clearDuplicateCaches();
 
         $count = $events->count();
 
@@ -435,6 +455,7 @@ class TransactionEventsController extends Controller
             'subject_id' => $event->id,
             'properties' => json_encode(['event_id' => $event->id, 'full_name' => $event->full_name], JSON_INVALID_UTF8_SUBSTITUTE),
         ]);
+        $this->clearDuplicateCaches();
 
         return redirect()->back()
             ->with('success', "Event #{$event->id} ({$event->full_name}) restored to duplicate review.");
@@ -900,6 +921,14 @@ class TransactionEventsController extends Controller
 
     private const IMPORT_SESSION_DIR = 'import-sessions';
 
+    private const DUPLICATE_REVIEW_CACHE_TTL = 15; // seconds
+
+    private function clearDuplicateCaches(): void
+    {
+        Cache::forget('duplicate_review_v1');
+        Cache::forget('records_duplicates_v1');
+    }
+
     public function prepareImport(Request $request)
     {
         $request->validate([
@@ -1146,6 +1175,8 @@ class TransactionEventsController extends Controller
 
         TransactionHistory::flushDashboardCache();
 
+            $this->clearDuplicateCaches();
+
         return redirect()->route('transaction-events.records')
             ->with('success', 'Transaction '.$transactionId.' created successfully for '.$client->full_name.'.');
     }
@@ -1227,6 +1258,7 @@ class TransactionEventsController extends Controller
         }
 
         TransactionHistory::flushDashboardCache();
+        $this->clearDuplicateCaches();
 
         return redirect()->route('transaction-events.records')
             ->with('success', 'Transfer undone. Transaction '.$transactionId.' was removed and the event is pending again.');
@@ -1365,6 +1397,7 @@ class TransactionEventsController extends Controller
 
         if ($successCount > 0) {
             TransactionHistory::flushDashboardCache();
+            $this->clearDuplicateCaches();
 
             return redirect()->route('transaction-events.records')->with('success', $message);
         }

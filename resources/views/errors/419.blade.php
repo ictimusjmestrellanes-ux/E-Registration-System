@@ -14,8 +14,8 @@
                         The page you are trying to access has expired or is no longer available.
                     </p>
 
-                    <a href="{{ url('/') }}" class="btn btn-success">
-                        <i class="mdi mdi-home me-1"></i> Back to Login
+                    <a href="{{ route('dashboard') }}" class="btn btn-success">
+                        <i class="mdi mdi-home me-1"></i> Back to Dashboard
                     </a>
                 </div>
             </div>
