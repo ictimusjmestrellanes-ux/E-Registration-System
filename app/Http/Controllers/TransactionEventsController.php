@@ -636,8 +636,11 @@ class TransactionEventsController extends Controller
 
     public function preview(Request $request)
     {
+        @ini_set('memory_limit', '512M');
+        @set_time_limit(300);
+
         $request->validate([
-            'csv_file' => 'required|file|mimes:csv,txt|max:5120',
+            'csv_file' => 'required|file|mimes:csv,txt|max:102400',
         ]);
 
         $result = $this->parseCsv($request->file('csv_file'));
@@ -646,12 +649,18 @@ class TransactionEventsController extends Controller
             return response()->json(['success' => false, 'message' => $result['errors'][0]], 422);
         }
 
+        $totalRows = count($result['rows']);
+        $previewRows = array_slice($result['rows'], 0, 100);
+
         return response()->json([
             'success' => true,
-            'rows' => $result['rows'],
-            'total' => $result['total'],
+            'rows' => $previewRows,
+            'total' => $totalRows,
+            'preview_count' => count($previewRows),
+            'is_truncated' => $totalRows > 100,
             'skipped' => $result['skipped'],
-            'skipped_rows' => $result['skipped_rows'],
+            'skipped_rows' => array_slice($result['skipped_rows'] ?? [], 0, 50),
+            'skipped_total' => count($result['skipped_rows'] ?? []),
         ]);
     }
 
@@ -661,8 +670,11 @@ class TransactionEventsController extends Controller
      */
     public function importDuplicatesCheck(Request $request)
     {
+        @ini_set('memory_limit', '512M');
+        @set_time_limit(300);
+
         $request->validate([
-            'csv_file' => 'required|file|mimes:csv,txt|max:5120',
+            'csv_file' => 'required|file|mimes:csv,txt|max:102400',
         ]);
 
         $result = $this->parseCsv($request->file('csv_file'));
@@ -687,7 +699,8 @@ class TransactionEventsController extends Controller
             'success' => true,
             'total_rows' => count($result['rows']),
             'duplicates_count' => count($duplicates),
-            'duplicates' => $duplicates,
+            'duplicates' => array_slice($duplicates, 0, 100),
+            'duplicates_truncated' => count($duplicates) > 100,
         ]);
     }
 
@@ -698,6 +711,50 @@ class TransactionEventsController extends Controller
      */
     private function findExistingDuplicateIndexes(array $rows): array
     {
+        if (empty($rows)) {
+            return [];
+        }
+
+        @ini_set('memory_limit', '512M');
+        @set_time_limit(300);
+
+        // Preload existing history joined with client first/last names into in-memory hash sets
+        $historyRows = DB::table('transaction_history')
+            ->join('clients', 'transaction_history.client_id', '=', 'clients.client_id')
+            ->selectRaw("LOWER(TRIM(clients.first_name)) as fn, LOWER(TRIM(clients.last_name)) as ln, transaction_history.category, transaction_history.type, DATE_FORMAT(transaction_history.transaction_date, '%Y-%m-%d') as tx_date")
+            ->get();
+
+        $historyWithDate = [];
+        $historyWithoutDate = [];
+
+        foreach ($historyRows as $h) {
+            $fn = (string) $h->fn;
+            $ln = (string) $h->ln;
+            $cat = strtolower(trim((string) $h->category));
+            $type = strtolower(trim((string) $h->type));
+            $date = (string) $h->tx_date;
+
+            $historyWithDate["{$fn}|{$ln}|{$cat}|{$type}|{$date}"] = true;
+            $historyWithoutDate["{$fn}|{$ln}|{$cat}|{$type}"] = true;
+        }
+
+        // Preload existing transaction events into in-memory hash sets
+        $eventRows = DB::table('transaction_events')
+            ->selectRaw("LOWER(TRIM(full_name)) as fn, DATE_FORMAT(event_date, '%Y-%m-%d') as ev_date, transaction_category as cat, transaction_type as type")
+            ->get();
+
+        $eventLookup = [];
+
+        foreach ($eventRows as $ev) {
+            $fn = (string) $ev->fn;
+            $evDate = $ev->ev_date ? (string) $ev->ev_date : '';
+            $cat = $ev->cat ? strtolower(trim((string) $ev->cat)) : '';
+            $type = $ev->type ? strtolower(trim((string) $ev->type)) : '';
+
+            $eventLookup["{$fn}|{$cat}|{$type}|{$evDate}"] = true;
+            $eventLookup["{$fn}|{$cat}|{$type}|*"] = true;
+        }
+
         $indexes = [];
 
         foreach ($rows as $index => $row) {
@@ -707,47 +764,40 @@ class TransactionEventsController extends Controller
                 continue;
             }
 
+            $fn = strtolower(trim($nameParts['first_name']));
+            $ln = strtolower(trim($nameParts['last_name']));
+            $rawCat = TransactionHistory::normalizeCategory($row['transaction_category'] ?? '');
+            $cat = strtolower(trim((string) $rawCat));
+            $type = strtolower(trim((string) ($row['transaction_type'] ?? '')));
+            $evDate = ! empty($row['event_date']) ? (string) $row['event_date'] : '';
+
             $matched = false;
 
-            // 1) Existing Client in clients table + matching Transaction History
-            $clientIds = Client::query()
-                ->whereRaw('LOWER(TRIM(first_name)) = ?', [strtolower(trim($nameParts['first_name']))])
-                ->whereRaw('LOWER(TRIM(last_name)) = ?', [strtolower(trim($nameParts['last_name']))])
-                ->pluck('client_id');
-
-            if ($clientIds->isNotEmpty()) {
-                $history = TransactionHistory::whereIn('client_id', $clientIds)
-                    ->where('category', TransactionHistory::normalizeCategory($row['transaction_category'] ?? ''))
-                    ->where('type', $row['transaction_type'] ?? '');
-
-                if (! empty($row['event_date'])) {
-                    $history->whereDate('transaction_date', $row['event_date']);
+            // 1) Match against existing client transaction history
+            if ($evDate !== '') {
+                if (isset($historyWithDate["{$fn}|{$ln}|{$cat}|{$type}|{$evDate}"])) {
+                    $matched = true;
                 }
-
-                if ($history->exists()) {
+            } else {
+                if (isset($historyWithoutDate["{$fn}|{$ln}|{$cat}|{$type}"])) {
                     $matched = true;
                 }
             }
 
-            // 2) Exact duplicate already in the Import Events module
+            // 2) Match against existing Import Events
             if (! $matched) {
-                $eventQuery = TransactionEvent::query()
-                    ->whereRaw('LOWER(TRIM(full_name)) = ?', [strtolower(trim($row['full_name']))]);
+                $fullNameLower = strtolower(trim($row['full_name']));
+                $rowCat = ! empty($row['transaction_category']) ? strtolower(trim($row['transaction_category'])) : '';
+                $rowType = ! empty($row['transaction_type']) ? strtolower(trim($row['transaction_type'])) : '';
 
-                if (! empty($row['event_date'])) {
-                    $eventQuery->whereDate('event_date', $row['event_date']);
-                }
-
-                if (! empty($row['transaction_category'])) {
-                    $eventQuery->where('transaction_category', $row['transaction_category']);
-                }
-
-                if (! empty($row['transaction_type'])) {
-                    $eventQuery->where('transaction_type', $row['transaction_type']);
-                }
-
-                if ($eventQuery->exists()) {
-                    $matched = true;
+                if ($evDate !== '') {
+                    if (isset($eventLookup["{$fullNameLower}|{$rowCat}|{$rowType}|{$evDate}"])) {
+                        $matched = true;
+                    }
+                } else {
+                    if (isset($eventLookup["{$fullNameLower}|{$rowCat}|{$rowType}|*"]) || isset($eventLookup["{$fullNameLower}|{$rowCat}|{$rowType}|"])) {
+                        $matched = true;
+                    }
                 }
             }
 
@@ -793,7 +843,7 @@ class TransactionEventsController extends Controller
             foreach ($row as $i => $cell) {
                 $ref = $this->excelColumnName($i + 1).($index + 1);
                 $value = htmlspecialchars((string) $cell, ENT_XML1 | ENT_QUOTES, 'UTF-8');
-                $cells .= "<c r=\"{$ref}\" t=\"inlineStr\"{$style}><is><t xml:space=\"preserve\">{$value}</t></is></c>";
+                $cells .= "'<c r=\"{$ref}\" t=\"inlineStr\"{$style}><is><t xml:space=\"preserve\">{$value}</t></is></c>'";
             }
             $rows .= '<row r="'.($index + 1)."\">{$cells}</row>";
         }
@@ -871,8 +921,11 @@ class TransactionEventsController extends Controller
 
     public function import(Request $request)
     {
+        @ini_set('memory_limit', '512M');
+        @set_time_limit(300);
+
         $request->validate([
-            'csv_file' => 'required|file|mimes:csv,txt|max:5120',
+            'csv_file' => 'required|file|mimes:csv,txt|max:102400',
         ]);
 
         $result = $this->parseCsv($request->file('csv_file'));
@@ -964,8 +1017,11 @@ class TransactionEventsController extends Controller
 
     public function prepareImport(Request $request)
     {
+        @ini_set('memory_limit', '512M');
+        @set_time_limit(300);
+
         $request->validate([
-            'csv_file' => 'required|file|mimes:csv,txt|max:5120',
+            'csv_file' => 'required|file|mimes:csv,txt|max:102400',
         ]);
 
         $result = $this->parseCsv($request->file('csv_file'));
@@ -1024,7 +1080,7 @@ class TransactionEventsController extends Controller
             'offset' => 'required|integer|min:0',
         ]);
 
-        $limit = min(max((int) $request->input('limit', 200), 1), 1000);
+        $limit = min(max((int) $request->input('limit', 500), 1), 1000);
         $sessionData = $this->loadImportSession($request->input('token'));
 
         if ($sessionData === null) {

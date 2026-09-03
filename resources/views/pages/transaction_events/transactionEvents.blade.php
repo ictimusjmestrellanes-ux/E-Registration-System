@@ -1088,8 +1088,10 @@
                         throw new Error(data.message || 'Failed to parse CSV file.');
                     }
 
-                    previewTotalRows.textContent = data.total;
-                    previewSkippedRows.textContent = data.skipped;
+                    previewTotalRows.textContent = data.is_truncated 
+                        ? `${Number(data.total).toLocaleString()} (showing first ${data.preview_count})` 
+                        : Number(data.total).toLocaleString();
+                    previewSkippedRows.textContent = Number(data.skipped_total || data.skipped || 0).toLocaleString();
 
                     if (data.rows && data.rows.length > 0) {
                         data.rows.forEach(function(row, index) {
@@ -1205,7 +1207,7 @@
                         throw new Error('The CSV file has no rows to import.');
                     }
 
-                    const CHUNK_SIZE = 200;
+                    const CHUNK_SIZE = 500;
                     let offset = 0;
 
                     while (offset < total) {
@@ -1311,8 +1313,9 @@
                             `;
                             body.appendChild(tr);
                         });
+                        const suffix = data.duplicates_truncated ? ' (showing first 100 in table below)' : '';
                         document.getElementById('importDuplicateSummary').textContent =
-                            `${data.duplicates_count} of ${data.total_rows} row(s) in this file already exist in the system (Transaction History or Import Events).`;
+                            `${Number(data.duplicates_count).toLocaleString()} of ${Number(data.total_rows).toLocaleString()} row(s) in this file already exist in the system (Transaction History or Import Events).${suffix}`;
                         bootstrap.Modal.getOrCreateInstance(document.getElementById(
                             'importDuplicateModal')).show();
                         confirmBtn.disabled = false;
