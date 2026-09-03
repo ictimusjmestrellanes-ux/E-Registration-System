@@ -170,7 +170,7 @@
                     <div class="col-lg-6">
                         <div class="card material-shadow h-100">
                             <div class="card-header">
-                                <h5 class="mb-0">Service Categories Distribution</h5>
+                                <h5 class="mb-0">Service Categories Distributions</h5>
                                 <p class="text-muted mb-0">Share of transactions per service category</p>
                             </div>
                             <div class="card-body">
