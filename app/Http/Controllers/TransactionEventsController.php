@@ -1192,6 +1192,14 @@ class TransactionEventsController extends Controller
         return is_array($data) ? $data : null;
     }
 
+    private function saveImportSession(string $token, array $data): void
+    {
+        Storage::disk('local')->put(
+            self::IMPORT_SESSION_DIR.'/'.$token.'.json',
+            json_encode($data, JSON_INVALID_UTF8_SUBSTITUTE)
+        );
+    }
+
     private function cleanupStaleImportSessions(): void
     {
         foreach (Storage::disk('local')->files(self::IMPORT_SESSION_DIR) as $file) {
@@ -1371,7 +1379,12 @@ class TransactionEventsController extends Controller
             ->with('success', 'Transfer undone. Transaction '.$transactionId.' was removed and the event is pending again.');
     }
 
-    public function transferSelected(Request $request)
+    /**
+     * Resolve the set of pending TransactionEvents targeted by a "Transfer
+     * Selected" request (either explicit event_ids or the filtered select-all
+     * population).
+     */
+    private function resolveTransferSelectedEvents(Request $request): \Illuminate\Support\Collection
     {
         if ($request->boolean('select_all')) {
             // Transfer every pending event matching the current list filters,
@@ -1389,107 +1402,289 @@ class TransactionEventsController extends Controller
                 $query->whereNotIn('full_name', $this->duplicateFullNamesList());
             }
 
-            $events = $query->get();
-        } else {
-            $ids = array_values(array_filter(array_map('intval', (array) $request->input('event_ids', []))));
-
-            if (empty($ids)) {
-                return redirect()->route('transaction-events.index')
-                    ->with('error', 'No transaction events selected for transfer.');
-            }
-
-            $events = TransactionEvent::query()
-                ->whereIn('id', $ids)
-                ->whereNull('transferred_at')
-                ->where('not_duplicate', false)
-                ->get();
+            return $query->get();
         }
+
+        $ids = array_values(array_filter(array_map('intval', (array) $request->input('event_ids', []))));
+
+        if (empty($ids)) {
+            return collect();
+        }
+
+        return TransactionEvent::query()
+            ->whereIn('id', $ids)
+            ->whereNull('transferred_at')
+            ->where('not_duplicate', false)
+            ->get();
+    }
+
+    /**
+     * Transfer a single pending event into a client + transaction history.
+     * Returns ['success' => bool, 'created_client' => bool].
+     */
+    private function transferSingleEvent(TransactionEvent $event): array
+    {
+        if (empty($event->transaction_category) || empty($event->transaction_type)) {
+            return ['success' => false, 'created_client' => false];
+        }
+
+        $nameParts = $this->splitFullName($event->full_name);
+        $client = Client::whereRaw('LOWER(first_name) = ?', [strtolower($nameParts['first_name'])])
+            ->whereRaw('LOWER(last_name) = ?', [strtolower($nameParts['last_name'])])
+            ->first();
+
+        $createdClient = false;
+        if (! $client) {
+            $client = $this->createClientFromImportedEvent([
+                'full_name' => $event->full_name,
+                'age' => $event->age,
+                'contact_no' => $event->contact_no,
+                'address' => $event->address,
+                'birth_date' => $event->birth_date?->format('Y-m-d'),
+                'client_category' => $event->client_category,
+            ]);
+            $createdClient = true;
+
+            ActivityLog::create([
+                'user_id' => auth()->id(),
+                'action' => 'client_created',
+                'description' => 'Auto-created client '.$client->client_id.' ('.trim($event->full_name).') during event transfer.',
+                'subject_type' => 'Client',
+                'subject_id' => $client->id,
+                'properties' => json_encode(['source' => 'transaction-event-transfer', 'event_id' => $event->id]),
+            ]);
+        }
+
+        $transactionId = $this->nextTransferredTransactionId($client->client_id);
+        $clientCategory = $event->client_category ?: $client->sector;
+
+        $transaction = TransactionHistory::create([
+            'client_id' => $client->client_id,
+            'client_category' => $clientCategory,
+            'transaction_id' => $transactionId,
+            // Use the event's own event date when available.
+            'transaction_date' => $event->event_date ?? now(),
+            'category' => $this->transactionCategoryForHistory($event->transaction_category),
+            'type' => $this->transactionCategoryForHistory($event->transaction_category),
+            'events_transaction_type' => $this->transactionCategoryForHistory($event->transaction_type),
+            'source' => 'E-Registration',
+            'clerk' => auth()->user()->name ?? 'System',
+            'status' => 'Approved',
+            'description' => 'Transferred from imported event for '.$event->full_name,
+        ]);
+
+        ActivityLog::create([
+            'user_id' => auth()->id(),
+            'action' => 'transaction_created',
+            'description' => 'Created transaction '.$transactionId.' from imported event.',
+            'subject_type' => 'TransactionHistory',
+            'subject_id' => $transaction->id,
+            'properties' => ['event_id' => $event->id],
+        ]);
+
+        if (! empty($event->client_category)) {
+            $client->update(['sector' => $event->client_category]);
+        }
+
+        $event->update([
+            'transferred_at' => now(),
+            'transferred_transaction_id' => $transaction->id,
+        ]);
+
+        return ['success' => true, 'created_client' => $createdClient];
+    }
+
+    /**
+     * Transfer a batch of pending event ids. Returns aggregate counters.
+     */
+    private function transferEventIds(array $ids): array
+    {
+        $events = TransactionEvent::query()
+            ->whereIn('id', $ids)
+            ->whereNull('transferred_at')
+            ->where('not_duplicate', false)
+            ->get();
+
+        $successCount = 0;
+        $skippedCount = 0;
+        $createdClients = 0;
+
+        foreach ($events as $event) {
+            $result = $this->transferSingleEvent($event);
+
+            if ($result['success']) {
+                $successCount++;
+
+                if ($result['created_client']) {
+                    $createdClients++;
+                }
+            } else {
+                $skippedCount++;
+            }
+        }
+
+        return compact('successCount', 'skippedCount', 'createdClients');
+    }
+
+    // ----------------------------------------------------------------------
+    // Chunked "Transfer Selected" (progress-bar friendly). The target event
+    // ids are resolved once and cached to a temp session file, then processed
+    // in slices so the browser can show a live percentage while transferring.
+    // ----------------------------------------------------------------------
+
+    public function prepareTransferSelected(Request $request)
+    {
+        $events = $this->resolveTransferSelectedEvents($request);
+
+        if ($events->isEmpty()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Selected transaction events are already transferred or no longer available.',
+            ], 422);
+        }
+
+        $token = md5(uniqid((string) auth()->id(), true));
+        $this->cleanupStaleImportSessions();
+
+        Storage::disk('local')->makeDirectory(self::IMPORT_SESSION_DIR);
+        $this->saveImportSession($token, [
+            'ids' => $events->pluck('id')->values()->all(),
+            'successCount' => 0,
+            'skippedCount' => 0,
+            'createdClients' => 0,
+            'mode' => 'transfer',
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'token' => $token,
+            'total' => $events->count(),
+        ]);
+    }
+
+    public function processTransferChunk(Request $request)
+    {
+        @ini_set('memory_limit', '512M');
+        @set_time_limit(300);
+
+        $request->validate([
+            'token' => 'required|string',
+            'offset' => 'required|integer|min:0',
+        ]);
+
+        $limit = min(max((int) $request->input('limit', 200), 1), 1000);
+        $sessionData = $this->loadImportSession($request->input('token'));
+
+        if ($sessionData === null) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Transfer session not found. Please start the transfer again.',
+            ], 404);
+        }
+
+        $ids = $sessionData['ids'];
+        $offset = (int) $request->input('offset');
+        $slice = array_slice($ids, $offset, $limit);
+
+        if (! empty($slice)) {
+            $result = $this->transferEventIds($slice);
+
+            $sessionData['successCount'] = ($sessionData['successCount'] ?? 0) + $result['successCount'];
+            $sessionData['skippedCount'] = ($sessionData['skippedCount'] ?? 0) + $result['skippedCount'];
+            $sessionData['createdClients'] = ($sessionData['createdClients'] ?? 0) + $result['createdClients'];
+
+            $this->saveImportSession($request->input('token'), $sessionData);
+        }
+
+        $processed = $offset + count($slice);
+
+        return response()->json([
+            'success' => true,
+            'processed' => $processed,
+            'total' => count($ids),
+            'done' => $processed >= count($ids),
+        ]);
+    }
+
+    public function finishTransferSelected(Request $request)
+    {
+        $request->validate([
+            'token' => 'required|string',
+        ]);
+
+        $sessionData = $this->loadImportSession($request->input('token'));
+
+        if ($sessionData === null) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Transfer session not found. Please start the transfer again.',
+            ], 404);
+        }
+
+        $successCount = $sessionData['successCount'] ?? 0;
+        $skippedCount = $sessionData['skippedCount'] ?? 0;
+        $createdClients = $sessionData['createdClients'] ?? 0;
+
+        $archiveFile = '';
+        if ($successCount > 0) {
+            $transferredEvents = TransactionEvent::query()
+                ->whereIn('id', $sessionData['ids'])
+                ->whereNotNull('transferred_at')
+                ->get();
+            $archiveFile = $this->storeArchivedTransactionEvents($transferredEvents);
+
+            TransactionHistory::flushDashboardCache();
+            $this->clearDuplicateCaches();
+        }
+
+        $message = "Transferred {$successCount} event(s).";
+        if ($createdClients > 0) {
+            $message .= " Auto-created {$createdClients} new client(s).";
+        }
+        if ($skippedCount > 0) {
+            $message .= " Skipped {$skippedCount} event(s) because they are missing transaction details.";
+        }
+        if (! empty($archiveFile)) {
+            $message .= " Archived as {$archiveFile}.";
+        }
+
+        Storage::disk('local')->delete(self::IMPORT_SESSION_DIR.'/'.$request->input('token').'.json');
+
+        return response()->json([
+            'success' => true,
+            'type' => $successCount > 0 ? 'success' : 'error',
+            'message' => $message,
+            'successCount' => $successCount,
+            'skippedCount' => $skippedCount,
+            'createdClients' => $createdClients,
+            'redirect' => $successCount > 0
+                ? route('transaction-events.records')
+                : route('transaction-events.index'),
+        ]);
+    }
+
+    public function transferSelected(Request $request)
+    {
+        $events = $this->resolveTransferSelectedEvents($request);
 
         if ($events->isEmpty()) {
             return redirect()->route('transaction-events.index')
                 ->with('error', 'Selected transaction events are already transferred or no longer available.');
         }
 
-        $successCount = 0;
-        $skippedCount = 0;
-        $createdClients = 0;
-        $archivedEvents = [];
+        $result = $this->transferEventIds($events->pluck('id')->all());
 
-        foreach ($events as $event) {
-            if (empty($event->transaction_category) || empty($event->transaction_type)) {
-                $skippedCount++;
-
-                continue;
-            }
-
-            $nameParts = $this->splitFullName($event->full_name);
-            $client = Client::whereRaw('LOWER(first_name) = ?', [strtolower($nameParts['first_name'])])
-                ->whereRaw('LOWER(last_name) = ?', [strtolower($nameParts['last_name'])])
-                ->first();
-
-            if (! $client) {
-                $client = $this->createClientFromImportedEvent([
-                    'full_name' => $event->full_name,
-                    'age' => $event->age,
-                    'contact_no' => $event->contact_no,
-                    'address' => $event->address,
-                    'birth_date' => $event->birth_date?->format('Y-m-d'),
-                    'client_category' => $event->client_category,
-                ]);
-                $createdClients++;
-
-                ActivityLog::create([
-                    'user_id' => auth()->id(),
-                    'action' => 'client_created',
-                    'description' => 'Auto-created client '.$client->client_id.' ('.trim($event->full_name).') during event transfer.',
-                    'subject_type' => 'Client',
-                    'subject_id' => $client->id,
-                    'properties' => json_encode(['source' => 'transaction-event-transfer', 'event_id' => $event->id]),
-                ]);
-            }
-
-            $transactionId = $this->nextTransferredTransactionId($client->client_id);
-            $clientCategory = $event->client_category ?: $client->sector;
-
-            $transaction = TransactionHistory::create([
-                'client_id' => $client->client_id,
-                'client_category' => $clientCategory,
-                'transaction_id' => $transactionId,
-                // Use the event's own event date when available.
-                'transaction_date' => $event->event_date ?? now(),
-                'category' => $this->transactionCategoryForHistory($event->transaction_category),
-                'type' => $this->transactionCategoryForHistory($event->transaction_category),
-                'events_transaction_type' => $this->transactionCategoryForHistory($event->transaction_type),
-                'source' => 'E-Registration',
-            'clerk' => auth()->user()->name ?? 'System',
-            'status' => 'Approved',
-            'description' => 'Transferred from imported event for '.$event->full_name,
-        ]);
-
-            ActivityLog::create([
-                'user_id' => auth()->id(),
-                'action' => 'transaction_created',
-                'description' => 'Created transaction '.$transactionId.' from imported event.',
-                'subject_type' => 'TransactionHistory',
-                'subject_id' => $transaction->id,
-                'properties' => ['event_id' => $event->id],
-            ]);
-
-            if (! empty($event->client_category)) {
-                $client->update(['sector' => $event->client_category]);
-            }
-
-            $event->update([
-                'transferred_at' => now(),
-                'transferred_transaction_id' => $transaction->id,
-            ]);
-            $archivedEvents[] = $event;
-            $successCount++;
-        }
+        $successCount = $result['successCount'];
+        $skippedCount = $result['skippedCount'];
+        $createdClients = $result['createdClients'];
 
         $archiveFile = '';
-        if (! empty($archivedEvents)) {
-            $archiveFile = $this->storeArchivedTransactionEvents($archivedEvents);
+        if ($successCount > 0) {
+            $transferredEvents = TransactionEvent::query()
+                ->whereIn('id', $events->pluck('id'))
+                ->whereNotNull('transferred_at')
+                ->get();
+            $archiveFile = $this->storeArchivedTransactionEvents($transferredEvents);
         }
 
         $message = "Transferred {$successCount} event(s).";

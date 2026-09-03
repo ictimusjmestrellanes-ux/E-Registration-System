@@ -135,6 +135,9 @@ Route::group(['namespace' => 'App\Http\Controllers'], function () {
         Route::post('transaction-events/import/finish', [TransactionEventsController::class, 'finishImport'])->name('transaction-events.import.finish');
         Route::post('transaction-events/import', [TransactionEventsController::class, 'import'])->name('transaction-events.import');
         Route::post('transaction-events/transfer-selected', [TransactionEventsController::class, 'transferSelected'])->name('transaction-events.transfer-selected');
+        Route::post('transaction-events/transfer-selected/prepare', [TransactionEventsController::class, 'prepareTransferSelected'])->name('transaction-events.transfer-selected.prepare');
+        Route::post('transaction-events/transfer-selected/process', [TransactionEventsController::class, 'processTransferChunk'])->name('transaction-events.transfer-selected.process');
+        Route::post('transaction-events/transfer-selected/finish', [TransactionEventsController::class, 'finishTransferSelected'])->name('transaction-events.transfer-selected.finish');
 
         // {event} wildcard routes (declared last so they don't eat static segments)
         Route::post('transaction-events/{event}/not-duplicate', [TransactionEventsController::class, 'markNotDuplicate'])->name('transaction-events.not-duplicate');

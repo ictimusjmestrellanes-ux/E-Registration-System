@@ -708,12 +708,65 @@
                 </div>
             </div>
         </div>
+
+        <!-- Transfer Progress Modal (Live progress bar) -->
+        <div class="modal fade" id="transferProgressModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static"
+            data-bs-keyboard="false">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">
+                            <i class="ri-loader-3-line ri-spin me-1"></i> Transferring Selected Events
+                        </h5>
+                    </div>
+                    <div class="modal-body">
+                        <div class="progress" style="height: 22px;">
+                            <div id="transferProgressBar" class="progress-bar progress-bar-striped progress-bar-animated"
+                                role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0"
+                                aria-valuemax="100"></div>
+                        </div>
+                        <div class="d-flex justify-content-between mt-2">
+                            <span id="transferProgressText" class="text-muted small">Preparing transfer...</span>
+                            <span id="transferProgressPercent" class="fw-semibold small">0%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 <?php $__env->stopSection(); ?>
 
 <?php $__env->startPush('scripts'); ?>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            // Parse an API response, throwing a clear, actionable error when the
+            // server returns HTML (e.g. Azure "419 Page Expired" / proxy error)
+            // instead of JSON, so the user sees a real message rather than
+            // "Unexpected token '<' ... is not valid JSON".
+            const parseApiResponse = async function(res) {
+                const text = await res.text();
+
+                if (text && text.trim().charAt(0) === '<') {
+                    let detail = `The server returned an HTML error page instead of JSON (HTTP ${res.status}).`;
+
+                    if (res.status === 419) {
+                        detail = 'Your session has expired (HTTP 419). Please refresh the page and try again.';
+                    } else if (res.status === 413 || res.status === 400) {
+                        detail = `The request was too large or rejected by the server (HTTP ${res.status}). Try a smaller CSV file or split it into fewer rows.`;
+                    } else if (res.status === 500 || res.status === 502 || res.status === 504) {
+                        detail = `The server had an error while processing your request (HTTP ${res.status}). Try again in a moment.`;
+                    }
+
+                    throw new Error(detail);
+                }
+
+                try {
+                    return JSON.parse(text);
+                } catch (e) {
+                    throw new Error(`Invalid response from the server (HTTP ${res.status}). Please try again.`);
+                }
+            };
+
             // ----- Filter Records card toggle (Client List style) -----
             const eventFiltersToggleBtn = document.getElementById('eventFiltersToggleBtn');
             const eventFiltersForm = document.getElementById('eventFiltersForm');
@@ -924,7 +977,7 @@
                     bulkTransferConfirmModal.show();
                 });
 
-                confirmBulkTransferBtn.addEventListener('click', function() {
+                confirmBulkTransferBtn.addEventListener('click', async function() {
                     confirmBulkTransferBtn.disabled = true;
 
                     // Reset previous payload.
@@ -977,7 +1030,114 @@
                         });
                     }
 
-                    bulkTransferForm.submit();
+                    bulkTransferConfirmModal.hide();
+
+                    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                    const apiHeaders = {
+                        'X-CSRF-TOKEN': csrfToken,
+                        'Accept': 'application/json',
+                    };
+
+                    const progressModalEl = document.getElementById('transferProgressModal');
+                    const progressBar = document.getElementById('transferProgressBar');
+                    const progressText = document.getElementById('transferProgressText');
+                    const progressPercent = document.getElementById('transferProgressPercent');
+
+                    if (!progressModalEl || !progressBar || !progressText || !progressPercent) {
+                        bulkTransferForm.submit();
+                        return;
+                    }
+
+                    const progressModal = bootstrap.Modal.getOrCreateInstance(progressModalEl);
+                    const setTransferProgress = function(percent, text) {
+                        progressBar.style.width = percent + '%';
+                        progressBar.setAttribute('aria-valuenow', percent);
+                        progressPercent.textContent = Math.round(percent) + '%';
+                        if (text) {
+                            progressText.textContent = text;
+                        }
+                    };
+
+                    progressModal.show();
+                    setTransferProgress(0, 'Preparing transfer...');
+
+                    try {
+                        const payload = new FormData(bulkTransferForm);
+                        const prepareRes = await fetch(
+                            '<?php echo e(route('transaction-events.transfer-selected.prepare')); ?>', {
+                                method: 'POST',
+                                headers: apiHeaders,
+                                body: payload,
+                            });
+                        const prepareData = await parseApiResponse(prepareRes);
+
+                        if (!prepareRes.ok || !prepareData.success) {
+                            throw new Error(prepareData.message || 'Failed to prepare the transfer.');
+                        }
+
+                        const total = prepareData.total;
+                        const CHUNK_SIZE = 500;
+                        const token = prepareData.token;
+                        let offset = 0;
+
+                        while (offset < total) {
+                            const next = Math.min(offset + CHUNK_SIZE, total);
+                            setTransferProgress(
+                                (offset / total) * 100,
+                                'Transferring events ' + (offset + 1) + ' - ' + next + ' of ' + total
+                            );
+
+                            const chunkBody = new URLSearchParams();
+                            chunkBody.append('token', token);
+                            chunkBody.append('offset', offset);
+                            chunkBody.append('limit', CHUNK_SIZE);
+
+                            const chunkRes = await fetch(
+                                '<?php echo e(route('transaction-events.transfer-selected.process')); ?>', {
+                                    method: 'POST',
+                                    headers: apiHeaders,
+                                    body: chunkBody,
+                                });
+                            const chunkData = await parseApiResponse(chunkRes);
+
+                            if (!chunkRes.ok || !chunkData.success) {
+                                throw new Error(chunkData.message || 'Transfer failed while processing rows.');
+                            }
+
+                            offset = chunkData.processed;
+
+                            if (chunkData.done) {
+                                break;
+                            }
+                        }
+
+                        setTransferProgress(100, 'Finalizing transfer...');
+
+                        const finishBody = new URLSearchParams();
+                        finishBody.append('token', token);
+
+                        const finishRes = await fetch(
+                            '<?php echo e(route('transaction-events.transfer-selected.finish')); ?>', {
+                                method: 'POST',
+                                headers: apiHeaders,
+                                body: finishBody,
+                            });
+                        const finishData = await parseApiResponse(finishRes);
+
+                        if (!finishRes.ok || !finishData.success) {
+                            throw new Error(finishData.message || 'Transfer failed to finalize.');
+                        }
+
+                        setTransferProgress(100, 'Done!');
+                        setTimeout(function() {
+                            progressModal.hide();
+                            window.location.href = finishData.redirect;
+                        }, 500);
+                    } catch (error) {
+                        progressModal.hide();
+                        confirmBulkTransferBtn.disabled = false;
+                        new Message('imessage').show(error.message || 'Transfer failed.', 'fail', 'top-center');
+                    }
                 });
 
                 bulkTransferConfirmModalEl.addEventListener('hidden.bs.modal', function() {
@@ -1088,7 +1248,7 @@
                         body: formData,
                     });
 
-                    const data = await response.json();
+                    const data = await parseApiResponse(response);
 
                     if (!response.ok || !data.success) {
                         throw new Error(data.message || 'Failed to parse CSV file.');
@@ -1202,7 +1362,7 @@
                             headers: apiHeaders,
                             body: prepareForm,
                         });
-                    const prepareData = await prepareRes.json();
+                    const prepareData = await parseApiResponse(prepareRes);
 
                     if (!prepareRes.ok || !prepareData.success) {
                         throw new Error(prepareData.message || 'Failed to prepare the import.');
@@ -1234,7 +1394,7 @@
                                 headers: apiHeaders,
                                 body: chunkBody,
                             });
-                        const chunkData = await chunkRes.json();
+                        const chunkData = await parseApiResponse(chunkRes);
 
                         if (!chunkRes.ok || !chunkData.success) {
                             throw new Error(chunkData.message ||
@@ -1258,7 +1418,7 @@
                         headers: apiHeaders,
                         body: finishBody,
                     });
-                    const finishData = await finishRes.json();
+                    const finishData = await parseApiResponse(finishRes);
 
                     if (!finishRes.ok || !finishData.success) {
                         throw new Error(finishData.message || 'Import failed to finalize.');
@@ -1300,7 +1460,7 @@
                             },
                             body: checkForm,
                         });
-                    const data = await res.json();
+                    const data = await parseApiResponse(res);
 
                     if (!res.ok || !data.success) {
                         throw new Error(data.message || 'Duplicate check failed.');
