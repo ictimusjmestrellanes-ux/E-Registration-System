@@ -1076,7 +1076,7 @@
                         }
 
                         const total = prepareData.total;
-                        const CHUNK_SIZE = 500;
+                        const CHUNK_SIZE = 1000;
                         const token = prepareData.token;
                         let offset = 0;
 
@@ -1213,7 +1213,103 @@
                 }
             });
 
-            previewBtn.addEventListener('click', async function() {
+            // Client-side CSV parser so the preview step does NOT upload the
+            // whole file to the server. This avoids HTTP 413 "request too large"
+            // errors on hosts like Azure when importing big CSVs (24k+ rows).
+            const splitCsvRecords = function(text) {
+                const records = [];
+                let row = [], field = '', inQuotes = false, i = 0;
+                while (i < text.length) {
+                    const c = text[i];
+                    if (inQuotes) {
+                        if (c === '"') {
+                            if (text[i + 1] === '"') { field += '"'; i += 2; continue; }
+                            inQuotes = false; i += 1; continue;
+                        }
+                        field += c; i += 1; continue;
+                    }
+                    if (c === '"') { inQuotes = true; i += 1; continue; }
+                    if (c === ',') { row.push(field); field = ''; i += 1; continue; }
+                    if (c === '\n') { row.push(field); records.push(row); row = []; field = ''; i += 1; continue; }
+                    if (c === '\r') { i += 1; continue; }
+                    field += c; i += 1;
+                }
+                if (field !== '' || row.length > 0) { row.push(field); records.push(row); }
+                return records;
+            };
+
+            const normalizeCsvHeader = function(cell) {
+                return String(cell).toLowerCase().replace(/[^a-z0-9]+/g, '_').trim().replace(/^_+|_+$/g, '');
+            };
+
+            const parseCsvPreview = function(text) {
+                const records = splitCsvRecords(text.endsWith('\n') ? text : text + '\n');
+                if (records.length === 0) return { error: 'The CSV file is empty or has no header row.' };
+
+                let header = records[0].map(normalizeCsvHeader).filter(Boolean);
+                if (!header.includes('full_name')) {
+                    return { error: 'Missing required column: full_name.' };
+                }
+
+                const rows = [];
+                const skippedRows = [];
+                const eventKeyCounts = {};
+                const all = [];
+
+                for (let r = 1; r < records.length; r++) {
+                    const raw = records[r];
+                    const row = {};
+                    header.forEach(function(h, idx) {
+                        row[h] = (raw[idx] !== undefined ? raw[idx] : '').trim();
+                    });
+
+                    const fullName = row.full_name || '';
+                    const eventKey = (fullName.toLowerCase().replace(/\s+/g, ' ').trim()) + '|' + String(row.birth_date || row.birthdate || '').toLowerCase();
+
+                    const age = row.age;
+                    if (age !== '' && age !== undefined && (isNaN(parseInt(age, 10)) || String(parseInt(age, 10)) !== String(age).trim())) {
+                        skippedRows.push({ line: r + 1, reason: 'Invalid age value', data: row });
+                        continue;
+                    }
+
+                    const eventDate = row.event_date || row.eventdate || '';
+                    if (eventDate !== '') {
+                        const parsed = new Date(eventDate);
+                        if (isNaN(parsed.getTime())) {
+                            skippedRows.push({ line: r + 1, reason: 'Invalid event_date value', data: row });
+                            continue;
+                        }
+                    }
+
+                    eventKeyCounts[eventKey] = (eventKeyCounts[eventKey] || 0) + 1;
+                    all.push({ row, fullName, eventKey, line: r + 1 });
+                }
+
+                rows.length = 0;
+                all.forEach(function(item) {
+                    rows.push({
+                        full_name: item.row.full_name,
+                        contact_no: item.row.contact_no || '',
+                        address: item.row.address || '',
+                        age: item.row.age,
+                        birth_date: item.row.birth_date || item.row.birthdate || '',
+                        client_category: item.row.client_category || '',
+                        transaction_category: item.row.transaction_category || '',
+                        transaction_type: item.row.transaction_type || '',
+                        event_date: item.row.event_date || item.row.eventdate || '',
+                        duplicate: (eventKeyCounts[item.eventKey] || 0) > 1,
+                    });
+                });
+
+                return {
+                    rows: rows,
+                    total_rows: rows.length,
+                    skipped_rows: skippedRows,
+                    preview_rows: rows.slice(0, 100),
+                };
+            };
+
+            previewBtn.addEventListener('click', function() {
                 const file = csvFileVisible.files[0];
                 if (!file) {
                     csvFileError.textContent = 'Please select a CSV file.';
@@ -1225,91 +1321,90 @@
                 csvFileError.classList.add('d-none');
                 csvFileVisible.classList.remove('is-invalid');
 
-                const formData = new FormData();
-                formData.append('csv_file', file);
-
-                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute(
-                    'content') || '';
-
                 importModal.hide();
                 previewModal.show();
                 previewLoading.classList.remove('d-none');
                 previewContent.classList.add('d-none');
                 previewError.classList.add('d-none');
                 previewTableBody.innerHTML = '';
+                previewSkippedBody.innerHTML = '';
+                previewSkippedSection.classList.add('d-none');
 
-                try {
-                    const response = await fetch('<?php echo e(route('transaction-events.preview')); ?>', {
-                        method: 'POST',
-                        headers: {
-                            'X-CSRF-TOKEN': csrfToken,
-                            'Accept': 'application/json',
-                        },
-                        body: formData,
-                    });
-
-                    const data = await parseApiResponse(response);
-
-                    if (!response.ok || !data.success) {
-                        throw new Error(data.message || 'Failed to parse CSV file.');
-                    }
-
-                    previewTotalRows.textContent = data.is_truncated 
-                        ? `${Number(data.total).toLocaleString()} (showing first ${data.preview_count})` 
-                        : Number(data.total).toLocaleString();
-                    previewSkippedRows.textContent = Number(data.skipped_total || data.skipped || 0).toLocaleString();
-
-                    if (data.rows && data.rows.length > 0) {
-                        data.rows.forEach(function(row, index) {
-                            const tr = document.createElement('tr');
-                            const statusBadge = row.duplicate ?
-                                '<span class="badge bg-warning-subtle text-warning">Duplicate</span>' :
-                                '<span class="badge bg-success-subtle text-success">New</span>';
-
-                            tr.innerHTML = `
-                                <td>${index + 1}</td>
-                                <td class="fw-semibold">${escapeHtml(row.full_name)}</td>
-                                <td>${statusBadge}</td>
-                                <td>${row.age ?? '-'}</td>
-                                <td>${escapeHtml(row.birth_date || '-')}</td>
-                                <td>${escapeHtml(row.client_category || '-')}</td>
-                                <td>${escapeHtml(row.transaction_category || '-')}</td>
-                                <td>${escapeHtml(row.transaction_type || '-')}</td>
-                                <td>${escapeHtml(row.event_date || '-')}</td>
-                                <td>${escapeHtml(row.contact_no || '-')}</td>
-                                <td>${escapeHtml(row.address || '-')}</td>
-                            `;
-                            previewTableBody.appendChild(tr);
-                        });
-                    } else {
-                        previewTableBody.innerHTML =
-                            '<tr><td colspan="11" class="text-center text-muted py-4">No valid rows found in the CSV file.</td></tr>';
-                    }
-
-                    if (data.skipped_rows && data.skipped_rows.length > 0) {
-                        data.skipped_rows.forEach(function(row) {
-                            const cellData = Object.entries(row.data || {}).map(function(kv) {
-                                return kv[0] + ': ' + escapeHtml(String(kv[1] || ''));
-                            }).join(', ');
-                            const tr = document.createElement('tr');
-                            tr.innerHTML = `
-                                <td>${row.line}</td>
-                                <td>${escapeHtml(row.reason)}</td>
-                                <td class="small">${cellData}</td>
-                            `;
-                            previewSkippedBody.appendChild(tr);
-                        });
-                        previewSkippedSection.classList.remove('d-none');
-                    }
-
-                    previewLoading.classList.add('d-none');
-                    previewContent.classList.remove('d-none');
-
-                } catch (error) {
+                const reader = new FileReader();
+                reader.onerror = function() {
                     previewLoading.classList.add('d-none');
                     previewError.classList.remove('d-none');
-                    previewErrorMessage.textContent = error.message || 'An unexpected error occurred.';
-                }
+                    previewErrorMessage.textContent = 'Unable to read the selected file.';
+                };
+                reader.onload = function() {
+                    try {
+                        const rawText = typeof reader.result === 'string'
+                            ? reader.result
+                            : new TextDecoder('utf-8').decode(reader.result);
+
+                        const result = parseCsvPreview(rawText);
+
+                        if (result.error) {
+                            throw new Error(result.error);
+                        }
+
+                        previewTotalRows.textContent = result.total_rows > 100
+                            ? `${result.total_rows.toLocaleString()} (showing first ${result.preview_rows.length})`
+                            : result.total_rows.toLocaleString();
+                        previewSkippedRows.textContent = result.skipped_rows.length.toLocaleString();
+
+                        if (result.preview_rows.length > 0) {
+                            result.preview_rows.forEach(function(row, index) {
+                                const tr = document.createElement('tr');
+                                const statusBadge = row.duplicate ?
+                                    '<span class="badge bg-warning-subtle text-warning">Duplicate</span>' :
+                                    '<span class="badge bg-success-subtle text-success">New</span>';
+
+                                tr.innerHTML = `
+                                    <td>${index + 1}</td>
+                                    <td class="fw-semibold">${escapeHtml(row.full_name)}</td>
+                                    <td>${statusBadge}</td>
+                                    <td>${escapeHtml(row.age ?? '-')}</td>
+                                    <td>${escapeHtml(row.birth_date || '-')}</td>
+                                    <td>${escapeHtml(row.client_category || '-')}</td>
+                                    <td>${escapeHtml(row.transaction_category || '-')}</td>
+                                    <td>${escapeHtml(row.transaction_type || '-')}</td>
+                                    <td>${escapeHtml(row.event_date || '-')}</td>
+                                    <td>${escapeHtml(row.contact_no || '-')}</td>
+                                    <td>${escapeHtml(row.address || '-')}</td>
+                                `;
+                                previewTableBody.appendChild(tr);
+                            });
+                        } else {
+                            previewTableBody.innerHTML =
+                                '<tr><td colspan="11" class="text-center text-muted py-4">No valid rows found in the CSV file.</td></tr>';
+                        }
+
+                        if (result.skipped_rows.length > 0) {
+                            result.skipped_rows.slice(0, 50).forEach(function(row) {
+                                const cellData = Object.entries(row.data || {}).map(function(kv) {
+                                    return kv[0] + ': ' + escapeHtml(String(kv[1] || ''));
+                                }).join(', ');
+                                const tr = document.createElement('tr');
+                                tr.innerHTML = `
+                                    <td>${row.line}</td>
+                                    <td>${escapeHtml(row.reason)}</td>
+                                    <td class="small">${cellData}</td>
+                                `;
+                                previewSkippedBody.appendChild(tr);
+                            });
+                            previewSkippedSection.classList.remove('d-none');
+                        }
+
+                        previewLoading.classList.add('d-none');
+                        previewContent.classList.remove('d-none');
+                    } catch (error) {
+                        previewLoading.classList.add('d-none');
+                        previewError.classList.remove('d-none');
+                        previewErrorMessage.textContent = error.message || 'An unexpected error occurred.';
+                    }
+                };
+                reader.readAsText(file);
             });
 
             const runImport = async function(eventsOnly = false) {

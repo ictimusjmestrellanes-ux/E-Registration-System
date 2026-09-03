@@ -14,6 +14,15 @@ use Illuminate\Support\Facades\Cache;
 
 class TransactionEventsController extends Controller
 {
+    /**
+     * In-memory cache of the current transaction-id sequence per client-year.
+     * Avoids re-querying the DB for every row during bulk import/transfer,
+     * which is a major speedup when processing tens of thousands of rows.
+     *
+     * @var array<string, int>
+     */
+    private array $transactionSequenceCache = [];
+
     public function __construct()
     {
         $this->middleware('auth');
@@ -1421,17 +1430,27 @@ class TransactionEventsController extends Controller
     /**
      * Transfer a single pending event into a client + transaction history.
      * Returns ['success' => bool, 'created_client' => bool].
+     *
+     * $clientCache (keyed by lower(first)|lower(last)) lets a whole batch
+     * reuse the same resolved/created client without re-querying the DB.
      */
-    private function transferSingleEvent(TransactionEvent $event): array
+    private function transferSingleEvent(TransactionEvent $event, array &$clientCache = []): array
     {
         if (empty($event->transaction_category) || empty($event->transaction_type)) {
             return ['success' => false, 'created_client' => false];
         }
 
         $nameParts = $this->splitFullName($event->full_name);
-        $client = Client::whereRaw('LOWER(first_name) = ?', [strtolower($nameParts['first_name'])])
-            ->whereRaw('LOWER(last_name) = ?', [strtolower($nameParts['last_name'])])
-            ->first();
+        $clientKey = strtolower($nameParts['first_name']).'|'.strtolower($nameParts['last_name']);
+
+        if (! isset($clientCache[$clientKey])) {
+            $client = Client::whereRaw('LOWER(first_name) = ?', [strtolower($nameParts['first_name'])])
+                ->whereRaw('LOWER(last_name) = ?', [strtolower($nameParts['last_name'])])
+                ->first();
+            $clientCache[$clientKey] = $client;
+        }
+
+        $client = $clientCache[$clientKey];
 
         $createdClient = false;
         if (! $client) {
@@ -1443,6 +1462,7 @@ class TransactionEventsController extends Controller
                 'birth_date' => $event->birth_date?->format('Y-m-d'),
                 'client_category' => $event->client_category,
             ]);
+            $clientCache[$clientKey] = $client;
             $createdClient = true;
 
             ActivityLog::create([
@@ -1508,9 +1528,10 @@ class TransactionEventsController extends Controller
         $successCount = 0;
         $skippedCount = 0;
         $createdClients = 0;
+        $clientCache = [];
 
         foreach ($events as $event) {
-            $result = $this->transferSingleEvent($event);
+            $result = $this->transferSingleEvent($event, $clientCache);
 
             if ($result['success']) {
                 $successCount++;
@@ -1742,16 +1763,22 @@ class TransactionEventsController extends Controller
     {
         $prefix = $clientId.'-'.now()->format('y').'-';
 
-        $maxSequence = TransactionHistory::query()
-            ->where('transaction_id', 'like', $prefix.'%')
-            ->pluck('transaction_id')
-            ->reduce(function (int $max, string $transactionId) use ($prefix) {
-                $suffix = substr($transactionId, strlen($prefix));
+        // First call for this client-year hits the DB once; subsequent calls
+        // in the same request increment the cached sequence instead.
+        if (! array_key_exists($prefix, $this->transactionSequenceCache)) {
+            $maxSequence = TransactionHistory::query()
+                ->where('transaction_id', 'like', $prefix.'%')
+                ->pluck('transaction_id')
+                ->reduce(function (int $max, string $transactionId) use ($prefix) {
+                    $suffix = substr($transactionId, strlen($prefix));
 
-                return ctype_digit($suffix) ? max($max, (int) $suffix) : $max;
-            }, 0);
+                    return ctype_digit($suffix) ? max($max, (int) $suffix) : $max;
+                }, 0);
 
-        $sequence = $maxSequence + 1;
+            $this->transactionSequenceCache[$prefix] = $maxSequence;
+        }
+
+        $sequence = ++$this->transactionSequenceCache[$prefix];
 
         return $prefix.str_pad((string) $sequence, 4, '0', STR_PAD_LEFT);
     }
