@@ -711,10 +711,6 @@
                 label: 'SELECT TRANSACTION TYPE'
             },
             {
-                value: 'events',
-                label: 'EVENTS'
-            },
-            {
                 value: 'bigay_bigas_sa_masa',
                 label: 'BIGAY BIGAS SA MASA'
             },
@@ -901,8 +897,8 @@
             fileInput.disabled = checked;
             document.querySelectorAll(`[data-upload-id="${uploadId}"]:not(input[type="checkbox"])`).forEach((
                 el) => {
-                    el.disabled = checked;
-                });
+                el.disabled = checked;
+            });
 
             if (checked) {
                 fileInput.value = '';

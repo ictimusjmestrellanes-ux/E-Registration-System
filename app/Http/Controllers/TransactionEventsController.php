@@ -673,7 +673,34 @@ class TransactionEventsController extends Controller
 
         $duplicates = [];
 
-        foreach ($result['rows'] as $row) {
+        foreach ($this->findExistingDuplicateIndexes($result['rows']) as $index) {
+            $row = $result['rows'][$index];
+            $duplicates[] = [
+                'full_name' => $row['full_name'],
+                'event_date' => $row['event_date'] ?? '',
+                'transaction_category' => $row['transaction_category'] ?? '',
+                'transaction_type' => $row['transaction_type'] ?? '',
+            ];
+        }
+
+        return response()->json([
+            'success' => true,
+            'total_rows' => count($result['rows']),
+            'duplicates_count' => count($duplicates),
+            'duplicates' => $duplicates,
+        ]);
+    }
+
+    /**
+     * Return the indexes of $rows that already exist in the system
+     * (i.e. a matching Transaction History for an existing client, or a
+     * matching row already in the Import Events module).
+     */
+    private function findExistingDuplicateIndexes(array $rows): array
+    {
+        $indexes = [];
+
+        foreach ($rows as $index => $row) {
             $nameParts = $this->splitFullName($row['full_name']);
 
             if (empty($nameParts['first_name']) || empty($nameParts['last_name'])) {
@@ -693,7 +720,7 @@ class TransactionEventsController extends Controller
                     ->where('category', TransactionHistory::normalizeCategory($row['transaction_category'] ?? ''))
                     ->where('type', $row['transaction_type'] ?? '');
 
-                if (!empty($row['event_date'])) {
+                if (! empty($row['event_date'])) {
                     $history->whereDate('transaction_date', $row['event_date']);
                 }
 
@@ -703,19 +730,19 @@ class TransactionEventsController extends Controller
             }
 
             // 2) Exact duplicate already in the Import Events module
-            if (!$matched) {
+            if (! $matched) {
                 $eventQuery = TransactionEvent::query()
                     ->whereRaw('LOWER(TRIM(full_name)) = ?', [strtolower(trim($row['full_name']))]);
 
-                if (!empty($row['event_date'])) {
+                if (! empty($row['event_date'])) {
                     $eventQuery->whereDate('event_date', $row['event_date']);
                 }
 
-                if (!empty($row['transaction_category'])) {
+                if (! empty($row['transaction_category'])) {
                     $eventQuery->where('transaction_category', $row['transaction_category']);
                 }
 
-                if (!empty($row['transaction_type'])) {
+                if (! empty($row['transaction_type'])) {
                     $eventQuery->where('transaction_type', $row['transaction_type']);
                 }
 
@@ -725,21 +752,11 @@ class TransactionEventsController extends Controller
             }
 
             if ($matched) {
-                $duplicates[] = [
-                    'full_name' => $row['full_name'],
-                    'event_date' => $row['event_date'] ?? '',
-                    'transaction_category' => $row['transaction_category'] ?? '',
-                    'transaction_type' => $row['transaction_type'] ?? '',
-                ];
+                $indexes[] = $index;
             }
         }
 
-        return response()->json([
-            'success' => true,
-            'total_rows' => count($result['rows']),
-            'duplicates_count' => count($duplicates),
-            'duplicates' => $duplicates,
-        ]);
+        return $indexes;
     }
 
     public function downloadTemplate()
@@ -866,11 +883,24 @@ class TransactionEventsController extends Controller
 
         $rows = $result['rows'];
         $archiveFile = '';
-        $imported = count($rows);
         $hasDuplicateRows = collect($rows)->contains(fn ($row) => ! empty($row['duplicate']));
+        $skippedDuplicates = 0;
+
+        if ($request->boolean('events_only')) {
+            // "Import Anyway": skip rows that already exist in the system and
+            // import the remainder as real clients + transaction history.
+            $duplicateIndexes = $this->findExistingDuplicateIndexes($rows);
+            $skippedDuplicates = count($duplicateIndexes);
+
+            if ($skippedDuplicates > 0) {
+                $rows = array_values(array_diff_key($rows, array_flip($duplicateIndexes)));
+            }
+        }
+
+        $imported = count($rows);
 
         if ($imported > 0) {
-            if ($hasDuplicateRows) {
+            if ($hasDuplicateRows && ! $request->boolean('events_only')) {
                 $this->storeImportedEventsOnly($rows);
             } else {
                 $this->processImportedEvents($rows);
@@ -879,9 +909,11 @@ class TransactionEventsController extends Controller
         }
 
         $skipped = $result['skipped'];
-        $message = $hasDuplicateRows
-            ? "Imported {$imported} event(s) to the event list because duplicate rows were found in the selected file."
-            : "Successfully imported {$imported} event(s).";
+        $message = match (true) {
+            $skippedDuplicates > 0 => "Imported {$imported} record(s) and skipped {$skippedDuplicates} duplicate row(s) that already existed in the system.",
+            $hasDuplicateRows => "Imported {$imported} event(s) to the event list because duplicate rows were found in the selected file.",
+            default => "Successfully imported {$imported} event(s).",
+        };
 
         if ($skipped > 0) {
             $message .= " Skipped {$skipped} invalid row(s).";
@@ -906,7 +938,8 @@ class TransactionEventsController extends Controller
 
         // Direct imports (no duplicate rows) are transferred immediately,
         // so land the user on Events - Records where those records live.
-        if (! $hasDuplicateRows && $imported > 0) {
+        // "Import Anyway" also produces transferred records, so go there too.
+        if ((! $hasDuplicateRows || $skippedDuplicates > 0) && $imported > 0) {
             return redirect()->route('transaction-events.records')->with('success', $message);
         }
 
@@ -944,6 +977,20 @@ class TransactionEventsController extends Controller
         $rows = $result['rows'];
         $hasDuplicateRows = collect($rows)->contains(fn ($row) => ! empty($row['duplicate']));
         $eventsOnly = $request->boolean('events_only');
+        $skippedDuplicates = 0;
+
+        if ($eventsOnly) {
+            // "Import Anyway": skip rows that already exist in the system
+            // (Transaction History or Import Events) and import the remaining
+            // rows as real clients + transaction history, rather than staging
+            // them (or the skipped duplicates) in the Import Events list.
+            $duplicateIndexes = $this->findExistingDuplicateIndexes($rows);
+            $skippedDuplicates = count($duplicateIndexes);
+
+            if ($skippedDuplicates > 0) {
+                $rows = array_values(array_diff_key($rows, array_flip($duplicateIndexes)));
+            }
+        }
 
         $token = md5(uniqid((string) auth()->id(), true));
         $this->cleanupStaleImportSessions();
@@ -952,11 +999,12 @@ class TransactionEventsController extends Controller
         Storage::disk('local')->put(
             self::IMPORT_SESSION_DIR.'/'.$token.'.json',
             json_encode([
-                'mode' => ($eventsOnly || $hasDuplicateRows) ? 'events_only' : 'direct',
+                'mode' => ($hasDuplicateRows && ! $eventsOnly) ? 'events_only' : 'direct',
                 'force_events_only' => $eventsOnly,
                 'rows' => $rows,
                 'original_filename' => $request->file('csv_file')->getClientOriginalName(),
                 'skipped' => $result['skipped'],
+                'skipped_duplicates' => $skippedDuplicates,
             ], JSON_INVALID_UTF8_SUBSTITUTE)
         );
 
@@ -1024,6 +1072,7 @@ class TransactionEventsController extends Controller
         $rows = $sessionData['rows'];
         $imported = count($rows);
         $skipped = $sessionData['skipped'];
+        $skippedDuplicates = $sessionData['skipped_duplicates'] ?? 0;
         $isEventsOnly = $sessionData['mode'] === 'events_only';
         $forceEventsOnly = $sessionData['force_events_only'] ?? false;
         $archiveFile = '';
@@ -1033,6 +1082,7 @@ class TransactionEventsController extends Controller
         }
 
         $message = match (true) {
+            $skippedDuplicates > 0 => "Imported {$imported} record(s) and skipped {$skippedDuplicates} duplicate row(s) that already existed in the system.",
             $forceEventsOnly => "Imported {$imported} event(s) to the Import Events list because the data already exists in the system.",
             $isEventsOnly => "Imported {$imported} event(s) to the event list because duplicate rows were found in the selected file.",
             default => "Successfully imported {$imported} event(s).",
@@ -1147,8 +1197,9 @@ class TransactionEventsController extends Controller
             'transaction_id' => $transactionId,
             // Use the event's own event date when available.
             'transaction_date' => $event->event_date ?? now(),
-            'category' => TransactionHistory::normalizeCategory($event->transaction_category),
-            'type' => $event->transaction_type,
+            'category' => $this->transactionCategoryForHistory($event->transaction_category),
+            'type' => $this->transactionCategoryForHistory($event->transaction_category),
+            'events_transaction_type' => $this->transactionCategoryForHistory($event->transaction_type),
             'source' => 'E-Registration',
             'clerk' => auth()->user()->name ?? 'System',
             'status' => 'Approved',
@@ -1350,13 +1401,14 @@ class TransactionEventsController extends Controller
                 'transaction_id' => $transactionId,
                 // Use the event's own event date when available.
                 'transaction_date' => $event->event_date ?? now(),
-                'category' => TransactionHistory::normalizeCategory($event->transaction_category),
-                'type' => $event->transaction_type,
+                'category' => $this->transactionCategoryForHistory($event->transaction_category),
+                'type' => $this->transactionCategoryForHistory($event->transaction_category),
+                'events_transaction_type' => $this->transactionCategoryForHistory($event->transaction_type),
                 'source' => 'E-Registration',
-                'clerk' => auth()->user()->name ?? 'System',
-                'status' => 'Approved',
-                'description' => 'Transferred from imported event for '.$event->full_name,
-            ]);
+            'clerk' => auth()->user()->name ?? 'System',
+            'status' => 'Approved',
+            'description' => 'Transferred from imported event for '.$event->full_name,
+        ]);
 
             ActivityLog::create([
                 'user_id' => auth()->id(),
@@ -1863,6 +1915,17 @@ class TransactionEventsController extends Controller
         return Client::createWithGeneratedId($clientData);
     }
 
+    /**
+     * Preserve the event/import transaction category in Transaction History
+     * instead of collapsing unknown categories into the generic 'others' key.
+     */
+    private function transactionCategoryForHistory(?string $category): string
+    {
+        $category = trim((string) $category);
+
+        return $category === '' ? '' : strtoupper($category);
+    }
+
     private function createTransactionHistoryFromImportedEvent(Client $client, array $event): TransactionHistory
     {
         return TransactionHistory::create([
@@ -1871,8 +1934,9 @@ class TransactionEventsController extends Controller
             'transaction_id' => $this->nextTransferredTransactionId($client->client_id),
             // Use the CSV row's event date when provided.
             'transaction_date' => $event['event_date'] ?? now(),
-            'category' => TransactionHistory::normalizeCategory($event['transaction_category'] ?? ''),
-            'type' => $event['transaction_type'] ?? '',
+            'category' => $this->transactionCategoryForHistory($event['transaction_category'] ?? ''),
+            'type' => $this->transactionCategoryForHistory($event['transaction_category'] ?? ''),
+            'events_transaction_type' => $this->transactionCategoryForHistory($event['transaction_type'] ?? ''),
             'source' => 'E-Registration',
             'clerk' => auth()->user()->name ?? 'System',
             'status' => 'Approved',

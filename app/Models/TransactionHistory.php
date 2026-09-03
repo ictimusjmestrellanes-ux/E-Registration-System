@@ -20,6 +20,7 @@ class TransactionHistory extends Model
         'category',
         'source',
         'type',
+        'events_transaction_type',
         'clerk',
         'signatory',
         'personnel_endorsed_to',
@@ -75,9 +76,23 @@ class TransactionHistory extends Model
 
     public function getCategoryLabelAttribute(): string
     {
-        $category = self::normalizeCategory($this->category);
+        $raw = trim((string) $this->category);
 
-        return $category ? (self::CATEGORIES[$category] ?? strtoupper(str_replace('_', ' ', $category))) : '';
+        if ($raw === '') {
+            return '';
+        }
+
+        // Slug-style stored value (lowercase + underscores, no spaces) ->
+        // show the standard category label.
+        if ($raw === strtolower($raw) && ! str_contains($raw, ' ') && str_contains($raw, '_')) {
+            $canonical = self::normalizeCategory($raw) ?? $raw;
+
+            return self::CATEGORIES[$canonical] ?? strtoupper(str_replace('_', ' ', $raw));
+        }
+
+        // Raw event category text (e.g. "CARAVAN", "HEALTH SERVICES") ->
+        // reflect the original value.
+        return strtoupper($raw);
     }
 
     /**

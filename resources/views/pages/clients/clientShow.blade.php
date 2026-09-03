@@ -287,6 +287,7 @@
                                             <th data-column="clerk">Clerk</th>
                                             <th data-column="client_category">Client Category</th>
                                             <th data-column="transaction_type">Transaction Type</th>
+                                            <th data-column="events_transaction_type">Events Transaction Type</th>
                                             <th data-column="status">Status</th>
                                             <th data-column="actions_taken">Actions Taken</th>
                                             <th data-column="remarks">Remarks</th>
@@ -313,10 +314,11 @@
                                                 </td>
                                                 <td data-column="transaction_date">{{ $transaction->transaction_date->format('m/d/Y') }}</td>
                                                 <td data-column="source" class="text-uppercase">E-Registration</td>
-                                                <td data-column="category_type" class="text-uppercase">{{ $transaction->category_label }}</td>
+                                                <td data-column="category_type" class="text-uppercase">{{ $transaction->category ?? 'N/A' }}</td>
                                                 <td data-column="clerk" class="text-uppercase">{{ $transaction->clerk ?? auth()->user()->name ?? 'System' }}</td>
                                                 <td data-column="client_category" class="text-uppercase">{{ filled($transaction->client_category) ? $transaction->client_category : ($client->sector ?? 'N/A') }}</td>
                                                 <td data-column="transaction_type" class="text-uppercase">{{ $transaction->type_label ?? 'N/A' }}</td>
+                                                <td data-column="events_transaction_type" class="text-uppercase">{{ $transaction->events_transaction_type ?: 'N/A' }}</td>
                                                 <td data-column="status">
                                                     @if (strtolower($txStatus) === 'pending')
                                                         <span class="badge bg-warning-subtle text-warning">{{ $txStatus }}</span>
