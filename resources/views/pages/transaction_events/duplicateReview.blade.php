@@ -171,7 +171,7 @@
                             <div class="tab-pane fade show active" id="exact-tab" role="tabpanel">
                                 <div class="alert alert-danger-subtle d-flex align-items-center mb-3 py-2" role="alert">
                                     <i class="ri-error-warning-line fs-4 me-2"></i>
-                                    <div class="small">Same <strong>Full Name</strong>, <strong>Birthday</strong>, <strong>Event Date</strong>, <strong>Transaction Category</strong>, and <strong>Transaction Type</strong>. High confidence duplicates.</div>
+                                    <div class="small">Same <strong>Full Name</strong>, <strong>Client Category</strong>, <strong>Transaction Category</strong>, <strong>Transaction Type</strong>, and <strong>Event Date</strong>. High confidence duplicates.</div>
                                 </div>
                                 @forelse ($exactGroups as $group)
                                     {!! $renderGroup($group) !!}
@@ -187,8 +187,8 @@
                                 <div class="alert alert-warning-subtle d-flex align-items-center mb-3 py-2" role="alert">
                                     <i class="ri-alert-line fs-4 me-2"></i>
                                     <div class="small">
-                                        Same <strong>Full Name</strong> &amp; <strong>Birthday</strong> plus at least one of:
-                                        Transaction Category + Transaction Type, Event Date + Transaction Type, Event Date + Transaction Category, Event Date only, Transaction Type only, or Transaction Category only.
+                                        Same <strong>Full Name</strong> plus at least one of:
+                                        Event Date + Transaction Category, Event Date + Transaction Type, Transaction Category + Transaction Type, Event Date only, Transaction Type only, or Transaction Category only.
                                         Review before acting.
                                     </div>
                                 </div>

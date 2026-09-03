@@ -1,7 +1,6 @@
-@extends('layouts.master')
-@section('title', 'ERS | Events - Duplicate Records')
+<?php $__env->startSection('title', 'ERS | Events - Duplicate Records'); ?>
 
-@section('content')
+<?php $__env->startSection('content'); ?>
     <div class="container-fluid">
         <div class="row">
             <div class="col-12">
@@ -12,7 +11,7 @@
                                 <h4 class="mb-1">Duplicate Events Records</h4>
                                 <p class="text-muted mb-0">Review transferred records that may be duplicates.</p>
                             </div>
-                            <a href="{{ route('transaction-events.records') }}" class="btn btn-outline-secondary btn-sm">
+                            <a href="<?php echo e(route('transaction-events.records')); ?>" class="btn btn-outline-secondary btn-sm">
                                 <i class="ri-arrow-left-line me-1"></i> Back to Event Records
                             </a>
                         </div>
@@ -25,7 +24,7 @@
             <div class="col-12">
                 <div class="card">
                     <div class="card-body">
-                        @php
+                        <?php
                             $exactCount = $exactGroups->sum('total');
                             $likelyCount = $likelyGroups->sum('total');
                             $similarCount = $similarGroups->sum('total');
@@ -81,32 +80,32 @@
                                 $out .= '</tbody></table></div></div>';
                                 return $out;
                             };
-                        @endphp
+                        ?>
 
                         <ul class="nav nav-tabs mb-4" role="tablist">
                             <li class="nav-item">
                                 <a class="nav-link active" data-bs-toggle="tab" href="#rexact-tab" role="tab">
                                     Exact Match
-                                    <span class="badge bg-danger-subtle text-danger ms-1">{{ $exactGroups->count() }}</span>
+                                    <span class="badge bg-danger-subtle text-danger ms-1"><?php echo e($exactGroups->count()); ?></span>
                                 </a>
                             </li>
                             <li class="nav-item">
                                 <a class="nav-link" data-bs-toggle="tab" href="#rlikely-tab" role="tab">
                                     Likely Match
-                                    <span class="badge bg-warning-subtle text-warning ms-1">{{ $likelyGroups->count() }}</span>
+                                    <span class="badge bg-warning-subtle text-warning ms-1"><?php echo e($likelyGroups->count()); ?></span>
                                 </a>
                             </li>
                             <li class="nav-item">
                                 <a class="nav-link" data-bs-toggle="tab" href="#rsimilar-tab" role="tab">
                                     Similar Spelling
-                                    <span class="badge bg-info-subtle text-info ms-1">{{ $similarGroups->count() }}</span>
+                                    <span class="badge bg-info-subtle text-info ms-1"><?php echo e($similarGroups->count()); ?></span>
                                 </a>
                             </li>
                         </ul>
 
                         <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
-                            <span class="badge bg-primary-subtle text-primary fs-13">{{ $totalGroups }} group(s)</span>
-                            <span class="badge bg-danger-subtle text-danger fs-13">{{ $totalDuplicates }} record(s)</span>
+                            <span class="badge bg-primary-subtle text-primary fs-13"><?php echo e($totalGroups); ?> group(s)</span>
+                            <span class="badge bg-danger-subtle text-danger fs-13"><?php echo e($totalDuplicates); ?> record(s)</span>
                         </div>
 
                         <div class="tab-content">
@@ -115,14 +114,15 @@
                                     <i class="ri-error-warning-line fs-4 me-2"></i>
                                     <div class="small">Same <strong>Full Name</strong>, <strong>Client Category</strong>, <strong>Transaction Category</strong>, <strong>Transaction Type</strong>, and <strong>Event Date</strong>. High confidence duplicates.</div>
                                 </div>
-                                @forelse ($exactGroups as $group)
-                                    {!! $renderGroup($group) !!}
-                                @empty
+                                <?php $__empty_1 = true; $__currentLoopData = $exactGroups; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $group): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
+                                    <?php echo $renderGroup($group); ?>
+
+                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                                     <div class="text-center text-muted py-5">
                                         <i class="ri-check-double-line fs-1 d-block mb-2"></i>
                                         No exact duplicate records found.
                                     </div>
-                                @endforelse
+                                <?php endif; ?>
                             </div>
 
                             <div class="tab-pane fade" id="rlikely-tab" role="tabpanel">
@@ -134,14 +134,15 @@
                                         Review before acting.
                                     </div>
                                 </div>
-                                @forelse ($likelyGroups as $group)
-                                    {!! $renderGroup($group) !!}
-                                @empty
+                                <?php $__empty_1 = true; $__currentLoopData = $likelyGroups; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $group): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
+                                    <?php echo $renderGroup($group); ?>
+
+                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                                     <div class="text-center text-muted py-5">
                                         <i class="ri-check-double-line fs-1 d-block mb-2"></i>
                                         No likely duplicate records found.
                                     </div>
-                                @endforelse
+                                <?php endif; ?>
                             </div>
 
                             <div class="tab-pane fade" id="rsimilar-tab" role="tabpanel">
@@ -149,14 +150,15 @@
                                     <i class="ri-information-line fs-4 me-2"></i>
                                     <div class="small">Phonetically similar names (e.g., Iscober/Escobar). Verify before acting.</div>
                                 </div>
-                                @forelse ($similarGroups as $group)
-                                    {!! $renderGroup($group) !!}
-                                @empty
+                                <?php $__empty_1 = true; $__currentLoopData = $similarGroups; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $group): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
+                                    <?php echo $renderGroup($group); ?>
+
+                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                                     <div class="text-center text-muted py-5">
                                         <i class="ri-check-double-line fs-1 d-block mb-2"></i>
                                         No similar-spelling records found.
                                     </div>
-                                @endforelse
+                                <?php endif; ?>
                             </div>
                         </div>
                     </div>
@@ -164,4 +166,6 @@
             </div>
         </div>
     </div>
-@endsection
+<?php $__env->stopSection(); ?>
+
+<?php echo $__env->make('layouts.master', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH C:\xampp\htdocs\E-Reg-System\resources\views/pages/transaction_events/recordsDuplicates.blade.php ENDPATH**/ ?>

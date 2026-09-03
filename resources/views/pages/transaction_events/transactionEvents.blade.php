@@ -1258,7 +1258,9 @@
                     });
 
                     const fullName = row.full_name || '';
-                    const eventKey = (fullName.toLowerCase().replace(/\s+/g, ' ').trim()) + '|' + String(row.birth_date || row.birthdate || '').toLowerCase();
+                    const eventDate = row.event_date || row.eventdate || '';
+                    const normKey = (v) => String(v || '').trim().toLowerCase() || '*';
+                    const eventKey = [normKey(fullName).replace(/\s+/g, ' '), normKey(row.client_category), normKey(row.transaction_category), normKey(row.transaction_type), normKey(eventDate)].join('|');
 
                     const age = row.age;
                     if (age !== '' && age !== undefined && (isNaN(parseInt(age, 10)) || String(parseInt(age, 10)) !== String(age).trim())) {
@@ -1266,7 +1268,6 @@
                         continue;
                     }
 
-                    const eventDate = row.event_date || row.eventdate || '';
                     if (eventDate !== '') {
                         const parsed = new Date(eventDate);
                         if (isNaN(parsed.getTime())) {

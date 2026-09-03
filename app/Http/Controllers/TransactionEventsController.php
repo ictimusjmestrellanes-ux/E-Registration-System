@@ -224,7 +224,7 @@ class TransactionEventsController extends Controller
             // Exact groups
             $exactGroups = $events
                 ->filter(fn ($e) =>
-                    $e->birth_date !== null &&
+                    trim((string) $e->client_category) !== '' &&
                     $e->event_date !== null &&
                     trim((string) $e->transaction_category) !== '' &&
                     trim((string) $e->transaction_type) !== ''
@@ -291,53 +291,47 @@ class TransactionEventsController extends Controller
     {
         return implode('|', [
             strtolower(trim($event->full_name)),
-            $event->birth_date?->format('Y-m-d'),
-            $event->event_date?->format('Y-m-d'),
+            strtolower(trim((string) $event->client_category)),
             strtolower(trim((string) $event->transaction_category)),
             strtolower(trim((string) $event->transaction_type)),
+            $event->event_date?->format('Y-m-d'),
         ]);
     }
 
     private function eventLikelyComboKeys(): array
     {
         return [
-            // (Full Name, Birthday, Transaction Category, Transaction Type)
+            // (Full Name, Event Date, Transaction Category)
             fn (TransactionEvent $e) => implode('|', [
                 strtolower(trim($e->full_name)),
-                $e->birth_date?->format('Y-m-d'),
-                strtolower(trim((string) $e->transaction_category)),
-                strtolower(trim((string) $e->transaction_type)),
-            ]),
-            // (Full Name, Birthday, Event Date, Transaction Type)
-            fn (TransactionEvent $e) => implode('|', [
-                strtolower(trim($e->full_name)),
-                $e->birth_date?->format('Y-m-d'),
-                $e->event_date?->format('Y-m-d'),
-                strtolower(trim((string) $e->transaction_type)),
-            ]),
-            // (Full Name, Birthday, Event Date, Transaction Category)
-            fn (TransactionEvent $e) => implode('|', [
-                strtolower(trim($e->full_name)),
-                $e->birth_date?->format('Y-m-d'),
                 $e->event_date?->format('Y-m-d'),
                 strtolower(trim((string) $e->transaction_category)),
             ]),
-            // (Full Name, Birthday, Event Date)
+            // (Full Name, Event Date, Transaction Type)
             fn (TransactionEvent $e) => implode('|', [
                 strtolower(trim($e->full_name)),
-                $e->birth_date?->format('Y-m-d'),
                 $e->event_date?->format('Y-m-d'),
-            ]),
-            // (Full Name, Birthday, Transaction Type)
-            fn (TransactionEvent $e) => implode('|', [
-                strtolower(trim($e->full_name)),
-                $e->birth_date?->format('Y-m-d'),
                 strtolower(trim((string) $e->transaction_type)),
             ]),
-            // (Full Name, Birthday, Transaction Category)
+            // (Full Name, Transaction Category, Transaction Type)
             fn (TransactionEvent $e) => implode('|', [
                 strtolower(trim($e->full_name)),
-                $e->birth_date?->format('Y-m-d'),
+                strtolower(trim((string) $e->transaction_category)),
+                strtolower(trim((string) $e->transaction_type)),
+            ]),
+            // (Full Name, Event Date)
+            fn (TransactionEvent $e) => implode('|', [
+                strtolower(trim($e->full_name)),
+                $e->event_date?->format('Y-m-d'),
+            ]),
+            // (Full Name, Transaction Type)
+            fn (TransactionEvent $e) => implode('|', [
+                strtolower(trim($e->full_name)),
+                strtolower(trim((string) $e->transaction_type)),
+            ]),
+            // (Full Name, Transaction Category)
+            fn (TransactionEvent $e) => implode('|', [
+                strtolower(trim($e->full_name)),
                 strtolower(trim((string) $e->transaction_category)),
             ]),
         ];
@@ -472,7 +466,7 @@ class TransactionEventsController extends Controller
 
     private function findEventExactDuplicates(): Collection
     {
-        // Exact Match: Full Name + Birthday + Event Date + Transaction Category + Transaction Type
+        // Exact Match: Full Name + Client Category + Transaction Category + Transaction Type + Event Date
         // All 5 fields must be present and non-empty for a true exact match.
         $events = TransactionEvent::query()
             ->whereNull('transferred_at')
@@ -483,7 +477,7 @@ class TransactionEventsController extends Controller
 
         return $events
             ->filter(fn ($e) =>
-                $e->birth_date !== null &&
+                trim((string) $e->client_category) !== '' &&
                 $e->event_date !== null &&
                 trim((string) $e->transaction_category) !== '' &&
                 trim((string) $e->transaction_type) !== ''
@@ -727,90 +721,76 @@ class TransactionEventsController extends Controller
         @ini_set('memory_limit', '512M');
         @set_time_limit(300);
 
-        // Preload existing history joined with client first/last names into in-memory hash sets
+        // Preload existing history joined with client names into an in-memory
+        // hash set keyed by the same 5-field duplicate validation key.
         $historyRows = DB::table('transaction_history')
             ->join('clients', 'transaction_history.client_id', '=', 'clients.client_id')
-            ->selectRaw("LOWER(TRIM(clients.first_name)) as fn, LOWER(TRIM(clients.last_name)) as ln, transaction_history.category, transaction_history.type, DATE_FORMAT(transaction_history.transaction_date, '%Y-%m-%d') as tx_date")
+            ->selectRaw("TRIM(clients.first_name) as first_name, TRIM(clients.middle_name) as middle_name, TRIM(clients.last_name) as last_name, transaction_history.client_category as client_category, transaction_history.category as category, transaction_history.type as type, DATE_FORMAT(transaction_history.transaction_date, '%Y-%m-%d') as tx_date")
             ->get();
 
-        $historyWithDate = [];
-        $historyWithoutDate = [];
+        $historyLookup = [];
 
         foreach ($historyRows as $h) {
-            $fn = (string) $h->fn;
-            $ln = (string) $h->ln;
-            $cat = strtolower(trim((string) $h->category));
-            $type = strtolower(trim((string) $h->type));
-            $date = (string) $h->tx_date;
+            $fullName = preg_replace(
+                '/\s+/',
+                ' ',
+                trim(implode(' ', array_filter([
+                    (string) $h->first_name,
+                    (string) $h->middle_name,
+                    (string) $h->last_name,
+                ])))
+            );
 
-            $historyWithDate["{$fn}|{$ln}|{$cat}|{$type}|{$date}"] = true;
-            $historyWithoutDate["{$fn}|{$ln}|{$cat}|{$type}"] = true;
+            $historyLookup[$this->importDuplicateValidationKey(
+                $fullName,
+                (string) $h->client_category,
+                (string) TransactionHistory::normalizeCategory((string) $h->category),
+                (string) $h->type,
+                (string) $h->tx_date
+            )] = true;
         }
 
-        // Preload existing transaction events into in-memory hash sets
+        // Preload existing transaction events into an in-memory hash set using
+        // the same 5-field duplicate validation key.
         $eventRows = DB::table('transaction_events')
-            ->selectRaw("LOWER(TRIM(full_name)) as fn, DATE_FORMAT(event_date, '%Y-%m-%d') as ev_date, transaction_category as cat, transaction_type as type")
+            ->selectRaw("TRIM(full_name) as full_name, client_category as client_category, transaction_category as cat, transaction_type as type, DATE_FORMAT(event_date, '%Y-%m-%d') as ev_date")
             ->get();
 
         $eventLookup = [];
 
         foreach ($eventRows as $ev) {
-            $fn = (string) $ev->fn;
-            $evDate = $ev->ev_date ? (string) $ev->ev_date : '';
-            $cat = $ev->cat ? strtolower(trim((string) $ev->cat)) : '';
-            $type = $ev->type ? strtolower(trim((string) $ev->type)) : '';
-
-            $eventLookup["{$fn}|{$cat}|{$type}|{$evDate}"] = true;
-            $eventLookup["{$fn}|{$cat}|{$type}|*"] = true;
+            $eventLookup[$this->importDuplicateValidationKey(
+                (string) $ev->full_name,
+                (string) ($ev->client_category ?? ''),
+                (string) TransactionHistory::normalizeCategory((string) ($ev->cat ?? '')),
+                (string) ($ev->type ?? ''),
+                (string) $ev->ev_date
+            )] = true;
         }
 
         $indexes = [];
 
         foreach ($rows as $index => $row) {
-            $nameParts = $this->splitFullName($row['full_name']);
+            $fullName = $row['full_name'] ?? '';
 
-            if (empty($nameParts['first_name']) || empty($nameParts['last_name'])) {
+            if (empty($fullName)) {
                 continue;
             }
 
-            $fn = strtolower(trim($nameParts['first_name']));
-            $ln = strtolower(trim($nameParts['last_name']));
+            $fullName = preg_replace('/\s+/', ' ', trim($fullName));
             $rawCat = TransactionHistory::normalizeCategory($row['transaction_category'] ?? '');
             $cat = strtolower(trim((string) $rawCat));
-            $type = strtolower(trim((string) ($row['transaction_type'] ?? '')));
             $evDate = ! empty($row['event_date']) ? (string) $row['event_date'] : '';
 
-            $matched = false;
+            $key = $this->importDuplicateValidationKey(
+                $fullName,
+                (string) ($row['client_category'] ?? ''),
+                $cat,
+                (string) ($row['transaction_type'] ?? ''),
+                $evDate
+            );
 
-            // 1) Match against existing client transaction history
-            if ($evDate !== '') {
-                if (isset($historyWithDate["{$fn}|{$ln}|{$cat}|{$type}|{$evDate}"])) {
-                    $matched = true;
-                }
-            } else {
-                if (isset($historyWithoutDate["{$fn}|{$ln}|{$cat}|{$type}"])) {
-                    $matched = true;
-                }
-            }
-
-            // 2) Match against existing Import Events
-            if (! $matched) {
-                $fullNameLower = strtolower(trim($row['full_name']));
-                $rowCat = ! empty($row['transaction_category']) ? strtolower(trim($row['transaction_category'])) : '';
-                $rowType = ! empty($row['transaction_type']) ? strtolower(trim($row['transaction_type'])) : '';
-
-                if ($evDate !== '') {
-                    if (isset($eventLookup["{$fullNameLower}|{$rowCat}|{$rowType}|{$evDate}"])) {
-                        $matched = true;
-                    }
-                } else {
-                    if (isset($eventLookup["{$fullNameLower}|{$rowCat}|{$rowType}|*"]) || isset($eventLookup["{$fullNameLower}|{$rowCat}|{$rowType}|"])) {
-                        $matched = true;
-                    }
-                }
-            }
-
-            if ($matched) {
+            if (isset($historyLookup[$key]) || isset($eventLookup[$key])) {
                 $indexes[] = $index;
             }
         }
@@ -1232,29 +1212,27 @@ class TransactionEventsController extends Controller
 
         $nameParts = $this->splitFullName($event->full_name);
 
-        $client = Client::whereRaw('LOWER(first_name) = ?', [strtolower($nameParts['first_name'])])
-            ->whereRaw('LOWER(last_name) = ?', [strtolower($nameParts['last_name'])])
-            ->first();
+        // Each transferred event becomes its own client (distinct by Full Name,
+        // Client Category, Transaction Category, Transaction Type, Event Date).
+        // Existing Client records do not carry the transaction identity, so a
+        // new client is always created for this event.
+        $client = $this->createClientFromImportedEvent([
+            'full_name' => $event->full_name,
+            'age' => $event->age,
+            'contact_no' => $event->contact_no,
+            'address' => $event->address,
+            'birth_date' => $event->birth_date?->format('Y-m-d'),
+            'client_category' => $event->client_category,
+        ]);
 
-        if (! $client) {
-            $client = $this->createClientFromImportedEvent([
-                'full_name' => $event->full_name,
-                'age' => $event->age,
-                'contact_no' => $event->contact_no,
-                'address' => $event->address,
-                'birth_date' => $event->birth_date?->format('Y-m-d'),
-                'client_category' => $event->client_category,
-            ]);
-
-            ActivityLog::create([
-                'user_id' => auth()->id(),
-                'action' => 'client_created',
-                'description' => 'Auto-created client '.$client->client_id.' ('.trim($event->full_name).') during event transfer.',
-                'subject_type' => 'Client',
-                'subject_id' => $client->id,
-                'properties' => json_encode(['source' => 'transaction-event-transfer', 'event_id' => $event->id]),
-            ]);
-        }
+        ActivityLog::create([
+            'user_id' => auth()->id(),
+            'action' => 'client_created',
+            'description' => 'Auto-created client '.$client->client_id.' ('.trim($event->full_name).') during event transfer.',
+            'subject_type' => 'Client',
+            'subject_id' => $client->id,
+            'properties' => json_encode(['source' => 'transaction-event-transfer', 'event_id' => $event->id]),
+        ]);
 
         if (empty($event->transaction_category) && empty($event->transaction_type)) {
             return redirect()->route('transaction-events.index')
@@ -1441,12 +1419,21 @@ class TransactionEventsController extends Controller
         }
 
         $nameParts = $this->splitFullName($event->full_name);
-        $clientKey = strtolower($nameParts['first_name']).'|'.strtolower($nameParts['last_name']);
+        $clientKey = $this->normalizeImportedClientKey([
+            'first_name' => $nameParts['first_name'],
+            'last_name' => $nameParts['last_name'],
+            'client_category' => $event->client_category ?? '',
+            'transaction_category' => (string) TransactionHistory::normalizeCategory($event->transaction_category ?? ''),
+            'transaction_type' => $event->transaction_type ?? '',
+            'event_date' => $event->event_date?->format('Y-m-d') ?? '',
+        ]);
 
         if (! isset($clientCache[$clientKey])) {
-            $client = Client::whereRaw('LOWER(first_name) = ?', [strtolower($nameParts['first_name'])])
-                ->whereRaw('LOWER(last_name) = ?', [strtolower($nameParts['last_name'])])
-                ->first();
+            // A distinct 5-field row always becomes its own client. Existing
+            // Client records do not store the transaction identity, so a new
+            // client is created for each unique (Full Name, Client Category,
+            // Transaction Category, Transaction Type, Event Date) combination.
+            $client = null;
             $clientCache[$clientKey] = $client;
         }
 
@@ -1517,7 +1504,7 @@ class TransactionEventsController extends Controller
     /**
      * Transfer a batch of pending event ids. Returns aggregate counters.
      */
-    private function transferEventIds(array $ids): array
+    private function transferEventIds(array $ids, array &$clientCache = []): array
     {
         $events = TransactionEvent::query()
             ->whereIn('id', $ids)
@@ -1528,7 +1515,6 @@ class TransactionEventsController extends Controller
         $successCount = 0;
         $skippedCount = 0;
         $createdClients = 0;
-        $clientCache = [];
 
         foreach ($events as $event) {
             $result = $this->transferSingleEvent($event, $clientCache);
@@ -1573,6 +1559,7 @@ class TransactionEventsController extends Controller
             'successCount' => 0,
             'skippedCount' => 0,
             'createdClients' => 0,
+            'clientCache' => [],
             'mode' => 'transfer',
         ]);
 
@@ -1608,11 +1595,32 @@ class TransactionEventsController extends Controller
         $slice = array_slice($ids, $offset, $limit);
 
         if (! empty($slice)) {
-            $result = $this->transferEventIds($slice);
+            // Hydrate the shared client cache (key => client_id) into Client
+            // models so identical 5-field rows share one client across chunks.
+            $peerIds = array_values(array_filter(array_map('intval', array_values($sessionData['clientCache'] ?? []))));
+            $hydratedClients = $peerIds
+                ? Client::whereIn('id', $peerIds)->get()->keyBy('id')
+                : collect();
+            $clientCache = [];
+            foreach (($sessionData['clientCache'] ?? []) as $key => $id) {
+                if (isset($hydratedClients[$id])) {
+                    $clientCache[$key] = $hydratedClients[$id];
+                }
+            }
+
+            $result = $this->transferEventIds($slice, $clientCache);
 
             $sessionData['successCount'] = ($sessionData['successCount'] ?? 0) + $result['successCount'];
             $sessionData['skippedCount'] = ($sessionData['skippedCount'] ?? 0) + $result['skippedCount'];
             $sessionData['createdClients'] = ($sessionData['createdClients'] ?? 0) + $result['createdClients'];
+
+            $persistedCache = [];
+            foreach (($clientCache ?? []) as $key => $client) {
+                if ($client instanceof Client) {
+                    $persistedCache[$key] = $client->id;
+                }
+            }
+            $sessionData['clientCache'] = $persistedCache;
 
             $this->saveImportSession($request->input('token'), $sessionData);
         }
@@ -1946,7 +1954,13 @@ class TransactionEventsController extends Controller
 
                 continue;
             }
-            $eventKey = $this->normalizeImportedEventKey($fullName, $birthDate);
+            $eventKey = $this->importDuplicateValidationKey(
+                $fullName,
+                $data['client_category'] ?? '',
+                $data['transaction_category'] ?? '',
+                $data['transaction_type'] ?? '',
+                $eventDate
+            );
 
             $eventKeyCounts[$eventKey] = ($eventKeyCounts[$eventKey] ?? 0) + 1;
 
@@ -1991,6 +2005,28 @@ class TransactionEventsController extends Controller
             'skipped' => count($skippedRows),
             'skipped_rows' => $skippedRows,
         ];
+    }
+
+    private function importDuplicateValidationKey(
+        string $fullName,
+        string $clientCategory,
+        string $transactionCategory,
+        string $transactionType,
+        ?string $eventDate
+    ): string {
+        $normalizedFullName = preg_replace('/\s+/', ' ', trim(strtolower($fullName)));
+        $normalizedClientCategory = strtolower(trim($clientCategory) ?: '*');
+        $normalizedTransactionCategory = strtolower(trim($transactionCategory) ?: '*');
+        $normalizedTransactionType = strtolower(trim($transactionType) ?: '*');
+        $normalizedEventDate = $eventDate ? trim(strtolower($eventDate)) : '*';
+
+        return implode('|', [
+            $normalizedFullName,
+            $normalizedClientCategory,
+            $normalizedTransactionCategory,
+            $normalizedTransactionType,
+            $normalizedEventDate,
+        ]);
     }
 
     private function normalizeImportedEventKey(string $fullName, ?string $birthDate): string
@@ -2132,7 +2168,10 @@ class TransactionEventsController extends Controller
             return $this->normalizeImportedClientKey([
                 'first_name' => $client->first_name,
                 'last_name' => $client->last_name,
-                'birth_date' => $client->birth_date ? $client->birth_date->format('Y-m-d') : null,
+                'client_category' => $client->sector ?? '',
+                'transaction_category' => '',
+                'transaction_type' => '',
+                'event_date' => '',
             ]);
         })->all();
     }
@@ -2159,13 +2198,29 @@ class TransactionEventsController extends Controller
         return $this->normalizeImportedClientKey([
             'first_name' => $nameParts['first_name'],
             'last_name' => $nameParts['last_name'],
-            'birth_date' => $event['birth_date'] ?? null,
+            'client_category' => $event['client_category'] ?? '',
+            'transaction_category' => (string) TransactionHistory::normalizeCategory($event['transaction_category'] ?? ''),
+            'transaction_type' => $event['transaction_type'] ?? '',
+            'event_date' => $event['event_date'] ?? '',
         ]);
     }
 
     private function normalizeImportedClientKey(array $data): string
     {
-        return strtolower(trim($data['first_name'].'|'.$data['last_name'].'|'.($data['birth_date'] ?? '')));
+        $fullName = preg_replace(
+            '/\s+/',
+            ' ',
+            strtolower(trim(($data['first_name'] ?? '').' '.($data['last_name'] ?? '')))
+        );
+        $norm = fn ($v) => strtolower(trim((string) $v)) ?: '*';
+
+        return implode('|', [
+            $fullName,
+            $norm($data['client_category'] ?? ''),
+            $norm($data['transaction_category'] ?? ''),
+            $norm($data['transaction_type'] ?? ''),
+            $norm($data['event_date'] ?? ''),
+        ]);
     }
 
     private function createClientFromImportedEvent(array $event): Client
