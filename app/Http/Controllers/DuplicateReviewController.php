@@ -4,12 +4,15 @@ namespace App\Http\Controllers;
 
 use App\Models\Client;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
 
 class DuplicateReviewController extends Controller
 {
     private const NAME_KEY = "CONCAT_WS('|', LOWER(TRIM(first_name)), LOWER(TRIM(COALESCE(middle_name,''))), LOWER(TRIM(last_name)))";
     private const EXACT_KEY = "CONCAT_WS('|', LOWER(TRIM(first_name)), LOWER(TRIM(COALESCE(middle_name,''))), LOWER(TRIM(last_name)), COALESCE(birth_date,''))";
     private const SOUNDEX_KEY = "CONCAT(COALESCE(SOUNDEX(LOWER(TRIM(first_name))),''), '|', COALESCE(SOUNDEX(LOWER(TRIM(last_name))),''))";
+
+    private const DUPLICATE_CLIENTS_CACHE_TTL = 15; // seconds
 
     public function __construct()
     {
@@ -22,9 +25,20 @@ class DuplicateReviewController extends Controller
             abort(404);
         }
 
-        $exactGroups = $this->findExactDuplicates();
-        $likelyGroups = $this->findLikelyDuplicates();
-        $similarGroups = $this->findSimilarSpellingDuplicates();
+        $cacheKey = 'duplicate_clients_v1';
+        $cacheTtl = now()->addSeconds(self::DUPLICATE_CLIENTS_CACHE_TTL);
+
+        $groups = Cache::remember($cacheKey, $cacheTtl, function () {
+            return [
+                'exact' => $this->findExactDuplicates(),
+                'likely' => $this->findLikelyDuplicates(),
+                'similar' => $this->findSimilarSpellingDuplicates(),
+            ];
+        });
+
+        $exactGroups = $groups['exact'];
+        $likelyGroups = $groups['likely'];
+        $similarGroups = $groups['similar'];
 
         return view('pages.duplicates.index', compact('exactGroups', 'likelyGroups', 'similarGroups'));
     }

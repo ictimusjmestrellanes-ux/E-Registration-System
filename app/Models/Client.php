@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Cache;
 
 class Client extends Model
 {
@@ -123,5 +124,16 @@ class Client extends Model
     public function transactions()
     {
         return $this->hasMany(Transaction::class, 'client_id', 'client_id');
+    }
+
+    protected static function booted()
+    {
+        static::saved(function () {
+            Cache::forget('duplicate_clients_v1');
+        });
+
+        static::deleted(function () {
+            Cache::forget('duplicate_clients_v1');
+        });
     }
 }
