@@ -12,7 +12,10 @@ class DuplicateReviewController extends Controller
     private const EXACT_KEY = "CONCAT_WS('|', LOWER(TRIM(first_name)), LOWER(TRIM(COALESCE(middle_name,''))), LOWER(TRIM(last_name)), COALESCE(birth_date,''))";
     private const SOUNDEX_KEY = "CONCAT(COALESCE(SOUNDEX(LOWER(TRIM(first_name))),''), '|', COALESCE(SOUNDEX(LOWER(TRIM(last_name))),''))";
 
-    private const DUPLICATE_CLIENTS_CACHE_TTL = 15; // seconds
+    // Cached longer because the similar-spelling scan is expensive; the cache
+    // is cleared automatically whenever a client is saved or deleted
+    // (see Client::booted), so results stay fresh.
+    private const DUPLICATE_CLIENTS_CACHE_TTL = 1800; // seconds (30 minutes)
 
     public function __construct()
     {
@@ -268,51 +271,146 @@ class DuplicateReviewController extends Controller
 
         $byId = $indexed->values();
 
-        for ($i = 0; $i < $n; $i++) {
-            for ($j = $i + 1; $j < $n; $j++) {
-                $a = $byId[$i];
-                $b = $byId[$j];
+        // Blocking: only compare pairs that share a surname consonant-skeleton,
+        // surname soundex, or surname first-2-letters. This cuts the ~292M full
+        // pairwise scan down to a few million pairs while keeping typo pairs
+        // such as Iscober/Escobar (same 'scbr' skeleton) in the same block.
+        // Only united pairs are recorded in $seenPairs so repeats across blocks
+        // are skipped without storing every considered pair.
+        $skeletonOf = static fn (string $s): string => str_replace(['a', 'e', 'i', 'o', 'u', ' '], '', $s);
 
-                $pairKey = min($a['client']->id, $b['client']->id) . '-' . max($a['client']->id, $b['client']->id);
-                if (isset($seenPairs[$pairKey])) {
-                    continue;
+        $blocks = [];
+        foreach ($byId as $idx => $item) {
+            $sur = $item['sur'];
+            if ($sur === '') {
+                continue; // can never match: the matcher requires non-empty surnames
+            }
+            $blocks['k:' . $skeletonOf($sur)][] = $idx;
+            $sx = soundex($sur);
+            if ($sx !== '') {
+                $blocks['s:' . $sx][] = $idx;
+            }
+            if (strlen($sur) >= 2) {
+                $blocks['p:' . substr($sur, 0, 2)][] = $idx;
+            }
+        }
+
+        $tryPair = function ($i, $j) use ($byId, &$seenPairs, $levOk, $union) {
+            $a = $byId[$i];
+            $b = $byId[$j];
+
+            $pairKey = min($a['client']->id, $b['client']->id) . '-' . max($a['client']->id, $b['client']->id);
+            if (isset($seenPairs[$pairKey])) {
+                return;
+            }
+
+            // Identical normalized names belong to the exact/likely tabs.
+            if ($a['sur'] === $b['sur'] && $a['given'] === $b['given']) {
+                return;
+            }
+
+            // Surnames must match exactly, be a single typo apart, or be a
+            // 2-letter typo that stays phonetically identical (Iscober/Escobar).
+            $sa = $a['sur'];
+            $sb = $b['sur'];
+            if ($sa === '' || $sb === '') {
+                return;
+            }
+            if ($sa !== $sb) {
+                if (strlen($sa) < 4 || strlen($sb) < 4) {
+                    return;
                 }
+                $d = levenshtein($sa, $sb);
+                // A 2-letter difference is only accepted when the consonant
+                // skeleton is identical (Iscober/Escobar -> scbr), which
+                // rejects unrelated names like Lapid/Sapida.
+                $skelA = str_replace(['a', 'e', 'i', 'o', 'u'], '', $sa);
+                $skelB = str_replace(['a', 'e', 'i', 'o', 'u'], '', $sb);
+                if (!($d <= 1 || ($d === 2 && $skelA !== '' && $skelA === $skelB))) {
+                    return;
+                }
+            }
+
+            $givenOk = $a['given'] !== '' && $b['given'] !== '' && (
+                $a['given'] === $b['given']
+                || $levOk($a['given'], $b['given'], 1)
+                || (min(strlen($a['given']), strlen($b['given'])) >= 3
+                    && (str_starts_with($a['given'], $b['given']) || str_starts_with($b['given'], $a['given']))));
+
+            if ($givenOk) {
                 $seenPairs[$pairKey] = true;
+                $union($i, $j);
+            }
+        };
 
-                // Identical normalized names belong to the exact/likely tabs.
-                if ($a['sur'] === $b['sur'] && $a['given'] === $b['given']) {
-                    continue;
-                }
+        // Plain parallel arrays keep the hot pair loop cheap: no Eloquent
+        // attribute access or closure dispatch per pair.
+        $pIds = [];
+        $pSur = [];
+        $pGiven = [];
+        foreach ($byId as $idx => $item) {
+            $pIds[$idx] = $item['client']->id;
+            $pSur[$idx] = $item['sur'];
+            $pGiven[$idx] = $item['given'];
+        }
 
-                // Surnames must match exactly, be a single typo apart, or be a
-                // 2-letter typo that stays phonetically identical (Iscober/Escobar).
-                $sa = $a['sur'];
-                $sb = $b['sur'];
-                if ($sa === '' || $sb === '') {
-                    continue;
-                }
-                if ($sa !== $sb) {
-                    if (strlen($sa) < 4 || strlen($sb) < 4) {
+        $vowels = ['a', 'e', 'i', 'o', 'u'];
+
+        foreach ($blocks as $members) {
+            $m = count($members);
+            for ($x = 0; $x < $m; $x++) {
+                $i = $members[$x];
+                $sa = $pSur[$i];
+                $ga = $pGiven[$i];
+                $slenA = strlen($sa);
+                for ($y = $x + 1; $y < $m; $y++) {
+                    $j = $members[$y];
+                    $sb = $pSur[$j];
+
+                    // Identical normalized names belong to the exact/likely tabs.
+                    if ($sa === $sb && $ga === $pGiven[$j]) {
                         continue;
                     }
-                    $d = levenshtein($sa, $sb);
-                    // A 2-letter difference is only accepted when the consonant
-                    // skeleton is identical (Iscober/Escobar -> scbr), which
-                    // rejects unrelated names like Lapid/Sapida.
-                    $skelA = str_replace(['a', 'e', 'i', 'o', 'u'], '', $sa);
-                    $skelB = str_replace(['a', 'e', 'i', 'o', 'u'], '', $sb);
-                    if (!($d <= 1 || ($d === 2 && $skelA !== '' && $skelA === $skelB))) {
+                    // The d<=2 surname gate below requires |length diff|<=2,
+                    // so anything wider is rejected with two integer ops.
+                    if (abs($slenA - strlen($sb)) > 2) {
                         continue;
                     }
-                }
+                    if ($sa !== $sb) {
+                        if ($slenA < 4 || strlen($sb) < 4) {
+                            continue;
+                        }
+                        $d = levenshtein($sa, $sb);
+                        if ($d > 1) {
+                            // A 2-letter difference is only accepted when the
+                            // consonant skeleton is identical
+                            // (Iscober/Escobar -> scbr), which rejects
+                            // unrelated names like Lapid/Sapida.
+                            $skelA = str_replace($vowels, '', $sa);
+                            if (!($d === 2 && $skelA !== '' && $skelA === str_replace($vowels, '', $sb))) {
+                                continue;
+                            }
+                        }
+                    }
 
-                $givenOk = $a['given'] !== '' && $b['given'] !== '' && (
-                    $a['given'] === $b['given']
-                    || $levOk($a['given'], $b['given'], 1)
-                    || (min(strlen($a['given']), strlen($b['given'])) >= 3
-                        && (str_starts_with($a['given'], $b['given']) || str_starts_with($b['given'], $a['given']))));
+                    $gb = $pGiven[$j];
+                    $givenOk = $ga !== '' && $gb !== '' && (
+                        $ga === $gb
+                        || $levOk($ga, $gb, 1)
+                        || (min(strlen($ga), strlen($gb)) >= 3
+                            && (str_starts_with($ga, $gb) || str_starts_with($gb, $ga))));
 
-                if ($givenOk) {
+                    if (! $givenOk) {
+                        continue;
+                    }
+
+                    $pairKey = $pIds[$i] < $pIds[$j]
+                        ? $pIds[$i] . '-' . $pIds[$j]
+                        : $pIds[$j] . '-' . $pIds[$i];
+                    if (isset($seenPairs[$pairKey])) {
+                        continue;
+                    }
+                    $seenPairs[$pairKey] = true;
                     $union($i, $j);
                 }
             }

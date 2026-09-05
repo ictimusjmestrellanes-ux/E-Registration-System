@@ -217,42 +217,7 @@ class TransactionEventsController extends Controller
                 ->whereNotNull('full_name')
                 ->where('full_name', '<>', '');
 
-            $events = $base()
-                ->with('transferredTransaction:id,transaction_id')
-                ->get();
-
-            // Exact groups
-            $exactGroups = $events
-                ->filter(fn ($e) =>
-                    trim((string) $e->client_category) !== '' &&
-                    $e->event_date !== null &&
-                    trim((string) $e->transaction_category) !== '' &&
-                    trim((string) $e->transaction_type) !== ''
-                )
-                ->groupBy(fn ($e) => $this->exactEventDuplicateKey($e))
-                ->filter(fn ($g) => $g->count() > 1)
-                ->map(fn ($items) => $this->eventGroupPayload($items))
-                ->values();
-
-            // Likely groups
-            $exactEventIds = $exactGroups->flatMap(fn ($g) => $g['events'])->pluck('id')->flip();
-            $likelyCandidates = $events->reject(fn ($e) => $exactEventIds->has($e->id));
-            $seenIdSets = [];
-            $likelyGroups = collect();
-            foreach ($this->eventLikelyComboKeys() as $comboKey) {
-                $likelyCandidates
-                    ->groupBy(fn ($e) => $comboKey($e))
-                    ->filter(fn ($g) => $g->count() > 1)
-                    ->each(function ($items) use (&$seenIdSets, &$likelyGroups) {
-                        $ids = $items->pluck('id')->sort()->values()->implode(',');
-                        if (isset($seenIdSets[$ids])) {
-                            return;
-                        }
-                        $seenIdSets[$ids] = true;
-                        $likelyGroups->push($this->eventGroupPayload($items));
-                    });
-            }
-            $likelyGroups = $likelyGroups->values();
+            ['exact' => $exactGroups, 'likely' => $likelyGroups] = $this->computeRecordDuplicateGroups();
 
             // Similar spelling groups
             $similarKeys = $base()
@@ -285,6 +250,125 @@ class TransactionEventsController extends Controller
         $similarGroups = $groups['similar'];
 
         return view('pages.transaction_events.recordsDuplicates', compact('exactGroups', 'likelyGroups', 'similarGroups'));
+    }
+
+    /**
+     * Compute exact + likely duplicate groups for transferred records.
+     *
+     * Grouping runs over lightweight plain rows (single query, no Eloquent
+     * hydration), and full models are loaded afterwards only for the grouped
+     * ids. Combo order matches eventLikelyComboKeys() so group priority is
+     * unchanged.
+     *
+     * @return array{exact: Collection, likely: Collection}
+     */
+    private function computeRecordDuplicateGroups(): array
+    {
+        // [name, client_category, transaction_category, transaction_type, event_date]
+        $norm = [];
+        $light = DB::table('transaction_events')
+            ->whereNotNull('transferred_at')
+            ->whereNotNull('full_name')
+            ->where('full_name', '<>', '')
+            ->selectRaw("id, TRIM(full_name) AS full_name, TRIM(COALESCE(client_category, '')) AS client_category, TRIM(COALESCE(transaction_category, '')) AS transaction_category, TRIM(COALESCE(transaction_type, '')) AS transaction_type, DATE_FORMAT(event_date, '%Y-%m-%d') AS event_date")
+            ->get();
+
+        foreach ($light as $r) {
+            $norm[$r->id] = [
+                strtolower(trim($r->full_name)),
+                strtolower(trim($r->client_category)),
+                strtolower(trim($r->transaction_category)),
+                strtolower(trim($r->transaction_type)),
+                $r->event_date,
+            ];
+        }
+        unset($light);
+
+        // Exact groups: same key as exactEventDuplicateKey(), all five fields present.
+        $exactBuckets = [];
+        foreach ($norm as $id => $f) {
+            if ($f[1] === '' || $f[4] === null || $f[2] === '' || $f[3] === '') {
+                continue;
+            }
+            $exactBuckets[$f[0] . '|' . $f[1] . '|' . $f[2] . '|' . $f[3] . '|' . $f[4]][] = $id;
+        }
+
+        $exactIdGroups = [];
+        $exactIds = [];
+        foreach ($exactBuckets as $ids) {
+            if (count($ids) < 2) {
+                continue;
+            }
+            $exactIdGroups[] = $ids;
+            foreach ($ids as $id) {
+                $exactIds[$id] = true;
+            }
+        }
+        unset($exactBuckets);
+
+        // Likely groups: same six combos as eventLikelyComboKeys(), in order.
+        $comboFields = [
+            [0, 4, 2],
+            [0, 4, 3],
+            [0, 2, 3],
+            [0, 4],
+            [0, 3],
+            [0, 2],
+        ];
+        $seenIdSets = [];
+        $likelyIdGroups = [];
+        foreach ($comboFields as $fields) {
+            $buckets = [];
+            foreach ($norm as $id => $f) {
+                if (isset($exactIds[$id])) {
+                    continue;
+                }
+                $parts = [];
+                foreach ($fields as $k) {
+                    $parts[] = $f[$k];
+                }
+                $buckets[implode('|', $parts)][] = $id;
+            }
+            foreach ($buckets as $ids) {
+                if (count($ids) < 2) {
+                    continue;
+                }
+                sort($ids, SORT_NUMERIC);
+                $setKey = implode(',', $ids);
+                if (isset($seenIdSets[$setKey])) {
+                    continue;
+                }
+                $seenIdSets[$setKey] = true;
+                $likelyIdGroups[] = $ids;
+            }
+            unset($buckets);
+        }
+        unset($norm);
+
+        // Hydrate full models (with transaction id for display) for grouped ids only.
+        $groupedIds = array_keys($exactIds);
+        foreach ($likelyIdGroups as $ids) {
+            foreach ($ids as $id) {
+                $groupedIds[] = $id;
+            }
+        }
+        $groupedIds = array_values(array_unique($groupedIds));
+
+        $keyed = $groupedIds
+            ? TransactionEvent::with('transferredTransaction:id,transaction_id')
+                ->whereIn('id', $groupedIds)
+                ->get()
+                ->keyBy('id')
+            : collect();
+
+        $toPayload = fn (array $ids) => $this->eventGroupPayload(
+            collect($ids)->map(fn ($id) => $keyed[$id])->filter()->values()
+        );
+
+        return [
+            'exact' => collect($exactIdGroups)->map($toPayload)->values(),
+            'likely' => collect($likelyIdGroups)->map($toPayload)->values(),
+        ];
     }
 
     private function exactEventDuplicateKey(TransactionEvent $event): string
@@ -1001,7 +1085,10 @@ class TransactionEventsController extends Controller
 
     private const IMPORT_SESSION_DIR = 'import-sessions';
 
-    private const DUPLICATE_REVIEW_CACHE_TTL = 15; // seconds
+    // Cached longer because grouping 24k+ records is expensive; the cache is
+    // cleared automatically on every import/transfer/undo/review mutation
+    // via clearDuplicateCaches(), so results stay fresh.
+    private const DUPLICATE_REVIEW_CACHE_TTL = 1800; // seconds (30 minutes)
 
     private function clearDuplicateCaches(): void
     {
