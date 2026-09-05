@@ -530,7 +530,7 @@
         <form id="importForm" action="{{ route('transaction-events.import') }}" method="POST"
             enctype="multipart/form-data" class="d-none">
             @csrf
-            <input type="file" id="csv_file" name="csv_file" accept=".csv">
+            <input type="file" id="csv_file" name="csv_file" accept=".csv,.txt,.xlsx,.xls">
         </form>
 
         <!-- Import Modal (Step 1: Select File) -->
@@ -543,18 +543,18 @@
                     </div>
                     <div class="modal-body">
                         <div class="mb-3">
-                            <label for="csv_file_visible" class="form-label">Select CSV File</label>
-                            <input type="file" class="form-control" id="csv_file_visible" accept=".csv" required>
+                            <label for="csv_file_visible" class="form-label">Select CSV or Excel File</label>
+                            <input type="file" class="form-control" id="csv_file_visible" accept=".csv,.txt,.xlsx,.xls" required>
                             <div id="csvFileError" class="invalid-feedback d-none"></div>
                         </div>
                         <div class="alert alert-info mb-0">
-                            <strong>CSV Format:</strong> The file should have the following columns (with header
+                            <strong>File Format:</strong> Upload a CSV or Excel (.xlsx) file with the following columns (with header
                             row):<br>
                             <code>full_name, contact_no, address, age, birth_date, client_category, transaction_category,
                                 transaction_type, event_date</code><br>
                             <a href="{{ route('transaction-events.template') }}" class="alert-link mt-1 d-inline-block">
                                 <i class="ri-download-2-line me-1"></i>Download the Excel template
-                            </a> to get started, then save as CSV.
+                            </a> and upload it directly (or save as CSV).
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -579,7 +579,7 @@
                     <div class="modal-body">
                         <div id="previewLoading" class="text-center py-4">
                             <div class="spinner-border text-primary mb-2" role="status"></div>
-                            <div>Parsing CSV file...</div>
+                            <div id="previewLoadingText">Parsing file...</div>
                         </div>
                         <div id="previewContent" class="d-none">
                             <div class="d-flex justify-content-between align-items-center mb-3">
@@ -630,6 +630,10 @@
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-danger" id="forceCreateAllBtn"
+                            title="Skip duplicate checking and create every row as clients + transaction history, even duplicates.">
+                            <i class="ri-upload-2-line me-1"></i> Force Create All
+                        </button>
                         <button type="button" class="btn btn-primary" id="confirmImportBtn">
                             <i class="ri-upload-2-line me-1"></i> Confirm Import
                         </button>
@@ -665,13 +669,16 @@
                                 <tbody id="importDuplicateBody"></tbody>
                             </table>
                         </div>
-                        <div class="small text-muted mt-2">You can still continue, but importing again will create
-                            duplicate records.</div>
+                        <div class="small text-muted mt-2">“Import Anyway” skips the listed rows and imports the rest.
+                            “Import All Anyway” imports every row as clients + transaction history, even duplicates.</div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal">Cancel</button>
                         <button type="button" class="btn btn-warning px-4" id="importDuplicateContinueBtn">
                             <i class="ri-upload-2-line me-1"></i> Import Anyway
+                        </button>
+                        <button type="button" class="btn btn-danger px-4" id="importForceDirectBtn">
+                            <i class="ri-upload-2-line me-1"></i> Import All Anyway
                         </button>
                     </div>
                 </div>
@@ -731,6 +738,9 @@
 @endsection
 
 @push('scripts')
+    {{-- SheetJS: parses .xlsx/.xls in the browser so the Excel preview step stays
+        client-side (no extra upload). CSV parsing remains dependency-free below. --}}
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             // Parse an API response, throwing a clear, actionable error when the
@@ -746,7 +756,7 @@
                     if (res.status === 419) {
                         detail = 'Your session has expired (HTTP 419). Please refresh the page and try again.';
                     } else if (res.status === 413 || res.status === 400) {
-                        detail = `The request was too large or rejected by the server (HTTP ${res.status}). Try a smaller CSV file or split it into fewer rows.`;
+                        detail = `The request was too large or rejected by the server (HTTP ${res.status}). Try a smaller file or split it into fewer rows.`;
                     } else if (res.status === 500 || res.status === 502 || res.status === 504) {
                         detail = `The server had an error while processing your request (HTTP ${res.status}). Try again in a moment.`;
                     }
@@ -1236,9 +1246,45 @@
                 return String(cell).toLowerCase().replace(/[^a-z0-9]+/g, '_').trim().replace(/^_+|_+$/g, '');
             };
 
-            const parseCsvPreview = function(text) {
-                const records = splitCsvRecords(text.endsWith('\n') ? text : text + '\n');
-                if (records.length === 0) return { error: 'The CSV file is empty or has no header row.' };
+            // Converts a raw cell value (string from CSV, or string/number/Date
+            // from an Excel sheet) into a plain string for preview parsing.
+            const matrixCellToString = function(cell) {
+                if (cell === null || cell === undefined) return '';
+                if (cell instanceof Date && !isNaN(cell.getTime())) {
+                    const m = String(cell.getMonth() + 1).padStart(2, '0');
+                    const d = String(cell.getDate()).padStart(2, '0');
+                    return cell.getFullYear() + '-' + m + '-' + d;
+                }
+                if (typeof cell === 'number') {
+                    if (!isFinite(cell)) return '';
+                    return Number.isInteger(cell) ? String(cell) : String(cell);
+                }
+                if (typeof cell === 'boolean') return cell ? '1' : '';
+                return String(cell);
+            };
+
+            // Mirrors the server: a bare Excel serial number (20000-60000) in
+            // a date column is a date, not text. Formatted dates already arrive
+            // as Date objects via cellDates and are stringified above.
+            const excelSerialToDateString = function(value) {
+                const s = String(value || '').trim();
+                if (!/^\d+(\.\d+)?$/.test(s)) return value;
+                const serial = parseFloat(s);
+                if (!(serial >= 20000 && serial <= 60000)) return value;
+                const d = new Date(Math.round((serial - 25569) * 86400 * 1000));
+                const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+                const day = String(d.getUTCDate()).padStart(2, '0');
+                return d.getUTCFullYear() + '-' + m + '-' + day;
+            };
+
+            // Shared preview builder: takes row records (first row = header)
+            // from either the CSV parser or an Excel sheet and produces the
+            // same { rows, preview_rows, skipped_rows } shape.
+            const buildPreviewFromRecords = function(rawRecords, emptyMessage) {
+                const records = (rawRecords || []).map(function(r) {
+                    return (Array.isArray(r) ? r : [r]).map(matrixCellToString);
+                });
+                if (records.length === 0) return { error: emptyMessage || 'The file is empty or has no header row.' };
 
                 let header = records[0].map(normalizeCsvHeader).filter(Boolean);
                 if (!header.includes('full_name')) {
@@ -1255,6 +1301,9 @@
                     const row = {};
                     header.forEach(function(h, idx) {
                         row[h] = (raw[idx] !== undefined ? raw[idx] : '').trim();
+                    });
+                    ['birth_date', 'birthdate', 'event_date', 'eventdate'].forEach(function(k) {
+                        if (row[k] !== undefined && row[k] !== '') row[k] = excelSerialToDateString(row[k]);
                     });
 
                     const fullName = row.full_name || '';
@@ -1304,10 +1353,28 @@
                 };
             };
 
+            const parseCsvPreview = function(text) {
+                return buildPreviewFromRecords(
+                    splitCsvRecords(text.endsWith('\n') ? text : text + '\n'),
+                    'The CSV file is empty or has no header row.'
+                );
+            };
+
             previewBtn.addEventListener('click', function() {
                 const file = csvFileVisible.files[0];
                 if (!file) {
-                    csvFileError.textContent = 'Please select a CSV file.';
+                    csvFileError.textContent = 'Please select a CSV or Excel file.';
+                    csvFileError.classList.remove('d-none');
+                    csvFileVisible.classList.add('is-invalid');
+                    return;
+                }
+
+                const fileName = String(file.name || '').toLowerCase();
+                const isExcel = /\.xlsx?$/.test(fileName);
+                const isCsv = /\.(csv|txt)$/.test(fileName);
+
+                if (!isExcel && !isCsv) {
+                    csvFileError.textContent = 'Unsupported file type. Please select a .csv or .xlsx file.';
                     csvFileError.classList.remove('d-none');
                     csvFileVisible.classList.add('is-invalid');
                     return;
@@ -1324,12 +1391,123 @@
                 previewTableBody.innerHTML = '';
                 previewSkippedBody.innerHTML = '';
                 previewSkippedSection.classList.add('d-none');
+                document.getElementById('previewLoadingText').textContent = isExcel ?
+                    'Parsing Excel file...' :
+                    'Parsing CSV file...';
+
+                const showPreviewError = function(message) {
+                    previewLoading.classList.add('d-none');
+                    previewError.classList.remove('d-none');
+                    previewErrorMessage.textContent = message || 'An unexpected error occurred.';
+                };
+
+                const renderPreviewResult = function(result) {
+                    if (result.error) {
+                        throw new Error(result.error);
+                    }
+
+                    previewTotalRows.textContent = result.total_rows > 100
+                        ? `${result.total_rows.toLocaleString()} (showing first ${result.preview_rows.length})`
+                        : result.total_rows.toLocaleString();
+                    previewSkippedRows.textContent = result.skipped_rows.length.toLocaleString();
+
+                    if (result.preview_rows.length > 0) {
+                        result.preview_rows.forEach(function(row, index) {
+                            const tr = document.createElement('tr');
+                            const statusBadge = row.duplicate ?
+                                '<span class="badge bg-warning-subtle text-warning">Duplicate</span>' :
+                                '<span class="badge bg-success-subtle text-success">New</span>';
+
+                            tr.innerHTML = `
+                                <td>${index + 1}</td>
+                                <td class="fw-semibold">${escapeHtml(row.full_name)}</td>
+                                <td>${statusBadge}</td>
+                                <td>${escapeHtml(row.age ?? '-')}</td>
+                                <td>${escapeHtml(row.birth_date || '-')}</td>
+                                <td>${escapeHtml(row.client_category || '-')}</td>
+                                <td>${escapeHtml(row.transaction_category || '-')}</td>
+                                <td>${escapeHtml(row.transaction_type || '-')}</td>
+                                <td>${escapeHtml(row.event_date || '-')}</td>
+                                <td>${escapeHtml(row.contact_no || '-')}</td>
+                                <td>${escapeHtml(row.address || '-')}</td>
+                            `;
+                            previewTableBody.appendChild(tr);
+                        });
+                    } else {
+                        previewTableBody.innerHTML =
+                            '<tr><td colspan="11" class="text-center text-muted py-4">No valid rows found in the file.</td></tr>';
+                    }
+
+                    if (result.skipped_rows.length > 0) {
+                        result.skipped_rows.slice(0, 50).forEach(function(row) {
+                            const cellData = Object.entries(row.data || {}).map(function(kv) {
+                                return kv[0] + ': ' + escapeHtml(String(kv[1] || ''));
+                            }).join(', ');
+                            const tr = document.createElement('tr');
+                            tr.innerHTML = `
+                                <td>${row.line}</td>
+                                <td>${escapeHtml(row.reason)}</td>
+                                <td class="small">${cellData}</td>
+                            `;
+                            previewSkippedBody.appendChild(tr);
+                        });
+                        previewSkippedSection.classList.remove('d-none');
+                    }
+
+                    previewLoading.classList.add('d-none');
+                    previewContent.classList.remove('d-none');
+                };
+
+                // Excel files are parsed in the browser with SheetJS so the
+                // preview stays client-side (no extra upload, no HTTP 413).
+                if (isExcel) {
+                    if (typeof XLSX === 'undefined') {
+                        showPreviewError(
+                            'The Excel preview library could not be loaded. Please check your internet connection and try again, or save the file as CSV.'
+                        );
+                        return;
+                    }
+
+                    const xlReader = new FileReader();
+                    xlReader.onerror = function() {
+                        showPreviewError('Unable to read the selected file.');
+                    };
+                    xlReader.onload = function() {
+                        try {
+                            const bytes = xlReader.result instanceof ArrayBuffer ?
+                                new Uint8Array(xlReader.result) :
+                                xlReader.result;
+                            const workbook = XLSX.read(bytes, {
+                                type: 'array',
+                                cellDates: true
+                            });
+                            const firstSheet = workbook.SheetNames[0];
+
+                            if (!firstSheet) {
+                                throw new Error('No worksheet found in the Excel file.');
+                            }
+
+                            const matrix = XLSX.utils.sheet_to_json(workbook.Sheets[firstSheet], {
+                                header: 1,
+                                raw: true,
+                                defval: ''
+                            });
+
+                            renderPreviewResult(buildPreviewFromRecords(
+                                matrix,
+                                'The Excel file is empty or has no header row.'
+                            ));
+                        } catch (error) {
+                            showPreviewError(error.message);
+                        }
+                    };
+                    xlReader.readAsArrayBuffer(file);
+                    return;
+                }
 
                 const reader = new FileReader();
                 reader.onerror = function() {
-                    previewLoading.classList.add('d-none');
-                    previewError.classList.remove('d-none');
-                    previewErrorMessage.textContent = 'Unable to read the selected file.';
+                    showPreviewError('Unable to read the selected file.');
                 };
                 reader.onload = function() {
                     try {
@@ -1337,72 +1515,15 @@
                             ? reader.result
                             : new TextDecoder('utf-8').decode(reader.result);
 
-                        const result = parseCsvPreview(rawText);
-
-                        if (result.error) {
-                            throw new Error(result.error);
-                        }
-
-                        previewTotalRows.textContent = result.total_rows > 100
-                            ? `${result.total_rows.toLocaleString()} (showing first ${result.preview_rows.length})`
-                            : result.total_rows.toLocaleString();
-                        previewSkippedRows.textContent = result.skipped_rows.length.toLocaleString();
-
-                        if (result.preview_rows.length > 0) {
-                            result.preview_rows.forEach(function(row, index) {
-                                const tr = document.createElement('tr');
-                                const statusBadge = row.duplicate ?
-                                    '<span class="badge bg-warning-subtle text-warning">Duplicate</span>' :
-                                    '<span class="badge bg-success-subtle text-success">New</span>';
-
-                                tr.innerHTML = `
-                                    <td>${index + 1}</td>
-                                    <td class="fw-semibold">${escapeHtml(row.full_name)}</td>
-                                    <td>${statusBadge}</td>
-                                    <td>${escapeHtml(row.age ?? '-')}</td>
-                                    <td>${escapeHtml(row.birth_date || '-')}</td>
-                                    <td>${escapeHtml(row.client_category || '-')}</td>
-                                    <td>${escapeHtml(row.transaction_category || '-')}</td>
-                                    <td>${escapeHtml(row.transaction_type || '-')}</td>
-                                    <td>${escapeHtml(row.event_date || '-')}</td>
-                                    <td>${escapeHtml(row.contact_no || '-')}</td>
-                                    <td>${escapeHtml(row.address || '-')}</td>
-                                `;
-                                previewTableBody.appendChild(tr);
-                            });
-                        } else {
-                            previewTableBody.innerHTML =
-                                '<tr><td colspan="11" class="text-center text-muted py-4">No valid rows found in the CSV file.</td></tr>';
-                        }
-
-                        if (result.skipped_rows.length > 0) {
-                            result.skipped_rows.slice(0, 50).forEach(function(row) {
-                                const cellData = Object.entries(row.data || {}).map(function(kv) {
-                                    return kv[0] + ': ' + escapeHtml(String(kv[1] || ''));
-                                }).join(', ');
-                                const tr = document.createElement('tr');
-                                tr.innerHTML = `
-                                    <td>${row.line}</td>
-                                    <td>${escapeHtml(row.reason)}</td>
-                                    <td class="small">${cellData}</td>
-                                `;
-                                previewSkippedBody.appendChild(tr);
-                            });
-                            previewSkippedSection.classList.remove('d-none');
-                        }
-
-                        previewLoading.classList.add('d-none');
-                        previewContent.classList.remove('d-none');
+                        renderPreviewResult(parseCsvPreview(rawText));
                     } catch (error) {
-                        previewLoading.classList.add('d-none');
-                        previewError.classList.remove('d-none');
-                        previewErrorMessage.textContent = error.message || 'An unexpected error occurred.';
+                        showPreviewError(error.message);
                     }
                 };
                 reader.readAsText(file);
             });
 
-            const runImport = async function(eventsOnly = false) {
+            const runImport = async function(eventsOnly = false, forceDirect = false) {
                 if (csvFileHidden.files.length === 0) {
                     return;
                 }
@@ -1430,6 +1551,16 @@
                 };
 
                 if (!progressModalEl || !progressBar || !progressText || !progressPercent) {
+                    if (forceDirect) {
+                        let forceInput = importForm.querySelector('input[name="force_direct"]');
+                        if (!forceInput) {
+                            forceInput = document.createElement('input');
+                            forceInput.type = 'hidden';
+                            forceInput.name = 'force_direct';
+                            importForm.appendChild(forceInput);
+                        }
+                        forceInput.value = '1';
+                    }
                     importForm.submit();
                     return;
                 }
@@ -1445,6 +1576,7 @@
                     const prepareForm = new FormData();
                     prepareForm.append('csv_file', file);
                     prepareForm.append('events_only', eventsOnly ? '1' : '0');
+                    prepareForm.append('force_direct', forceDirect ? '1' : '0');
 
                     const prepareRes = await fetch(
                         '{{ route('transaction-events.import.prepare') }}', {
@@ -1460,7 +1592,7 @@
 
                     const total = prepareData.total;
                     if (total === 0) {
-                        throw new Error('The CSV file has no rows to import.');
+                        throw new Error('The file has no rows to import.');
                     }
 
                     const CHUNK_SIZE = 500;
@@ -1575,7 +1707,7 @@
                         bootstrap.Modal.getOrCreateInstance(document.getElementById(
                             'importDuplicateModal')).show();
                         confirmBtn.disabled = false;
-                        return; // wait for user choice; "Import Anyway" calls runImport
+                        return; // wait for user choice; "Import Anyway" skips duplicates, "Import All Anyway" imports everything
                     }
 
                     await runImport();
@@ -1589,6 +1721,18 @@
             document.getElementById('importDuplicateContinueBtn')?.addEventListener('click', function() {
                 bootstrap.Modal.getInstance(document.getElementById('importDuplicateModal'))?.hide();
                 runImport(true);
+            });
+
+            document.getElementById('importForceDirectBtn')?.addEventListener('click', function() {
+                bootstrap.Modal.getInstance(document.getElementById('importDuplicateModal'))?.hide();
+                runImport(false, true);
+            });
+
+            // "Force Create All" in Review Import Data: skip the duplicate
+            // check entirely and import every row as clients + transaction
+            // history, even duplicates.
+            document.getElementById('forceCreateAllBtn')?.addEventListener('click', function() {
+                runImport(false, true);
             });
 
             previewModalEl.addEventListener('hidden.bs.modal', function() {

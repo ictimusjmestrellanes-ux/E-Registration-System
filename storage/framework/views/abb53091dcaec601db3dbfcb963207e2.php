@@ -1,6 +1,5 @@
-@extends('layouts.master')
-@section('title', 'ERS | Client List')
-@section('content')
+<?php $__env->startSection('title', 'ERS | Client List'); ?>
+<?php $__env->startSection('content'); ?>
     <style>
         .client-details-panel {
             background: #f8fafc;
@@ -129,9 +128,9 @@
             text-decoration: underline;
         }
     </style>
-    @php
+    <?php
         $defaultClientPhoto = asset('assets/images/profile.png');
-    @endphp
+    ?>
     <div class="container-fluid">
         <div class="row">
             <div class="col-12">
@@ -141,43 +140,40 @@
                             <div>
                                 <h4 class="mb-1">Client List</h4>
                                 <p class="text-muted mb-0">
-                                    {{ $matchedClientId ? 'Showing the matched client only.' : 'View all registered clients here.' }}
+                                    <?php echo e($matchedClientId ? 'Showing the matched client only.' : 'View all registered clients here.'); ?>
+
                                 </p>
                             </div>
                             <div class="d-flex flex-wrap gap-2">
-                                @if ($matchedClientId)
-                                    <a href="{{ route('client.list') }}" class="btn btn-sm btn-soft-secondary">Show All
+                                <?php if($matchedClientId): ?>
+                                    <a href="<?php echo e(route('client.list')); ?>" class="btn btn-sm btn-soft-secondary">Show All
                                         Clients</a>
-                                @endif
+                                <?php endif; ?>
                                 <button type="button" class="btn btn-sm btn-soft-primary" id="searchFingerprintBtn">Search
                                     by
                                     Fingerprint</button>
-                                @unless (auth()->user()?->role_name === 'Viewer')
-                                    <a href="{{ route('clients') }}" class="btn btn-sm btn-primary">Add Client</a>
-                                @endunless
+                                <?php if (! (auth()->user()?->role_name === 'Viewer')): ?>
+                                    <a href="<?php echo e(route('clients')); ?>" class="btn btn-sm btn-primary">Add Client</a>
+                                <?php endif; ?>
                             </div>
                         </div>
 
-                        @if ($errors->any())
+                        <?php if($errors->any()): ?>
                             <div class="alert alert-danger">
                                 <div class="fw-semibold mb-1">Please fix the highlighted issue(s) below.</div>
-                                <div>{{ $errors->first() }}</div>
+                                <div><?php echo e($errors->first()); ?></div>
                             </div>
-                        @endif
+                        <?php endif; ?>
 
-                        @if ($matchedClientId)
+                        <?php if($matchedClientId): ?>
                             <div
                                 class="alert alert-success d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
                                 <div>Fingerprint search matched one client and the list is filtered to that result.</div>
-                                <a href="{{ route('client.list') }}" class="btn btn-sm btn-outline-success">Clear Filter</a>
+                                <a href="<?php echo e(route('client.list')); ?>" class="btn btn-sm btn-outline-success">Clear Filter</a>
                             </div>
-                        @endif
+                        <?php endif; ?>
 
-                        {{-- @if (request()->boolean('duplicate_names'))
-                            <div class="alert alert-warning py-2 mb-3">
-                                Showing clients with duplicate identity (first + middle + last name + birth date).
-                            </div>
-                        @endif --}}
+                        
 
                         <div class="border rounded-4 p-3 mb-3" id="clientFiltersCard">
                             <div class="d-flex flex-wrap gap-3 align-items-start justify-content-between mb-0">
@@ -191,30 +187,27 @@
                                         id="clientFiltersToggleBtn">
                                         Show Filters <i class="ri-arrow-down-s-line ms-1"></i>
                                     </button>
-                                    <a href="{{ route('client.list') }}" class="btn btn-sm btn-soft-secondary"
+                                    <a href="<?php echo e(route('client.list')); ?>" class="btn btn-sm btn-soft-secondary"
                                         id="clientFiltersResetBtn">Reset</a>
                                     <select class="form-select form-select-sm w-auto" id="clientPerPageSelect"
                                         aria-label="Clients per page" title="Clients per page">
-                                        @foreach ([10, 15, 25, 50, 100] as $size)
-                                            <option value="{{ $size }}"
-                                                {{ request('per_page', 10) == $size ? 'selected' : '' }}>
-                                                {{ $size }} / page
+                                        <?php $__currentLoopData = [10, 15, 25, 50, 100]; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $size): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                            <option value="<?php echo e($size); ?>"
+                                                <?php echo e(request('per_page', 10) == $size ? 'selected' : ''); ?>>
+                                                <?php echo e($size); ?> / page
                                             </option>
-                                        @endforeach
+                                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                     </select>
-                                    {{-- <a href="{{ route('client.list', array_merge(request()->except('page'), ['duplicate_names' => 1])) }}"
-                                        class="btn btn-sm {{ request()->boolean('duplicate_names') ? 'btn-warning' : 'btn-outline-warning' }}" style="font-size: 13px; padding: 7px;">
-                                        <i class="ri-file-copy-2-line"></i> Duplicate Names
-                                    </a> --}}
-                                    {{-- <span class="badge rounded-pill px-3 py-2" id="clientFiltersCountBadge">{{ $clients->total() }} clients</span> --}}
+                                    
+                                    
                                 </div>
                             </div>
 
-                            <form method="GET" action="{{ route('client.list') }}" id="clientFiltersForm"
-                                class="{{ request()->anyFilled(['search', 'gender', 'civil_status', 'city', 'barangay', 'date_from', 'date_to']) ? '' : 'd-none' }}">
-                                @if ($matchedClientId)
-                                    <input type="hidden" name="matched_client" value="{{ $matchedClientId }}">
-                                @endif
+                            <form method="GET" action="<?php echo e(route('client.list')); ?>" id="clientFiltersForm"
+                                class="<?php echo e(request()->anyFilled(['search', 'gender', 'civil_status', 'city', 'barangay', 'date_from', 'date_to']) ? '' : 'd-none'); ?>">
+                                <?php if($matchedClientId): ?>
+                                    <input type="hidden" name="matched_client" value="<?php echo e($matchedClientId); ?>">
+                                <?php endif; ?>
                                 <div class="row g-3">
                                     <div class="col-12 col-xl-4">
                                         <label for="clientKeywordInput"
@@ -222,7 +215,7 @@
                                         <div class="input-group">
                                             <span class="input-group-text"><i class="ri-search-line"></i></span>
                                             <input type="text" class="form-control" id="clientKeywordInput"
-                                                name="search" placeholder="Name or Client ID" value="{{ request('search') }}">
+                                                name="search" placeholder="Name or Client ID" value="<?php echo e(request('search')); ?>">
                                         </div>
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
@@ -230,11 +223,11 @@
                                             class="form-label fw-semibold text-uppercase small">Gender</label>
                                         <select class="form-select" id="clientSexFilter" name="gender">
                                             <option value="">All Gender</option>
-                                            <option value="male" {{ request('gender') === 'male' ? 'selected' : '' }}>
+                                            <option value="male" <?php echo e(request('gender') === 'male' ? 'selected' : ''); ?>>
                                                 Male</option>
-                                            <option value="female" {{ request('gender') === 'female' ? 'selected' : '' }}>
+                                            <option value="female" <?php echo e(request('gender') === 'female' ? 'selected' : ''); ?>>
                                                 Female</option>
-                                            <option value="other" {{ request('gender') === 'other' ? 'selected' : '' }}>
+                                            <option value="other" <?php echo e(request('gender') === 'other' ? 'selected' : ''); ?>>
                                                 Other</option>
                                         </select>
                                     </div>
@@ -243,11 +236,11 @@
                                             class="form-label fw-semibold text-uppercase small">Civil Status</label>
                                         <select class="form-select" id="clientCivilStatusFilter" name="civil_status">
                                             <option value="">All civil statuses</option>
-                                            @foreach ($clientCivilStatuses as $civilStatus)
-                                                <option value="{{ strtolower($civilStatus) }}"
-                                                    {{ strtolower(request('civil_status', '')) === strtolower($civilStatus) ? 'selected' : '' }}>
-                                                    {{ $civilStatus }}</option>
-                                            @endforeach
+                                            <?php $__currentLoopData = $clientCivilStatuses; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $civilStatus): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                                <option value="<?php echo e(strtolower($civilStatus)); ?>"
+                                                    <?php echo e(strtolower(request('civil_status', '')) === strtolower($civilStatus) ? 'selected' : ''); ?>>
+                                                    <?php echo e($civilStatus); ?></option>
+                                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                         </select>
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
@@ -255,11 +248,11 @@
                                             class="form-label fw-semibold text-uppercase small">City</label>
                                         <select class="form-select" id="clientCityFilter" name="city">
                                             <option value="">All cities</option>
-                                            @foreach ($clientCities as $city)
-                                                <option value="{{ strtolower($city) }}"
-                                                    {{ strtolower(request('city', '')) === strtolower($city) ? 'selected' : '' }}>
-                                                    {{ $city }}</option>
-                                            @endforeach
+                                            <?php $__currentLoopData = $clientCities; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $city): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                                <option value="<?php echo e(strtolower($city)); ?>"
+                                                    <?php echo e(strtolower(request('city', '')) === strtolower($city) ? 'selected' : ''); ?>>
+                                                    <?php echo e($city); ?></option>
+                                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                         </select>
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
@@ -267,11 +260,11 @@
                                             class="form-label fw-semibold text-uppercase small">Barangay</label>
                                         <select class="form-select" id="clientBarangayFilter" name="barangay">
                                             <option value="">All barangays</option>
-                                            @foreach ($clientBarangays as $barangay)
-                                                <option value="{{ strtolower($barangay) }}"
-                                                    {{ strtolower(request('barangay', '')) === strtolower($barangay) ? 'selected' : '' }}>
-                                                    {{ $barangay }}</option>
-                                            @endforeach
+                                            <?php $__currentLoopData = $clientBarangays; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $barangay): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                                <option value="<?php echo e(strtolower($barangay)); ?>"
+                                                    <?php echo e(strtolower(request('barangay', '')) === strtolower($barangay) ? 'selected' : ''); ?>>
+                                                    <?php echo e($barangay); ?></option>
+                                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                         </select>
                                     </div>
                                 </div>
@@ -288,13 +281,13 @@
                                         <label for="clientDateFrom"
                                             class="form-label fw-semibold text-uppercase small">Date From</label>
                                         <input type="date" class="form-control" id="clientDateFrom" name="date_from"
-                                            value="{{ request('date_from') }}">
+                                            value="<?php echo e(request('date_from')); ?>">
                                     </div>
                                     <div class="col-12 col-md-6 col-lg-3">
                                         <label for="clientDateTo" class="form-label fw-semibold text-uppercase small">Date
                                             To</label>
                                         <input type="date" class="form-control" id="clientDateTo" name="date_to"
-                                            value="{{ request('date_to') }}">
+                                            value="<?php echo e(request('date_to')); ?>">
                                     </div>
                                     <div class="col-12 col-lg-3 d-flex gap-2 justify-content-lg-end">
                                         <button type="submit" class="btn btn-sm btn-primary px-4" id="clientDateApplyBtn">
@@ -304,7 +297,8 @@
                                 </div>
 
                                 <div class="small mt-3" id="clientSearchSummary">
-                                    {{ request()->anyFilled(['search', 'gender', 'civil_status', 'city', 'barangay', 'date_from', 'date_to']) ? 'Filtered clients are shown below.' : 'Showing all clients.' }}
+                                    <?php echo e(request()->anyFilled(['search', 'gender', 'civil_status', 'city', 'barangay', 'date_from', 'date_to']) ? 'Filtered clients are shown below.' : 'Showing all clients.'); ?>
+
                                 </div>
                             </form>
                         </div>
@@ -324,142 +318,146 @@
                                     </tr>
                                 </thead>
                                 <tbody class="text-center text-uppercase">
-                                    @forelse ($clients as $client)
-                                        @php
+                                    <?php $__empty_1 = true; $__currentLoopData = $clients; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $client): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
+                                        <?php
                                             $clientName = $client->full_name;
                                             $clientPhoto = $client->photo_url ?: $defaultClientPhoto;
-                                        @endphp
-                                        <tr data-client-row="{{ $client->id }}"
-                                            data-show-url="{{ route('clients.show', $client) }}"
-                                            data-client-photo="{{ $clientPhoto }}"
-                                            data-client-name="{{ $client->full_name }}"
-                                            data-client-suffix="{{ $client->suffix ?? '' }}"
-                                            data-client-birth-date="{{ optional($client->birth_date)->format('m/d/Y') ?? '' }}"
-                                            data-client-age="{{ $client->age ?? '' }}"
-                                            data-client-gender="{{ $client->gender ?? '' }}"
-                                            data-client-civil-status="{{ $client->civil_status ?? '' }}"
-                                            data-client-email="{{ $client->email ?? '' }}"
-                                            data-client-contact="{{ $client->contact ?? '' }}"
-                                            data-client-contact-2="{{ $client->contact_2 ?? '' }}"
-                                            data-client-address="{{ $client->address ?? '' }}"
-                                            data-client-birthplace="{{ $client->birthplace ?? '' }}"
-                                            data-client-education="{{ $client->education ?? '' }}"
-                                            data-client-course="{{ $client->course ?? '' }}"
-                                            data-client-sector="{{ $client->sector ?? '' }}"
-                                            data-client-position-organization="{{ $client->position_organization ?? '' }}"
-                                            data-client-province="{{ $client->province ?? '' }}"
-                                            data-client-city="{{ $client->city ?? '' }}"
-                                            data-client-barangay="{{ $client->barangay ?? '' }}" role="button"
-                                            tabindex="0" title="Open {{ $clientName }} details"
-                                            data-search-name="{{ strtolower($clientName) }}"
-                                            data-search-email="{{ strtolower($client->email ?? '') }}"
-                                            data-search-contact="{{ strtolower($client->contact ?? '') }}"
-                                            data-search-contact-2="{{ strtolower($client->contact_2 ?? '') }}"
-                                            data-search-address="{{ strtolower($client->address ?? '') }}"
-                                            data-search-birthplace="{{ strtolower($client->birthplace ?? '') }}"
-                                            data-search-education="{{ strtolower($client->education ?? '') }}"
-                                            data-search-course="{{ strtolower($client->course ?? '') }}"
-                                            data-search-sector="{{ strtolower($client->sector ?? '') }}"
-                                            data-search-position-organization="{{ strtolower($client->position_organization ?? '') }}"
-                                            data-search-gender="{{ strtolower($client->gender ?? '') }}"
-                                            data-search-civil-status="{{ strtolower($client->civil_status ?? '') }}"
-                                            data-search-province="{{ strtolower($client->province ?? '') }}"
-                                            data-search-city="{{ strtolower($client->city ?? '') }}"
-                                            data-search-barangay="{{ strtolower($client->barangay ?? '') }}"
-                                            data-search-client-id="{{ strtolower($client->client_id ?? '') }}"
-                                            data-search-created-at="{{ optional($client->created_at)->format('Y-m-d') }}"
-                                            data-search-all="{{ strtolower(($client->client_id ?? '') . ' ' . $clientName . ' ' . ($client->suffix ?? '') . ' ' . ($client->email ?? '') . ' ' . ($client->contact ?? '') . ' ' . ($client->contact_2 ?? '') . ' ' . ($client->gender ?? '') . ' ' . ($client->civil_status ?? '') . ' ' . ($client->birthplace ?? '') . ' ' . ($client->education ?? '') . ' ' . ($client->course ?? '') . ' ' . ($client->sector ?? '') . ' ' . ($client->position_organization ?? '') . ' ' . ($client->address ?? '') . ' ' . ($client->province ?? '') . ' ' . ($client->city ?? '') . ' ' . ($client->barangay ?? '')) }}">
-                                            <td>{{ $client->client_id ?? '-' }}</td>
+                                        ?>
+                                        <tr data-client-row="<?php echo e($client->id); ?>"
+                                            data-show-url="<?php echo e(route('clients.show', $client)); ?>"
+                                            data-client-photo="<?php echo e($clientPhoto); ?>"
+                                            data-client-name="<?php echo e($client->full_name); ?>"
+                                            data-client-suffix="<?php echo e($client->suffix ?? ''); ?>"
+                                            data-client-birth-date="<?php echo e(optional($client->birth_date)->format('m/d/Y') ?? ''); ?>"
+                                            data-client-age="<?php echo e($client->age ?? ''); ?>"
+                                            data-client-gender="<?php echo e($client->gender ?? ''); ?>"
+                                            data-client-civil-status="<?php echo e($client->civil_status ?? ''); ?>"
+                                            data-client-email="<?php echo e($client->email ?? ''); ?>"
+                                            data-client-contact="<?php echo e($client->contact ?? ''); ?>"
+                                            data-client-contact-2="<?php echo e($client->contact_2 ?? ''); ?>"
+                                            data-client-address="<?php echo e($client->address ?? ''); ?>"
+                                            data-client-birthplace="<?php echo e($client->birthplace ?? ''); ?>"
+                                            data-client-education="<?php echo e($client->education ?? ''); ?>"
+                                            data-client-course="<?php echo e($client->course ?? ''); ?>"
+                                            data-client-sector="<?php echo e($client->sector ?? ''); ?>"
+                                            data-client-position-organization="<?php echo e($client->position_organization ?? ''); ?>"
+                                            data-client-province="<?php echo e($client->province ?? ''); ?>"
+                                            data-client-city="<?php echo e($client->city ?? ''); ?>"
+                                            data-client-barangay="<?php echo e($client->barangay ?? ''); ?>" role="button"
+                                            tabindex="0" title="Open <?php echo e($clientName); ?> details"
+                                            data-search-name="<?php echo e(strtolower($clientName)); ?>"
+                                            data-search-email="<?php echo e(strtolower($client->email ?? '')); ?>"
+                                            data-search-contact="<?php echo e(strtolower($client->contact ?? '')); ?>"
+                                            data-search-contact-2="<?php echo e(strtolower($client->contact_2 ?? '')); ?>"
+                                            data-search-address="<?php echo e(strtolower($client->address ?? '')); ?>"
+                                            data-search-birthplace="<?php echo e(strtolower($client->birthplace ?? '')); ?>"
+                                            data-search-education="<?php echo e(strtolower($client->education ?? '')); ?>"
+                                            data-search-course="<?php echo e(strtolower($client->course ?? '')); ?>"
+                                            data-search-sector="<?php echo e(strtolower($client->sector ?? '')); ?>"
+                                            data-search-position-organization="<?php echo e(strtolower($client->position_organization ?? '')); ?>"
+                                            data-search-gender="<?php echo e(strtolower($client->gender ?? '')); ?>"
+                                            data-search-civil-status="<?php echo e(strtolower($client->civil_status ?? '')); ?>"
+                                            data-search-province="<?php echo e(strtolower($client->province ?? '')); ?>"
+                                            data-search-city="<?php echo e(strtolower($client->city ?? '')); ?>"
+                                            data-search-barangay="<?php echo e(strtolower($client->barangay ?? '')); ?>"
+                                            data-search-client-id="<?php echo e(strtolower($client->client_id ?? '')); ?>"
+                                            data-search-created-at="<?php echo e(optional($client->created_at)->format('Y-m-d')); ?>"
+                                            data-search-all="<?php echo e(strtolower(($client->client_id ?? '') . ' ' . $clientName . ' ' . ($client->suffix ?? '') . ' ' . ($client->email ?? '') . ' ' . ($client->contact ?? '') . ' ' . ($client->contact_2 ?? '') . ' ' . ($client->gender ?? '') . ' ' . ($client->civil_status ?? '') . ' ' . ($client->birthplace ?? '') . ' ' . ($client->education ?? '') . ' ' . ($client->course ?? '') . ' ' . ($client->sector ?? '') . ' ' . ($client->position_organization ?? '') . ' ' . ($client->address ?? '') . ' ' . ($client->province ?? '') . ' ' . ($client->city ?? '') . ' ' . ($client->barangay ?? ''))); ?>">
+                                            <td><?php echo e($client->client_id ?? '-'); ?></td>
                                             <td>
                                                 <button type="button" class="btn p-0 border-0 bg-transparent"
                                                     data-bs-toggle="modal" data-bs-target="#clientPhotoModal"
-                                                    data-client-photo="{{ $clientPhoto }}"
-                                                    data-client-name="{{ trim($client->first_name . ' ' . ($client->middle_name ? $client->middle_name . ' ' : '') . $client->last_name) }}">
-                                                    <img src="{{ $clientPhoto }}" alt="Client Photo"
-                                                        onerror="this.onerror=null;this.src='{{ $defaultClientPhoto }}';"
+                                                    data-client-photo="<?php echo e($clientPhoto); ?>"
+                                                    data-client-name="<?php echo e(trim($client->first_name . ' ' . ($client->middle_name ? $client->middle_name . ' ' : '') . $client->last_name)); ?>">
+                                                    <img src="<?php echo e($clientPhoto); ?>" alt="Client Photo"
+                                                        onerror="this.onerror=null;this.src='<?php echo e($defaultClientPhoto); ?>';"
                                                         class="rounded-3 border object-fit-cover"
                                                         style="width: 50px; height: 50px;">
                                                 </button>
                                             </td>
                                             <td>
-                                                {{ $client->full_name }}
+                                                <?php echo e($client->full_name); ?>
+
                                             </td>
-                                            <td>{{ $client->gender ?? '-' }}</td>
-                                            <td>{{ $client->civil_status ?? '-' }}</td>
-                                            <td>{{ $client->contact ?? '-' }}</td>
+                                            <td><?php echo e($client->gender ?? '-'); ?></td>
+                                            <td><?php echo e($client->civil_status ?? '-'); ?></td>
+                                            <td><?php echo e($client->contact ?? '-'); ?></td>
                                             <td class="text-start">
                                                 <div class="small lh-sm">
-                                                    <div>{{ $client->address ?? '-' }}</div>
+                                                    <div><?php echo e($client->address ?? '-'); ?></div>
                                                     <div class="text-muted">
-                                                        {{ collect([$client->barangay, $client->city, $client->province])->filter()->implode(', ') ?:'-' }}
+                                                        <?php echo e(collect([$client->barangay, $client->city, $client->province])->filter()->implode(', ') ?:'-'); ?>
+
                                                     </div>
                                                 </div>
                                             </td>
                                             <td>
                                                 <div class="d-flex gap-2 text-center justify-content-center">
-                                                    @if (feature_allowed('View Client'))
-                                                        <a href="{{ route('clients.show', $client) }}"
+                                                    <?php if(feature_allowed('View Client')): ?>
+                                                        <a href="<?php echo e(route('clients.show', $client)); ?>"
                                                             class="btn btn-sm btn-soft-info">
                                                             View
                                                         </a>
-                                                    @else
-                                                        <a href="{{ route('clients.show', $client) }}"
+                                                    <?php else: ?>
+                                                        <a href="<?php echo e(route('clients.show', $client)); ?>"
                                                             class="btn btn-sm btn-soft-info disabled"
                                                             aria-disabled="true">
                                                             Not Allowed to View
                                                         </a>
-                                                    @endif
-                                                    @unless (auth()->user()?->role_name === 'Viewer')
-                                                        @if (feature_allowed('Edit Client'))
-                                                            <a href="{{ route('clients.edit', $client) }}"
+                                                    <?php endif; ?>
+                                                    <?php if (! (auth()->user()?->role_name === 'Viewer')): ?>
+                                                        <?php if(feature_allowed('Edit Client')): ?>
+                                                            <a href="<?php echo e(route('clients.edit', $client)); ?>"
                                                                 class="btn btn-sm btn-soft-primary">
                                                                 Edit
                                                             </a>
-                                                        @else
-                                                            <a href="{{ route('clients.edit', $client) }}"
+                                                        <?php else: ?>
+                                                            <a href="<?php echo e(route('clients.edit', $client)); ?>"
                                                                 class="btn btn-sm btn-soft-primary disabled"
                                                                 aria-disabled="true">
                                                                 Not Allowed to Edit
                                                             </a>
-                                                        @endif
-                                                        <form action="{{ route('clients.archive', $client) }}" method="POST"
+                                                        <?php endif; ?>
+                                                        <form action="<?php echo e(route('clients.archive', $client)); ?>" method="POST"
                                                             onsubmit="return confirm('Are you sure you want to archive this client?');">
-                                                            @csrf
-                                                            @if (feature_allowed('Archive Clients'))
+                                                            <?php echo csrf_field(); ?>
+                                                            <?php if(feature_allowed('Archive Clients')): ?>
                                                                 <button type="submit" class="btn btn-sm btn-soft-warning">
                                                                     Archive
                                                                 </button>
-                                                            @else
+                                                            <?php else: ?>
                                                                 <button type="submit"
                                                                     class="btn btn-sm btn-soft-warning"
                                                                     disabled>
                                                                     Not Allowed to Archive
                                                                 </button>
-                                                            @endif
+                                                            <?php endif; ?>
                                                         </form>
-                                                    @endunless
+                                                    <?php endif; ?>
                                                 </div>
                                             </td>
                                         </tr>
-                                    @empty
+                                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                                         <tr id="clientSearchEmptyRow">
                                             <td colspan="8" class="text-center text-muted py-4">
-                                                {{ $matchedClientId ? 'No matching client found.' : 'No clients found.' }}
+                                                <?php echo e($matchedClientId ? 'No matching client found.' : 'No clients found.'); ?>
+
                                             </td>
                                         </tr>
-                                    @endforelse
-                                    @if ($clients->count())
+                                    <?php endif; ?>
+                                    <?php if($clients->count()): ?>
                                         <tr id="clientSearchNoResultsRow" class="d-none">
                                             <td colspan="8" class="text-center text-muted py-4">
                                                 No matching clients found.
                                             </td>
                                         </tr>
-                                    @endif
+                                    <?php endif; ?>
                                 </tbody>
                             </table>
                         </div>
                         <div class="d-flex justify-content-end mt-3">
-                            {{ $clients->links('pagination::bootstrap-5') }}
+                            <?php echo e($clients->links('pagination::bootstrap-5')); ?>
+
                         </div>
                     </div>
                 </div>
@@ -494,7 +492,7 @@
                 <div class="modal-body">
                     <div class="row g-4 align-items-start">
                         <div class="col-12 col-lg-4 text-center">
-                            <img id="clientViewPhoto" src="{{ asset('assets/images/profile.png') }}" alt="Client Photo"
+                            <img id="clientViewPhoto" src="<?php echo e(asset('assets/images/profile.png')); ?>" alt="Client Photo"
                                 class="rounded-4 border object-fit-cover bg-light"
                                 style="width: 100%; max-width: 320px; height: 320px;">
                         </div>
@@ -578,7 +576,7 @@
                             </div>
                         </div>
 
-                        @if (request()->boolean('duplicate_names'))
+                        <?php if(request()->boolean('duplicate_names')): ?>
                             <script>
                                 document.addEventListener('DOMContentLoaded', function() {
                                     try {
@@ -588,7 +586,7 @@
                                             resetBtn.disabled = false;
                                             resetBtn.addEventListener('click', function(ev) {
                                                 ev.preventDefault();
-                                                window.location = '{{ route('client.list') }}';
+                                                window.location = '<?php echo e(route('client.list')); ?>';
                                             });
                                             // also ensure filters are visible so user sees context
                                             var body = document.getElementById('clientFiltersBody');
@@ -601,7 +599,7 @@
                                     }
                                 });
                             </script>
-                        @endif
+                        <?php endif; ?>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -635,7 +633,7 @@
                             Waiting to start fingerprint search.
                         </div>
                         <div class="mt-3 text-center">
-                            <img id="fingerprintSearchPreview" src="{{ asset('assets/images/fingerprint.png') }}"
+                            <img id="fingerprintSearchPreview" src="<?php echo e(asset('assets/images/fingerprint.png')); ?>"
                                 alt="Fingerprint Search Preview" class="rounded-3 border object-fit-cover bg-white"
                                 style="width: 100%; max-width: 420px; height: 280px;">
                         </div>
@@ -649,9 +647,9 @@
             </div>
         </div>
     </div>
-@endsection
+<?php $__env->stopSection(); ?>
 
-@section('script')
+<?php $__env->startSection('script'); ?>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const modalEl = document.getElementById('clientPhotoModal');
@@ -678,7 +676,7 @@
             const clientViewCity = document.getElementById('clientViewCity');
             const clientViewBarangay = document.getElementById('clientViewBarangay');
             const clientViewPageLink = document.getElementById('clientViewPageLink');
-            const fingerprintPlaceholderPreview = @json(asset('assets/images/fingerprint.png'));
+            const fingerprintPlaceholderPreview = <?php echo json_encode(asset('assets/images/fingerprint.png'), 15, 512) ?>;
             const searchFingerprintBtn = document.getElementById('searchFingerprintBtn');
             const fingerprintSearchModalEl = document.getElementById('fingerprintSearchModal');
             const fingerprintSearchPreview = document.getElementById('fingerprintSearchPreview');
@@ -699,7 +697,7 @@
             const clientDateApplyBtn = document.getElementById('clientDateApplyBtn');
             const clientFiltersCountBadge = document.getElementById('clientFiltersCountBadge');
             const fingerprintBridgeBase = 'http://127.0.0.1:38654';
-            const clientListSearchUrl = @json(route('client.search.fingerprint'));
+            const clientListSearchUrl = <?php echo json_encode(route('client.search.fingerprint'), 15, 512) ?>;
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
             if (!modalEl || !modalImage || !modalTitle || !clientViewModalEl || !clientViewPhoto || !
@@ -875,7 +873,7 @@
             };
 
             const buildClientViewPayloadFromRow = (row) => ({
-                photo_url: row?.dataset.clientPhoto || @json(asset('assets/images/profile.png')),
+                photo_url: row?.dataset.clientPhoto || <?php echo json_encode(asset('assets/images/profile.png'), 15, 512) ?>,
                 name: row?.dataset.clientName || 'Client',
                 suffix: row?.dataset.clientSuffix || '-',
                 birth_date: row?.dataset.clientBirthDate || '-',
@@ -898,7 +896,7 @@
             });
 
             const showClientViewModal = (client) => {
-                clientViewPhoto.src = client.photo_url || @json(asset('assets/images/profile.png'));
+                clientViewPhoto.src = client.photo_url || <?php echo json_encode(asset('assets/images/profile.png'), 15, 512) ?>;
                 clientViewName.textContent = client.name || 'Client';
                 clientViewSuffix.textContent = client.suffix || '-';
                 clientViewBirthDate.textContent = client.birth_date || '-';
@@ -1049,22 +1047,22 @@
             clientDateTo.addEventListener('change', submitFilters);
 
             // Restore focus/caret after an auto-submit so typing continues smoothly.
-            @if (request()->filled('search'))
+            <?php if(request()->filled('search')): ?>
                 setFiltersVisibility(true);
                 clientKeywordInput.focus();
                 clientKeywordInput.setSelectionRange(clientKeywordInput.value.length, clientKeywordInput.value
                     .length);
-            @endif
+            <?php endif; ?>
 
             clientFiltersToggleBtn.addEventListener('click', function() {
                 setFiltersVisibility(!filtersVisible);
             });
 
-            @if (request()->anyFilled(['search', 'gender', 'civil_status', 'city', 'barangay', 'date_from', 'date_to']))
+            <?php if(request()->anyFilled(['search', 'gender', 'civil_status', 'city', 'barangay', 'date_from', 'date_to'])): ?>
                 setFiltersVisibility(true);
-            @else
+            <?php else: ?>
                 setFiltersVisibility(false);
-            @endif
+            <?php endif; ?>
             filterClientList();
 
             fingerprintSearchModalEl.addEventListener('shown.bs.modal', function() {
@@ -1075,7 +1073,7 @@
             });
 
             clientViewModalEl.addEventListener('hidden.bs.modal', function() {
-                clientViewPhoto.src = @json(asset('assets/images/profile.png'));
+                clientViewPhoto.src = <?php echo json_encode(asset('assets/images/profile.png'), 15, 512) ?>;
                 clientViewName.textContent = 'Client';
                 clientViewSuffix.textContent = '-';
                 clientViewBirthDate.textContent = '-';
@@ -1103,4 +1101,6 @@
             }
         });
     </script>
-@endsection
+<?php $__env->stopSection(); ?>
+
+<?php echo $__env->make('layouts.master', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH C:\xampp\htdocs\E-Reg-System\resources\views\pages\clients\clientList.blade.php ENDPATH**/ ?>

@@ -15,7 +15,7 @@
             'hoa' => ['fa-house', 'warning'],
             'others' => ['fa-ellipsis', 'secondary'],
         ];
-        $totalCategoryTransactions = array_sum($categoryCounts);
+        $totalCategoryTransactions = $totalTransactions ?? array_sum($categoryCounts);
 
         $chartLabels = array_values($categories);
         $chartData = [];
@@ -703,4 +703,4 @@
     </script>
 <?php $__env->stopPush(); ?>
 
-<?php echo $__env->make('layouts.master', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH C:\xampp\htdocs\E-Reg-System\resources\views/pages/dashboard.blade.php ENDPATH**/ ?>
+<?php echo $__env->make('layouts.master', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH C:\xampp\htdocs\E-Reg-System\resources\views\pages\dashboard.blade.php ENDPATH**/ ?>

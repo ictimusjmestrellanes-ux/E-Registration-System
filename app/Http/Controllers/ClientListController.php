@@ -35,7 +35,8 @@ class ClientListController extends Controller
             ->when($request->filled('search'), function ($q) use ($request) {
                 $keyword = strtolower(trim($request->input('search')));
                 $q->where(function ($sub) use ($keyword) {
-                    $sub->whereRaw("LOWER(CONCAT_WS(' ', first_name, middle_name, last_name, suffix)) LIKE ?", ["%{$keyword}%"]);
+                    $sub->whereRaw("LOWER(CONCAT_WS(' ', first_name, middle_name, last_name, suffix)) LIKE ?", ["%{$keyword}%"])
+                        ->orWhereRaw('LOWER(client_id) LIKE ?', ["%{$keyword}%"]);
                 });
             })
             ->when($request->filled('gender'), fn ($q) => $q->where('gender', $request->input('gender')))

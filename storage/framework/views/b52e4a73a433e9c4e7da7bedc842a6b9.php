@@ -95,4 +95,4 @@
     <?php echo $__env->yieldContent('script'); ?>
 </body>
 </html>
-<?php /**PATH C:\xampp\htdocs\E-Reg-System\resources\views/layouts/app.blade.php ENDPATH**/ ?>
+<?php /**PATH C:\xampp\htdocs\E-Reg-System\resources\views\layouts\app.blade.php ENDPATH**/ ?>

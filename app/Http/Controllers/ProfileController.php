@@ -26,6 +26,13 @@ class ProfileController extends Controller
             return Client::count();
         });
 
+        // True total of all transaction rows. (The per-category breakdown
+        // below only covers rows with a recognized non-empty category, so it
+        // must not be used as the headline total.)
+        $totalTransactions = Cache::remember('dashboard.total_transactions', 300, function () {
+            return TransactionHistory::count();
+        });
+
         $categoryCounts = Cache::remember('dashboard.category_counts', 300, function () {
             $counts = array_fill_keys(array_keys(TransactionHistory::CATEGORIES), 0);
 
@@ -123,6 +130,6 @@ class ProfileController extends Controller
             return ['labels' => $labels, 'data' => $data];
         });
 
-        return view('pages.dashboard', compact('totalClients', 'categoryCounts', 'categories', 'clientTrend', 'transactionTrend', 'caravanTrend'));
+        return view('pages.dashboard', compact('totalClients', 'totalTransactions', 'categoryCounts', 'categories', 'clientTrend', 'transactionTrend', 'caravanTrend'));
     }
 }

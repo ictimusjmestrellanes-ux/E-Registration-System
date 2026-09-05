@@ -25,6 +25,13 @@ class TransactionController extends Controller
                         ->orWhere('category', 'like', '%' . $request->search . '%');
                 });
             })
+            ->when($request->filled('status'), fn ($q) => $q->where('status', $request->input('status')))
+            ->when($request->filled('client_category'), fn ($q) => $q->where('client_category', $request->input('client_category')))
+            ->when($request->filled('category_filter'), function ($q) use ($request) {
+                $q->whereIn('category', $this->categoryFilterValues($request->input('category_filter')));
+            })
+            ->when($request->filled('date_from'), fn ($q) => $q->whereDate('transaction_date', '>=', $request->input('date_from')))
+            ->when($request->filled('date_to'), fn ($q) => $q->whereDate('transaction_date', '<=', $request->input('date_to')))
             ->orderByDesc('transaction_date')
             ->orderByDesc('id')
             ->paginate(15)
@@ -37,7 +44,7 @@ class TransactionController extends Controller
             'labels' => 'All',
             'transactions' => $transactions,
             'total' => $total,
-        ]);
+        ] + $this->transactionFilterOptions());
     }
 
     public function categoryList(Request $request, string $category)
@@ -65,6 +72,10 @@ class TransactionController extends Controller
                         ->orWhere('type', 'like', '%' . $request->search . '%');
                 });
             })
+            ->when($request->filled('status'), fn ($q) => $q->where('status', $request->input('status')))
+            ->when($request->filled('client_category'), fn ($q) => $q->where('client_category', $request->input('client_category')))
+            ->when($request->filled('date_from'), fn ($q) => $q->whereDate('transaction_date', '>=', $request->input('date_from')))
+            ->when($request->filled('date_to'), fn ($q) => $q->whereDate('transaction_date', '<=', $request->input('date_to')))
             ->orderByDesc('transaction_date')
             ->orderByDesc('id')
             ->paginate(15)
@@ -73,7 +84,50 @@ class TransactionController extends Controller
         $labels = TransactionHistory::CATEGORIES[$category];
         $total = $transactions->total();
 
-        return view('pages.client_transaction.transactionCategoryList', compact('category', 'labels', 'transactions', 'total'));
+        return view('pages.client_transaction.transactionCategoryList', compact('category', 'labels', 'transactions', 'total') + $this->transactionFilterOptions());
+    }
+
+    /**
+     * Dropdown options shared by the transaction list filters.
+     */
+    private function transactionFilterOptions(): array
+    {
+        $statuses = TransactionHistory::query()
+            ->whereNotNull('status')
+            ->where('status', '<>', '')
+            ->distinct()
+            ->orderBy('status')
+            ->pluck('status');
+
+        $clientCategories = TransactionHistory::query()
+            ->whereNotNull('client_category')
+            ->where('client_category', '<>', '')
+            ->distinct()
+            ->orderBy('client_category')
+            ->pluck('client_category');
+
+        return [
+            'filterStatuses' => $statuses,
+            'filterClientCategories' => $clientCategories,
+            'filterCategories' => TransactionHistory::CATEGORIES,
+        ];
+    }
+
+    /**
+     * All stored category values that belong to one canonical category key
+     * (e.g. 'events' matches stored 'events', 'CARAVAN', ...).
+     */
+    private function categoryFilterValues(string $canonical): array
+    {
+        $values = [$canonical];
+
+        foreach (TransactionHistory::query()->select('category')->distinct()->pluck('category') as $stored) {
+            if (TransactionHistory::normalizeCategory($stored) === $canonical) {
+                $values[] = $stored;
+            }
+        }
+
+        return array_values(array_unique($values));
     }
 
     public function store(Request $request)

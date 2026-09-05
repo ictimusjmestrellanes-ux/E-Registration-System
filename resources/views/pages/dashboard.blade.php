@@ -15,7 +15,7 @@
             'hoa' => ['fa-house', 'warning'],
             'others' => ['fa-ellipsis', 'secondary'],
         ];
-        $totalCategoryTransactions = array_sum($categoryCounts);
+        $totalCategoryTransactions = $totalTransactions ?? array_sum($categoryCounts);
 
         $chartLabels = array_values($categories);
         $chartData = [];

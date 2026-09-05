@@ -215,7 +215,7 @@
                                         <div class="input-group">
                                             <span class="input-group-text"><i class="ri-search-line"></i></span>
                                             <input type="text" class="form-control" id="clientKeywordInput"
-                                                name="search" placeholder="Name" value="<?php echo e(request('search')); ?>">
+                                                name="search" placeholder="Name or Client ID" value="<?php echo e(request('search')); ?>">
                                         </div>
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
@@ -360,8 +360,9 @@
                                             data-search-province="<?php echo e(strtolower($client->province ?? '')); ?>"
                                             data-search-city="<?php echo e(strtolower($client->city ?? '')); ?>"
                                             data-search-barangay="<?php echo e(strtolower($client->barangay ?? '')); ?>"
+                                            data-search-client-id="<?php echo e(strtolower($client->client_id ?? '')); ?>"
                                             data-search-created-at="<?php echo e(optional($client->created_at)->format('Y-m-d')); ?>"
-                                            data-search-all="<?php echo e(strtolower($clientName . ' ' . ($client->suffix ?? '') . ' ' . ($client->email ?? '') . ' ' . ($client->contact ?? '') . ' ' . ($client->contact_2 ?? '') . ' ' . ($client->gender ?? '') . ' ' . ($client->civil_status ?? '') . ' ' . ($client->birthplace ?? '') . ' ' . ($client->education ?? '') . ' ' . ($client->course ?? '') . ' ' . ($client->sector ?? '') . ' ' . ($client->position_organization ?? '') . ' ' . ($client->address ?? '') . ' ' . ($client->province ?? '') . ' ' . ($client->city ?? '') . ' ' . ($client->barangay ?? ''))); ?>">
+                                            data-search-all="<?php echo e(strtolower(($client->client_id ?? '') . ' ' . $clientName . ' ' . ($client->suffix ?? '') . ' ' . ($client->email ?? '') . ' ' . ($client->contact ?? '') . ' ' . ($client->contact_2 ?? '') . ' ' . ($client->gender ?? '') . ' ' . ($client->civil_status ?? '') . ' ' . ($client->birthplace ?? '') . ' ' . ($client->education ?? '') . ' ' . ($client->course ?? '') . ' ' . ($client->sector ?? '') . ' ' . ($client->position_organization ?? '') . ' ' . ($client->address ?? '') . ' ' . ($client->province ?? '') . ' ' . ($client->city ?? '') . ' ' . ($client->barangay ?? ''))); ?>">
                                             <td><?php echo e($client->client_id ?? '-'); ?></td>
                                             <td>
                                                 <button type="button" class="btn p-0 border-0 bg-transparent"

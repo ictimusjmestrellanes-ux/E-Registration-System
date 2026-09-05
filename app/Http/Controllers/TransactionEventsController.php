@@ -643,10 +643,10 @@ class TransactionEventsController extends Controller
         @set_time_limit(300);
 
         $request->validate([
-            'csv_file' => 'required|file|mimes:csv,txt|max:102400',
+            'csv_file' => 'required|file|mimes:csv,txt,xlsx,xls|max:102400',
         ]);
 
-        $result = $this->parseCsv($request->file('csv_file'));
+        $result = $this->parseImportFile($request->file('csv_file'));
 
         if (! empty($result['errors'])) {
             return response()->json(['success' => false, 'message' => $result['errors'][0]], 422);
@@ -668,7 +668,7 @@ class TransactionEventsController extends Controller
     }
 
     /**
-     * Check how many rows of the uploaded CSV already exist in transaction
+     * Check how many rows of the uploaded file already exist in transaction
      * history (same client + category/type + event date when provided).
      */
     public function importDuplicatesCheck(Request $request)
@@ -677,10 +677,10 @@ class TransactionEventsController extends Controller
         @set_time_limit(300);
 
         $request->validate([
-            'csv_file' => 'required|file|mimes:csv,txt|max:102400',
+            'csv_file' => 'required|file|mimes:csv,txt,xlsx,xls|max:102400',
         ]);
 
-        $result = $this->parseCsv($request->file('csv_file'));
+        $result = $this->parseImportFile($request->file('csv_file'));
 
         if (!empty($result['errors'])) {
             return response()->json(['success' => false, 'message' => $result['errors'][0]], 422);
@@ -914,10 +914,10 @@ class TransactionEventsController extends Controller
         @set_time_limit(300);
 
         $request->validate([
-            'csv_file' => 'required|file|mimes:csv,txt|max:102400',
+            'csv_file' => 'required|file|mimes:csv,txt,xlsx,xls|max:102400',
         ]);
 
-        $result = $this->parseCsv($request->file('csv_file'));
+        $result = $this->parseImportFile($request->file('csv_file'));
 
         if (! empty($result['errors'])) {
             return back()->withErrors(['csv_file' => $result['errors'][0]]);
@@ -927,8 +927,11 @@ class TransactionEventsController extends Controller
         $archiveFile = '';
         $hasDuplicateRows = collect($rows)->contains(fn ($row) => ! empty($row['duplicate']));
         $skippedDuplicates = 0;
+        // "Import All Anyway": import every row as clients + transaction
+        // history even if duplicates exist — no skipping, no staging.
+        $forceDirect = $request->boolean('force_direct');
 
-        if ($request->boolean('events_only')) {
+        if ($request->boolean('events_only') && ! $forceDirect) {
             // "Import Anyway": skip rows that already exist in the system and
             // import the remainder as real clients + transaction history.
             $duplicateIndexes = $this->findExistingDuplicateIndexes($rows);
@@ -942,16 +945,17 @@ class TransactionEventsController extends Controller
         $imported = count($rows);
 
         if ($imported > 0) {
-            if ($hasDuplicateRows && ! $request->boolean('events_only')) {
+            if ($hasDuplicateRows && ! $request->boolean('events_only') && ! $forceDirect) {
                 $this->storeImportedEventsOnly($rows);
             } else {
-                $this->processImportedEvents($rows);
+                $this->processImportedEvents($rows, $forceDirect);
             }
             $archiveFile = $this->storeImportedEventArchive($rows, $request->file('csv_file')->getClientOriginalName());
         }
 
         $skipped = $result['skipped'];
         $message = match (true) {
+            $forceDirect => "Imported {$imported} record(s) including duplicate row(s).",
             $skippedDuplicates > 0 => "Imported {$imported} record(s) and skipped {$skippedDuplicates} duplicate row(s) that already existed in the system.",
             $hasDuplicateRows => "Imported {$imported} event(s) to the event list because duplicate rows were found in the selected file.",
             default => "Successfully imported {$imported} event(s).",
@@ -968,7 +972,7 @@ class TransactionEventsController extends Controller
         ActivityLog::create([
             'user_id' => auth()->id(),
             'action' => 'events_imported',
-            'description' => "Imported {$imported} transaction event(s) from CSV".($request->file('csv_file')->getClientOriginalName() ? ' ('.$request->file('csv_file')->getClientOriginalName().')' : '').'.',
+            'description' => "Imported {$imported} transaction event(s) from file".($request->file('csv_file')->getClientOriginalName() ? ' ('.$request->file('csv_file')->getClientOriginalName().')' : '').'.',
             'subject_type' => 'TransactionEvent',
             'subject_id' => null,
             'properties' => json_encode([
@@ -981,7 +985,8 @@ class TransactionEventsController extends Controller
         // Direct imports (no duplicate rows) are transferred immediately,
         // so land the user on Events - Records where those records live.
         // "Import Anyway" also produces transferred records, so go there too.
-        if ((! $hasDuplicateRows || $skippedDuplicates > 0) && $imported > 0) {
+        // "Import All Anyway" always produces transferred records as well.
+        if (($forceDirect || ! $hasDuplicateRows || $skippedDuplicates > 0) && $imported > 0) {
             return redirect()->route('transaction-events.records')->with('success', $message);
         }
 
@@ -1010,10 +1015,10 @@ class TransactionEventsController extends Controller
         @set_time_limit(300);
 
         $request->validate([
-            'csv_file' => 'required|file|mimes:csv,txt|max:102400',
+            'csv_file' => 'required|file|mimes:csv,txt,xlsx,xls|max:102400',
         ]);
 
-        $result = $this->parseCsv($request->file('csv_file'));
+        $result = $this->parseImportFile($request->file('csv_file'));
 
         if (! empty($result['errors'])) {
             return response()->json(['success' => false, 'message' => $result['errors'][0]], 422);
@@ -1022,9 +1027,12 @@ class TransactionEventsController extends Controller
         $rows = $result['rows'];
         $hasDuplicateRows = collect($rows)->contains(fn ($row) => ! empty($row['duplicate']));
         $eventsOnly = $request->boolean('events_only');
+        // "Import All Anyway": bypass every duplicate rule and import all rows
+        // as clients + transaction history.
+        $forceDirect = $request->boolean('force_direct');
         $skippedDuplicates = 0;
 
-        if ($eventsOnly) {
+        if ($eventsOnly && ! $forceDirect) {
             // "Import Anyway": skip rows that already exist in the system
             // (Transaction History or Import Events) and import the remaining
             // rows as real clients + transaction history, rather than staging
@@ -1044,8 +1052,9 @@ class TransactionEventsController extends Controller
         Storage::disk('local')->put(
             self::IMPORT_SESSION_DIR.'/'.$token.'.json',
             json_encode([
-                'mode' => ($hasDuplicateRows && ! $eventsOnly) ? 'events_only' : 'direct',
-                'force_events_only' => $eventsOnly,
+                'mode' => $forceDirect ? 'direct' : (($hasDuplicateRows && ! $eventsOnly) ? 'events_only' : 'direct'),
+                'force_events_only' => $eventsOnly && ! $forceDirect,
+                'force_direct' => $forceDirect,
                 'rows' => $rows,
                 'original_filename' => $request->file('csv_file')->getClientOriginalName(),
                 'skipped' => $result['skipped'],
@@ -1086,7 +1095,7 @@ class TransactionEventsController extends Controller
         if ($sessionData['mode'] === 'events_only') {
             $this->storeImportedEventsOnly($slice);
         } else {
-            $this->processImportedEvents($slice);
+            $this->processImportedEvents($slice, (bool) ($sessionData['force_direct'] ?? false));
         }
 
         $processed = $offset + count($slice);
@@ -1120,6 +1129,7 @@ class TransactionEventsController extends Controller
         $skippedDuplicates = $sessionData['skipped_duplicates'] ?? 0;
         $isEventsOnly = $sessionData['mode'] === 'events_only';
         $forceEventsOnly = $sessionData['force_events_only'] ?? false;
+        $forceDirect = $sessionData['force_direct'] ?? false;
         $archiveFile = '';
 
         if ($imported > 0) {
@@ -1127,6 +1137,7 @@ class TransactionEventsController extends Controller
         }
 
         $message = match (true) {
+            $forceDirect => "Imported {$imported} record(s) including duplicate row(s).",
             $skippedDuplicates > 0 => "Imported {$imported} record(s) and skipped {$skippedDuplicates} duplicate row(s) that already existed in the system.",
             $forceEventsOnly => "Imported {$imported} event(s) to the Import Events list because the data already exists in the system.",
             $isEventsOnly => "Imported {$imported} event(s) to the event list because duplicate rows were found in the selected file.",
@@ -1144,7 +1155,7 @@ class TransactionEventsController extends Controller
         ActivityLog::create([
             'user_id' => auth()->id(),
             'action' => 'events_imported',
-            'description' => "Imported {$imported} transaction event(s) from CSV".($sessionData['original_filename'] ? ' ('.$sessionData['original_filename'].')' : '').'.',
+            'description' => "Imported {$imported} transaction event(s) from file".($sessionData['original_filename'] ? ' ('.$sessionData['original_filename'].')' : '').'.',
             'subject_type' => 'TransactionEvent',
             'subject_id' => null,
             'properties' => json_encode([
@@ -1865,6 +1876,27 @@ class TransactionEventsController extends Controller
         return $name;
     }
 
+    /**
+     * Parse an uploaded import file (CSV, TXT, or Excel) into normalized rows.
+     * Excel (.xlsx) is read natively via ZipArchive + SimpleXML so no extra
+     * composer dependency is required. Legacy binary .xls files are not
+     * supported and produce a clear error asking for .xlsx instead.
+     */
+    private function parseImportFile($file): array
+    {
+        $extension = strtolower((string) ($file->getClientOriginalExtension() ?: ''));
+
+        if ($extension === '') {
+            $extension = strtolower((string) pathinfo((string) $file->getClientOriginalName(), PATHINFO_EXTENSION));
+        }
+
+        if (in_array($extension, ['xlsx', 'xls'], true)) {
+            return $this->parseXlsx($file);
+        }
+
+        return $this->parseCsv($file);
+    }
+
     private function parseCsv($file): array
     {
         $contents = file_get_contents($file->getPathname());
@@ -1895,7 +1927,7 @@ class TransactionEventsController extends Controller
         }
 
         $header = array_map(function ($column) {
-            return preg_replace('/[^a-z0-9]+/', '_', trim(strtolower($column)));
+            return preg_replace('/[^a-z0-9]+/', '_', trim(strtolower((string) $column)));
         }, $header);
         $header = array_filter($header);
         $header = array_values($header);
@@ -1907,15 +1939,271 @@ class TransactionEventsController extends Controller
             return ['errors' => ['Missing required column: full_name.'], 'rows' => [], 'total' => 0, 'skipped' => 0];
         }
 
+        $matrix = [];
+
+        while (($row = fgetcsv($handle)) !== false) {
+            $matrix[] = $row;
+        }
+
+        fclose($handle);
+        @unlink($tempPath);
+
+        $built = $this->buildImportRowsFromMatrix($header, $matrix);
+
+        return [
+            'errors' => [],
+            'rows' => $built['rows'],
+            'total' => count($built['rows']),
+            'skipped' => $built['skipped'],
+            'skipped_rows' => $built['skipped_rows'],
+        ];
+    }
+
+    private function parseXlsx($file): array
+    {
+        $matrix = $this->readXlsxMatrix($file->getPathname());
+
+        if (is_string($matrix)) {
+            return ['errors' => [$matrix], 'rows' => [], 'total' => 0, 'skipped' => 0];
+        }
+
+        if (empty($matrix)) {
+            return ['errors' => ['The Excel file is empty or has no header row.'], 'rows' => [], 'total' => 0, 'skipped' => 0];
+        }
+
+        $header = array_map(function ($column) {
+            return preg_replace('/[^a-z0-9]+/', '_', trim(strtolower((string) $column)));
+        }, array_values($matrix[0]));
+        $header = array_filter($header);
+        $header = array_values($header);
+
+        if (! in_array('full_name', $header)) {
+            return ['errors' => ['Missing required column: full_name.'], 'rows' => [], 'total' => 0, 'skipped' => 0];
+        }
+
+        $built = $this->buildImportRowsFromMatrix($header, array_slice($matrix, 1));
+
+        return [
+            'errors' => [],
+            'rows' => $built['rows'],
+            'total' => count($built['rows']),
+            'skipped' => $built['skipped'],
+            'skipped_rows' => $built['skipped_rows'],
+        ];
+    }
+
+    /**
+     * Read the first worksheet of an .xlsx file into a 2-D string matrix.
+     * Returns the matrix, or an error message string on failure.
+     *
+     * @return array|string
+     */
+    private function readXlsxMatrix(string $path): array|string
+    {
+        if (! class_exists(\ZipArchive::class)) {
+            return 'Excel support is unavailable on this server. Please upload a CSV file instead.';
+        }
+
+        $zip = new \ZipArchive();
+
+        if ($zip->open($path) !== true) {
+            return 'Unable to read the Excel file. If this is an old .xls file, please save it as .xlsx and try again.';
+        }
+
+        try {
+            $shared = [];
+            $sharedStringsXml = $zip->getFromName('xl/sharedStrings.xml');
+
+            if ($sharedStringsXml !== false) {
+                $strings = @simplexml_load_string($sharedStringsXml);
+
+                if ($strings !== false) {
+                    $strings->registerXPathNamespace('m', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
+
+                    foreach ($strings->xpath('//m:si') ?: [] as $si) {
+                        $si->registerXPathNamespace('m', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
+                        $chunks = [];
+
+                        foreach ($si->xpath('.//m:t') ?: [] as $node) {
+                            $chunks[] = (string) $node;
+                        }
+
+                        $shared[] = implode('', $chunks);
+                    }
+                }
+            }
+
+            $sheetPath = null;
+
+            if ($zip->locateName('xl/worksheets/sheet1.xml') !== false) {
+                $sheetPath = 'xl/worksheets/sheet1.xml';
+            } else {
+                for ($i = 2; $i <= 50; $i++) {
+                    $candidate = "xl/worksheets/sheet{$i}.xml";
+
+                    if ($zip->locateName($candidate) !== false) {
+                        $sheetPath = $candidate;
+
+                        break;
+                    }
+                }
+            }
+
+            if ($sheetPath === null) {
+                return 'No worksheet found in the Excel file.';
+            }
+
+            $sheetXml = $zip->getFromName($sheetPath);
+
+            if ($sheetXml === false) {
+                return 'Unable to read the Excel file.';
+            }
+
+            $sheet = @simplexml_load_string($sheetXml);
+
+            if ($sheet === false) {
+                return 'Unable to read the Excel file.';
+            }
+
+            $sheet->registerXPathNamespace('m', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
+
+            $matrix = [];
+
+            foreach ($sheet->xpath('//m:row') ?: [] as $row) {
+                $row->registerXPathNamespace('m', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
+
+                $cells = [];
+                $maxCol = -1;
+
+                foreach ($row->xpath('./m:c') ?: [] as $cell) {
+                    $cell->registerXPathNamespace('m', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
+                    $col = $this->xlsxColumnIndex((string) ($cell['r'] ?? ''));
+
+                    if ($col < 0) {
+                        continue;
+                    }
+
+                    $maxCol = max($maxCol, $col);
+                    $type = (string) ($cell['t'] ?? '');
+                    $valueNodes = $cell->xpath('./m:v');
+
+                    if ($type === 's') {
+                        $value = ($valueNodes && isset($valueNodes[0]))
+                            ? ($shared[(int) trim((string) $valueNodes[0])] ?? '')
+                            : '';
+                    } elseif ($type === 'inlineStr') {
+                        $chunks = [];
+
+                        foreach ($cell->xpath('./m:is/m:t') ?: [] as $node) {
+                            $chunks[] = (string) $node;
+                        }
+
+                        $value = implode('', $chunks);
+                    } elseif ($type === 'b') {
+                        $value = ($valueNodes && trim((string) $valueNodes[0]) === '1') ? '1' : '0';
+                    } elseif ($type === 'e') {
+                        $value = '';
+                    } else {
+                        $value = ($valueNodes && isset($valueNodes[0])) ? trim((string) $valueNodes[0]) : '';
+                    }
+
+                    $cells[$col] = $value;
+                }
+
+                if ($maxCol < 0) {
+                    continue;
+                }
+
+                $rowData = [];
+                $allBlank = true;
+
+                for ($i = 0; $i <= $maxCol; $i++) {
+                    $cellValue = $cells[$i] ?? '';
+                    $rowData[] = $cellValue;
+
+                    if (trim((string) $cellValue) !== '') {
+                        $allBlank = false;
+                    }
+                }
+
+                if ($allBlank) {
+                    continue;
+                }
+
+                $matrix[] = $rowData;
+            }
+
+            return $matrix;
+        } finally {
+            $zip->close();
+        }
+    }
+
+    private function xlsxColumnIndex(string $cellRef): int
+    {
+        if (! preg_match('/^([A-Za-z]+)/', $cellRef, $matches)) {
+            return -1;
+        }
+
+        $letters = strtoupper($matches[1]);
+        $index = 0;
+
+        for ($i = 0; $i < strlen($letters); $i++) {
+            $index = $index * 26 + (ord($letters[$i]) - 64);
+        }
+
+        return $index - 1;
+    }
+
+    /**
+     * Convert an Excel serial date number to a Y-m-d string when the raw
+     * value looks like one. Plain text values pass through untouched so CSV
+     * behavior is unchanged.
+     */
+    private function normalizeMaybeExcelSerialDate($value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $value = trim((string) $value);
+
+        if ($value === '' || ! is_numeric($value)) {
+            return $value === '' ? null : $value;
+        }
+
+        $serial = (float) $value;
+
+        // Excel serials ~20000-60000 cover 1954-2064. Anything outside that
+        // (ages, phone numbers) is left alone.
+        if ($serial < 20000 || $serial > 60000) {
+            return $value;
+        }
+
+        return gmdate('Y-m-d', (int) round(($serial - 25569) * 86400));
+    }
+
+    /**
+     * Shared row normalizer for CSV and Excel matrices. Applies trimming,
+     * age/date validation, duplicate-key counting, and skip tracking so both
+     * formats behave identically downstream.
+     */
+    private function buildImportRowsFromMatrix(array $header, array $matrix): array
+    {
         $rows = [];
         $skippedRows = [];
         $lineNumber = 1;
         $eventKeyCounts = [];
         $tempRows = [];
 
-        while (($row = fgetcsv($handle)) !== false) {
+        foreach ($matrix as $row) {
             $lineNumber++;
-            $row = array_map(fn ($cell) => $this->utf8Encode($cell), $row);
+
+            if (! is_array($row)) {
+                $row = [$row];
+            }
+
+            $row = array_map(fn ($cell) => $this->utf8Encode(is_scalar($cell) || $cell === null ? (string) $cell : ''), array_values($row));
             $row = array_map('trim', $row);
             $row = array_slice(array_pad($row, count($header), ''), 0, count($header));
 
@@ -1943,9 +2231,10 @@ class TransactionEventsController extends Controller
                 continue;
             }
 
-            $birthDate = $this->parseImportedDate($data['birth_date'] ?? $data['birthdate'] ?? null);
-            $eventDate = $this->parseImportedDate($data['event_date'] ?? $data['eventdate'] ?? null);
-            if (($data['event_date'] ?? $data['eventdate'] ?? '') !== '' && $eventDate === null) {
+            $birthDate = $this->parseImportedDate($this->normalizeMaybeExcelSerialDate($data['birth_date'] ?? $data['birthdate'] ?? null));
+            $rawEventDate = $data['event_date'] ?? $data['eventdate'] ?? null;
+            $eventDate = $this->parseImportedDate($this->normalizeMaybeExcelSerialDate($rawEventDate));
+            if (($rawEventDate ?? '') !== '' && $eventDate === null) {
                 $skippedRows[] = [
                     'line' => $lineNumber,
                     'reason' => 'Invalid event_date value',
@@ -1995,13 +2284,8 @@ class TransactionEventsController extends Controller
             ];
         }
 
-        fclose($handle);
-        @unlink($tempPath);
-
         return [
-            'errors' => [],
             'rows' => $rows,
-            'total' => count($rows),
             'skipped' => count($skippedRows),
             'skipped_rows' => $skippedRows,
         ];
@@ -2068,18 +2352,27 @@ class TransactionEventsController extends Controller
             ->exists();
     }
 
-    private function processImportedEvents(array $events): void
+    /**
+     * Create clients + transaction history for the given rows.
+     *
+     * When $forceNewClients is true (Force Create All / Import All Anyway),
+     * every row gets its own brand-new client — no in-batch sharing and no
+     * reuse of existing clients — so client and transaction counts stay 1:1.
+     */
+    private function processImportedEvents(array $events, bool $forceNewClients = false): void
     {
-        $existingClients = $this->loadExistingClientsForImportedEvents($events);
+        $existingClients = $forceNewClients ? [] : $this->loadExistingClientsForImportedEvents($events);
         $clientMap = [];
 
         foreach ($events as $event) {
-            $clientKey = $this->importedEventClientKey($event);
+            $clientKey = $forceNewClients ? null : $this->importedEventClientKey($event);
 
             if ($clientKey !== null && isset($clientMap[$clientKey])) {
                 $client = $clientMap[$clientKey];
             } else {
-                $client = $this->findExistingClientForImportedEvent($event, $existingClients);
+                $client = $forceNewClients
+                    ? null
+                    : $this->findExistingClientForImportedEvent($event, $existingClients);
 
                 if (! $client) {
                     $client = $this->createClientFromImportedEvent($event);
