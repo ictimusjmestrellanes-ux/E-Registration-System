@@ -110,23 +110,8 @@
             border-color: transparent;
         }
 
-        #clientListTable tbody tr[data-show-url] {
-            cursor: pointer;
-            transition: background-color 0.18s ease, box-shadow 0.18s ease;
-        }
-
-        #clientListTable tbody tr[data-show-url]:hover {
+        #clientListTable tbody tr:hover {
             background-color: rgba(77, 99, 214, 0.06);
-        }
-
-        #clientListTable .client-name-link {
-            color: inherit;
-        }
-
-        #clientListTable .client-name-link:hover,
-        #clientListTable .client-name-link:focus {
-            color: #3551d5;
-            text-decoration: underline;
         }
     </style>
     @php
@@ -341,27 +326,6 @@
                                             $clientPhoto = $client->photo_url ?: $defaultClientPhoto;
                                         @endphp
                                         <tr data-client-row="{{ $client->id }}"
-                                            data-show-url="{{ route('clients.show', $client) }}"
-                                            data-client-photo="{{ $clientPhoto }}"
-                                            data-client-name="{{ $client->full_name }}"
-                                            data-client-suffix="{{ $client->suffix ?? '' }}"
-                                            data-client-birth-date="{{ optional($client->birth_date)->format('m/d/Y') ?? '' }}"
-                                            data-client-age="{{ $client->age ?? '' }}"
-                                            data-client-gender="{{ $client->gender ?? '' }}"
-                                            data-client-civil-status="{{ $client->civil_status ?? '' }}"
-                                            data-client-email="{{ $client->email ?? '' }}"
-                                            data-client-contact="{{ $client->contact ?? '' }}"
-                                            data-client-contact-2="{{ $client->contact_2 ?? '' }}"
-                                            data-client-address="{{ $client->address ?? '' }}"
-                                            data-client-birthplace="{{ $client->birthplace ?? '' }}"
-                                            data-client-education="{{ $client->education ?? '' }}"
-                                            data-client-course="{{ $client->course ?? '' }}"
-                                            data-client-sector="{{ $client->sector ?? '' }}"
-                                            data-client-position-organization="{{ $client->position_organization ?? '' }}"
-                                            data-client-province="{{ $client->province ?? '' }}"
-                                            data-client-city="{{ $client->city ?? '' }}"
-                                            data-client-barangay="{{ $client->barangay ?? '' }}" role="button"
-                                            tabindex="0" title="Open {{ $clientName }} details"
                                             data-search-name="{{ strtolower($clientName) }}"
                                             data-search-email="{{ strtolower($client->email ?? '') }}"
                                             data-search-contact="{{ strtolower($client->contact ?? '') }}"
@@ -494,135 +458,6 @@
         </div>
     </div>
 
-    <div class="modal fade" id="clientViewModal" tabindex="-1" aria-labelledby="clientViewModalLabel"
-        aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered modal-xl modal-fullscreen-lg-down">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="clientViewModalLabel">Client Details</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="row g-4 align-items-start">
-                        <div class="col-12 col-lg-4 text-center">
-                            <img id="clientViewPhoto" src="{{ asset('assets/images/profile.png') }}" alt="Client Photo"
-                                class="rounded-4 border object-fit-cover bg-light"
-                                style="width: 100%; max-width: 320px; height: 320px;">
-                        </div>
-                        <div class="col-12 col-lg-8">
-                            <div class="d-flex flex-column gap-3">
-                                <div>
-                                    <div class="text-muted small text-uppercase fw-semibold">Full Name</div>
-                                    <div class="fs-4 fw-bold" id="clientViewName">Client</div>
-                                </div>
-                                <div class="row g-3">
-                                    <div class="col-md-4">
-                                        <div class="text-muted small text-uppercase fw-semibold">Suffix</div>
-                                        <div class="fw-semibold" id="clientViewSuffix">-</div>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <div class="text-muted small text-uppercase fw-semibold">Birth Date</div>
-                                        <div class="fw-semibold" id="clientViewBirthDate">-</div>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <div class="text-muted small text-uppercase fw-semibold">Age</div>
-                                        <div class="fw-semibold" id="clientViewAge">-</div>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <div class="text-muted small text-uppercase fw-semibold">Gender</div>
-                                        <div class="fw-semibold" id="clientViewGender">-</div>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <div class="text-muted small text-uppercase fw-semibold">Civil Status</div>
-                                        <div class="fw-semibold" id="clientViewCivilStatus">-</div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="text-muted small text-uppercase fw-semibold">Email</div>
-                                        <div class="fw-semibold" id="clientViewEmail">-</div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="text-muted small text-uppercase fw-semibold">Contact 1</div>
-                                        <div class="fw-semibold" id="clientViewContact">-</div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="text-muted small text-uppercase fw-semibold">Contact 2</div>
-                                        <div class="fw-semibold" id="clientViewContact2">-</div>
-                                    </div>
-                                    <div class="col-12">
-                                        <div class="text-muted small text-uppercase fw-semibold">Address</div>
-                                        <div class="fw-semibold" id="clientViewAddress">-</div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="text-muted small text-uppercase fw-semibold">Birthplace</div>
-                                        <div class="fw-semibold" id="clientViewBirthplace">-</div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="text-muted small text-uppercase fw-semibold">Education</div>
-                                        <div class="fw-semibold" id="clientViewEducation">-</div>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <div class="text-muted small text-uppercase fw-semibold">Course</div>
-                                        <div class="fw-semibold" id="clientViewCourse">-</div>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <div class="text-muted small text-uppercase fw-semibold">Sector</div>
-                                        <div class="fw-semibold" id="clientViewSector">-</div>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <div class="text-muted small text-uppercase fw-semibold">Position / Organization
-                                        </div>
-                                        <div class="fw-semibold" id="clientViewPositionOrganization">-</div>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <div class="text-muted small text-uppercase fw-semibold">Province</div>
-                                        <div class="fw-semibold" id="clientViewProvince">-</div>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <div class="text-muted small text-uppercase fw-semibold">City</div>
-                                        <div class="fw-semibold" id="clientViewCity">-</div>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <div class="text-muted small text-uppercase fw-semibold">Barangay</div>
-                                        <div class="fw-semibold" id="clientViewBarangay">-</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        @if (request()->boolean('duplicate_names'))
-                            <script>
-                                document.addEventListener('DOMContentLoaded', function() {
-                                    try {
-                                        var resetBtn = document.getElementById('clientFiltersResetBtn');
-                                        if (resetBtn) {
-                                            // ensure clickable and redirect clears duplicate filter
-                                            resetBtn.disabled = false;
-                                            resetBtn.addEventListener('click', function(ev) {
-                                                ev.preventDefault();
-                                                window.location = '{{ route('client.list') }}';
-                                            });
-                                            // also ensure filters are visible so user sees context
-                                            var body = document.getElementById('clientFiltersBody');
-                                            if (body && body.classList.contains('d-none')) {
-                                                body.classList.remove('d-none');
-                                            }
-                                        }
-                                    } catch (e) {
-                                        console.warn('Reset button wiring failed', e);
-                                    }
-                                });
-                            </script>
-                        @endif
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <a href="#" class="btn btn-soft-info" id="clientViewPageLink">Open Full Profile</a>
-                    <button type="button" class="btn btn-soft-secondary" data-bs-dismiss="modal">Close</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <div class="modal fade" id="fingerprintSearchModal" tabindex="-1" aria-labelledby="fingerprintSearchModalLabel"
         aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-lg">
@@ -668,27 +503,6 @@
             const modalEl = document.getElementById('clientPhotoModal');
             const modalImage = document.getElementById('clientPhotoModalImage');
             const modalTitle = document.getElementById('clientPhotoModalLabel');
-            const clientViewModalEl = document.getElementById('clientViewModal');
-            const clientViewPhoto = document.getElementById('clientViewPhoto');
-            const clientViewName = document.getElementById('clientViewName');
-            const clientViewSuffix = document.getElementById('clientViewSuffix');
-            const clientViewBirthDate = document.getElementById('clientViewBirthDate');
-            const clientViewAge = document.getElementById('clientViewAge');
-            const clientViewGender = document.getElementById('clientViewGender');
-            const clientViewCivilStatus = document.getElementById('clientViewCivilStatus');
-            const clientViewEmail = document.getElementById('clientViewEmail');
-            const clientViewContact = document.getElementById('clientViewContact');
-            const clientViewContact2 = document.getElementById('clientViewContact2');
-            const clientViewAddress = document.getElementById('clientViewAddress');
-            const clientViewBirthplace = document.getElementById('clientViewBirthplace');
-            const clientViewEducation = document.getElementById('clientViewEducation');
-            const clientViewCourse = document.getElementById('clientViewCourse');
-            const clientViewSector = document.getElementById('clientViewSector');
-            const clientViewPositionOrganization = document.getElementById('clientViewPositionOrganization');
-            const clientViewProvince = document.getElementById('clientViewProvince');
-            const clientViewCity = document.getElementById('clientViewCity');
-            const clientViewBarangay = document.getElementById('clientViewBarangay');
-            const clientViewPageLink = document.getElementById('clientViewPageLink');
             const fingerprintPlaceholderPreview = @json(asset('assets/images/fingerprint.png'));
             const searchFingerprintBtn = document.getElementById('searchFingerprintBtn');
             const fingerprintSearchModalEl = document.getElementById('fingerprintSearchModal');
@@ -713,12 +527,7 @@
             const clientListSearchUrl = @json(route('client.search.fingerprint'));
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
-            if (!modalEl || !modalImage || !modalTitle || !clientViewModalEl || !clientViewPhoto || !
-                clientViewName || !clientViewSuffix || !clientViewBirthDate || !clientViewAge || !
-                clientViewGender || !clientViewCivilStatus || !clientViewEmail || !clientViewContact || !
-                clientViewContact2 || !clientViewAddress || !clientViewBirthplace || !clientViewEducation || !
-                clientViewCourse || !clientViewSector || !clientViewPositionOrganization || !clientViewProvince || !
-                clientViewCity || !clientViewBarangay || !clientViewPageLink || !searchFingerprintBtn || !
+            if (!modalEl || !modalImage || !modalTitle || !searchFingerprintBtn || !
                 fingerprintSearchModalEl || !fingerprintSearchPreview || !fingerprintSearchStatus || !
                 fingerprintScanAgainBtn || !clientKeywordInput || !clientSexFilter || !clientCivilStatusFilter || !
                 clientCityFilter || !clientBarangayFilter || !clientRecordTypeFilter || !
@@ -730,9 +539,7 @@
 
 
             const fingerprintSearchModal = bootstrap.Modal.getOrCreateInstance(fingerprintSearchModalEl);
-            const clientViewModal = bootstrap.Modal.getOrCreateInstance(clientViewModalEl);
             const clientRows = Array.from(document.querySelectorAll('[data-client-row]'));
-            const clientRowInteractiveSelector = 'a, button, input, select, textarea, label, form';
             let filtersVisible = true;
 
 
@@ -885,57 +692,6 @@
                 });
             };
 
-            const buildClientViewPayloadFromRow = (row) => ({
-                photo_url: row?.dataset.clientPhoto || @json(asset('assets/images/profile.png')),
-                name: row?.dataset.clientName || 'Client',
-                suffix: row?.dataset.clientSuffix || '-',
-                birth_date: row?.dataset.clientBirthDate || '-',
-                age: row?.dataset.clientAge || '-',
-                gender: row?.dataset.clientGender || '-',
-                civil_status: row?.dataset.clientCivilStatus || '-',
-                email: row?.dataset.clientEmail || '-',
-                contact: row?.dataset.clientContact || '-',
-                contact_2: row?.dataset.clientContact2 || '-',
-                address: row?.dataset.clientAddress || '-',
-                birthplace: row?.dataset.clientBirthplace || '-',
-                education: row?.dataset.clientEducation || '-',
-                course: row?.dataset.clientCourse || '-',
-                sector: row?.dataset.clientSector || '-',
-                position_organization: row?.dataset.clientPositionOrganization || '-',
-                province: row?.dataset.clientProvince || '-',
-                city: row?.dataset.clientCity || '-',
-                barangay: row?.dataset.clientBarangay || '-',
-                show_url: row?.dataset.showUrl || '#',
-            });
-
-            const showClientViewModal = (client) => {
-                clientViewPhoto.src = client.photo_url || @json(asset('assets/images/profile.png'));
-                clientViewName.textContent = client.name || 'Client';
-                clientViewSuffix.textContent = client.suffix || '-';
-                clientViewBirthDate.textContent = client.birth_date || '-';
-                clientViewAge.textContent = client.age ?? '-';
-                clientViewGender.textContent = client.gender || '-';
-                clientViewCivilStatus.textContent = client.civil_status || '-';
-                clientViewEmail.textContent = client.email || '-';
-                clientViewContact.textContent = client.contact || '-';
-                clientViewContact2.textContent = client.contact_2 || '-';
-                clientViewAddress.textContent = client.address || '-';
-                clientViewBirthplace.textContent = client.birthplace || '-';
-                clientViewEducation.textContent = client.education || '-';
-                clientViewCourse.textContent = client.course || '-';
-                clientViewSector.textContent = client.sector || '-';
-                clientViewPositionOrganization.textContent = client.position_organization || '-';
-                clientViewProvince.textContent = client.province || '-';
-                clientViewCity.textContent = client.city || '-';
-                clientViewBarangay.textContent = client.barangay || '-';
-                clientViewPageLink.href = client.show_url || '#';
-                clientViewModal.show();
-            };
-
-            const openClientDetailsFromRow = (row) => {
-                showClientViewModal(buildClientViewPayloadFromRow(row));
-            };
-
             const searchFingerprintAndHighlight = async () => {
                 try {
                     const bridgeOnline = await isFingerprintBridgeOnline();
@@ -989,34 +745,6 @@
             modalEl.addEventListener('hidden.bs.modal', function() {
                 modalImage.src = '';
                 modalTitle.textContent = 'Client Photo';
-            });
-
-            clientRows.forEach((row) => {
-                const nameButton = row.querySelector('.client-name-link');
-
-                row.addEventListener('click', function(event) {
-                    if (event.target.closest(clientRowInteractiveSelector)) {
-                        return;
-                    }
-
-                    openClientDetailsFromRow(row);
-                });
-
-                row.addEventListener('keydown', function(event) {
-                    if (event.target !== row || (event.key !== 'Enter' && event.key !== ' ')) {
-                        return;
-                    }
-
-                    event.preventDefault();
-                    openClientDetailsFromRow(row);
-                });
-
-                if (nameButton) {
-                    nameButton.addEventListener('click', function(event) {
-                        event.preventDefault();
-                        openClientDetailsFromRow(row);
-                    });
-                }
             });
 
             searchFingerprintBtn.addEventListener('click', function() {
@@ -1083,29 +811,6 @@
                 fingerprintSearchStatus.textContent = 'Place your finger on the scanner...';
                 fingerprintScanAgainBtn.classList.add('d-none');
                 searchFingerprintAndHighlight();
-            });
-
-            clientViewModalEl.addEventListener('hidden.bs.modal', function() {
-                clientViewPhoto.src = @json(asset('assets/images/profile.png'));
-                clientViewName.textContent = 'Client';
-                clientViewSuffix.textContent = '-';
-                clientViewBirthDate.textContent = '-';
-                clientViewAge.textContent = '-';
-                clientViewGender.textContent = '-';
-                clientViewCivilStatus.textContent = '-';
-                clientViewEmail.textContent = '-';
-                clientViewContact.textContent = '-';
-                clientViewContact2.textContent = '-';
-                clientViewAddress.textContent = '-';
-                clientViewBirthplace.textContent = '-';
-                clientViewEducation.textContent = '-';
-                clientViewCourse.textContent = '-';
-                clientViewSector.textContent = '-';
-                clientViewPositionOrganization.textContent = '-';
-                clientViewProvince.textContent = '-';
-                clientViewCity.textContent = '-';
-                clientViewBarangay.textContent = '-';
-                clientViewPageLink.href = '#';
             });
 
             const matchedClientId = new URLSearchParams(window.location.search).get('matched_client');

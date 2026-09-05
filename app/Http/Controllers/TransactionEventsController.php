@@ -139,14 +139,13 @@ class TransactionEventsController extends Controller
             ->all();
     }
 
-    public function records(Request $request)
+    /**
+     * Filters for the Event Records (transferred events) list. Shared by the
+     * records() listing and the bulk-undo ID resolution so "select all pages"
+     * targets exactly the rows the filters show.
+     */
+    private function applyRecordFilters($query, Request $request): void
     {
-        if (!feature_allowed('Event Records')) {
-            abort(404);
-        }
-
-        $query = TransactionEvent::whereNotNull('transferred_at');
-
         if ($search = $request->input('search')) {
             $query->where('full_name', 'like', "%{$search}%");
         }
@@ -180,6 +179,36 @@ class TransactionEventsController extends Controller
             $query->where('transaction_type', $type);
         }
 
+        if ($clientCategory = $request->input('client_category')) {
+            $query->where('client_category', $clientCategory);
+        }
+    }
+
+    /**
+     * Resolve every transferred event id matching the current Event Records
+     * filters (for cross-page bulk undo).
+     *
+     * @return int[]
+     */
+    private function resolveUndoSelectedIds(Request $request): array
+    {
+        $query = TransactionEvent::query()->whereNotNull('transferred_at');
+
+        $this->applyRecordFilters($query, $request);
+
+        return $query->orderByDesc('id')->pluck('id')->map(fn ($id) => (int) $id)->all();
+    }
+
+    public function records(Request $request)
+    {
+        if (!feature_allowed('Event Records')) {
+            abort(404);
+        }
+
+        $query = TransactionEvent::whereNotNull('transferred_at');
+
+        $this->applyRecordFilters($query, $request);
+
         $perPage = (int) $request->input('per_page', 10);
         if (!in_array($perPage, [10, 15, 25, 50, 100], true)) {
             $perPage = 10;
@@ -197,8 +226,11 @@ class TransactionEventsController extends Controller
         $types = TransactionEvent::whereNotNull('transferred_at')
             ->select('transaction_type')->distinct()
             ->pluck('transaction_type')->filter()->sort()->values();
+        $clientCategories = TransactionEvent::whereNotNull('transferred_at')
+            ->select('client_category')->distinct()
+            ->pluck('client_category')->filter()->sort()->values();
 
-        return view('pages.transaction_events.eventRecords', compact('events', 'categories', 'types'));
+        return view('pages.transaction_events.eventRecords', compact('events', 'categories', 'types', 'clientCategories'));
     }
 
     /**
@@ -1461,45 +1493,109 @@ class TransactionEventsController extends Controller
         }
     }
 
-    public function transfer(TransactionEvent $event)
+    /**
+     * Transfer one event into the client list + transaction history.
+     *
+     * When the person already exists in the client list (same first + last
+     * name, plus birth date when the event has one), the transaction is added
+     * to THAT client's history instead of creating a duplicate client.
+     * Otherwise a new client is created first.
+     *
+     * @return array{success: bool, message?: string, created_client?: bool, client?: Client, transaction_id?: string}
+     */
+    /**
+     * Find the client already in the client list matching an event's person
+     * (first + last name, plus birth date when the event has one), covering
+     * both system-created layouts (Juan / Dela / Cruz) and manually encoded
+     * ones (surname kept whole in last_name). Returns null when nobody matches.
+     */
+    private function findExistingTransferClient(TransactionEvent $event): ?Client
+    {
+        $nameParts = $this->splitFullName($event->full_name);
+        $firstName = strtolower(trim($nameParts['first_name'] ?? ''));
+        $lastName = strtolower(trim($nameParts['last_name'] ?? ''));
+        $fullName = strtolower(preg_replace('/\s+/', ' ', trim($event->full_name)));
+
+        $hasSplitName = $firstName !== '' && $lastName !== '';
+        if ($hasSplitName) {
+            $clientQuery = Client::whereRaw('LOWER(TRIM(first_name)) = ?', [$firstName])
+                ->whereRaw('LOWER(TRIM(last_name)) = ?', [$lastName]);
+
+            if (! empty($event->birth_date)) {
+                $clientQuery->whereDate('birth_date', $event->birth_date);
+            }
+
+            $client = $clientQuery->first();
+
+            if ($client) {
+                return $client;
+            }
+        }
+
+        if ($fullName === '' || $firstName === '') {
+            return null;
+        }
+
+        // Manually encoded layout (surname kept whole in last_name):
+        // compare full concatenated names in PHP to stay portable
+        // across MySQL and SQLite (no CONCAT_WS).
+        $candidates = Client::whereRaw('LOWER(TRIM(first_name)) = ?', [$firstName]);
+
+        if (! empty($event->birth_date)) {
+            $candidates->whereDate('birth_date', $event->birth_date);
+        }
+
+        foreach ($candidates->cursor() as $candidate) {
+            $normalize = fn ($parts) => strtolower(preg_replace('/\s+/', ' ', trim(implode(' ', array_filter($parts)))));
+            // With and without the middle name: import files often omit it.
+            $variants = [
+                $normalize([$candidate->first_name, $candidate->middle_name, $candidate->last_name]),
+                $normalize([$candidate->first_name, $candidate->last_name]),
+            ];
+            if (in_array($fullName, $variants, true)) {
+                return $candidate;
+            }
+        }
+
+        return null;
+    }
+
+    private function transferEventToClientHistory(TransactionEvent $event): array
     {
         if (! is_null($event->transferred_at)) {
-            return redirect()->route('transaction-events.index')
-                ->with('error', 'Event #'.$event->id.' is already approved/transferred.');
+            return ['success' => false, 'message' => 'Event #'.$event->id.' is already approved/transferred.'];
         }
 
         if ($event->not_duplicate) {
-            return redirect()->route('transaction-events.duplicate-review')
-                ->with('error', 'Event #'.$event->id.' is marked as not a duplicate and cannot be transferred.');
+            return ['success' => false, 'message' => 'Event #'.$event->id.' is marked as not a duplicate and cannot be transferred.'];
         }
 
-        $nameParts = $this->splitFullName($event->full_name);
-
-        // Each transferred event becomes its own client (distinct by Full Name,
-        // Client Category, Transaction Category, Transaction Type, Event Date).
-        // Existing Client records do not carry the transaction identity, so a
-        // new client is always created for this event.
-        $client = $this->createClientFromImportedEvent([
-            'full_name' => $event->full_name,
-            'age' => $event->age,
-            'contact_no' => $event->contact_no,
-            'address' => $event->address,
-            'birth_date' => $event->birth_date?->format('Y-m-d'),
-            'client_category' => $event->client_category,
-        ]);
-
-        ActivityLog::create([
-            'user_id' => auth()->id(),
-            'action' => 'client_created',
-            'description' => 'Auto-created client '.$client->client_id.' ('.trim($event->full_name).') during event transfer.',
-            'subject_type' => 'Client',
-            'subject_id' => $client->id,
-            'properties' => json_encode(['source' => 'transaction-event-transfer', 'event_id' => $event->id]),
-        ]);
-
         if (empty($event->transaction_category) && empty($event->transaction_type)) {
-            return redirect()->route('transaction-events.index')
-                ->with('error', 'Event #'.$event->id.' has no transaction category or type to transfer.');
+            return ['success' => false, 'message' => 'Event #'.$event->id.' has no transaction category or type to transfer.'];
+        }
+
+        $client = $this->findExistingTransferClient($event);
+
+        $createdClient = false;
+        if (! $client) {
+            $client = $this->createClientFromImportedEvent([
+                'full_name' => $event->full_name,
+                'age' => $event->age,
+                'contact_no' => $event->contact_no,
+                'address' => $event->address,
+                'birth_date' => $event->birth_date?->format('Y-m-d'),
+                'client_category' => $event->client_category,
+            ]);
+            $createdClient = true;
+
+            ActivityLog::create([
+                'user_id' => auth()->id(),
+                'action' => 'client_created',
+                'description' => 'Auto-created client '.$client->client_id.' ('.trim($event->full_name).') during event transfer.',
+                'subject_type' => 'Client',
+                'subject_id' => $client->id,
+                'properties' => json_encode(['source' => 'transaction-event-transfer', 'event_id' => $event->id]),
+            ]);
         }
 
         $transactionId = $this->nextTransferredTransactionId($client->client_id);
@@ -1529,7 +1625,7 @@ class TransactionEventsController extends Controller
             'properties' => ['event_id' => $event->id],
         ]);
 
-        if (! empty($event->client_category)) {
+        if ($createdClient && ! empty($event->client_category)) {
             $client->update(['sector' => $event->client_category]);
         }
 
@@ -1538,12 +1634,68 @@ class TransactionEventsController extends Controller
             'transferred_transaction_id' => $transaction->id,
         ]);
 
+        return [
+            'success' => true,
+            'created_client' => $createdClient,
+            'client' => $client,
+            'transaction_id' => $transactionId,
+        ];
+    }
+
+    public function transfer(TransactionEvent $event)
+    {
+        $result = $this->transferEventToClientHistory($event);
+
+        if (! $result['success']) {
+            $route = $event->not_duplicate ? 'transaction-events.duplicate-review' : 'transaction-events.index';
+
+            return redirect()->route($route)->with('error', $result['message']);
+        }
+
         TransactionHistory::flushDashboardCache();
 
-            $this->clearDuplicateCaches();
+        $this->clearDuplicateCaches();
 
-        return redirect()->route('transaction-events.records')
-            ->with('success', 'Transaction '.$transactionId.' created successfully for '.$client->full_name.'.');
+        $message = 'Transaction '.$result['transaction_id'].' created successfully for '.$result['client']->full_name.'.';
+        if (! $result['created_client']) {
+            $message .= ' Existing client record reused.';
+        }
+
+        return redirect()->route('transaction-events.records')->with('success', $message);
+    }
+
+    /**
+     * Transfer a single event (JSON) for the "1 by 1" flow. Same reuse rules
+     * as transfer(): existing clients get the transaction appended.
+     */
+    public function transferOne(Request $request)
+    {
+        if (auth()->user()->role_name === 'Viewer') {
+            abort(403, 'Viewer role is read-only.');
+        }
+
+        $event = TransactionEvent::find((int) $request->input('event_id'));
+
+        if (! $event) {
+            return response()->json(['success' => false, 'message' => 'Event not found.'], 404);
+        }
+
+        $result = $this->transferEventToClientHistory($event);
+
+        if (! $result['success']) {
+            return response()->json(['success' => false, 'message' => $result['message']], 422);
+        }
+
+        TransactionHistory::flushDashboardCache();
+        $this->clearDuplicateCaches();
+
+        return response()->json([
+            'success' => true,
+            'created_client' => $result['created_client'],
+            'transaction_id' => $result['transaction_id'],
+            'message' => 'Transaction '.$result['transaction_id'].' created for '.$result['client']->full_name
+                .($result['created_client'] ? ' (new client).' : ' (existing client).'),
+        ]);
     }
 
     public function undoTransfer(TransactionEvent $event)
@@ -1553,70 +1705,7 @@ class TransactionEventsController extends Controller
         }
 
         try {
-            $transactionId = DB::transaction(function () use ($event) {
-                $event = TransactionEvent::query()
-                    ->lockForUpdate()
-                    ->findOrFail($event->id);
-
-                if (! $event) {
-                    throw new \RuntimeException('This event record no longer exists.');
-                }
-
-                if (is_null($event->transferred_at)) {
-                    throw new \RuntimeException('Event #'.$event->id.' is not currently transferred.');
-                }
-
-                $transaction = $this->findTransferredTransaction($event);
-
-                if (! $transaction) {
-                    throw new \RuntimeException(
-                        'The transaction created from event #'.$event->id.' could not be found. No changes were made.'
-                    );
-                }
-
-                $transaction = TransactionHistory::query()
-                    ->whereKey($transaction->id)
-                    ->lockForUpdate()
-                    ->first();
-
-                if (! $transaction) {
-                    throw new \RuntimeException(
-                        'The transaction created from event #'.$event->id.' could not be found. No changes were made.'
-                    );
-                }
-
-                if ($transaction->requirements()->exists()) {
-                    throw new \RuntimeException(
-                        'This transfer cannot be undone because the transaction already has supporting requirements. Remove them first.'
-                    );
-                }
-
-                $transactionNumber = $transaction->transaction_id;
-                $transactionHistoryId = $transaction->id;
-
-                $transaction->delete();
-
-                $event->update([
-                    'transferred_at' => null,
-                    'transferred_transaction_id' => null,
-                ]);
-
-                ActivityLog::create([
-                    'user_id' => auth()->id(),
-                    'action' => 'event_transfer_undone',
-                    'description' => 'Undid transfer of transaction event #'.$event->id
-                        .' ('.$event->full_name.') and removed transaction '.$transactionNumber.'.',
-                    'subject_type' => 'TransactionEvent',
-                    'subject_id' => $event->id,
-                    'properties' => [
-                        'event_id' => $event->id,
-                        'transaction_history_id' => $transactionHistoryId,
-                        'transaction_id' => $transactionNumber,
-                    ],
-                ]);
-
-                return $transactionNumber;
-            });
+            $transactionId = $this->undoSingleTransfer($event);
         } catch (\RuntimeException $exception) {
             return redirect()->route('transaction-events.records')
                 ->with('error', $exception->getMessage());
@@ -1627,6 +1716,155 @@ class TransactionEventsController extends Controller
 
         return redirect()->route('transaction-events.records')
             ->with('success', 'Transfer undone. Transaction '.$transactionId.' was removed and the event is pending again.');
+    }
+
+    /**
+     * Undo the transfer of a batch of events. Each event is processed in its
+     * own transaction; failures are collected as skips so one bad record
+     * never blocks the rest.
+     */
+    /**
+     * Return every transferred event id matching the current Event Records
+     * filters so the frontend can undo across all pages.
+     */
+    public function undoTransferSelectedIds(Request $request)
+    {
+        if (auth()->user()->role_name === 'Viewer') {
+            abort(403, 'Viewer role is read-only.');
+        }
+
+        if (! $request->boolean('select_all')) {
+            return response()->json(['success' => false, 'message' => 'Cross-page selection was not requested.'], 422);
+        }
+
+        $ids = $this->resolveUndoSelectedIds($request);
+
+        return response()->json([
+            'success' => true,
+            'ids' => $ids,
+            'total' => count($ids),
+        ]);
+    }
+
+    public function undoTransferSelected(Request $request)
+    {
+        if (auth()->user()->role_name === 'Viewer') {
+            abort(403, 'Viewer role is read-only.');
+        }
+
+        $ids = array_values(array_unique(array_filter(
+            array_map('intval', (array) $request->input('event_ids', [])),
+            fn ($id) => $id > 0
+        )));
+        $ids = array_slice($ids, 0, 1000);
+
+        if (empty($ids)) {
+            return response()->json(['success' => false, 'message' => 'No events selected.'], 422);
+        }
+
+        $events = TransactionEvent::query()->whereIn('id', $ids)->get()->keyBy('id');
+
+        $undone = 0;
+        $skipped = [];
+        foreach ($ids as $id) {
+            $event = $events->get($id);
+
+            if (! $event) {
+                $skipped[] = ['id' => $id, 'reason' => 'Event record no longer exists.'];
+                continue;
+            }
+
+            try {
+                $this->undoSingleTransfer($event);
+                $undone++;
+            } catch (\RuntimeException $exception) {
+                $skipped[] = ['id' => $id, 'reason' => $exception->getMessage()];
+            }
+        }
+
+        TransactionHistory::flushDashboardCache();
+        $this->clearDuplicateCaches();
+
+        return response()->json([
+            'success' => true,
+            'undone' => $undone,
+            'skipped' => count($skipped),
+            'skipped_reasons' => array_slice($skipped, 0, 50),
+        ]);
+    }
+
+    /**
+     * Undo a single event transfer (delete its transaction, reset the event
+     * to pending). Throws RuntimeException when it cannot be undone.
+     *
+     * @return string the removed transaction number
+     */
+    private function undoSingleTransfer(TransactionEvent $event): string
+    {
+        return DB::transaction(function () use ($event) {
+            $event = TransactionEvent::query()
+                ->lockForUpdate()
+                ->findOrFail($event->id);
+
+            if (! $event) {
+                throw new \RuntimeException('This event record no longer exists.');
+            }
+
+            if (is_null($event->transferred_at)) {
+                throw new \RuntimeException('Event #'.$event->id.' is not currently transferred.');
+            }
+
+            $transaction = $this->findTransferredTransaction($event);
+
+            if (! $transaction) {
+                throw new \RuntimeException(
+                    'The transaction created from event #'.$event->id.' could not be found. No changes were made.'
+                );
+            }
+
+            $transaction = TransactionHistory::query()
+                ->whereKey($transaction->id)
+                ->lockForUpdate()
+                ->first();
+
+            if (! $transaction) {
+                throw new \RuntimeException(
+                    'The transaction created from event #'.$event->id.' could not be found. No changes were made.'
+                );
+            }
+
+            if ($transaction->requirements()->exists()) {
+                throw new \RuntimeException(
+                    'This transfer cannot be undone because the transaction already has supporting requirements. Remove them first.'
+                );
+            }
+
+            $transactionNumber = $transaction->transaction_id;
+            $transactionHistoryId = $transaction->id;
+
+            $transaction->delete();
+
+            $event->update([
+                'transferred_at' => null,
+                'transferred_transaction_id' => null,
+            ]);
+
+            ActivityLog::create([
+                'user_id' => auth()->id(),
+                'action' => 'event_transfer_undone',
+                'description' => 'Undid transfer of transaction event #'.$event->id
+                    .' ('.$event->full_name.') and removed transaction '.$transactionNumber.'.',
+                'subject_type' => 'TransactionEvent',
+                'subject_id' => $event->id,
+                'properties' => [
+                    'event_id' => $event->id,
+                    'transaction_history_id' => $transactionHistoryId,
+                    'transaction_id' => $transactionNumber,
+                ],
+            ]);
+
+            return $transactionNumber;
+        });
     }
 
     /**
@@ -1692,12 +1930,11 @@ class TransactionEventsController extends Controller
         ]);
 
         if (! isset($clientCache[$clientKey])) {
-            // A distinct 5-field row always becomes its own client. Existing
-            // Client records do not store the transaction identity, so a new
-            // client is created for each unique (Full Name, Client Category,
-            // Transaction Category, Transaction Type, Event Date) combination.
-            $client = null;
-            $clientCache[$clientKey] = $client;
+            // Like the single Transfer button: reuse the client already in
+            // the client list when the same person matches, so the new
+            // transaction lands in that client's history. Otherwise create
+            // a new client for this row.
+            $clientCache[$clientKey] = $this->findExistingTransferClient($event);
         }
 
         $client = $clientCache[$clientKey];
@@ -1752,7 +1989,7 @@ class TransactionEventsController extends Controller
             'properties' => ['event_id' => $event->id],
         ]);
 
-        if (! empty($event->client_category)) {
+        if ($createdClient && ! empty($event->client_category)) {
             $client->update(['sector' => $event->client_category]);
         }
 
@@ -2822,8 +3059,10 @@ class TransactionEventsController extends Controller
         ]);
     }
 
-    private function storeArchivedTransactionEvents(array $events): string
+    private function storeArchivedTransactionEvents(Collection|array $events): string
     {
+        $events = $events instanceof Collection ? $events->all() : array_values($events);
+
         $archiveRows = array_map(function (TransactionEvent $event) {
             return [
                 'full_name' => $event->full_name,

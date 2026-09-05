@@ -27,7 +27,7 @@
                                 <div>
                                     <div class="fw-bold fs-5">Filter Transactions</div>
                                     <div class="text-muted small">Narrow records by keyword, status, client category,
-                                        service category, and transaction date range. Search covers all pages.</div>
+                                        service category, transaction category/type, and transaction date range. Search covers all pages.</div>
                                 </div>
                                 <div class="d-flex flex-wrap gap-2 align-items-center">
                                     <button type="button" class="btn btn-sm btn-outline-primary"
@@ -39,7 +39,7 @@
                                 </div>
                             </div>
 
-                            <form method="GET" id="transactionFiltersForm" class="mt-3 {{ request()->anyFilled(['search', 'status', 'client_category', 'category_filter', 'date_from', 'date_to']) ? '' : 'd-none' }}">
+                            <form method="GET" id="transactionFiltersForm" class="mt-3 {{ request()->anyFilled(['search', 'status', 'client_category', 'category_filter', 'transaction_category', 'transaction_type', 'date_from', 'date_to']) ? '' : 'd-none' }}">
                                 <div class="row g-3">
                                     <div class="col-12 col-xl-4">
                                         <label for="transactionKeywordInput"
@@ -75,17 +75,28 @@
                                     </div>
                                     @if (!$category)
                                         <div class="col-12 col-md-6 col-xl-2">
-                                            <label for="transactionCategoryFilter"
-                                                class="form-label fw-semibold text-uppercase small">Category</label>
-                                            <select class="form-select" id="transactionCategoryFilter" name="category_filter">
-                                                <option value="">All Categories</option>
-                                                @foreach (($filterCategories ?? []) as $key => $label)
-                                                    <option value="{{ $key }}" {{ request('category_filter') === $key ? 'selected' : '' }}>
-                                                        {{ $label }}</option>
+                                            <label for="transactionTxCategoryFilter"
+                                                class="form-label fw-semibold text-uppercase small">Transaction Category</label>
+                                            <select class="form-select" id="transactionTxCategoryFilter" name="transaction_category">
+                                                <option value="">All Transaction Categories</option>
+                                                @foreach (($filterTransactionCategories ?? []) as $transactionCategory)
+                                                    <option value="{{ $transactionCategory }}" {{ request('transaction_category') === $transactionCategory ? 'selected' : '' }}>
+                                                        {{ $transactionCategory }}</option>
                                                 @endforeach
                                             </select>
                                         </div>
                                     @endif
+                                    <div class="col-12 col-md-6 col-xl-2">
+                                        <label for="transactionTxTypeFilter"
+                                            class="form-label fw-semibold text-uppercase small">Transaction Type</label>
+                                        <select class="form-select" id="transactionTxTypeFilter" name="transaction_type">
+                                            <option value="">All Transaction Types</option>
+                                            @foreach (($filterTransactionTypes ?? []) as $transactionType)
+                                                <option value="{{ $transactionType }}" {{ request('transaction_type') === $transactionType ? 'selected' : '' }}>
+                                                    {{ $transactionType }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
                                     <div class="col-12 col-md-6 col-xl-2">
                                         <label for="transactionDateFrom"
                                             class="form-label fw-semibold text-uppercase small">Date From</label>
@@ -109,7 +120,7 @@
                                 </div>
 
                                 <div class="small mt-3" id="transactionSearchSummary">
-                                    {{ request()->anyFilled(['search', 'status', 'client_category', 'category_filter', 'date_from', 'date_to']) ? 'Filtered transactions are shown below.' : 'Showing all transactions.' }}
+                                    {{ request()->anyFilled(['search', 'status', 'client_category', 'category_filter', 'transaction_category', 'transaction_type', 'date_from', 'date_to']) ? 'Filtered transactions are shown below.' : 'Showing all transactions.' }}
                                 </div>
                             </form>
                         </div>
@@ -142,11 +153,12 @@
                                             data-search-category="{{ strtolower($transaction->category ?? '') }}"
                                             data-search-category-key="{{ strtolower(App\Models\TransactionHistory::normalizeCategory($transaction->category) ?? '') }}"
                                             data-search-type="{{ strtolower($transaction->type ?? '') }}"
+                                            data-search-events-transaction-type="{{ strtolower($transaction->events_transaction_type ?? '') }}"
                                             data-search-clerk="{{ strtolower($transaction->clerk ?? '') }}"
                                             data-search-status="{{ strtolower($transaction->status ?? 'pending') }}"
                                             data-search-client-category="{{ strtolower($transaction->client_category ?? '') }}"
                                             data-search-date="{{ $transaction->transaction_date?->format('Y-m-d') }}"
-                                            data-search-all="{{ strtolower(($transaction->transaction_id ?? '') . ' ' . $clientName . ' ' . ($transaction->client_id ?? '') . ' ' . ($transaction->category ?? '') . ' ' . ($transaction->type ?? '') . ' ' . ($transaction->clerk ?? '') . ' ' . ($transaction->status ?? '') . ' ' . ($transaction->client_category ?? '')) }}">
+                                            data-search-all="{{ strtolower(($transaction->transaction_id ?? '') . ' ' . $clientName . ' ' . ($transaction->client_id ?? '') . ' ' . ($transaction->category ?? '') . ' ' . ($transaction->type ?? '') . ' ' . ($transaction->events_transaction_type ?? '') . ' ' . ($transaction->clerk ?? '') . ' ' . ($transaction->status ?? '') . ' ' . ($transaction->client_category ?? '')) }}">
                                             <td class="fw-semibold">{{ $clientName }}</td>
                                             <td class="small">
                                                 <a href="{{ route('transactions.show', $transaction->id) }}"
@@ -154,7 +166,7 @@
                                             </td>
                                             <td class="small">{{ $transaction->transaction_date?->format('M d, Y') }}</td>
                                             <td class="small">{{ $transaction->category_label ?? '-' }}</td>
-                                            <td class="small">{{ $transaction->type_label }}</td>
+                                            <td class="small">{{ $transaction->events_transaction_type ?: $transaction->type_label }}</td>
                                             <td class="small">{{ $transaction->clerk ?? '-' }}</td>
                                             <td class="text-center">
                                                 <span
@@ -208,6 +220,8 @@
             const transactionStatusFilter = document.getElementById('transactionStatusFilter');
             const transactionClientCategoryFilter = document.getElementById('transactionClientCategoryFilter');
             const transactionCategoryFilter = document.getElementById('transactionCategoryFilter');
+            const transactionTxCategoryFilter = document.getElementById('transactionTxCategoryFilter');
+            const transactionTxTypeFilter = document.getElementById('transactionTxTypeFilter');
             const transactionDateFrom = document.getElementById('transactionDateFrom');
             const transactionDateTo = document.getElementById('transactionDateTo');
             const transactionSearchSummary = document.getElementById('transactionSearchSummary');
@@ -215,7 +229,7 @@
 
             if (!transactionFiltersToggleBtn || !transactionFiltersFormEl || !transactionKeywordInput ||
                 !transactionStatusFilter || !transactionClientCategoryFilter || !transactionDateFrom ||
-                !transactionDateTo || !transactionSearchSummary
+                !transactionDateTo || !transactionSearchSummary || !transactionTxTypeFilter
             ) {
                 return;
             }
@@ -247,6 +261,8 @@
                 const status = transactionStatusFilter.value.trim().toLowerCase();
                 const clientCategory = transactionClientCategoryFilter.value.trim().toLowerCase();
                 const category = transactionCategoryFilter ? transactionCategoryFilter.value.trim().toLowerCase() : '';
+                const txCategory = transactionTxCategoryFilter ? transactionTxCategoryFilter.value.trim().toLowerCase() : '';
+                const txType = transactionTxTypeFilter.value.trim().toLowerCase();
                 const dateFrom = transactionDateFrom.value;
                 const dateTo = transactionDateTo.value;
                 let visibleCount = 0;
@@ -257,14 +273,17 @@
                     const rowClientCategory = (row.dataset.searchClientCategory || '').toLowerCase();
                     const rowCategory = (row.dataset.searchCategory || '').toLowerCase();
                     const rowCategoryKey = (row.dataset.searchCategoryKey || '').toLowerCase();
+                    const rowTxType = (row.dataset.searchEventsTransactionType || '').toLowerCase();
                     const rowDate = row.dataset.searchDate || '';
                     const matchesSearch = !query || searchableValue.includes(query);
                     const matchesStatus = !status || rowStatus === status;
                     const matchesClientCategory = !clientCategory || rowClientCategory === clientCategory;
                     const matchesCategory = !category || rowCategoryKey === category || rowCategory === category;
+                    const matchesTxCategory = !txCategory || rowCategory === txCategory;
+                    const matchesTxType = !txType || rowTxType === txType;
                     const matchesDate = (!dateFrom || rowDate >= dateFrom) && (!dateTo || rowDate <= dateTo);
                     const matches = matchesSearch && matchesStatus && matchesClientCategory &&
-                        matchesCategory && matchesDate;
+                        matchesCategory && matchesTxCategory && matchesTxType && matchesDate;
                     row.classList.toggle('d-none', !matches);
 
                     if (matches) {
@@ -277,7 +296,7 @@
                 }
 
                 if (transactionSearchSummary) {
-                    const activeFilters = [query, status, clientCategory, category, dateFrom, dateTo].filter(
+                    const activeFilters = [query, status, clientCategory, category, txCategory, txType, dateFrom, dateTo].filter(
                         Boolean).length;
                     if (!activeFilters) {
                         transactionSearchSummary.textContent = 'Showing all transactions.';
@@ -294,6 +313,10 @@
             if (transactionCategoryFilter) {
                 transactionCategoryFilter.addEventListener('change', filterTransactionList);
             }
+            if (transactionTxCategoryFilter) {
+                transactionTxCategoryFilter.addEventListener('change', filterTransactionList);
+            }
+            transactionTxTypeFilter.addEventListener('change', filterTransactionList);
             transactionDateFrom.addEventListener('change', filterTransactionList);
             transactionDateTo.addEventListener('change', filterTransactionList);
         });

@@ -22,6 +22,7 @@ class TransactionController extends Controller
                     $q->where('transaction_id', 'like', '%' . $request->search . '%')
                         ->orWhere('clerk', 'like', '%' . $request->search . '%')
                         ->orWhere('type', 'like', '%' . $request->search . '%')
+                        ->orWhere('events_transaction_type', 'like', '%' . $request->search . '%')
                         ->orWhere('category', 'like', '%' . $request->search . '%');
                 });
             })
@@ -30,6 +31,8 @@ class TransactionController extends Controller
             ->when($request->filled('category_filter'), function ($q) use ($request) {
                 $q->whereIn('category', $this->categoryFilterValues($request->input('category_filter')));
             })
+            ->when($request->filled('transaction_category'), fn ($q) => $q->where('category', $request->input('transaction_category')))
+            ->when($request->filled('transaction_type'), fn ($q) => $q->where('events_transaction_type', $request->input('transaction_type')))
             ->when($request->filled('date_from'), fn ($q) => $q->whereDate('transaction_date', '>=', $request->input('date_from')))
             ->when($request->filled('date_to'), fn ($q) => $q->whereDate('transaction_date', '<=', $request->input('date_to')))
             ->orderByDesc('transaction_date')
@@ -69,11 +72,13 @@ class TransactionController extends Controller
                 $query->where(function ($q) use ($request) {
                     $q->where('transaction_id', 'like', '%' . $request->search . '%')
                         ->orWhere('clerk', 'like', '%' . $request->search . '%')
-                        ->orWhere('type', 'like', '%' . $request->search . '%');
+                        ->orWhere('type', 'like', '%' . $request->search . '%')
+                        ->orWhere('events_transaction_type', 'like', '%' . $request->search . '%');
                 });
             })
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->input('status')))
             ->when($request->filled('client_category'), fn ($q) => $q->where('client_category', $request->input('client_category')))
+            ->when($request->filled('transaction_type'), fn ($q) => $q->where('events_transaction_type', $request->input('transaction_type')))
             ->when($request->filled('date_from'), fn ($q) => $q->whereDate('transaction_date', '>=', $request->input('date_from')))
             ->when($request->filled('date_to'), fn ($q) => $q->whereDate('transaction_date', '<=', $request->input('date_to')))
             ->orderByDesc('transaction_date')
@@ -106,10 +111,26 @@ class TransactionController extends Controller
             ->orderBy('client_category')
             ->pluck('client_category');
 
+        $transactionCategories = TransactionHistory::query()
+            ->whereNotNull('category')
+            ->where('category', '<>', '')
+            ->distinct()
+            ->orderBy('category')
+            ->pluck('category');
+
+        $transactionTypes = TransactionHistory::query()
+            ->whereNotNull('events_transaction_type')
+            ->where('events_transaction_type', '<>', '')
+            ->distinct()
+            ->orderBy('events_transaction_type')
+            ->pluck('events_transaction_type');
+
         return [
             'filterStatuses' => $statuses,
             'filterClientCategories' => $clientCategories,
             'filterCategories' => TransactionHistory::CATEGORIES,
+            'filterTransactionCategories' => $transactionCategories,
+            'filterTransactionTypes' => $transactionTypes,
         ];
     }
 
