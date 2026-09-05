@@ -1,4 +1,3 @@
-
 <?php $__env->startSection('title', 'ERS | Dashboard'); ?>
 <?php $__env->startSection('content'); ?>
     <?php
@@ -153,12 +152,22 @@
                 </div>
 
                 <!-- Transaction Trend + Service Category Charts -->
-                <div class="row g-3 mt-1">
-                    <div class="col-lg-6">
+                <div class="row g-3 mt-0    ">
+                    <div class="col-12">
                         <div class="card material-shadow h-100">
-                            <div class="card-header">
-                                <h5 class="mb-0">Total Transactions</h5>
-                                <p class="text-muted mb-0">Transactions per month (January 2026 - present)</p>
+                            <div class="card-header d-flex flex-wrap gap-2 align-items-center justify-content-between">
+                                <div>
+                                    <h5 class="mb-0" id="txTrendTitle">Total Transactions<?php echo e(($txCategory ?? '') !== '' ? ' — ' . $txCategory : ''); ?></h5>
+                                    <p class="text-muted mb-0">Transactions per month (January 2026 - present)</p>
+                                </div>
+                                <select class="form-select form-select-sm w-auto" id="txCategorySelect"
+                                    aria-label="Filter transactions graph by category" title="Filter by transaction category">
+                                    <option value="">All Categories</option>
+                                    <?php $__currentLoopData = ($txCategoryOptions ?? []); $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $option): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                        <option value="<?php echo e($option); ?>" <?php echo e(($txCategory ?? '') === $option ? 'selected' : ''); ?>>
+                                            <?php echo e($option); ?></option>
+                                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                                </select>
                             </div>
                             <div class="card-body">
                                 <div class="w-100" style="height: 260px; position: relative;">
@@ -167,7 +176,13 @@
                             </div>
                         </div>
                     </div>
-                    <div class="col-lg-6">
+                </div>
+
+                <!-- CARAVAN Trend Chart -->
+                
+
+                <div class="row g-3 mt-1">
+                    <div class="col-12">
                         <div class="card material-shadow h-100">
                             <div class="card-header">
                                 <h5 class="mb-0">Service Categories Distributions</h5>
@@ -177,20 +192,8 @@
                                 <div class="w-100" style="height: 260px; position: relative;">
                                     <canvas id="serviceCategoryChart"></canvas>
                                 </div>
+                                <div id="serviceCategoryLegend" class="d-flex flex-wrap gap-2 mt-3"></div>
                             </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- CARAVAN Trend Chart -->
-                <div class="card material-shadow mt-4">
-                    <div class="card-header">
-                        <h5 class="mb-0">CARAVAN Transactions</h5>
-                        <p class="text-muted mb-0">Caravan registrations per month (January 2026 - present)</p>
-                    </div>
-                    <div class="card-body">
-                        <div class="w-100" style="height: 280px; position: relative;">
-                            <canvas id="caravanTrendChart"></canvas>
                         </div>
                     </div>
                 </div>
@@ -206,7 +209,7 @@
                             <i class="ri-time-line me-1"></i> Clock
                         </h6>
                         <div class="d-flex justify-content-center">
-                            <canvas id="dashAnalogClock" width="220" height="220" style="max-width: 100%;"></canvas>
+                            <canvas id="dashAnalogClock" width="375" height="375" style="max-width: 100%;"></canvas>
                         </div>
                         <div class="text-center mt-3">
                             <span id="dashDigitalClock" class="fs-5 fw-semibold text-primary"></span>
@@ -346,16 +349,17 @@
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const txCanvas = document.getElementById('transactionTrendChart');
+            let txChart = null;
             if (txCanvas) {
                 const txLabels = <?php echo json_encode($transactionTrend['labels'], 15, 512) ?>;
                 const txData = <?php echo json_encode($transactionTrend['data'], 15, 512) ?>;
 
-                new Chart(txCanvas, {
+                txChart = new Chart(txCanvas, {
                     type: 'line',
                     data: {
                         labels: txLabels,
                         datasets: [{
-                            label: 'Transactions',
+                            label: <?php echo json_encode(($txCategory ?? '') !== '' ? $txCategory . ' Transactions' : 'Transactions', 15, 512) ?>,
                             data: txData,
                             borderColor: '#0ac074',
                             backgroundColor: 'rgba(10, 192, 116, 0.12)',
@@ -397,6 +401,62 @@
                                 }
                             }
                         }
+                    }
+                });
+            }
+
+            const txCategorySelect = document.getElementById('txCategorySelect');
+            if (txCategorySelect) {
+                // Refresh only the graph (no page reload); fall back to a
+                // full reload only if the data request itself fails.
+                txCategorySelect.addEventListener('change', async function() {
+                    const value = this.value;
+                    txCategorySelect.disabled = true;
+                    try {
+                        const url = new URL('<?php echo e(route('dashboard.transaction-trend')); ?>', window.location.origin);
+                        if (value) {
+                            url.searchParams.set('tx_category', value);
+                        }
+                        const res = await fetch(url.toString(), {
+                            headers: {
+                                'Accept': 'application/json'
+                            }
+                        });
+                        const payload = await res.json();
+                        if (!res.ok || !payload.success) {
+                            throw new Error(payload.message || 'Failed to load graph data.');
+                        }
+                        if (txChart) {
+                            txChart.data.labels = payload.labels;
+                            txChart.data.datasets[0].data = payload.data;
+                            txChart.data.datasets[0].label = payload.category ?
+                                payload.category + ' Transactions' :
+                                'Transactions';
+                            txChart.update();
+                        }
+                        const titleEl = document.getElementById('txTrendTitle');
+                        if (titleEl) {
+                            titleEl.textContent = payload.category ?
+                                'Total Transactions — ' + payload.category :
+                                'Total Transactions';
+                        }
+                        const pageUrl = new URL(window.location.href);
+                        if (value) {
+                            pageUrl.searchParams.set('tx_category', value);
+                        } else {
+                            pageUrl.searchParams.delete('tx_category');
+                        }
+                        window.history.replaceState(null, '', pageUrl.toString());
+                    } catch (error) {
+                        const fallback = new URL(window.location.href);
+                        if (value) {
+                            fallback.searchParams.set('tx_category', value);
+                        } else {
+                            fallback.searchParams.delete('tx_category');
+                        }
+                        window.location.href = fallback.toString();
+                    } finally {
+                        txCategorySelect.disabled = false;
                     }
                 });
             }
@@ -470,7 +530,7 @@
             const data = <?php echo json_encode($chartData, 15, 512) ?>;
             const colors = <?php echo json_encode($chartColors, 15, 512) ?>.slice(0, labels.length);
 
-            new Chart(canvas, {
+            const serviceChart = new Chart(canvas, {
                 type: 'doughnut',
                 data: {
                     labels: labels,
@@ -487,14 +547,7 @@
                     maintainAspectRatio: false,
                     plugins: {
                         legend: {
-                            position: 'right',
-                            labels: {
-                                boxWidth: 12,
-                                boxHeight: 12,
-                                usePointStyle: true,
-                                pointStyle: 'circle',
-                                padding: 12
-                            }
+                            display: false
                         },
                         tooltip: {
                             callbacks: {
@@ -511,6 +564,42 @@
                     cutout: '62%'
                 }
             });
+
+            // Custom HTML legend: always lists every category (including
+            // zero-count ones like OTHERS) with count + share. Click toggles
+            // the slice, mirroring the native legend behavior.
+            const legendEl = document.getElementById('serviceCategoryLegend');
+            if (legendEl) {
+                const legendTotal = data.reduce((a, b) => a + b, 0);
+                labels.forEach(function(label, i) {
+                    const count = data[i] || 0;
+                    const pct = legendTotal > 0 ? (count / legendTotal * 100).toFixed(1) : '0.0';
+                    const item = document.createElement('button');
+                    item.type = 'button';
+                    item.className = 'btn btn-sm btn-light d-inline-flex align-items-center gap-2 border';
+                    item.title = 'Toggle ' + label;
+
+                    const dot = document.createElement('span');
+                    dot.style.cssText = 'width:12px;height:12px;border-radius:50%;background:' + colors[i] + ';flex-shrink:0;';
+
+                    const name = document.createElement('span');
+                    name.textContent = label;
+
+                    const badge = document.createElement('span');
+                    badge.className = 'badge bg-secondary-subtle text-secondary';
+                    badge.textContent = count.toLocaleString() + ' (' + pct + '%)';
+
+                    item.appendChild(dot);
+                    item.appendChild(name);
+                    item.appendChild(badge);
+                    item.addEventListener('click', function() {
+                        serviceChart.toggleDataVisibility(i);
+                        serviceChart.update();
+                        item.classList.toggle('opacity-50');
+                    });
+                    legendEl.appendChild(item);
+                });
+            }
         });
     </script>
 

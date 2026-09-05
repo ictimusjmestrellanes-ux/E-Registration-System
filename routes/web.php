@@ -38,6 +38,7 @@ Route::group(['namespace' => 'App\Http\Controllers'], function () {
         Route::middleware('viewer.readonly')->group(function () {
         // --------------------- Dashboard ------------------//
         Route::get('dashboard', [ProfileController::class, 'dashboard'])->name('dashboard');
+        Route::get('dashboard/transaction-trend', [ProfileController::class, 'transactionTrend'])->name('dashboard.transaction-trend');
 
         // --------------------- Activity Logs ------------------//
         Route::get('activity-logs', [ActivityLogsController::class, 'index'])->name('activity.logs');

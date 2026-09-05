@@ -7,6 +7,7 @@ use App\Models\Client;
 use App\Models\TransactionEvent;
 use App\Models\TransactionHistory;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -203,7 +204,7 @@ class TransactionEventsController extends Controller
     /**
      * Duplicate review for transferred events (Events - Records).
      */
-    public function recordsDuplicates()
+    public function recordsDuplicates(Request $request)
     {
         if (!feature_allowed('Events Records Duplicates')) {
             abort(404);
@@ -249,7 +250,26 @@ class TransactionEventsController extends Controller
         $likelyGroups = $groups['likely'];
         $similarGroups = $groups['similar'];
 
-        return view('pages.transaction_events.recordsDuplicates', compact('exactGroups', 'likelyGroups', 'similarGroups'));
+        $perPage = $this->duplicateEventPerPage($request);
+        $exact = $this->filterDuplicateEventGroups($request, $exactGroups, 'exact_page', $perPage, 'rexact-tab');
+        $likely = $this->filterDuplicateEventGroups($request, $likelyGroups, 'likely_page', $perPage, 'rlikely-tab');
+        $similar = $this->filterDuplicateEventGroups($request, $similarGroups, 'similar_page', $perPage, 'rsimilar-tab');
+
+        return view('pages.transaction_events.recordsDuplicates', array_merge(
+            $this->duplicateEventFilterOptions($exactGroups, $likelyGroups, $similarGroups),
+            [
+                'exactGroups' => $exact['paginator'],
+                'exactGroupsTotal' => $exact['total'],
+                'exactRecordsTotal' => $exact['records'],
+                'likelyGroups' => $likely['paginator'],
+                'likelyGroupsTotal' => $likely['total'],
+                'likelyRecordsTotal' => $likely['records'],
+                'similarGroups' => $similar['paginator'],
+                'similarGroupsTotal' => $similar['total'],
+                'similarRecordsTotal' => $similar['records'],
+                'perPage' => $perPage,
+            ]
+        ));
     }
 
     /**
@@ -371,6 +391,131 @@ class TransactionEventsController extends Controller
         ];
     }
 
+    /**
+     * Filter cached duplicate-event groups (a group is kept when ANY member
+     * matches ALL active filters) and paginate the result for one tab with a
+     * numbered LengthAwarePaginator (own page query param + tab fragment).
+     *
+     * @return array{paginator: LengthAwarePaginator, total: int, records: int}
+     */
+    private function filterDuplicateEventGroups(Request $request, Collection $groups, string $pageParam, int $perPage, string $fragment): array
+    {
+        $keyword = strtolower(trim((string) $request->input('search', '')));
+        $clientCategory = strtolower(trim((string) $request->input('client_category', '')));
+        $transactionCategory = strtolower(trim((string) $request->input('transaction_category', '')));
+        $transactionType = strtolower(trim((string) $request->input('transaction_type', '')));
+        $dateFrom = trim((string) $request->input('date_from', ''));
+        $dateTo = trim((string) $request->input('date_to', ''));
+
+        $memberMatches = function ($e) use ($keyword, $clientCategory, $transactionCategory, $transactionType, $dateFrom, $dateTo) {
+            if ($keyword !== '') {
+                $haystack = strtolower(implode(' ', [
+                    $e->full_name ?? '',
+                    $e->client_category ?? '',
+                    $e->transaction_category ?? '',
+                    $e->transaction_type ?? '',
+                    $e->event_date?->format('Y-m-d') ?? '',
+                    $e->event_date?->format('M d, Y') ?? '',
+                    $e->id ?? '',
+                    optional($e->transferredTransaction)->transaction_id ?? '',
+                ]));
+                if (! str_contains($haystack, $keyword)) {
+                    return false;
+                }
+            }
+            if ($clientCategory !== '' && strtolower(trim((string) ($e->client_category ?? ''))) !== $clientCategory) {
+                return false;
+            }
+            if ($transactionCategory !== '' && strtolower(trim((string) ($e->transaction_category ?? ''))) !== $transactionCategory) {
+                return false;
+            }
+            if ($transactionType !== '' && strtolower(trim((string) ($e->transaction_type ?? ''))) !== $transactionType) {
+                return false;
+            }
+            $eventDate = $e->event_date?->format('Y-m-d') ?? '';
+            if ($dateFrom !== '' && ($eventDate === '' || $eventDate < $dateFrom)) {
+                return false;
+            }
+            if ($dateTo !== '' && ($eventDate === '' || $eventDate > $dateTo)) {
+                return false;
+            }
+
+            return true;
+        };
+
+        $hasFilters = $keyword !== '' || $clientCategory !== '' || $transactionCategory !== ''
+            || $transactionType !== '' || $dateFrom !== '' || $dateTo !== '';
+
+        $filtered = $hasFilters
+            ? $groups->filter(fn ($g) => collect($g['events'] ?? [])->contains($memberMatches))->values()
+            : $groups->values();
+
+        $total = $filtered->count();
+        $pages = max(1, (int) ceil($total / $perPage));
+        $page = min(max(1, (int) $request->input($pageParam, 1)), $pages);
+
+        $paginator = new LengthAwarePaginator(
+            $filtered->forPage($page, $perPage)->values(),
+            $total,
+            $perPage,
+            $page,
+            ['path' => $request->url(), 'pageName' => $pageParam]
+        );
+        $paginator = $paginator->withQueryString()->fragment($fragment);
+
+        return [
+            'paginator' => $paginator,
+            'total' => $total,
+            'records' => $filtered->sum('total'),
+        ];
+    }
+
+    /**
+     * Distinct dropdown options built from cached groups' members.
+     *
+     * @return array{filterClientCategories: array, filterTransactionCategories: array, filterTransactionTypes: array}
+     */
+    private function duplicateEventFilterOptions(Collection ...$allGroups): array
+    {
+        $ccats = [];
+        $tcats = [];
+        $ttypes = [];
+        foreach ($allGroups as $groups) {
+            foreach ($groups as $g) {
+                foreach ($g['events'] ?? [] as $e) {
+                    $cc = trim((string) ($e->client_category ?? ''));
+                    $tc = trim((string) ($e->transaction_category ?? ''));
+                    $tt = trim((string) ($e->transaction_type ?? ''));
+                    if ($cc !== '') {
+                        $ccats[strtolower($cc)] = $cc;
+                    }
+                    if ($tc !== '') {
+                        $tcats[strtolower($tc)] = $tc;
+                    }
+                    if ($tt !== '') {
+                        $ttypes[strtolower($tt)] = $tt;
+                    }
+                }
+            }
+        }
+        asort($ccats);
+        asort($tcats);
+        asort($ttypes);
+
+        return [
+            'filterClientCategories' => array_values($ccats),
+            'filterTransactionCategories' => array_values($tcats),
+            'filterTransactionTypes' => array_values($ttypes),
+        ];
+    }
+
+    private function duplicateEventPerPage(Request $request): int
+    {
+        $perPage = (int) $request->input('per_page', 10);
+
+        return in_array($perPage, [10, 15, 25, 50, 100], true) ? $perPage : 25;
+    }
+
     private function exactEventDuplicateKey(TransactionEvent $event): string
     {
         return implode('|', [
@@ -421,7 +566,7 @@ class TransactionEventsController extends Controller
         ];
     }
 
-    public function duplicateReview()
+    public function duplicateReview(Request $request)
     {
         $cacheKey = 'duplicate_review_v1';
         $cacheTtl = now()->addSeconds(self::DUPLICATE_REVIEW_CACHE_TTL);
@@ -438,13 +583,33 @@ class TransactionEventsController extends Controller
         $likelyGroups = $groups['likely'];
         $similarGroups = $groups['similar'];
 
+        $perPage = $this->duplicateEventPerPage($request);
+        $exact = $this->filterDuplicateEventGroups($request, $exactGroups, 'exact_page', $perPage, 'exact-tab');
+        $likely = $this->filterDuplicateEventGroups($request, $likelyGroups, 'likely_page', $perPage, 'likely-tab');
+        $similar = $this->filterDuplicateEventGroups($request, $similarGroups, 'similar_page', $perPage, 'similar-tab');
+
         $notDuplicates = TransactionEvent::where('not_duplicate', true)
             ->whereNull('transferred_at')
             ->orderByDesc('updated_at')
             ->limit(50)
             ->get();
 
-        return view('pages.transaction_events.duplicateReview', compact('exactGroups', 'likelyGroups', 'similarGroups', 'notDuplicates'));
+        return view('pages.transaction_events.duplicateReview', array_merge(
+            $this->duplicateEventFilterOptions($exactGroups, $likelyGroups, $similarGroups),
+            compact('notDuplicates'),
+            [
+                'exactGroups' => $exact['paginator'],
+                'exactGroupsTotal' => $exact['total'],
+                'exactRecordsTotal' => $exact['records'],
+                'likelyGroups' => $likely['paginator'],
+                'likelyGroupsTotal' => $likely['total'],
+                'likelyRecordsTotal' => $likely['records'],
+                'similarGroups' => $similar['paginator'],
+                'similarGroupsTotal' => $similar['total'],
+                'similarRecordsTotal' => $similar['records'],
+                'perPage' => $perPage,
+            ]
+        ));
     }
 
     public function removedDuplicates()

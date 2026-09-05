@@ -6,6 +6,7 @@ use App\Models\Client;
 use App\Models\TransactionEvent;
 use App\Models\TransactionHistory;
 use Carbon\Carbon;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 
 class ProfileController extends Controller
@@ -20,7 +21,7 @@ class ProfileController extends Controller
         return view('pages.client_profile.settings');
     }
 
-    public function dashboard()
+    public function dashboard(Request $request)
     {
         $totalClients = Cache::remember('dashboard.total_clients', 300, function () {
             return Client::count();
@@ -79,29 +80,32 @@ class ProfileController extends Controller
             return ['labels' => $labels, 'data' => $data];
         });
 
-        $transactionTrend = Cache::remember('dashboard.transaction_trend', 300, function () {
-            $start = Carbon::create(2026, 1, 1)->startOfMonth();
+        $transactionTrend = Cache::remember(
+            'dashboard.transaction_trend',
+            300,
+            fn () => $this->buildTransactionTrendAll()
+        );
 
-            $rows = TransactionHistory::query()
-                ->selectRaw("DATE_FORMAT(transaction_date, '%Y-%m') as month, count(*) as total")
-                ->where('transaction_date', '>=', $start)
-                ->groupBy('month')
-                ->orderBy('month')
-                ->pluck('total', 'month')
-                ->toArray();
+        // Optional per-category filter for the Total Transactions graph
+        // (?tx_category=BIGAY BIGAS SA MASA). Series are sliced from one
+        // cached month x category grid so every option stays instant.
+        $txCategoryOptions = $this->txCategoryOptions();
 
-            $labels = [];
-            $data = [];
-            $cursor = $start->copy();
-            while ($cursor->lte(now())) {
-                $key = $cursor->format('Y-m');
-                $labels[] = $cursor->format('M Y');
-                $data[] = $rows[$key] ?? 0;
-                $cursor->addMonth();
+        $txCategory = trim((string) $request->query('tx_category', ''));
+        if ($txCategory !== '' && ! in_array($txCategory, $txCategoryOptions, true)) {
+            $txCategory = '';
+        }
+
+        if ($txCategory !== '') {
+            $trendByCategory = $this->transactionTrendGrid();
+
+            if (isset($trendByCategory['series'][$txCategory])) {
+                $transactionTrend = [
+                    'labels' => $trendByCategory['labels'],
+                    'data' => $trendByCategory['series'][$txCategory],
+                ];
             }
-
-            return ['labels' => $labels, 'data' => $data];
-        });
+        }
 
         $caravanTrend = Cache::remember('dashboard.caravan_trend', 300, function () {
             $start = Carbon::create(2026, 1, 1)->startOfMonth();
@@ -130,6 +134,121 @@ class ProfileController extends Controller
             return ['labels' => $labels, 'data' => $data];
         });
 
-        return view('pages.dashboard', compact('totalClients', 'totalTransactions', 'categoryCounts', 'categories', 'clientTrend', 'transactionTrend', 'caravanTrend'));
+        return view('pages.dashboard', compact('totalClients', 'totalTransactions', 'txCategoryOptions', 'txCategory', 'categoryCounts', 'categories', 'clientTrend', 'transactionTrend', 'caravanTrend'));
+    }
+
+    /**
+     * JSON feed for the Total Transactions graph so the category filter
+     * refreshes only the chart (no page reload).
+     */
+    public function transactionTrend(Request $request)
+    {
+        $options = $this->txCategoryOptions();
+
+        $txCategory = trim((string) $request->query('tx_category', ''));
+        if ($txCategory !== '' && ! in_array($txCategory, $options, true)) {
+            $txCategory = '';
+        }
+
+        if ($txCategory === '') {
+            $trend = Cache::remember(
+                'dashboard.transaction_trend',
+                300,
+                fn () => $this->buildTransactionTrendAll()
+            );
+        } else {
+            $grid = $this->transactionTrendGrid();
+            $trend = [
+                'labels' => $grid['labels'],
+                'data' => $grid['series'][$txCategory] ?? array_fill(0, count($grid['labels']), 0),
+            ];
+        }
+
+        return response()->json([
+            'success' => true,
+            'category' => $txCategory,
+            'labels' => $trend['labels'],
+            'data' => $trend['data'],
+        ]);
+    }
+
+    private function txCategoryOptions(): array
+    {
+        return Cache::remember('dashboard.tx_category_options', 300, function () {
+            return TransactionHistory::query()
+                ->whereNotNull('category')
+                ->where('category', '<>', '')
+                ->distinct()
+                ->orderBy('category')
+                ->pluck('category')
+                ->all();
+        });
+    }
+
+    private function buildTransactionTrendAll(): array
+    {
+        $start = Carbon::create(2026, 1, 1)->startOfMonth();
+
+        $rows = TransactionHistory::query()
+            ->selectRaw("DATE_FORMAT(transaction_date, '%Y-%m') as month, count(*) as total")
+            ->where('transaction_date', '>=', $start)
+            ->groupBy('month')
+            ->orderBy('month')
+            ->pluck('total', 'month')
+            ->toArray();
+
+        $labels = [];
+        $data = [];
+        $cursor = $start->copy();
+        while ($cursor->lte(now())) {
+            $key = $cursor->format('Y-m');
+            $labels[] = $cursor->format('M Y');
+            $data[] = $rows[$key] ?? 0;
+            $cursor->addMonth();
+        }
+
+        return ['labels' => $labels, 'data' => $data];
+    }
+
+    private function transactionTrendGrid(): array
+    {
+        return Cache::remember('dashboard.transaction_trend_by_category', 300, function () {
+            $start = Carbon::create(2026, 1, 1)->startOfMonth();
+
+            $rows = TransactionHistory::query()
+                ->selectRaw("DATE_FORMAT(transaction_date, '%Y-%m') as month, category, count(*) as total")
+                ->where('transaction_date', '>=', $start)
+                ->whereNotNull('category')
+                ->where('category', '<>', '')
+                ->groupBy('month', 'category')
+                ->get();
+
+            $months = [];
+            $cursor = $start->copy();
+            while ($cursor->lte(now())) {
+                $months[] = $cursor->format('Y-m');
+                $cursor->addMonth();
+            }
+
+            $grid = [];
+            foreach ($rows as $row) {
+                $grid[$row->category][$row->month] = (int) $row->total;
+            }
+
+            $labels = array_map(
+                fn ($m) => Carbon::createFromFormat('Y-m', $m)->format('M Y'),
+                $months
+            );
+            $series = [];
+            foreach ($grid as $cat => $byMonth) {
+                $data = [];
+                foreach ($months as $mk) {
+                    $data[] = $byMonth[$mk] ?? 0;
+                }
+                $series[$cat] = $data;
+            }
+
+            return ['labels' => $labels, 'series' => $series];
+        });
     }
 }

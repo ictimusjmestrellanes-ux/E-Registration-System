@@ -3,6 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Client;
+use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
 
@@ -22,7 +25,7 @@ class DuplicateReviewController extends Controller
         $this->middleware('auth');
     }
 
-    public function index()
+    public function index(Request $request)
     {
         if (!feature_allowed('Duplicate Clients Review')) {
             abort(404);
@@ -48,7 +51,26 @@ class DuplicateReviewController extends Controller
         $likelyGroups = $groups['likely'];
         $similarGroups = $groups['similar'];
 
-        return view('pages.duplicates.index', compact('exactGroups', 'likelyGroups', 'similarGroups'));
+        $perPage = $this->duplicateClientPerPage($request);
+        $exact = $this->filterDuplicateClientGroups($request, $exactGroups, 'exact_page', $perPage, 'exact-tab');
+        $likely = $this->filterDuplicateClientGroups($request, $likelyGroups, 'likely_page', $perPage, 'likely-tab');
+        $similar = $this->filterDuplicateClientGroups($request, $similarGroups, 'similar_page', $perPage, 'similar-tab');
+
+        return view('pages.duplicates.index', array_merge(
+            $this->duplicateClientFilterOptions($exactGroups, $likelyGroups, $similarGroups),
+            [
+                'exactGroups' => $exact['paginator'],
+                'exactGroupsTotal' => $exact['total'],
+                'exactRecordsTotal' => $exact['records'],
+                'likelyGroups' => $likely['paginator'],
+                'likelyGroupsTotal' => $likely['total'],
+                'likelyRecordsTotal' => $likely['records'],
+                'similarGroups' => $similar['paginator'],
+                'similarGroupsTotal' => $similar['total'],
+                'similarRecordsTotal' => $similar['records'],
+                'perPage' => $perPage,
+            ]
+        ));
     }
 
     /**
@@ -444,6 +466,152 @@ class DuplicateReviewController extends Controller
             ->merge($typoGroups)
             ->map(fn ($items) => $this->groupPayload($items))
             ->values();
+    }
+
+    /**
+     * Filter cached duplicate-client groups (a group is kept when ANY member
+     * matches ALL active filters) and paginate the result for one tab with a
+     * numbered LengthAwarePaginator (own page query param + tab fragment).
+     *
+     * @return array{paginator: LengthAwarePaginator, total: int, records: int}
+     */
+    private function filterDuplicateClientGroups(Request $request, Collection $groups, string $pageParam, int $perPage, string $fragment): array
+    {
+        $keyword = strtolower(trim((string) $request->input('search', '')));
+        $gender = strtolower(trim((string) $request->input('gender', '')));
+        $civilStatus = strtolower(trim((string) $request->input('civil_status', '')));
+        $city = strtolower(trim((string) $request->input('city', '')));
+        $barangay = strtolower(trim((string) $request->input('barangay', '')));
+        $dateFrom = trim((string) $request->input('date_from', ''));
+        $dateTo = trim((string) $request->input('date_to', ''));
+
+        $memberMatches = function ($c) use ($keyword, $gender, $civilStatus, $city, $barangay, $dateFrom, $dateTo) {
+            if ($keyword !== '') {
+                $haystack = strtolower(implode(' ', [
+                    $c->first_name ?? '',
+                    $c->middle_name ?? '',
+                    $c->last_name ?? '',
+                    $c->suffix ?? '',
+                    $c->client_id ?? '',
+                    $c->email ?? '',
+                    $c->contact ?? '',
+                    $c->contact_2 ?? '',
+                    $c->address ?? '',
+                    $c->barangay ?? '',
+                    $c->city ?? '',
+                    $c->province ?? '',
+                    $c->sector ?? '',
+                    $c->gender ?? '',
+                    $c->civil_status ?? '',
+                    $c->birth_date?->format('Y-m-d') ?? '',
+                    $c->birth_date?->format('M d, Y') ?? '',
+                    $c->id ?? '',
+                ]));
+                if (! str_contains($haystack, $keyword)) {
+                    return false;
+                }
+            }
+            if ($gender !== '' && strtolower(trim((string) ($c->gender ?? ''))) !== $gender) {
+                return false;
+            }
+            if ($civilStatus !== '' && strtolower(trim((string) ($c->civil_status ?? ''))) !== $civilStatus) {
+                return false;
+            }
+            if ($city !== '' && strtolower(trim((string) ($c->city ?? ''))) !== $city) {
+                return false;
+            }
+            if ($barangay !== '' && strtolower(trim((string) ($c->barangay ?? ''))) !== $barangay) {
+                return false;
+            }
+            $createdAt = $c->created_at?->format('Y-m-d') ?? '';
+            if ($dateFrom !== '' && ($createdAt === '' || $createdAt < $dateFrom)) {
+                return false;
+            }
+            if ($dateTo !== '' && ($createdAt === '' || $createdAt > $dateTo)) {
+                return false;
+            }
+
+            return true;
+        };
+
+        $hasFilters = $keyword !== '' || $gender !== '' || $civilStatus !== ''
+            || $city !== '' || $barangay !== '' || $dateFrom !== '' || $dateTo !== '';
+
+        $filtered = $hasFilters
+            ? $groups->filter(fn ($g) => collect($g['clients'] ?? [])->contains($memberMatches))->values()
+            : $groups->values();
+
+        $total = $filtered->count();
+        $pages = max(1, (int) ceil($total / $perPage));
+        $page = min(max(1, (int) $request->input($pageParam, 1)), $pages);
+
+        $paginator = new LengthAwarePaginator(
+            $filtered->forPage($page, $perPage)->values(),
+            $total,
+            $perPage,
+            $page,
+            ['path' => $request->url(), 'pageName' => $pageParam]
+        );
+        $paginator = $paginator->withQueryString()->fragment($fragment);
+
+        return [
+            'paginator' => $paginator,
+            'total' => $total,
+            'records' => $filtered->sum('total'),
+        ];
+    }
+
+    /**
+     * Distinct dropdown options built from cached groups' members.
+     *
+     * @return array{filterGenders: array, filterCivilStatuses: array, filterCities: array, filterBarangays: array}
+     */
+    private function duplicateClientFilterOptions(Collection ...$allGroups): array
+    {
+        $genders = [];
+        $civilStatuses = [];
+        $cities = [];
+        $barangays = [];
+        foreach ($allGroups as $groups) {
+            foreach ($groups as $g) {
+                foreach ($g['clients'] ?? [] as $c) {
+                    $gender = trim((string) ($c->gender ?? ''));
+                    $civilStatus = trim((string) ($c->civil_status ?? ''));
+                    $city = trim((string) ($c->city ?? ''));
+                    $barangay = trim((string) ($c->barangay ?? ''));
+                    if ($gender !== '') {
+                        $genders[strtolower($gender)] = $gender;
+                    }
+                    if ($civilStatus !== '') {
+                        $civilStatuses[strtolower($civilStatus)] = $civilStatus;
+                    }
+                    if ($city !== '') {
+                        $cities[strtolower($city)] = $city;
+                    }
+                    if ($barangay !== '') {
+                        $barangays[strtolower($barangay)] = $barangay;
+                    }
+                }
+            }
+        }
+        asort($genders);
+        asort($civilStatuses);
+        asort($cities);
+        asort($barangays);
+
+        return [
+            'filterGenders' => array_values($genders),
+            'filterCivilStatuses' => array_values($civilStatuses),
+            'filterCities' => array_values($cities),
+            'filterBarangays' => array_values($barangays),
+        ];
+    }
+
+    private function duplicateClientPerPage(Request $request): int
+    {
+        $perPage = (int) $request->input('per_page', 10);
+
+        return in_array($perPage, [10, 15, 25, 50, 100], true) ? $perPage : 25;
     }
 
     private function groupClientsByKey(array $keys, string $keyExpr): \Illuminate\Support\Collection

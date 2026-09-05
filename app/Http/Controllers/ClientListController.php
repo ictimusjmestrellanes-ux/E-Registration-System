@@ -16,6 +16,7 @@ class ClientListController extends Controller
     public function index(Request $request)
     {
         $matchedClientId = $request->query('matched_client');
+        $groupClientIds = $this->parseGroupClientIds($request);
 
         $perPage = (int) $request->input('per_page', 10);
         if (!in_array($perPage, [10, 15, 25, 50, 100], true)) {
@@ -66,6 +67,9 @@ class ClientListController extends Controller
             ->when($matchedClientId, function ($query, $matchedClientId) {
                 $query->where('id', $matchedClientId);
             })
+            ->when(!empty($groupClientIds), function ($query) use ($groupClientIds) {
+                $query->whereIn('id', $groupClientIds);
+            })
             ->paginate($perPage)
             ->withQueryString();
 
@@ -73,6 +77,20 @@ class ClientListController extends Controller
         $clientBarangays = Client::whereNotNull('barangay')->distinct()->orderBy('barangay')->pluck('barangay');
         $clientCivilStatuses = Client::whereNotNull('civil_status')->distinct()->orderBy('civil_status')->pluck('civil_status');
 
-        return view('pages.clients.clientList', compact('clients', 'matchedClientId', 'clientCities', 'clientBarangays', 'clientCivilStatuses'));
+        return view('pages.clients.clientList', compact('clients', 'matchedClientId', 'groupClientIds', 'clientCities', 'clientBarangays', 'clientCivilStatuses'));
+    }
+
+    /**
+     * Parse the ?client_ids=1,2,3 query param used by the "View in Client
+     * List" button on the Duplicate Clients Review page to show one group.
+     *
+     * @return int[]
+     */
+    private function parseGroupClientIds(Request $request): array
+    {
+        $ids = array_map('intval', explode(',', (string) $request->input('client_ids', '')));
+        $ids = array_values(array_unique(array_filter($ids, fn ($id) => $id > 0)));
+
+        return array_slice($ids, 0, 200);
     }
 }

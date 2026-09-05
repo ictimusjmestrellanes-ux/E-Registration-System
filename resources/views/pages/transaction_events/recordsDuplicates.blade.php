@@ -26,10 +26,10 @@
                 <div class="card">
                     <div class="card-body">
                         @php
-                            $exactCount = $exactGroups->sum('total');
-                            $likelyCount = $likelyGroups->sum('total');
-                            $similarCount = $similarGroups->sum('total');
-                            $totalGroups = $exactGroups->count() + $likelyGroups->count() + $similarGroups->count();
+                            $exactCount = $exactRecordsTotal ?? $exactGroups->sum('total');
+                            $likelyCount = $likelyRecordsTotal ?? $likelyGroups->sum('total');
+                            $similarCount = $similarRecordsTotal ?? $similarGroups->sum('total');
+                            $totalGroups = ($exactGroupsTotal ?? $exactGroups->count()) + ($likelyGroupsTotal ?? $likelyGroups->count()) + ($similarGroupsTotal ?? $similarGroups->count());
                             $totalDuplicates = $exactCount + $likelyCount + $similarCount;
 
                             $renderGroup = function ($group) {
@@ -81,25 +81,127 @@
                                 $out .= '</tbody></table></div></div>';
                                 return $out;
                             };
+
                         @endphp
+
+                        <div class="border rounded-4 p-3 mb-4" id="dupFiltersCard">
+                            <div class="d-flex flex-wrap gap-3 align-items-start justify-content-between mb-0">
+                                <div>
+                                    <div class="fw-bold fs-5">Filter Duplicates</div>
+                                    <div class="text-muted small">Narrow groups by keyword, category, type, and event
+                                        date range.</div>
+                                </div>
+                                <div class="d-flex flex-wrap gap-2 align-items-center">
+                                    <button type="button" class="btn btn-sm btn-outline-primary" id="dupFiltersToggleBtn">
+                                        Show Filters <i class="ri-arrow-down-s-line ms-1"></i>
+                                    </button>
+                                    <a href="{{ route('transaction-events.records-duplicates') }}"
+                                        class="btn btn-sm btn-soft-secondary">Reset</a>
+                                    <select class="form-select form-select-sm w-auto" id="dupPerPageSelect"
+                                        aria-label="Groups per page" title="Groups per page">
+                                        @foreach ([10, 15, 25, 50, 100] as $size)
+                                            <option value="{{ $size }}"
+                                                {{ ($perPage ?? 25) == $size ? 'selected' : '' }}>
+                                                {{ $size }} / page</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                            </div>
+
+                            <form method="GET" id="dupFiltersForm"
+                                class="mt-3 {{ request()->anyFilled(['search', 'client_category', 'transaction_category', 'transaction_type', 'date_from', 'date_to']) ? '' : 'd-none' }}">
+                                <div class="row g-3">
+                                    <div class="col-12 col-xl-4">
+                                        <label for="dupKeywordInput"
+                                            class="form-label fw-semibold text-uppercase small">Keyword Search</label>
+                                        <div class="input-group">
+                                            <span class="input-group-text"><i class="ri-search-line"></i></span>
+                                            <input type="text" class="form-control" id="dupKeywordInput" name="search"
+                                                placeholder="Name, category, type, date, transaction ID..."
+                                                value="{{ request('search') }}">
+                                        </div>
+                                    </div>
+                                    <div class="col-12 col-md-6 col-xl-2">
+                                        <label for="dupClientCategoryFilter"
+                                            class="form-label fw-semibold text-uppercase small">Client Category</label>
+                                        <select class="form-select" id="dupClientCategoryFilter" name="client_category">
+                                            <option value="">All Client Categories</option>
+                                            @foreach (($filterClientCategories ?? []) as $clientCategory)
+                                                <option value="{{ $clientCategory }}"
+                                                    {{ strtolower(request('client_category', '')) === strtolower($clientCategory) ? 'selected' : '' }}>
+                                                    {{ $clientCategory }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                    <div class="col-12 col-md-6 col-xl-2">
+                                        <label for="dupTransactionCategoryFilter"
+                                            class="form-label fw-semibold text-uppercase small">Transaction Category</label>
+                                        <select class="form-select" id="dupTransactionCategoryFilter" name="transaction_category">
+                                            <option value="">All Categories</option>
+                                            @foreach (($filterTransactionCategories ?? []) as $transactionCategory)
+                                                <option value="{{ $transactionCategory }}"
+                                                    {{ strtolower(request('transaction_category', '')) === strtolower($transactionCategory) ? 'selected' : '' }}>
+                                                    {{ $transactionCategory }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                    <div class="col-12 col-md-6 col-xl-2">
+                                        <label for="dupTransactionTypeFilter"
+                                            class="form-label fw-semibold text-uppercase small">Transaction Type</label>
+                                        <select class="form-select" id="dupTransactionTypeFilter" name="transaction_type">
+                                            <option value="">All Types</option>
+                                            @foreach (($filterTransactionTypes ?? []) as $transactionType)
+                                                <option value="{{ $transactionType }}"
+                                                    {{ strtolower(request('transaction_type', '')) === strtolower($transactionType) ? 'selected' : '' }}>
+                                                    {{ $transactionType }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                    <div class="col-12 col-md-6 col-xl-2">
+                                        <label for="dupDateFrom"
+                                            class="form-label fw-semibold text-uppercase small">Date From</label>
+                                        <input type="date" class="form-control" id="dupDateFrom" name="date_from"
+                                            value="{{ request('date_from') }}">
+                                    </div>
+                                    <div class="col-12 col-md-6 col-xl-2">
+                                        <label for="dupDateTo"
+                                            class="form-label fw-semibold text-uppercase small">Date To</label>
+                                        <input type="date" class="form-control" id="dupDateTo" name="date_to"
+                                            value="{{ request('date_to') }}">
+                                    </div>
+                                </div>
+
+                                <div class="row g-3 mt-1 align-items-end">
+                                    <div class="col-12 d-flex gap-2 justify-content-end">
+                                        <button type="submit" class="btn btn-sm btn-primary px-4">
+                                            <i class="ri-filter-3-fill me-1"></i> Apply Filters
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="small mt-3">
+                                    {{ request()->anyFilled(['search', 'client_category', 'transaction_category', 'transaction_type', 'date_from', 'date_to']) ? 'Filtered groups are shown below.' : 'Showing all duplicate groups.' }}
+                                </div>
+                            </form>
+                        </div>
 
                         <ul class="nav nav-tabs mb-4" role="tablist">
                             <li class="nav-item">
                                 <a class="nav-link active" data-bs-toggle="tab" href="#rexact-tab" role="tab">
                                     Exact Match
-                                    <span class="badge bg-danger-subtle text-danger ms-1">{{ $exactGroups->count() }}</span>
+                                    <span class="badge bg-danger-subtle text-danger ms-1">{{ $exactGroupsTotal ?? $exactGroups->count() }}</span>
                                 </a>
                             </li>
                             <li class="nav-item">
                                 <a class="nav-link" data-bs-toggle="tab" href="#rlikely-tab" role="tab">
                                     Likely Match
-                                    <span class="badge bg-warning-subtle text-warning ms-1">{{ $likelyGroups->count() }}</span>
+                                    <span class="badge bg-warning-subtle text-warning ms-1">{{ $likelyGroupsTotal ?? $likelyGroups->count() }}</span>
                                 </a>
                             </li>
                             <li class="nav-item">
                                 <a class="nav-link" data-bs-toggle="tab" href="#rsimilar-tab" role="tab">
                                     Similar Spelling
-                                    <span class="badge bg-info-subtle text-info ms-1">{{ $similarGroups->count() }}</span>
+                                    <span class="badge bg-info-subtle text-info ms-1">{{ $similarGroupsTotal ?? $similarGroups->count() }}</span>
                                 </a>
                             </li>
                         </ul>
@@ -123,6 +225,12 @@
                                         No exact duplicate records found.
                                     </div>
                                 @endforelse
+                                @if ($exactGroups->total() > 0)
+                                    <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between mt-3">
+                                        <div class="small text-muted">Showing {{ $exactGroups->firstItem() }}–{{ $exactGroups->lastItem() }} of {{ $exactGroups->total() }} groups</div>
+                                        {{ $exactGroups->links('pagination::bootstrap-5') }}
+                                    </div>
+                                @endif
                             </div>
 
                             <div class="tab-pane fade" id="rlikely-tab" role="tabpanel">
@@ -142,6 +250,12 @@
                                         No likely duplicate records found.
                                     </div>
                                 @endforelse
+                                @if ($likelyGroups->total() > 0)
+                                    <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between mt-3">
+                                        <div class="small text-muted">Showing {{ $likelyGroups->firstItem() }}–{{ $likelyGroups->lastItem() }} of {{ $likelyGroups->total() }} groups</div>
+                                        {{ $likelyGroups->links('pagination::bootstrap-5') }}
+                                    </div>
+                                @endif
                             </div>
 
                             <div class="tab-pane fade" id="rsimilar-tab" role="tabpanel">
@@ -157,6 +271,12 @@
                                         No similar-spelling records found.
                                     </div>
                                 @endforelse
+                                @if ($similarGroups->total() > 0)
+                                    <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between mt-3">
+                                        <div class="small text-muted">Showing {{ $similarGroups->firstItem() }}–{{ $similarGroups->lastItem() }} of {{ $similarGroups->total() }} groups</div>
+                                        {{ $similarGroups->links('pagination::bootstrap-5') }}
+                                    </div>
+                                @endif
                             </div>
                         </div>
                     </div>
@@ -165,3 +285,40 @@
         </div>
     </div>
 @endsection
+
+@push('scripts')
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const toggleBtn = document.getElementById('dupFiltersToggleBtn');
+            const formEl = document.getElementById('dupFiltersForm');
+            if (!toggleBtn || !formEl) {
+                return;
+            }
+            let filtersVisible = !formEl.classList.contains('d-none');
+            const syncToggleLabel = () => {
+                toggleBtn.innerHTML = filtersVisible ?
+                    'Hide Filters <i class="ri-arrow-up-s-line ms-1"></i>' :
+                    'Show Filters <i class="ri-arrow-down-s-line ms-1"></i>';
+            };
+            syncToggleLabel();
+            toggleBtn.addEventListener('click', function() {
+                filtersVisible = !filtersVisible;
+                formEl.classList.toggle('d-none', !filtersVisible);
+                syncToggleLabel();
+            });
+            document.getElementById('dupPerPageSelect')?.addEventListener('change', function() {
+                const url = new URL(window.location.href);
+                url.searchParams.set('per_page', this.value);
+                ['exact_page', 'likely_page', 'similar_page', 'page'].forEach((k) => url.searchParams.delete(k));
+                window.location.href = url.toString();
+            });
+            const initialHash = window.location.hash;
+            if (initialHash) {
+                const tabTrigger = document.querySelector('a[data-bs-toggle="tab"][href="' + initialHash + '"]');
+                if (tabTrigger) {
+                    bootstrap.Tab.getOrCreateInstance(tabTrigger).show();
+                }
+            }
+        });
+    </script>
+@endpush

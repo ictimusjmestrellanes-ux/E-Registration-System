@@ -1,10 +1,10 @@
 <?php $__env->startSection('title', 'ERS | Duplicate Clients Review'); ?>
 <?php $__env->startSection('content'); ?>
 <?php
-    $exactCount = $exactGroups->sum('total');
-    $likelyCount = $likelyGroups->sum('total');
-    $similarCount = $similarGroups->sum('total');
-    $totalGroups = $exactGroups->count() + $likelyGroups->count() + $similarGroups->count();
+    $exactCount = $exactRecordsTotal ?? $exactGroups->sum('total');
+    $likelyCount = $likelyRecordsTotal ?? $likelyGroups->sum('total');
+    $similarCount = $similarRecordsTotal ?? $similarGroups->sum('total');
+    $totalGroups = ($exactGroupsTotal ?? $exactGroups->count()) + ($likelyGroupsTotal ?? $likelyGroups->count()) + ($similarGroupsTotal ?? $similarGroups->count());
     $totalDuplicates = $exactCount + $likelyCount + $similarCount;
 
     $renderGroup = function ($group) {
@@ -14,7 +14,7 @@
         $out .= '<div>';
         $out .= '<span class="badge bg-danger-subtle text-danger ms-1">' . $group['total'] . ' records</span>';
         $out .= '</div>';
-        $out .= '<a href="' . e(route('client.list', ['duplicate_names' => 1])) . '" class="btn btn-sm btn-outline-secondary">View in Client List</a>';
+            $out .= '<a href="' . e(route('client.list', ['client_ids' => $group['clients']->pluck('id')->implode(',')])) . '" class="btn btn-sm btn-outline-secondary">View in Client List</a>';
         $out .= '</div>';
         $out .= '<div class="table-responsive">';
         $out .= '<table class="table table-sm table-hover align-middle mb-0">';
@@ -35,8 +35,8 @@
             $out .= '</tr>';
         }
         $out .= '</tbody></table></div></div>';
-        return $out;
-    };
+            return $out;
+        };
 ?>
     <div class="container-fluid">
         <div class="row">
@@ -61,23 +61,137 @@
             <div class="col-12">
                 <div class="card">
                     <div class="card-body">
+                        <div class="border rounded-4 p-3 mb-4" id="dupFiltersCard">
+                            <div class="d-flex flex-wrap gap-3 align-items-start justify-content-between mb-0">
+                                <div>
+                                    <div class="fw-bold fs-5">Filter Duplicates</div>
+                                    <div class="text-muted small">Narrow groups by keyword, gender, civil status,
+                                        location, and created date range.</div>
+                                </div>
+                                <div class="d-flex flex-wrap gap-2 align-items-center">
+                                    <button type="button" class="btn btn-sm btn-outline-primary" id="dupFiltersToggleBtn">
+                                        Show Filters <i class="ri-arrow-down-s-line ms-1"></i>
+                                    </button>
+                                    <a href="<?php echo e(route('duplicate.review')); ?>"
+                                        class="btn btn-sm btn-soft-secondary">Reset</a>
+                                    <select class="form-select form-select-sm w-auto" id="dupPerPageSelect"
+                                        aria-label="Groups per page" title="Groups per page">
+                                        <?php $__currentLoopData = [10, 15, 25, 50, 100]; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $size): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                            <option value="<?php echo e($size); ?>"
+                                                <?php echo e(($perPage ?? 25) == $size ? 'selected' : ''); ?>>
+                                                <?php echo e($size); ?> / page</option>
+                                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <form method="GET" id="dupFiltersForm"
+                                class="mt-3 <?php echo e(request()->anyFilled(['search', 'gender', 'civil_status', 'city', 'barangay', 'date_from', 'date_to']) ? '' : 'd-none'); ?>">
+                                <div class="row g-3">
+                                    <div class="col-12 col-xl-4">
+                                        <label for="dupKeywordInput"
+                                            class="form-label fw-semibold text-uppercase small">Keyword Search</label>
+                                        <div class="input-group">
+                                            <span class="input-group-text"><i class="ri-search-line"></i></span>
+                                            <input type="text" class="form-control" id="dupKeywordInput" name="search"
+                                                placeholder="Name, client ID, contact, address..."
+                                                value="<?php echo e(request('search')); ?>">
+                                        </div>
+                                    </div>
+                                    <div class="col-12 col-md-6 col-xl-2">
+                                        <label for="dupGenderFilter"
+                                            class="form-label fw-semibold text-uppercase small">Gender</label>
+                                        <select class="form-select" id="dupGenderFilter" name="gender">
+                                            <option value="">All Gender</option>
+                                            <?php $__currentLoopData = ($filterGenders ?? []); $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $gender): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                                <option value="<?php echo e($gender); ?>"
+                                                    <?php echo e(strtolower(request('gender', '')) === strtolower($gender) ? 'selected' : ''); ?>>
+                                                    <?php echo e($gender); ?></option>
+                                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                                        </select>
+                                    </div>
+                                    <div class="col-12 col-md-6 col-xl-2">
+                                        <label for="dupCivilStatusFilter"
+                                            class="form-label fw-semibold text-uppercase small">Civil Status</label>
+                                        <select class="form-select" id="dupCivilStatusFilter" name="civil_status">
+                                            <option value="">All Statuses</option>
+                                            <?php $__currentLoopData = ($filterCivilStatuses ?? []); $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $civilStatus): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                                <option value="<?php echo e($civilStatus); ?>"
+                                                    <?php echo e(strtolower(request('civil_status', '')) === strtolower($civilStatus) ? 'selected' : ''); ?>>
+                                                    <?php echo e($civilStatus); ?></option>
+                                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                                        </select>
+                                    </div>
+                                    <div class="col-12 col-md-6 col-xl-2">
+                                        <label for="dupCityFilter"
+                                            class="form-label fw-semibold text-uppercase small">City</label>
+                                        <select class="form-select" id="dupCityFilter" name="city">
+                                            <option value="">All Cities</option>
+                                            <?php $__currentLoopData = ($filterCities ?? []); $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $city): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                                <option value="<?php echo e($city); ?>"
+                                                    <?php echo e(strtolower(request('city', '')) === strtolower($city) ? 'selected' : ''); ?>>
+                                                    <?php echo e($city); ?></option>
+                                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                                        </select>
+                                    </div>
+                                    <div class="col-12 col-md-6 col-xl-2">
+                                        <label for="dupBarangayFilter"
+                                            class="form-label fw-semibold text-uppercase small">Barangay</label>
+                                        <select class="form-select" id="dupBarangayFilter" name="barangay">
+                                            <option value="">All Barangays</option>
+                                            <?php $__currentLoopData = ($filterBarangays ?? []); $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $barangay): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                                <option value="<?php echo e($barangay); ?>"
+                                                    <?php echo e(strtolower(request('barangay', '')) === strtolower($barangay) ? 'selected' : ''); ?>>
+                                                    <?php echo e($barangay); ?></option>
+                                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                                        </select>
+                                    </div>
+                                    <div class="col-12 col-md-6 col-xl-2">
+                                        <label for="dupDateFrom"
+                                            class="form-label fw-semibold text-uppercase small">Date From</label>
+                                        <input type="date" class="form-control" id="dupDateFrom" name="date_from"
+                                            value="<?php echo e(request('date_from')); ?>">
+                                    </div>
+                                    <div class="col-12 col-md-6 col-xl-2">
+                                        <label for="dupDateTo"
+                                            class="form-label fw-semibold text-uppercase small">Date To</label>
+                                        <input type="date" class="form-control" id="dupDateTo" name="date_to"
+                                            value="<?php echo e(request('date_to')); ?>">
+                                    </div>
+                                </div>
+
+                                <div class="row g-3 mt-1 align-items-end">
+                                    <div class="col-12 d-flex gap-2 justify-content-end">
+                                        <button type="submit" class="btn btn-sm btn-primary px-4">
+                                            <i class="ri-filter-3-fill me-1"></i> Apply Filters
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="small mt-3">
+                                    <?php echo e(request()->anyFilled(['search', 'gender', 'civil_status', 'city', 'barangay', 'date_from', 'date_to']) ? 'Filtered groups are shown below.' : 'Showing all duplicate groups.'); ?>
+
+                                </div>
+                            </form>
+                        </div>
+
                         <ul class="nav nav-tabs mb-4" role="tablist">
                             <li class="nav-item">
                                 <a class="nav-link active" data-bs-toggle="tab" href="#exact-tab" role="tab">
                                     Exact Match
-                                    <span class="badge bg-danger-subtle text-danger ms-1"><?php echo e($exactGroups->count()); ?></span>
+                                    <span class="badge bg-danger-subtle text-danger ms-1"><?php echo e($exactGroupsTotal ?? $exactGroups->count()); ?></span>
                                 </a>
                             </li>
                             <li class="nav-item">
                                 <a class="nav-link" data-bs-toggle="tab" href="#likely-tab" role="tab">
                                     Likely Match
-                                    <span class="badge bg-warning-subtle text-warning ms-1"><?php echo e($likelyGroups->count()); ?></span>
+                                    <span class="badge bg-warning-subtle text-warning ms-1"><?php echo e($likelyGroupsTotal ?? $likelyGroups->count()); ?></span>
                                 </a>
                             </li>
                             <li class="nav-item">
                                 <a class="nav-link" data-bs-toggle="tab" href="#similar-tab" role="tab">
                                     Similar Spelling
-                                    <span class="badge bg-info-subtle text-info ms-1"><?php echo e($similarGroups->count()); ?></span>
+                                    <span class="badge bg-info-subtle text-info ms-1"><?php echo e($similarGroupsTotal ?? $similarGroups->count()); ?></span>
                                 </a>
                             </li>
                         </ul>
@@ -100,6 +214,13 @@
                                         No exact duplicate records found.
                                     </div>
                                 <?php endif; ?>
+                                <?php if($exactGroups->total() > 0): ?>
+                                    <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between mt-3">
+                                        <div class="small text-muted">Showing <?php echo e($exactGroups->firstItem()); ?>–<?php echo e($exactGroups->lastItem()); ?> of <?php echo e($exactGroups->total()); ?> groups</div>
+                                        <?php echo e($exactGroups->links('pagination::bootstrap-5')); ?>
+
+                                    </div>
+                                <?php endif; ?>
                             </div>
 
                             <div class="tab-pane fade" id="likely-tab" role="tabpanel">
@@ -114,6 +235,13 @@
                                     <div class="text-center text-muted py-5">
                                         <i class="ri-check-double-line fs-1 d-block mb-2"></i>
                                         No likely duplicate records found.
+                                    </div>
+                                <?php endif; ?>
+                                <?php if($likelyGroups->total() > 0): ?>
+                                    <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between mt-3">
+                                        <div class="small text-muted">Showing <?php echo e($likelyGroups->firstItem()); ?>–<?php echo e($likelyGroups->lastItem()); ?> of <?php echo e($likelyGroups->total()); ?> groups</div>
+                                        <?php echo e($likelyGroups->links('pagination::bootstrap-5')); ?>
+
                                     </div>
                                 <?php endif; ?>
                             </div>
@@ -132,6 +260,13 @@
                                         No similar-spelling records found.
                                     </div>
                                 <?php endif; ?>
+                                <?php if($similarGroups->total() > 0): ?>
+                                    <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between mt-3">
+                                        <div class="small text-muted">Showing <?php echo e($similarGroups->firstItem()); ?>–<?php echo e($similarGroups->lastItem()); ?> of <?php echo e($similarGroups->total()); ?> groups</div>
+                                        <?php echo e($similarGroups->links('pagination::bootstrap-5')); ?>
+
+                                    </div>
+                                <?php endif; ?>
                             </div>
                         </div>
                     </div>
@@ -140,4 +275,41 @@
         </div>
     </div>
 <?php $__env->stopSection(); ?>
+
+<?php $__env->startPush('scripts'); ?>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const toggleBtn = document.getElementById('dupFiltersToggleBtn');
+            const formEl = document.getElementById('dupFiltersForm');
+            if (!toggleBtn || !formEl) {
+                return;
+            }
+            let filtersVisible = !formEl.classList.contains('d-none');
+            const syncToggleLabel = () => {
+                toggleBtn.innerHTML = filtersVisible ?
+                    'Hide Filters <i class="ri-arrow-up-s-line ms-1"></i>' :
+                    'Show Filters <i class="ri-arrow-down-s-line ms-1"></i>';
+            };
+            syncToggleLabel();
+            toggleBtn.addEventListener('click', function() {
+                filtersVisible = !filtersVisible;
+                formEl.classList.toggle('d-none', !filtersVisible);
+                syncToggleLabel();
+            });
+            document.getElementById('dupPerPageSelect')?.addEventListener('change', function() {
+                const url = new URL(window.location.href);
+                url.searchParams.set('per_page', this.value);
+                ['exact_page', 'likely_page', 'similar_page', 'page'].forEach((k) => url.searchParams.delete(k));
+                window.location.href = url.toString();
+            });
+            const initialHash = window.location.hash;
+            if (initialHash) {
+                const tabTrigger = document.querySelector('a[data-bs-toggle="tab"][href="' + initialHash + '"]');
+                if (tabTrigger) {
+                    bootstrap.Tab.getOrCreateInstance(tabTrigger).show();
+                }
+            }
+        });
+    </script>
+<?php $__env->stopPush(); ?>
 <?php echo $__env->make('layouts.master', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH C:\xampp\htdocs\E-Reg-System\resources\views\pages\duplicates\index.blade.php ENDPATH**/ ?>

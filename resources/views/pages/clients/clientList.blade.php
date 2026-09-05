@@ -141,11 +141,11 @@
                             <div>
                                 <h4 class="mb-1">Client List</h4>
                                 <p class="text-muted mb-0">
-                                    {{ $matchedClientId ? 'Showing the matched client only.' : 'View all registered clients here.' }}
+                                    {{ $matchedClientId ? 'Showing the matched client only.' : (!empty($groupClientIds ?? []) ? 'Showing clients from the selected duplicate group.' : 'View all registered clients here.') }}
                                 </p>
                             </div>
                             <div class="d-flex flex-wrap gap-2">
-                                @if ($matchedClientId)
+                                @if ($matchedClientId || !empty($groupClientIds ?? []))
                                     <a href="{{ route('client.list') }}" class="btn btn-sm btn-soft-secondary">Show All
                                         Clients</a>
                                 @endif
@@ -170,6 +170,17 @@
                                 class="alert alert-success d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
                                 <div>Fingerprint search matched one client and the list is filtered to that result.</div>
                                 <a href="{{ route('client.list') }}" class="btn btn-sm btn-outline-success">Clear Filter</a>
+                            </div>
+                        @endif
+
+                        @if (!empty($groupClientIds ?? []))
+                            <div
+                                class="alert alert-warning d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+                                <div>Viewing {{ count($groupClientIds) }} client(s) from the selected duplicate group.</div>
+                                <div class="d-flex flex-wrap gap-2">
+                                    <a href="{{ route('duplicate.review') }}" class="btn btn-sm btn-outline-warning">Back
+                                        to Duplicate Review</a>
+                                </div>
                             </div>
                         @endif
 

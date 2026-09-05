@@ -125,7 +125,7 @@
                                         <th>Transaction Type</th>
                                         <th>Clerk</th>
                                         <th style="width: 110px; text-align: center;">Status</th>
-                                        <th style="width: 90px;">Action</th>
+                                        <th style="width: 200px;">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -165,8 +165,8 @@
                                             <td class="text-center">
                                                 @if ($client)
                                                     <a href="{{ route('clients.show', $client) }}"
-                                                        class="btn btn-sm btn-soft-primary" title="View client details">
-                                                        <i class="ri-eye-line"></i>
+                                                        class="btn btn-sm btn-soft-primary" title="View in client details">
+                                                        <i class="ri-eye-line"></i> View in Client Details
                                                     </a>
                                                 @else
                                                     <span class="text-muted">-</span>
