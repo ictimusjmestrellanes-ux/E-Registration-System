@@ -28,6 +28,11 @@ class DuplicateReviewController extends Controller
             abort(404);
         }
 
+        // The similar-spelling scan is memory/CPU heavy; raise limits for
+        // constrained hosts (e.g. Azure App Service) like the import flows do.
+        @ini_set('memory_limit', '512M');
+        @set_time_limit(300);
+
         $cacheKey = 'duplicate_clients_v1';
         $cacheTtl = now()->addSeconds(self::DUPLICATE_CLIENTS_CACHE_TTL);
 
