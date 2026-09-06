@@ -691,7 +691,7 @@
 
                         // Hour numbers
                         cCtx.font = 'bold 13px sans-serif';
-                        cCtx.fillStyle = '#0ab39c';
+                        cCtx.fillStyle = '#000';
                         cCtx.textAlign = 'center';
                         cCtx.textBaseline = 'middle';
                         for (let n = 1; n <= 12; n++) {

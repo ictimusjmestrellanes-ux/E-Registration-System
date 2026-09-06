@@ -861,8 +861,11 @@ class TransactionEventsController extends Controller
         $directory = 'transaction-events-archive';
         $files = Storage::disk('local')->files($directory);
 
+        // Archives always hold CSV content, but older ones kept the source
+        // extension in their name (e.g. ..._data.xlsx), so list those too
+        // instead of hiding them. The .importer.json sidecars never match.
         $archiveFiles = collect($files)
-            ->filter(fn ($path) => str_ends_with(strtolower($path), '.csv'))
+            ->filter(fn ($path) => preg_match('/\.(csv|xlsx|xls)$/i', strtolower($path)) === 1)
             ->map(function ($path) {
                 $filename = basename($path);
                 $uploadedAt = $this->extractArchiveUploadedAt($filename);
@@ -3085,8 +3088,19 @@ class TransactionEventsController extends Controller
         $directory = 'transaction-events-archive';
         Storage::disk('local')->makeDirectory($directory);
 
-        $safeFilename = $this->sanitizeArchiveFilename($originalFilename);
-        $archiveName = sprintf('transaction-events_%s_%s', now()->format('Ymd_His'), $safeFilename);
+        // Archives always store CSV content under a .csv name (even when the
+        // source file was .xlsx), and carry a unique suffix so two imports
+        // finishing in the same second can never overwrite each other.
+        $safeBase = substr($this->sanitizeArchiveFilename(pathinfo($originalFilename, PATHINFO_FILENAME)), 0, 100);
+        if ($safeBase === '') {
+            $safeBase = 'import';
+        }
+        $archiveName = sprintf(
+            'transaction-events_%s_%s_%s.csv',
+            now()->format('Ymd_His'),
+            uniqid(),
+            $safeBase
+        );
         $archivePath = $directory.'/'.$archiveName;
 
         $csvHeader = [
