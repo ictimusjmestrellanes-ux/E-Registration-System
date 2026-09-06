@@ -100,26 +100,6 @@
                         </a>
                     </div>
                     <div class="col-lg-4 col-md-4 col-sm-12">
-                        <a href="#service-categories" class="text-decoration-none">
-                            <div class="card material-shadow border-success border-opacity-25 stat-card h-100">
-                                <div class="card-body">
-                                    <div class="d-flex align-items-center">
-                                        <div class="flex-shrink-0 me-3">
-                                            <div
-                                                class="avatar-sm bg-success bg-opacity-10 rounded-3 d-flex align-items-center justify-content-center">
-                                                <i class="fa-solid fa-layer-group text-success fs-4"></i>
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <p class="text-muted mb-1">Total Categories</p>
-                                            <h3 class="mb-0">{{ count($categories) }}</h3>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </a>
-                    </div>
-                    <div class="col-lg-4 col-md-4 col-sm-12">
                         <a href="{{ route('transactions.index') }}" class="text-decoration-none">
                             <div class="card material-shadow border-info border-opacity-25 stat-card h-100">
                                 <div class="card-body">
@@ -139,6 +119,27 @@
                             </div>
                         </a>
                     </div>
+                    <div class="col-lg-4 col-md-4 col-sm-12">
+                        <a href="#service-categories" class="text-decoration-none">
+                            <div class="card material-shadow border-success border-opacity-25 stat-card h-100">
+                                <div class="card-body">
+                                    <div class="d-flex align-items-center">
+                                        <div class="flex-shrink-0 me-3">
+                                            <div
+                                                class="avatar-sm bg-success bg-opacity-10 rounded-3 d-flex align-items-center justify-content-center">
+                                                <i class="fa-solid fa-layer-group text-success fs-4"></i>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <p class="text-muted mb-1">Total Categories</p>
+                                            <h3 class="mb-0">{{ count($categories) }}</h3>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                    
                 </div>
                 <!--end stat cards-->
 
