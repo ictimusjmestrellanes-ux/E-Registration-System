@@ -44,7 +44,7 @@ class OAuthUserService
             $user->email = $email;
             $user->join_date = now()->toDayDateTimeString();
             $user->status = 'Active';
-            $user->role_name = User::ROLE_DSWD;
+            $user->role_name = User::DEFAULT_NEW_USER_ROLE;
             $user->password = Hash::make(Str::random(48));
         }
 

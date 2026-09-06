@@ -14,12 +14,16 @@ class User extends Authenticatable
 {
     use HasFactory, Notifiable;
 
+    public const ROLE_VIEWER = 'Viewer';
     public const ROLE_DSWD = 'DSWD';
     public const ROLE_STAFF = 'Staff';
     public const ROLE_ADMIN = 'Admin';
     public const ROLE_SUPER_ADMIN = 'Super Admin';
 
+    public const DEFAULT_NEW_USER_ROLE = self::ROLE_VIEWER;
+
     public const ROLES = [
+        self::ROLE_VIEWER,
         self::ROLE_DSWD,
         self::ROLE_STAFF,
         self::ROLE_ADMIN,

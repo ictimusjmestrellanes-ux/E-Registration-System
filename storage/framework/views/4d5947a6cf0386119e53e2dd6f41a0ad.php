@@ -1,7 +1,6 @@
-@extends('layouts.master')
-@section('title', 'ERS | Dashboard')
-@section('content')
-    @php
+<?php $__env->startSection('title', 'ERS | Dashboard'); ?>
+<?php $__env->startSection('content'); ?>
+    <?php
         $categoryMeta = [
             'social_services' => ['fa-hand-holding-heart', 'primary'],
             'solicitation' => ['fa-file-invoice', 'success'],
@@ -41,7 +40,7 @@
                 : (now()->hour >= 12 && now()->hour <= 17
                     ? 'Good Afternoon'
                     : 'Good Evening');
-    @endphp
+    ?>
 
     <style>
         .category-card,
@@ -65,7 +64,7 @@
                         <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
                             <div>
                                 <h4 class="mb-1">Dashboard</h4>
-                                <p class="text-muted mb-0">{{ $timeGreeting }}, {{ auth()->user()?->name ?? 'User' }}.</p>
+                                <p class="text-muted mb-0"><?php echo e($timeGreeting); ?>, <?php echo e(auth()->user()?->name ?? 'User'); ?>.</p>
                             </div>
                         </div>
                     </div>
@@ -80,7 +79,7 @@
                 <!-- Stat Cards -->
                 <div class="row g-3">
                     <div class="col-lg-4 col-md-4 col-sm-12">
-                        <a href="{{ route('client.list') }}" class="text-decoration-none">
+                        <a href="<?php echo e(route('client.list')); ?>" class="text-decoration-none">
                             <div class="card material-shadow border-primary border-opacity-25 stat-card h-100">
                                 <div class="card-body">
                                     <div class="d-flex align-items-center">
@@ -92,7 +91,7 @@
                                         </div>
                                         <div>
                                             <p class="text-muted mb-1">Total Registered Clients</p>
-                                            <h3 class="mb-0">{{ $totalClients }}</h3>
+                                            <h3 class="mb-0"><?php echo e($totalClients); ?></h3>
                                         </div>
                                     </div>
                                 </div>
@@ -112,7 +111,7 @@
                                         </div>
                                         <div>
                                             <p class="text-muted mb-1">Total Categories</p>
-                                            <h3 class="mb-0">{{ count($categories) }}</h3>
+                                            <h3 class="mb-0"><?php echo e(count($categories)); ?></h3>
                                         </div>
                                     </div>
                                 </div>
@@ -120,7 +119,7 @@
                         </a>
                     </div>
                     <div class="col-lg-4 col-md-4 col-sm-12">
-                        <a href="{{ route('transactions.index') }}" class="text-decoration-none">
+                        <a href="<?php echo e(route('transactions.index')); ?>" class="text-decoration-none">
                             <div class="card material-shadow border-info border-opacity-25 stat-card h-100">
                                 <div class="card-body">
                                     <div class="d-flex align-items-center">
@@ -132,7 +131,7 @@
                                         </div>
                                         <div>
                                             <p class="text-muted mb-1">Total Transactions</p>
-                                            <h3 class="mb-0">{{ $totalCategoryTransactions }}</h3>
+                                            <h3 class="mb-0"><?php echo e($totalCategoryTransactions); ?></h3>
                                         </div>
                                     </div>
                                 </div>
@@ -162,7 +161,7 @@
                             <div class="card-header d-flex flex-wrap gap-2 align-items-center justify-content-between">
                                 <div>
                                     <h5 class="mb-0" id="txTrendTitle">Total
-                                        Transactions{{ ($txTrendSuffix ?? '') !== '' ? ' — ' . $txTrendSuffix : '' }}</h5>
+                                        Transactions<?php echo e(($txTrendSuffix ?? '') !== '' ? ' — ' . $txTrendSuffix : ''); ?></h5>
                                     <p class="text-muted mb-0">Transactions per month (January 2026 - present)</p>
                                 </div>
                                 <div class="d-flex flex-wrap gap-2">
@@ -170,21 +169,21 @@
                                         aria-label="Filter transactions graph by category"
                                         title="Filter by transaction category">
                                         <option value="">All Categories</option>
-                                        @foreach ($txCategoryOptions ?? [] as $option)
-                                            <option value="{{ $option }}"
-                                                {{ ($txCategory ?? '') === $option ? 'selected' : '' }}>
-                                                {{ $option }}</option>
-                                        @endforeach
+                                        <?php $__currentLoopData = $txCategoryOptions ?? []; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $option): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                            <option value="<?php echo e($option); ?>"
+                                                <?php echo e(($txCategory ?? '') === $option ? 'selected' : ''); ?>>
+                                                <?php echo e($option); ?></option>
+                                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                     </select>
                                     <select class="form-select form-select-sm w-auto" id="txTypeSelect"
                                         aria-label="Filter transactions graph by transaction type"
                                         title="Filter by transaction type">
                                         <option value="">All Types</option>
-                                        @foreach ($txTypeOptions ?? [] as $option)
-                                            <option value="{{ $option }}"
-                                                {{ ($txType ?? '') === $option ? 'selected' : '' }}>
-                                                {{ $option }}</option>
-                                        @endforeach
+                                        <?php $__currentLoopData = $txTypeOptions ?? []; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $option): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                            <option value="<?php echo e($option); ?>"
+                                                <?php echo e(($txType ?? '') === $option ? 'selected' : ''); ?>>
+                                                <?php echo e($option); ?></option>
+                                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                     </select>
                                 </div>
                             </div>
@@ -198,17 +197,7 @@
                 </div>
 
                 <!-- CARAVAN Trend Chart -->
-                {{-- <div class="card material-shadow mt-4">
-                    <div class="card-header">
-                        <h5 class="mb-0">CARAVAN Transactions</h5>
-                        <p class="text-muted mb-0">Caravan registrations per month (January 2026 - present)</p>
-                    </div>
-                    <div class="card-body">
-                        <div class="w-100" style="height: 280px; position: relative;">
-                            <canvas id="caravanTrendChart"></canvas>
-                        </div>
-                    </div>
-                </div> --}}
+                
 
                 <!-- Service Category Chart -->
                 <div class="row g-3 mt-1">
@@ -301,37 +290,37 @@
                 </div>
             </div>
 
-            @foreach ($categories as $key => $label)
-                @php
+            <?php $__currentLoopData = $categories; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $key => $label): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                <?php
                     [$icon, $color] = $categoryMeta[$key] ?? ['fa-circle', 'secondary'];
                     $count = $categoryCounts[$key] ?? 0;
-                @endphp
+                ?>
                 <div class="col-xl-3 col-lg-4 col-md-6 col-sm-6">
-                    <a href="{{ route('transactions.category', $key) }}" class="text-decoration-none">
+                    <a href="<?php echo e(route('transactions.category', $key)); ?>" class="text-decoration-none">
                         <div class="card material-shadow h-100 category-card">
                             <div class="card-body text-center">
                                 <div
-                                    class="avatar-md bg-{{ $color }} bg-opacity-10 rounded-circle mx-auto mb-3 d-flex align-items-center justify-content-center">
-                                    <i class="fa-solid {{ $icon }} text-{{ $color }} fs-3"></i>
+                                    class="avatar-md bg-<?php echo e($color); ?> bg-opacity-10 rounded-circle mx-auto mb-3 d-flex align-items-center justify-content-center">
+                                    <i class="fa-solid <?php echo e($icon); ?> text-<?php echo e($color); ?> fs-3"></i>
                                 </div>
-                                <h4 class="mb-1">{{ $count }}</h4>
-                                <p class="text-muted mb-0">{{ $label }}</p>
+                                <h4 class="mb-1"><?php echo e($count); ?></h4>
+                                <p class="text-muted mb-0"><?php echo e($label); ?></p>
                             </div>
                         </div>
                     </a>
                 </div>
-            @endforeach
+            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
         </div>
-    @endsection
+    <?php $__env->stopSection(); ?>
 
-    @push('scripts')
-        <script src="{{ asset('assets/libs/chart.js/chart.umd.min.js') }}"></script>
+    <?php $__env->startPush('scripts'); ?>
+        <script src="<?php echo e(asset('assets/libs/chart.js/chart.umd.min.js')); ?>"></script>
         <script>
             document.addEventListener('DOMContentLoaded', function() {
                 const trendCanvas = document.getElementById('clientTrendChart');
                 if (trendCanvas) {
-                    const trendLabels = @json($clientTrend['labels']);
-                    const trendData = @json($clientTrend['data']);
+                    const trendLabels = <?php echo json_encode($clientTrend['labels'], 15, 512) ?>;
+                    const trendData = <?php echo json_encode($clientTrend['data'], 15, 512) ?>;
 
                     new Chart(trendCanvas, {
                         type: 'line',
@@ -390,15 +379,15 @@
                 const txCanvas = document.getElementById('transactionTrendChart');
                 let txChart = null;
                 if (txCanvas) {
-                    const txLabels = @json($transactionTrend['labels']);
-                    const txData = @json($transactionTrend['data']);
+                    const txLabels = <?php echo json_encode($transactionTrend['labels'], 15, 512) ?>;
+                    const txData = <?php echo json_encode($transactionTrend['data'], 15, 512) ?>;
 
                     txChart = new Chart(txCanvas, {
                         type: 'line',
                         data: {
                             labels: txLabels,
                             datasets: [{
-                                label: @json(($txTrendSuffix ?? '') !== '' ? $txTrendSuffix . ' Transactions' : 'Transactions'),
+                                label: <?php echo json_encode(($txTrendSuffix ?? '') !== '' ? $txTrendSuffix . ' Transactions' : 'Transactions', 15, 512) ?>,
                                 data: txData,
                                 borderColor: '#0ac074',
                                 backgroundColor: 'rgba(10, 192, 116, 0.12)',
@@ -497,7 +486,7 @@
                         const type = txTypeSelect ? txTypeSelect.value : '';
                         setTxSelectsDisabled(true);
                         try {
-                            const url = new URL('{{ route('dashboard.transaction-trend') }}', window
+                            const url = new URL('<?php echo e(route('dashboard.transaction-trend')); ?>', window
                                 .location.origin);
                             if (category) {
                                 url.searchParams.set('tx_category', category);
@@ -545,8 +534,8 @@
             document.addEventListener('DOMContentLoaded', function() {
                 const caravanCanvas = document.getElementById('caravanTrendChart');
                 if (caravanCanvas) {
-                    const caravanLabels = @json($caravanTrend['labels']);
-                    const caravanData = @json($caravanTrend['data']);
+                    const caravanLabels = <?php echo json_encode($caravanTrend['labels'], 15, 512) ?>;
+                    const caravanData = <?php echo json_encode($caravanTrend['data'], 15, 512) ?>;
 
                     new Chart(caravanCanvas, {
                         type: 'line',
@@ -605,9 +594,9 @@
                 const canvas = document.getElementById('serviceCategoryChart');
                 if (!canvas) return;
 
-                const labels = @json($chartLabels);
-                const data = @json($chartData);
-                const colors = @json($chartColors).slice(0, labels.length);
+                const labels = <?php echo json_encode($chartLabels, 15, 512) ?>;
+                const data = <?php echo json_encode($chartData, 15, 512) ?>;
+                const colors = <?php echo json_encode($chartColors, 15, 512) ?>.slice(0, labels.length);
 
                 const serviceChart = new Chart(canvas, {
                     type: 'doughnut',
@@ -882,4 +871,6 @@
                 }
             });
         </script>
-    @endpush
+    <?php $__env->stopPush(); ?>
+
+<?php echo $__env->make('layouts.master', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH C:\xampp\htdocs\E-Reg-System\resources\views/pages/dashboard.blade.php ENDPATH**/ ?>

@@ -16,39 +16,47 @@ class PermissionsController extends Controller
         ['feature' => 'Create Client', 'DSWD' => true, 'Staff' => true, 'Admin' => true, 'Super Admin' => true],
         ['feature' => 'Client List', 'DSWD' => true, 'Staff' => true, 'Admin' => true, 'Super Admin' => true],
         ['feature' => 'Archive', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
-        ['feature' => 'Events', 'DSWD' => true, 'Staff' => true, 'Admin' => true, 'Super Admin' => true],
+        ['feature' => 'Events', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
         ['feature' => 'Delete Event', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
         ['feature' => 'Manage Users', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
-        ['feature' => 'Activity Logs', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
-        ['feature' => 'Send Transactions', 'DSWD' => false, 'Staff' => true, 'Admin' => true, 'Super Admin' => true],
-        ['feature' => 'Event Records', 'DSWD' => true, 'Staff' => true, 'Admin' => true, 'Super Admin' => true],
-        ['feature' => 'Events Records Duplicates', 'DSWD' => true, 'Staff' => true, 'Admin' => true, 'Super Admin' => true],
+        ['feature' => 'Activity Logs', 'DSWD' => true, 'Staff' => true, 'Admin' => true, 'Super Admin' => true],
+        ['feature' => 'Send Transactions', 'DSWD' => true, 'Staff' => true, 'Admin' => true, 'Super Admin' => true],
+        ['feature' => 'Event Records', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
+        ['feature' => 'Events Records Duplicates', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
         ['feature' => 'View Archive Files', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
         ['feature' => 'Import CSV', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
-        ['feature' => 'Download Template', 'DSWD' => true, 'Staff' => true, 'Admin' => true, 'Super Admin' => true],
-        ['feature' => 'Edit User Roles', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
-        ['feature' => 'Update User Status', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
+        ['feature' => 'Download Template', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
+        ['feature' => 'Edit User Roles', 'DSWD' => false, 'Staff' => false, 'Admin' => false, 'Super Admin' => true],
+        ['feature' => 'Update User Status', 'DSWD' => false, 'Staff' => false, 'Admin' => false, 'Super Admin' => true],
         ['feature' => 'Add Roles', 'DSWD' => false, 'Staff' => false, 'Admin' => false, 'Super Admin' => true],
         ['feature' => 'Delete Roles', 'DSWD' => false, 'Staff' => false, 'Admin' => false, 'Super Admin' => true],
         ['feature' => 'Transfer Selected', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
         ['feature' => 'Archive Clients', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
-        ['feature' => 'Edit Client', 'DSWD' => false, 'Staff' => true, 'Admin' => true, 'Super Admin' => true],
+        ['feature' => 'Edit Client', 'DSWD' => true, 'Staff' => true, 'Admin' => true, 'Super Admin' => true],
         ['feature' => 'View Client', 'DSWD' => true, 'Staff' => true, 'Admin' => true, 'Super Admin' => true],
         ['feature' => 'Restore Archive', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
         ['feature' => 'View Removed Duplicates', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
         ['feature' => 'Reset Duplicate Review', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
         ['feature' => 'Download Archive', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
-        ['feature' => 'Save Permissions', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
+        ['feature' => 'Save Permissions', 'DSWD' => false, 'Staff' => false, 'Admin' => false, 'Super Admin' => true],
         ['feature' => 'Delete Permissions', 'DSWD' => false, 'Staff' => false, 'Admin' => false, 'Super Admin' => true],
         ['feature' => 'Add Permissions', 'DSWD' => false, 'Staff' => false, 'Admin' => false, 'Super Admin' => true],
         ['feature' => 'Undo Transfer', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
         ['feature' => 'Transfer Event', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
-        ['feature' => 'Mark Not Duplicate', 'DSWD' => false, 'Staff' => true, 'Admin' => true, 'Super Admin' => true],
-        ['feature' => 'Duplicate Review', 'DSWD' => false, 'Staff' => true, 'Admin' => true, 'Super Admin' => true],
+        ['feature' => 'Mark Not Duplicate', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
+        ['feature' => 'Duplicate Review', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
         ['feature' => 'Preview Import', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
         ['feature' => 'Roles', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
         ['feature' => 'Permissions', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
+        ['feature' => 'Duplicate Clients Review', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
     ];
+
+    /**
+     * A brand-new role starts with every feature denied, except these which
+     * default to allowed. New users land on the Viewer role, so keep the
+     * dashboard visible out of the box.
+     */
+    private const VIEWER_DEFAULT_FEATURES = ['Dashboard'];
 
     public function __construct()
     {
@@ -58,6 +66,7 @@ class PermissionsController extends Controller
     public function index()
     {
         $this->seedDefaultsIfEmpty();
+        $this->syncMissingFeatureRows();
 
         $rows = Permission::all();
         $roles = Role::orderBy('name')->pluck('name')->all() ?: User::ROLES;
@@ -83,6 +92,7 @@ class PermissionsController extends Controller
         }
 
         $this->seedDefaultsIfEmpty();
+        $this->syncMissingFeatureRows();
 
         $features = Permission::select('feature')->distinct()->pluck('feature');
 
@@ -186,8 +196,44 @@ class PermissionsController extends Controller
                 Permission::create([
                     'feature' => $row['feature'],
                     'role_name' => $role,
-                    'allowed' => $row[$role] ?? false,
+                    'allowed' => $row[$role] ?? in_array($row['feature'], self::VIEWER_DEFAULT_FEATURES, true),
                 ]);
+            }
+        }
+    }
+
+    /**
+     * Self-healing matrix: every known feature gets a row for every role.
+     * Features never registered (or roles created before a feature existed)
+     * used to fall through to open-by-default access — this closes that gap.
+     * Unknown roles default to disallowed.
+     */
+    private function syncMissingFeatureRows(): void
+    {
+        $defaults = [];
+        foreach (self::DEFAULT_PERMISSIONS as $row) {
+            $defaults[$row['feature']] = $row;
+        }
+
+        $features = array_unique(array_merge(
+            array_keys($defaults),
+            Permission::select('feature')->distinct()->pluck('feature')->all()
+        ));
+        $roles = Role::pluck('name')->all() ?: User::ROLES;
+
+        foreach ($features as $feature) {
+            foreach ($roles as $role) {
+                $exists = Permission::where('feature', $feature)
+                    ->where('role_name', $role)
+                    ->exists();
+
+                if (! $exists) {
+                    Permission::create([
+                        'feature' => $feature,
+                        'role_name' => $role,
+                        'allowed' => $defaults[$feature][$role] ?? in_array($feature, self::VIEWER_DEFAULT_FEATURES, true),
+                    ]);
+                }
             }
         }
     }
