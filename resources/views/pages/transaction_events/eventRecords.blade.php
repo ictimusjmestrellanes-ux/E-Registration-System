@@ -127,6 +127,11 @@
                                         </button>
                                     @endif
 
+                                    <a href="{{ route('transaction-events.records.export', request()->query()) }}"
+                                        class="btn btn-sm btn-soft-success text-nowrap"
+                                        title="Export the currently filtered records to Excel">
+                                        <i class="ri-download-line me-1"></i> Export XLSX
+                                    </a>
                                     <div class="d-flex flex-wrap align-items-center gap-2">
                                         {{-- <span class="small text-muted" id="undoSelectedCount">0 selected</span> --}}
                                         @if (feature_allowed('Undo Transfer'))
@@ -256,16 +261,47 @@
                                         </select>
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
-                                        <label for="recordTypeFilter"
-                                            class="form-label fw-semibold text-uppercase small">Transaction Type</label>
-                                        <select class="form-select" id="recordTypeFilter" name="transaction_type">
-                                            <option value="">All types</option>
-                                            @foreach ($types as $type)
-                                                <option value="{{ $type }}"
-                                                    {{ request('transaction_type') === $type ? 'selected' : '' }}>
-                                                    {{ $type }}</option>
-                                            @endforeach
-                                        </select>
+                                        <label class="form-label fw-semibold text-uppercase small">Transaction Type</label>
+                                        <div class="dropdown w-100">
+                                            <button
+                                                class="btn btn-light border form-select text-start d-flex align-items-center justify-content-between"
+                                                type="button" id="recordTypeFilterBtn" data-bs-toggle="dropdown"
+                                                data-bs-auto-close="outside" aria-expanded="false"
+                                                style="padding: .5rem 0.75rem;">
+                                                <span id="recordTypeFilterLabel">All types</span>
+                                            </button>
+                                            <div class="dropdown-menu w-100" id="recordTypeFilterDropdown">
+                                                <div class="p-2">
+                                                    <div class="form-check mb-2">
+                                                        <input class="form-check-input" type="checkbox"
+                                                            id="recordTypeFilterAll" value="">
+                                                        <label class="form-check-label fw-semibold"
+                                                            for="recordTypeFilterAll">
+                                                            All types
+                                                        </label>
+                                                    </div>
+                                                    <hr class="my-2">
+                                                    @foreach ($types as $type)
+                                                        @php
+                                                            $selectedTypes = collect(
+                                                                (array) request('transaction_type', []),
+                                                            )->filter();
+                                                            $isChecked = $selectedTypes->contains($type);
+                                                        @endphp
+                                                        <div class="form-check">
+                                                            <input class="form-check-input record-type-checkbox"
+                                                                type="checkbox" id="recordTypeFilter_{{ $loop->index }}"
+                                                                value="{{ $type }}"
+                                                                {{ $isChecked ? 'checked' : '' }}>
+                                                            <label class="form-check-label"
+                                                                for="recordTypeFilter_{{ $loop->index }}">
+                                                                {{ $type }}
+                                                            </label>
+                                                        </div>
+                                                    @endforeach
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
                                         <label for="recordDateFrom"
@@ -678,13 +714,22 @@
                         select_all: 1
                     };
                     ['search', 'contact', 'age_from', 'age_to', 'date_from', 'date_to',
-                        'client_category', 'transaction_category', 'transaction_type'
+                        'client_category', 'transaction_category'
                     ].forEach((name) => {
                         const value = params.get(name);
                         if (value !== null && value !== '') {
                             payload[name] = value;
                         }
                     });
+
+                    // Handle transaction_type which can have multiple values
+                    const transactionTypes = params.getAll('transaction_type[]').length > 0 ?
+                        params.getAll('transaction_type[]') :
+                        params.getAll('transaction_type');
+                    const filteredTypes = transactionTypes.filter(v => v !== '');
+                    if (filteredTypes.length > 0) {
+                        payload.transaction_type = filteredTypes;
+                    }
                     const res = await fetch(undoIdsUrl, {
                         method: 'POST',
                         headers: {
@@ -778,6 +823,98 @@
                     pendingUndoIds = [];
                 });
             }
+
+            // Multi-select Transaction Type filter
+            const recordTypeFilterAllCheckbox = document.getElementById('recordTypeFilterAll');
+            const recordTypeCheckboxes = document.querySelectorAll('.record-type-checkbox');
+            const recordTypeFilterLabel = document.getElementById('recordTypeFilterLabel');
+            const recordTypeFilterBtn = document.getElementById('recordTypeFilterBtn');
+            const recordFiltersForm = document.getElementById('recordFiltersForm');
+            let isUpdatingAllCheckbox = false; // Flag to prevent circular event handling
+
+            function updateRecordTypeLabel() {
+                const checkedCount = Array.from(recordTypeCheckboxes).filter(cb => cb.checked).length;
+                const totalCount = recordTypeCheckboxes.length;
+
+                if (checkedCount === 0) {
+                    recordTypeFilterLabel.textContent = 'All types';
+                } else if (checkedCount === totalCount) {
+                    recordTypeFilterLabel.textContent = 'All types';
+                } else if (checkedCount === 1) {
+                    const checkedType = Array.from(recordTypeCheckboxes).find(cb => cb.checked)?.value;
+                    recordTypeFilterLabel.textContent = checkedType || 'All types';
+                } else {
+                    recordTypeFilterLabel.textContent = `${checkedCount} selected`;
+                }
+
+                // Only update "All types" checkbox if not already updating
+                if (!isUpdatingAllCheckbox) {
+                    isUpdatingAllCheckbox = true;
+                    recordTypeFilterAllCheckbox.checked = checkedCount === totalCount;
+                    recordTypeFilterAllCheckbox.indeterminate = checkedCount > 0 && checkedCount < totalCount;
+                    isUpdatingAllCheckbox = false;
+                }
+            }
+
+            // Handle "All types" checkbox
+            if (recordTypeFilterAllCheckbox) {
+                recordTypeFilterAllCheckbox.addEventListener('change', function() {
+                    // Only process if this is a direct user click, not a programmatic update
+                    if (isUpdatingAllCheckbox) return;
+
+                    const shouldCheck = this.checked;
+                    recordTypeCheckboxes.forEach(checkbox => {
+                        checkbox.checked = shouldCheck;
+                    });
+                    // Manually call updateRecordTypeLabel since individual change events won't fire
+                    updateRecordTypeLabel();
+                });
+            }
+
+            // Handle individual type checkboxes
+            recordTypeCheckboxes.forEach(checkbox => {
+                checkbox.addEventListener('change', function() {
+                    // When an individual checkbox changes, update All types checkbox state
+                    updateRecordTypeLabel();
+                });
+            });
+
+            // Handle form submission for multi-select
+            if (recordFiltersForm) {
+                recordFiltersForm.addEventListener('submit', function(e) {
+                    // Remove any existing transaction_type hidden inputs that we may have added before
+                    const existingHiddenInputs = this.querySelectorAll(
+                        'input[type="hidden"][name="transaction_type[]"]');
+                    existingHiddenInputs.forEach(input => input.remove());
+
+                    // Get all checked individual transaction type checkboxes
+                    const checkedTypes = Array.from(recordTypeCheckboxes)
+                        .filter(cb => cb.checked)
+                        .map(cb => cb.value)
+                        .filter(val => val !== ''); // Filter out empty values
+
+                    // Only add hidden inputs if some (but not all) types are selected
+                    // If none selected or all selected, don't add any filter (shows all)
+                    const totalTypes = recordTypeCheckboxes.length;
+
+                    if (checkedTypes.length > 0 && checkedTypes.length < totalTypes) {
+                        // Add hidden input for each checked type
+                        // Use transaction_type[] to ensure Laravel treats it as an array
+                        checkedTypes.forEach(type => {
+                            const hiddenInput = document.createElement('input');
+                            hiddenInput.type = 'hidden';
+                            hiddenInput.name = 'transaction_type[]';
+                            hiddenInput.value = type;
+                            this.appendChild(hiddenInput);
+                        });
+                    }
+
+                    // Form will now submit with the hidden inputs included
+                });
+            }
+
+            // Initialize label on page load
+            updateRecordTypeLabel();
         });
     </script>
 @endpush

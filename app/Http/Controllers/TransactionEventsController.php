@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\ActivityLog;
 use App\Models\Client;
+use App\Models\ImportArchiveFile;
 use App\Models\TransactionEvent;
 use App\Models\TransactionHistory;
 use Illuminate\Http\Request;
@@ -78,6 +79,88 @@ class TransactionEventsController extends Controller
 
         return view('pages.transaction_events.transactionEvents',
             compact('events', 'totalDuplicateGroups', 'duplicateFullNames', 'clientCategories', 'transactionCategories', 'transactionTypes'));
+    }
+
+    /**
+     * Export pending events to XLSX
+     */
+    public function exportEvents(Request $request)
+    {
+        @ini_set('memory_limit', '512M');
+        @set_time_limit(300);
+
+        $query = TransactionEvent::whereNull('transferred_at')->where('not_duplicate', false);
+        $this->applyEventListFilters($query, $request);
+
+        $events = $query->orderByDesc('id')->get([
+            'id', 'full_name', 'age', 'birth_date', 'contact_no', 'address',
+            'client_category', 'transaction_category', 'transaction_type',
+            'event_date', 'created_at',
+        ]);
+
+        $headers = [
+            'ID', 'Full Name', 'Age', 'Birth Date', 'Contact No.', 'Address',
+            'Client Category', 'Transaction Category', 'Transaction Type',
+            'Event Date', 'Created At',
+        ];
+        $widths = [8, 28, 8, 14, 16, 35, 20, 24, 24, 14, 20];
+
+        // Write the worksheet incrementally so large exports stay lean.
+        $sheetPath = tempnam(sys_get_temp_dir(), 'events_sheet_').'.xml';
+        $sheet = fopen($sheetPath, 'w');
+
+        if ($sheet === false) {
+            return back()->with('error', 'Unable to generate the Excel file. Please try again.');
+        }
+
+        fwrite($sheet, '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+            .$this->xlsxColsXml($widths).'<sheetData>');
+
+        $rowNumber = 1;
+        $this->fwriteXlsxRow($sheet, $rowNumber++, $headers, true);
+
+        foreach ($events as $event) {
+            $this->fwriteXlsxRow($sheet, $rowNumber++, [
+                $event->id,
+                $event->full_name ?? '',
+                $event->age ?? '',
+                $event->birth_date?->format('Y-m-d') ?? '',
+                $event->contact_no ?? '',
+                $event->address ?? '',
+                $event->client_category ?? '',
+                $event->transaction_category ?? '',
+                $event->transaction_type ?? '',
+                $event->event_date?->format('Y-m-d') ?? '',
+                $event->created_at?->timezone('Asia/Manila')->format('Y-m-d H:i:s') ?? '',
+            ], false);
+        }
+
+        fwrite($sheet, '</sheetData></worksheet>');
+        fclose($sheet);
+
+        $zipPath = tempnam(sys_get_temp_dir(), 'events_export_').'.xlsx';
+        $zip = new \ZipArchive;
+
+        if (!$zip->open($zipPath, \ZipArchive::CREATE)) {
+            @unlink($sheetPath);
+            return back()->with('error', 'Unable to create Excel file. Please try again.');
+        }
+
+        $zip->addFile($sheetPath, 'xl/worksheets/sheet1.xml');
+        $zip->addFromString('xl/workbook.xml', view('xlsx.workbook')->render());
+        $zip->addFromString('xl/workbookRels.xml', view('xlsx.workbook-rels')->render());
+        $zip->addFromString('xl/theme/theme1.xml', view('xlsx.theme')->render());
+        $zip->addFromString('xl/styles.xml', view('xlsx.styles')->render());
+        $zip->addFromString('[Content_Types].xml', view('xlsx.content-types')->render());
+        $zip->addFromString('_rels/.rels', view('xlsx.rels')->render());
+        $zip->close();
+
+        @unlink($sheetPath);
+
+        return response()->download($zipPath, 'transaction-events-' . now()->format('YmdHis') . '.xlsx', [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ])->deleteFileAfterSend(true);
     }
 
     /**
@@ -175,8 +258,19 @@ class TransactionEventsController extends Controller
             $query->where('transaction_category', $category);
         }
 
-        if ($type = $request->input('transaction_type')) {
-            $query->where('transaction_type', $type);
+        // Handle both single value and multiple values for transaction_type
+        $types = $request->input('transaction_type') ?? $request->input('transaction_type[]');
+        if ($types) {
+            if (is_array($types)) {
+                // Filter out empty values
+                $types = array_filter($types);
+                if (!empty($types)) {
+                    $query->whereIn('transaction_type', $types);
+                }
+            } else {
+                // Single value (backward compatibility)
+                $query->where('transaction_type', $types);
+            }
         }
 
         if ($clientCategory = $request->input('client_category')) {
@@ -231,6 +325,163 @@ class TransactionEventsController extends Controller
             ->pluck('client_category')->filter()->sort()->values();
 
         return view('pages.transaction_events.eventRecords', compact('events', 'categories', 'types', 'clientCategories'));
+    }
+
+    /**
+     * Export the currently filtered Event Records to .xlsx (same filters as
+     * the listing; all matching rows across pages, not just the current one).
+     */
+    public function exportRecords(Request $request)
+    {
+        if (!feature_allowed('Event Records')) {
+            abort(404);
+        }
+
+        @ini_set('memory_limit', '512M');
+        @set_time_limit(300);
+
+        $query = TransactionEvent::whereNotNull('transferred_at');
+        $this->applyRecordFilters($query, $request);
+
+        $events = $query->with('transferredTransaction:id,transaction_id')
+            ->orderByDesc('id')->get([
+                'id', 'full_name', 'age', 'birth_date', 'contact_no', 'address',
+                'client_category', 'transaction_category', 'transaction_type',
+                'event_date', 'transferred_at', 'transferred_transaction_id',
+            ]);
+
+        // Resolve each event's client through its linked transaction history
+        // (events carry no client_id themselves).
+        $histories = TransactionHistory::whereIn(
+            'id',
+            $events->pluck('transferred_transaction_id')->filter()->unique()->values()->all()
+        )->get(['id', 'client_id'])->keyBy('id');
+
+        $clients = Client::whereIn('client_id', $histories->pluck('client_id')->filter()->unique()->values()->all())
+            ->get(['client_id', 'first_name', 'middle_name', 'last_name', 'suffix'])
+            ->keyBy('client_id');
+
+        $headers = [
+            'ID', 'Transaction ID', 'Client Name', 'Age', 'Birth Date', 'Contact No.',
+            'Address', 'Client Category', 'Transaction Category', 'Transaction Type',
+            'Event Date', 'Transferred At', 'Status',
+        ];
+        $widths = [8, 22, 28, 8, 14, 16, 35, 20, 24, 24, 14, 20, 12];
+
+        // Write the worksheet incrementally so large exports stay lean.
+        $sheetPath = tempnam(sys_get_temp_dir(), 'records_sheet_').'.xml';
+        $sheet = fopen($sheetPath, 'w');
+
+        if ($sheet === false) {
+            return back()->with('error', 'Unable to generate the Excel file. Please try again.');
+        }
+
+        fwrite($sheet, '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+            .$this->xlsxColsXml($widths).'<sheetData>');
+
+        $rowNumber = 1;
+        $this->fwriteXlsxRow($sheet, $rowNumber++, $headers, true);
+
+        foreach ($events as $event) {
+            $history = $event->transferred_transaction_id
+                ? $histories->get($event->transferred_transaction_id)
+                : null;
+            $client = $history ? $clients->get($history->client_id) : null;
+            $this->fwriteXlsxRow($sheet, $rowNumber++, [
+                $event->id,
+                $event->transferredTransaction?->transaction_id ?? '',
+                $client ? $client->full_name : ($event->full_name ?? ''),
+                $event->age ?? '',
+                $event->birth_date?->format('Y-m-d') ?? '',
+                $event->contact_no ?? '',
+                $event->address ?? '',
+                $event->client_category ?? '',
+                $event->transaction_category ?? '',
+                $event->transaction_type ?? '',
+                $event->event_date?->format('Y-m-d') ?? '',
+                $event->transferred_at?->timezone('Asia/Manila')->format('Y-m-d H:i:s') ?? '',
+                'Approved',
+            ], false);
+        }
+
+        fwrite($sheet, '</sheetData></worksheet>');
+        fclose($sheet);
+
+        $zipPath = tempnam(sys_get_temp_dir(), 'records_export_').'.xlsx';
+        $zip = new \ZipArchive;
+
+        if ($zip->open($zipPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) {
+            @unlink($sheetPath);
+
+            return back()->with('error', 'Unable to generate the Excel file. Please try again.');
+        }
+
+        $zip->addFromString('[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+            .'<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+            .'<Default Extension="xml" ContentType="application/xml"/>'
+            .'<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+            .'<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+            .'<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'
+            .'</Types>');
+        $zip->addFromString('_rels/.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            .'<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'
+            .'</Relationships>');
+        $zip->addFromString('xl/workbook.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+            .'<sheets><sheet name="Event Records" sheetId="1" r:id="rId1"/></sheets>'
+            .'</workbook>');
+        $zip->addFromString('xl/_rels/workbook.xml.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            .'<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'
+            .'<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
+            .'</Relationships>');
+        $zip->addFromString('xl/styles.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+            .'<fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts>'
+            .'<fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>'
+            .'<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>'
+            .'<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
+            .'<cellXfs count="2">'
+            .'<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
+            .'<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/>'
+            .'</cellXfs>'
+            .'<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>'
+            .'</styleSheet>');
+        $zip->addFile($sheetPath, 'xl/worksheets/sheet1.xml');
+        $zip->close();
+        @unlink($sheetPath);
+
+        return response()->download($zipPath, 'event-records_'.now()->format('Ymd_His').'.xlsx', [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ])->deleteFileAfterSend(true);
+    }
+
+    private function xlsxColsXml(array $widths): string
+    {
+        $cols = '';
+        foreach ($widths as $i => $width) {
+            $cols .= '<col min="'.($i + 1).'" max="'.($i + 1)."\" width=\"{$width}\" customWidth=\"1\"/>";
+        }
+
+        return "<cols>{$cols}</cols>";
+    }
+
+    private function fwriteXlsxRow($handle, int $rowNumber, array $cells, bool $bold): void
+    {
+        $style = $bold ? ' s="1"' : '';
+        $xml = '<row r="'.$rowNumber.'">';
+
+        foreach (array_values($cells) as $i => $cell) {
+            $ref = $this->excelColumnName($i + 1).$rowNumber;
+            $value = htmlspecialchars((string) ($cell ?? ''), ENT_XML1 | ENT_QUOTES, 'UTF-8');
+            $xml .= "<c r=\"{$ref}\" t=\"inlineStr\"{$style}><is><t xml:space=\"preserve\">{$value}</t></is></c>";
+        }
+
+        $xml .= '</row>';
+        fwrite($handle, $xml);
     }
 
     /**
@@ -858,56 +1109,30 @@ class TransactionEventsController extends Controller
             abort(404);
         }
 
-        $directory = 'transaction-events-archive';
-        $files = Storage::disk('local')->files($directory);
-
-        // Archives always hold CSV content, but older ones kept the source
-        // extension in their name (e.g. ..._data.xlsx), so list those too
-        // instead of hiding them. The .importer.json sidecars never match.
-        $archiveFiles = collect($files)
-            ->filter(fn ($path) => preg_match('/\.(csv|xlsx|xls)$/i', strtolower($path)) === 1)
-            ->map(function ($path) {
-                $filename = basename($path);
-                $uploadedAt = $this->extractArchiveUploadedAt($filename);
-                $importedBy = null;
-
-                $metaPath = $path.'.importer.json';
-                if (Storage::disk('local')->exists($metaPath)) {
-                    $meta = json_decode(Storage::disk('local')->get($metaPath), true);
-                    if (is_array($meta) && ! empty($meta['imported_by'])) {
-                        $importedBy = $meta;
-                    }
-                }
+        // Archive files are tracked in the database (backfilled from disk for
+        // older files), so the list no longer depends on a directory scan.
+        $archiveFiles = ImportArchiveFile::query()
+            ->orderByDesc('imported_at')
+            ->orderByDesc('id')
+            ->get()
+            ->map(function (ImportArchiveFile $row) {
+                $path = 'transaction-events-archive/' . $row->filename;
 
                 return [
-                    'name' => $filename,
+                    'name' => $row->filename,
                     'path' => $path,
-                    'download_url' => route('transaction-events.archives.download', ['filename' => $filename]),
-                    'size' => Storage::disk('local')->size($path),
-                    'modified_at' => Storage::disk('local')->lastModified($path),
-                    'uploaded_at' => $uploadedAt ?? Storage::disk('local')->lastModified($path),
-                    'imported_by' => $importedBy,
+                    'download_url' => route('transaction-events.archives.download', ['filename' => $row->filename]),
+                    'size' => (int) $row->file_size,
+                    'modified_at' => $row->imported_at?->timestamp ?? $row->created_at?->timestamp ?? now()->timestamp,
+                    'uploaded_at' => $row->imported_at?->timestamp ?? $row->created_at?->timestamp ?? now()->timestamp,
+                    'imported_by' => $row->imported_by
+                        ? ['imported_by' => $row->imported_by, 'role' => $row->role]
+                        : null,
                 ];
             })
-            ->sortByDesc('uploaded_at')
             ->values();
 
         return view('pages.transaction_events.transactionEventArchives', ['files' => $archiveFiles]);
-    }
-
-    private function extractArchiveUploadedAt(string $filename): ?int
-    {
-        if (preg_match('/transaction-events_(\d{8})_(\d{6})/i', $filename, $matches)) {
-            $date = $matches[1];
-            $time = $matches[2];
-
-            $timestamp = \DateTime::createFromFormat('YmdHis', $date.$time, new \DateTimeZone('UTC'));
-            if ($timestamp !== false) {
-                return $timestamp->getTimestamp();
-            }
-        }
-
-        return null;
     }
 
     public function downloadArchive(string $filename)
@@ -3080,10 +3305,10 @@ class TransactionEventsController extends Controller
             ];
         }, $events);
 
-        return $this->storeImportedEventArchive($archiveRows, 'transferred_transaction_events.csv');
+        return $this->storeImportedEventArchive($archiveRows, 'transferred_transaction_events.csv', 'transfer');
     }
 
-    private function storeImportedEventArchive(array $events, string $originalFilename): string
+    private function storeImportedEventArchive(array $events, string $originalFilename, string $source = 'import'): string
     {
         $directory = 'transaction-events-archive';
         Storage::disk('local')->makeDirectory($directory);
@@ -3139,14 +3364,18 @@ class TransactionEventsController extends Controller
         Storage::disk('local')->put($archivePath, $csvContents);
 
         $user = auth()->user();
-        Storage::disk('local')->put(
-            $directory.'/'.$archiveName.'.importer.json',
-            json_encode([
+        ImportArchiveFile::updateOrCreate(
+            ['filename' => $archiveName],
+            [
+                'original_filename' => $originalFilename,
+                'rows_count' => count($events),
+                'file_size' => strlen($csvContents),
+                'source' => $source,
                 'imported_by_id' => $user?->id,
-                'imported_by' => $user->name ?? 'System',
-                'role' => $user->role_name ?? '',
-                'imported_at' => now()->toDateTimeString(),
-            ], JSON_INVALID_UTF8_SUBSTITUTE)
+                'imported_by' => $user?->name ?? 'System',
+                'role' => $user?->role_name ?? '',
+                'imported_at' => now(),
+            ]
         );
 
         return $archiveName;

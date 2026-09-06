@@ -161,6 +161,11 @@
                                         <i class="ri-upload-2-line me-1"></i> Not Allowed to Import CSV
                                     </button>
                                 @endif
+                                <a href="{{ route('transaction-events.export', request()->query()) }}"
+                                    class="btn btn-sm btn-soft-success text-nowrap"
+                                    title="Export the currently filtered pending events to Excel">
+                                    <i class="ri-download-line me-1"></i> Export XLSX
+                                </a>
                             @endunless
                             <span class="badge bg-primary-subtle text-primary px-4 py-2">{{ $events->total() }} total</span>
                         </div>
@@ -298,16 +303,43 @@
                                         </select>
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
-                                        <label for="eventTransactionType"
-                                            class="form-label fw-semibold text-uppercase small">Transaction Type</label>
-                                        <select class="form-select" id="eventTransactionType" name="transaction_type">
-                                            <option value="">All types</option>
-                                            @foreach ($transactionTypes as $txType)
-                                                <option value="{{ $txType }}"
-                                                    {{ request('transaction_type') === $txType ? 'selected' : '' }}>
-                                                    {{ $txType }}</option>
-                                            @endforeach
-                                        </select>
+                                        <label class="form-label fw-semibold text-uppercase small">Transaction Type</label>
+                                        <div class="dropdown w-100">
+                                            <button class="btn btn-light border form-select text-start d-flex align-items-center justify-content-between"
+                                                type="button" id="eventTypeFilterBtn" data-bs-toggle="dropdown"
+                                                data-bs-auto-close="outside" aria-expanded="false" style="padding: 0.5rem 0.75rem;">
+                                                <span id="eventTypeFilterLabel">All types</span>
+                                                <i class="ri-arrow-down-s-line ms-2 flex-shrink-0"></i>
+                                            </button>
+                                            <div class="dropdown-menu w-100" id="eventTypeFilterDropdown">
+                                                <div class="p-2">
+                                                    <div class="form-check mb-2">
+                                                        <input class="form-check-input" type="checkbox"
+                                                            id="eventTypeFilterAll" value="">
+                                                        <label class="form-check-label fw-semibold"
+                                                            for="eventTypeFilterAll">
+                                                            All types
+                                                        </label>
+                                                    </div>
+                                                    <hr class="my-2">
+                                                    @foreach ($transactionTypes as $txType)
+                                                        @php
+                                                            $selectedTypes = collect((array) request('transaction_type', []))->filter();
+                                                            $isChecked = $selectedTypes->contains($txType);
+                                                        @endphp
+                                                        <div class="form-check">
+                                                            <input class="form-check-input event-type-checkbox" type="checkbox"
+                                                                id="eventTypeFilter_{{ $loop->index }}" value="{{ $txType }}"
+                                                                {{ $isChecked ? 'checked' : '' }}>
+                                                            <label class="form-check-label"
+                                                                for="eventTypeFilter_{{ $loop->index }}">
+                                                                {{ $txType }}
+                                                            </label>
+                                                        </div>
+                                                    @endforeach
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
 
                                     <div class="col-12 col-md-6 col-xl-2">
@@ -791,6 +823,96 @@
             eventFiltersToggleBtn?.addEventListener('click', function() {
                 setEventFiltersVisible(eventFiltersForm.classList.contains('d-none'));
             });
+
+            // ----- Multi-select Event Transaction Type filter -----
+            const eventTypeFilterAllCheckbox = document.getElementById('eventTypeFilterAll');
+            const eventTypeCheckboxes = document.querySelectorAll('.event-type-checkbox');
+            const eventTypeFilterLabel = document.getElementById('eventTypeFilterLabel');
+            const eventTypeFilterBtn = document.getElementById('eventTypeFilterBtn');
+            let isUpdatingEventTypeAllCheckbox = false; // Flag to prevent circular event handling
+
+            function updateEventTypeLabel() {
+                const checkedCount = Array.from(eventTypeCheckboxes).filter(cb => cb.checked).length;
+                const totalCount = eventTypeCheckboxes.length;
+
+                if (checkedCount === 0) {
+                    eventTypeFilterLabel.textContent = 'All types';
+                } else if (checkedCount === totalCount) {
+                    eventTypeFilterLabel.textContent = 'All types';
+                } else if (checkedCount === 1) {
+                    const checkedType = Array.from(eventTypeCheckboxes).find(cb => cb.checked)?.value;
+                    eventTypeFilterLabel.textContent = checkedType || 'All types';
+                } else {
+                    eventTypeFilterLabel.textContent = `${checkedCount} selected`;
+                }
+
+                // Only update "All types" checkbox if not already updating
+                if (!isUpdatingEventTypeAllCheckbox) {
+                    isUpdatingEventTypeAllCheckbox = true;
+                    eventTypeFilterAllCheckbox.checked = checkedCount === totalCount;
+                    eventTypeFilterAllCheckbox.indeterminate = checkedCount > 0 && checkedCount < totalCount;
+                    isUpdatingEventTypeAllCheckbox = false;
+                }
+            }
+
+            // Handle "All types" checkbox
+            if (eventTypeFilterAllCheckbox) {
+                eventTypeFilterAllCheckbox.addEventListener('change', function() {
+                    // Only process if this is a direct user click, not a programmatic update
+                    if (isUpdatingEventTypeAllCheckbox) return;
+                    
+                    const shouldCheck = this.checked;
+                    eventTypeCheckboxes.forEach(checkbox => {
+                        checkbox.checked = shouldCheck;
+                    });
+                    // Manually call updateEventTypeLabel since individual change events won't fire
+                    updateEventTypeLabel();
+                });
+            }
+
+            // Handle individual type checkboxes
+            eventTypeCheckboxes.forEach(checkbox => {
+                checkbox.addEventListener('change', function() {
+                    // When an individual checkbox changes, update All types checkbox state
+                    updateEventTypeLabel();
+                });
+            });
+
+            // Handle form submission for multi-select
+            if (eventFiltersForm) {
+                eventFiltersForm.addEventListener('submit', function(e) {
+                    // Remove any existing transaction_type hidden inputs that we may have added before
+                    const existingHiddenInputs = this.querySelectorAll('input[type="hidden"][name="transaction_type[]"]');
+                    existingHiddenInputs.forEach(input => input.remove());
+
+                    // Get all checked individual transaction type checkboxes
+                    const checkedTypes = Array.from(eventTypeCheckboxes)
+                        .filter(cb => cb.checked)
+                        .map(cb => cb.value)
+                        .filter(val => val !== ''); // Filter out empty values
+                    
+                    // Only add hidden inputs if some (but not all) types are selected
+                    // If none selected or all selected, don't add any filter (shows all)
+                    const totalTypes = eventTypeCheckboxes.length;
+                    
+                    if (checkedTypes.length > 0 && checkedTypes.length < totalTypes) {
+                        // Add hidden input for each checked type
+                        // Use transaction_type[] to ensure Laravel treats it as an array
+                        checkedTypes.forEach(type => {
+                            const hiddenInput = document.createElement('input');
+                            hiddenInput.type = 'hidden';
+                            hiddenInput.name = 'transaction_type[]';
+                            hiddenInput.value = type;
+                            this.appendChild(hiddenInput);
+                        });
+                    }
+                    
+                    // Form will now submit with the hidden inputs included
+                });
+            }
+
+            // Initialize label on page load
+            updateEventTypeLabel();
 
             // ----- Per page selector -----
             document.getElementById('eventPerPageSelect')?.addEventListener('change', function() {

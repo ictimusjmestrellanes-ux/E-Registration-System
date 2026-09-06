@@ -119,7 +119,9 @@ Route::group(['namespace' => 'App\Http\Controllers'], function () {
 
         // --------------------- Transaction Events ------------------//
         Route::get('transaction-events', [TransactionEventsController::class, 'index'])->name('transaction-events.index');
+        Route::get('transaction-events/export', [TransactionEventsController::class, 'exportEvents'])->name('transaction-events.export');
         Route::get('transaction-events/records', [TransactionEventsController::class, 'records'])->name('transaction-events.records');
+        Route::get('transaction-events/records/export', [TransactionEventsController::class, 'exportRecords'])->name('transaction-events.records.export');
         Route::get('transaction-events/records/duplicates', [TransactionEventsController::class, 'recordsDuplicates'])->name('transaction-events.records-duplicates');
         Route::get('transaction-events/duplicate-review', [TransactionEventsController::class, 'duplicateReview'])->name('transaction-events.duplicate-review');
         Route::get('transaction-events/removed-duplicates', [TransactionEventsController::class, 'removedDuplicates'])->name('transaction-events.removed-duplicates');
