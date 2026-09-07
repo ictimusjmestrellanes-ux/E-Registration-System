@@ -57,6 +57,12 @@ class ProfileController extends Controller
 
         $categories = TransactionHistory::CATEGORIES;
 
+        $clientCategoryDistribution = Cache::remember(
+            'dashboard.client_category_counts',
+            300,
+            fn () => $this->clientCategoryDistribution()
+        );
+
         $clientTrend = Cache::remember('dashboard.client_trend', 300, function () {
             $start = Carbon::create(2026, 1, 1)->startOfMonth();
 
@@ -145,7 +151,7 @@ class ProfileController extends Controller
             return ['labels' => $labels, 'data' => $data];
         });
 
-        return view('pages.dashboard', compact('totalClients', 'totalTransactions', 'txCategoryOptions', 'txCategories', 'txTypeOptions', 'txTypes', 'txVisibleTypes', 'txTrendSuffix', 'categoryCounts', 'categories', 'clientTrend', 'transactionTrend', 'caravanTrend', 'recentActivities'));
+        return view('pages.dashboard', compact('totalClients', 'totalTransactions', 'txCategoryOptions', 'txCategories', 'txTypeOptions', 'txTypes', 'txVisibleTypes', 'txTrendSuffix', 'categoryCounts', 'categories', 'clientTrend', 'transactionTrend', 'caravanTrend', 'recentActivities', 'clientCategoryDistribution'));
     }
 
     /**
@@ -179,6 +185,42 @@ class ProfileController extends Controller
             'labels' => $trend['labels'],
             'datasets' => $trend['datasets'],
         ]);
+    }
+
+    /**
+     * Transaction share per client category for the dashboard doughnut.
+     * Largest slices first, capped at $top entries with the long tail
+     * folded into an "Others" slice. Plain group-by so it stays
+     * SQLite-safe.
+     *
+     * @return array{labels: array, data: array}
+     */
+    public function clientCategoryDistribution(int $top = PHP_INT_MAX): array
+    {
+        $counts = TransactionHistory::query()
+            ->selectRaw('client_category, count(*) as total')
+            ->whereNotNull('client_category')
+            ->where('client_category', '<>', '')
+            ->groupBy('client_category')
+            ->orderByDesc('total')
+            ->orderBy('client_category')
+            ->pluck('total', 'client_category')
+            ->all();
+
+        $labels = array_keys($counts);
+        $data = array_values(array_map('intval', $counts));
+
+        if ($top < count($labels)) {
+            $rest = array_sum(array_slice($data, $top));
+            $labels = array_slice($labels, 0, $top);
+            $data = array_slice($data, 0, $top);
+            if ($rest > 0) {
+                $labels[] = 'Others';
+                $data[] = $rest;
+            }
+        }
+
+        return ['labels' => $labels, 'data' => $data];
     }
 
     /**

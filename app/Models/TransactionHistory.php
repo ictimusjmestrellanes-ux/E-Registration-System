@@ -101,7 +101,7 @@ class TransactionHistory extends Model
      */
     public static function flushDashboardCache(): void
     {
-        foreach (['dashboard.total_clients', 'dashboard.total_transactions', 'dashboard.tx_category_options', 'dashboard.tx_type_options', 'dashboard.category_counts', 'dashboard.client_trend', 'dashboard.transaction_trend_stacked', 'dashboard.transaction_trend_grid', 'dashboard.caravan_trend'] as $key) {
+        foreach (['dashboard.total_clients', 'dashboard.total_transactions', 'dashboard.tx_category_options', 'dashboard.tx_type_options', 'dashboard.category_counts', 'dashboard.client_trend', 'dashboard.transaction_trend_stacked', 'dashboard.transaction_trend_grid', 'dashboard.caravan_trend', 'dashboard.client_category_counts'] as $key) {
             Cache::forget($key);
         }
     }

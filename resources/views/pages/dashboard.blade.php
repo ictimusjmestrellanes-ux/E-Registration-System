@@ -151,14 +151,14 @@
                         <p class="text-muted mb-0">Client registrations per month (January 2026 - present)</p>
                     </div>
                     <div class="card-body">
-                        <div class="w-100" style="height: 380px; position: relative;">
+                        <div class="w-100" style="height: 230px; position: relative;">
                             <canvas id="clientTrendChart"></canvas>
                         </div>
                     </div>
                 </div>
 
                 <!-- Transaction Trend Chart -->
-                <div class="row g-3 mt-4">
+                <div class="row g-3 mt-2">
                     <div class="col-12">
                         <div class="card material-shadow h-100">
                             <div class="card-header d-flex flex-wrap gap-2 align-items-center justify-content-between">
@@ -170,7 +170,7 @@
                                 <div class="d-flex flex-wrap gap-2">
                                     <div class="dropdown" id="txCategoryDropdown">
                                         <button
-                                            class="btn btn-light border form-select form-select-sm text-start d-flex align-items-center justify-content-between"
+                                            class="btn btn-light border form-select form-select-sm text-start d-flex align-items-center justify-content-between" style="width: 230px"
                                             type="button" id="txCategoryBtn" data-bs-toggle="dropdown"
                                             data-bs-auto-close="outside" aria-expanded="false"
                                             aria-label="Filter transactions graph by category"
@@ -204,7 +204,7 @@
                                     </div>
                                     <div class="dropdown" id="txTypeDropdown">
                                         <button
-                                            class="btn btn-light border form-select form-select-sm text-start d-flex align-items-center justify-content-between"
+                                            class="btn btn-light border form-select form-select-sm text-start d-flex align-items-center justify-content-between" style="width: 230px"
                                             type="button" id="txTypeBtn" data-bs-toggle="dropdown"
                                             data-bs-auto-close="outside" aria-expanded="false"
                                             aria-label="Filter transactions graph by transaction type"
@@ -241,7 +241,7 @@
                                 </div>
                             </div>
                             <div class="card-body">
-                                <div class="w-100" style="height: 380px; position: relative;">
+                                <div class="w-100" style="height: 230px; position: relative;">
                                     <canvas id="transactionTrendChart"></canvas>
                                 </div>
                             </div>
@@ -262,26 +262,50 @@
                     </div>
                 </div> --}}
 
-                <!-- Service Category Chart -->
-                <div class="row g-3 mt-1">
-                    <div class="col-12">
-                        <div class="card material-shadow h-100">
-                            <div class="card-header">
-                                <h5 class="mb-0">Service Categories Distribution</h5>
-                                <p class="text-muted mb-0">Share of transactions per service category</p>
-                            </div>
-                            <div class="card-body">
-                                <div class="d-flex flex-column flex-lg-row gap-3">
-                                    <div class="flex-grow-1" style="min-width: 0; height: 380px; position: relative;">
-                                        <canvas id="serviceCategoryChart"></canvas>
+                <div class="col-12 mt-4">
+                    <div class="row g-3">
+                        <!-- Service Category Chart -->
+                        <div class="col-12 col-xl-6">
+                            <div class="card material-shadow" style="height: 350px">
+                                <div class="card-header">
+                                    <h5 class="mb-0">Service Categories Distribution</h5>
+                                    <p class="text-muted mb-0">Share of transactions per service category</p>
+                                </div>
+                                <div class="card-body">
+                                    <div class="d-flex flex-column flex-lg-row gap-3">
+                                        <div class="flex-grow-1" style="min-width: 0; height: 250px; position: relative;">
+                                            <canvas id="serviceCategoryChart"></canvas>
+                                        </div>
+                                        <div id="serviceCategoryLegend" class="d-flex flex-column gap-2 flex-shrink-0"
+                                            style="width: 300px; max-width: 100%; max-height: 250px; overflow-y: auto;">
+                                        </div>
                                     </div>
-                                    <div id="serviceCategoryLegend" class="d-flex flex-column gap-2 flex-shrink-0"
-                                        style="width: 300px; max-width: 100%; max-height: 380px; overflow-y: auto;"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Client Category Chart -->
+                        <div class="col-12 col-xl-6">
+                            <div class="card material-shadow" style="height: 350px">
+                                <div class="card-header">
+                                    <h5 class="mb-0">Client Category Distribution</h5>
+                                    <p class="text-muted mb-0">Share of transactions per client category</p>
+                                </div>
+                                <div class="card-body">
+                                    <div class="d-flex flex-column flex-lg-row gap-3">
+                                        <div class="flex-grow-1" style="min-width: 0; height: 250px; position: relative;">
+                                            <canvas id="clientCategoryChart"></canvas>
+                                        </div>
+                                        <div id="clientCategoryLegend" class="d-flex flex-column gap-2 flex-shrink-0"
+                                            style="width: 300px; max-width: 100%; max-height: 250px; overflow-y: auto;">
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
+                
                 <div class="row g-3 mt-1" id="service-categories">
                     <div class="col-12">
                         <div class="card mb-0">
@@ -304,8 +328,7 @@
                             <a href="{{ route('transactions.category', $key) }}" class="text-decoration-none">
                                 <div class="card material-shadow category-card" style="height: 170px">
                                     <div class="card-body text-center">
-                                        <div
-                                            class="avatar-md rounded-circle mx-auto mb-2 d-flex align-items-center justify-content-center"
+                                        <div class="avatar-md rounded-circle mx-auto mb-2 d-flex align-items-center justify-content-center"
                                             style="background: {{ $hex }}1a;">
                                             <i class="fa-solid {{ $icon }} fs-3"
                                                 style="color: {{ $hex }};"></i>
@@ -330,7 +353,7 @@
                             <i class="ri-time-line me-1"></i> Clock
                         </h6>
                         <div class="d-flex justify-content-center">
-                            <canvas id="dashAnalogClock" width="375" height="375"
+                            <canvas id="dashAnalogClock" width="300" height="300"
                                 style="max-width: 100%;"></canvas>
                         </div>
                         <div class="text-center mt-3">
@@ -389,14 +412,46 @@
                                     $action = strtolower((string) $action);
 
                                     return match (true) {
-                                        str_contains($action, 'create') => ['Create', 'bg-primary-subtle text-primary', 'ri-add-line'],
-                                        str_contains($action, 'update') => ['Update', 'bg-info-subtle text-info', 'ri-pencil-line'],
-                                        str_contains($action, 'delete') => ['Delete', 'bg-danger-subtle text-danger', 'ri-delete-bin-line'],
-                                        str_contains($action, 'archive') => ['Archive', 'bg-warning-subtle text-warning', 'ri-archive-line'],
-                                        str_contains($action, 'restore') => ['Restore', 'bg-success-subtle text-success', 'ri-restart-line'],
-                                        str_contains($action, 'login') => ['Login', 'bg-success-subtle text-success', 'ri-login-box-line'],
-                                        str_contains($action, 'logout') => ['Logout', 'bg-secondary-subtle text-secondary', 'ri-logout-box-r-line'],
-                                        str_contains($action, 'fingerprint') => ['Fingerprint', 'bg-primary-subtle text-primary', 'ri-fingerprint-line'],
+                                        str_contains($action, 'create') => [
+                                            'Create',
+                                            'bg-primary-subtle text-primary',
+                                            'ri-add-line',
+                                        ],
+                                        str_contains($action, 'update') => [
+                                            'Update',
+                                            'bg-info-subtle text-info',
+                                            'ri-pencil-line',
+                                        ],
+                                        str_contains($action, 'delete') => [
+                                            'Delete',
+                                            'bg-danger-subtle text-danger',
+                                            'ri-delete-bin-line',
+                                        ],
+                                        str_contains($action, 'archive') => [
+                                            'Archive',
+                                            'bg-warning-subtle text-warning',
+                                            'ri-archive-line',
+                                        ],
+                                        str_contains($action, 'restore') => [
+                                            'Restore',
+                                            'bg-success-subtle text-success',
+                                            'ri-restart-line',
+                                        ],
+                                        str_contains($action, 'login') => [
+                                            'Login',
+                                            'bg-success-subtle text-success',
+                                            'ri-login-box-line',
+                                        ],
+                                        str_contains($action, 'logout') => [
+                                            'Logout',
+                                            'bg-secondary-subtle text-secondary',
+                                            'ri-logout-box-r-line',
+                                        ],
+                                        str_contains($action, 'fingerprint') => [
+                                            'Fingerprint',
+                                            'bg-primary-subtle text-primary',
+                                            'ri-fingerprint-line',
+                                        ],
                                         default => ['Activity', 'bg-light text-dark', 'ri-history-line'],
                                     };
                                 };
@@ -405,8 +460,8 @@
                                 @php [$dashLabel, $dashBadge, $dashIcon] = $dashActionMeta($activity->action); @endphp
                                 <div class="d-flex gap-2 py-2 {{ $loop->last ? '' : 'border-bottom' }}">
                                     <div class="flex-shrink-0">
-                                        <span class="badge {{ $dashBadge }} p-2"
-                                            title="{{ $dashLabel }}"><i class="{{ $dashIcon }}"></i></span>
+                                        <span class="badge {{ $dashBadge }} p-2" title="{{ $dashLabel }}"><i
+                                                class="{{ $dashIcon }}"></i></span>
                                     </div>
                                     <div class="flex-grow-1">
                                         <div class="small fw-semibold"
@@ -423,8 +478,8 @@
                                 <p class="text-muted small text-center mb-2">No recent activity.</p>
                             @endforelse
                             <div class="text-center mt-2">
-                                <a href="{{ route('activity.logs') }}"
-                                    class="btn btn-sm btn-soft-primary">View All Logs</a>
+                                <a href="{{ route('activity.logs') }}" class="btn btn-sm btn-soft-primary">View All
+                                    Logs</a>
                             </div>
                         </div>
                     </div>
@@ -912,6 +967,89 @@
                             item.classList.toggle('opacity-50');
                         });
                         legendEl.appendChild(item);
+                    });
+                }
+            });
+        </script>
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                const clientCanvas = document.getElementById('clientCategoryChart');
+                if (!clientCanvas) return;
+
+                const clientLabels = @json($clientCategoryDistribution['labels']);
+                const clientData = @json($clientCategoryDistribution['data']);
+                const clientPalette = @json($chartColors);
+                const clientColors = clientLabels.map((_, i) => clientPalette[i % clientPalette.length]);
+
+                const clientChart = new Chart(clientCanvas, {
+                    type: 'doughnut',
+                    data: {
+                        labels: clientLabels,
+                        datasets: [{
+                            data: clientData,
+                            backgroundColor: clientColors,
+                            borderColor: clientColors,
+                            borderWidth: 2,
+                            hoverOffset: 8
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: false
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                        const pct = total > 0 ? (context.parsed / total * 100).toFixed(1) :
+                                            0;
+                                        return ' ' + context.label + ': ' + context.parsed + ' (' + pct +
+                                            '%)';
+                                    }
+                                }
+                            }
+                        },
+                        cutout: '62%'
+                    }
+                });
+
+                // Custom HTML legend with count + share. Click toggles
+                // the slice, mirroring the native legend behavior.
+                const clientLegendEl = document.getElementById('clientCategoryLegend');
+                if (clientLegendEl) {
+                    const legendTotal = clientData.reduce((a, b) => a + b, 0);
+                    clientLabels.forEach(function(label, i) {
+                        const count = clientData[i] || 0;
+                        const pct = legendTotal > 0 ? (count / legendTotal * 100).toFixed(1) : '0.0';
+                        const item = document.createElement('button');
+                        item.type = 'button';
+                        item.className =
+                            'btn btn-sm btn-light d-flex align-items-center gap-2 border w-100 text-start';
+                        item.title = 'Toggle ' + label;
+
+                        const dot = document.createElement('span');
+                        dot.style.cssText = 'width:12px;height:12px;border-radius:50%;background:' +
+                            clientColors[i] + ';flex-shrink:0;';
+
+                        const name = document.createElement('span');
+                        name.textContent = label;
+
+                        const badge = document.createElement('span');
+                        badge.className = 'badge bg-secondary-subtle text-secondary ms-auto';
+                        badge.textContent = count.toLocaleString() + ' (' + pct + '%)';
+
+                        item.appendChild(dot);
+                        item.appendChild(name);
+                        item.appendChild(badge);
+                        item.addEventListener('click', function() {
+                            clientChart.toggleDataVisibility(i);
+                            clientChart.update();
+                            item.classList.toggle('opacity-50');
+                        });
+                        clientLegendEl.appendChild(item);
                     });
                 }
             });
