@@ -208,7 +208,9 @@
                                             type="button" id="txTypeBtn" data-bs-toggle="dropdown"
                                             data-bs-auto-close="outside" aria-expanded="false"
                                             aria-label="Filter transactions graph by transaction type"
-                                            title="Filter by transaction type" style="min-width: 200px;">
+                                            title="{{ count($txCategories ?? []) === 0 ? 'Select a transaction category first' : 'Filter by transaction type' }}"
+                                            style="min-width: 200px;"
+                                            {{ count($txCategories ?? []) === 0 ? 'disabled' : '' }}>
                                             <span
                                                 id="txTypeLabel">{{ count($txTypes ?? []) === 0 || count($txTypes ?? []) === count($txTypeOptions ?? []) ? 'All types' : (count($txTypes) === 1 ? $txTypes[0] : count($txTypes) . ' selected') }}</span>
                                         </button>
@@ -440,16 +442,21 @@
             document.addEventListener('DOMContentLoaded', function() {
                 const txCanvas = document.getElementById('transactionTrendChart');
                 let txChart = null;
-                // Segment colors; the server sorts segments so colors stay stable.
+                // Segment colors keyed by the server-assigned type index so a
+                // transaction type keeps its color in every filter state.
                 const txPalette = ['#405189', '#0ac074', '#f7b84b', '#f06548', '#299cdb',
                     '#a55eea', '#26c6da', '#e83e8c', '#6c757d', '#51d28c'
                 ];
                 const txColor = (i) => txPalette[i % txPalette.length];
-                const txDatasets = (sets) => (sets || []).map((s, i) => ({
+                const txDatasets = (sets) => (sets || []).map((s) => ({
                     label: s.label,
                     data: s.data,
-                    backgroundColor: txColor(i),
-                    borderColor: txColor(i),
+                    // Shared stack id = side-by-side cluster per category.
+                    stack: s.stack,
+                    // Color encodes the transaction type; the index is assigned
+                    // server-side so a type keeps its color in every state.
+                    backgroundColor: txColor(s.colorIndex ?? 0),
+                    borderColor: txColor(s.colorIndex ?? 0),
                     borderWidth: 1
                 }));
                 if (txCanvas) {
@@ -638,10 +645,35 @@
                         // Menu stays as-is; the chart reload still applies the filter.
                     }
                 };
+                // Types only flow from a picked category: the Type menu stays
+                // locked until at least one category box is ticked. Clearing
+                // the last category resets the type selection.
+                const txSyncTypeAvailability = () => {
+                    const btn = document.getElementById('txTypeBtn');
+                    const anyCat = document.querySelectorAll('.tx-category-check:checked').length > 0;
+                    if (btn) {
+                        btn.disabled = !anyCat;
+                        btn.title = anyCat ? 'Filter by transaction type' :
+                            'Select a transaction category first';
+                    }
+                    if (!anyCat) {
+                        document.querySelectorAll('.tx-type-check').forEach((b) => {
+                            b.checked = false;
+                            const row = b.closest('.form-check');
+                            if (row) {
+                                row.style.display = '';
+                            }
+                        });
+                        txSyncMultiLabels();
+                    }
+                    return anyCat;
+                };
                 document.querySelectorAll('.tx-category-check').forEach((box) => {
                     box.addEventListener('change', async () => {
                         txSyncMultiLabels();
-                        await txApplyTypeVisibility();
+                        if (txSyncTypeAvailability()) {
+                            await txApplyTypeVisibility();
+                        }
                         reloadTxTrend();
                     });
                 });
@@ -652,12 +684,12 @@
                     });
                 });
                 [
-                    ['txCategoryAll', 'tx-category-check'],
-                    ['txTypeAll', 'tx-type-check']
-                ].forEach(([allId, cls]) => {
+                    ['txCategoryAll', 'tx-category-check', true],
+                    ['txTypeAll', 'tx-type-check', false]
+                ].forEach(([allId, cls, isCategory]) => {
                     const allBox = document.getElementById(allId);
                     if (allBox) {
-                        allBox.addEventListener('change', function() {
+                        allBox.addEventListener('change', async function() {
                             if (txUpdatingAll) {
                                 return;
                             }
@@ -669,12 +701,18 @@
                                 }
                             });
                             txSyncMultiLabels();
+                            if (isCategory) {
+                                if (txSyncTypeAvailability()) {
+                                    await txApplyTypeVisibility();
+                                }
+                            }
                             reloadTxTrend();
                         });
                     }
                 });
                 // Initialize labels/master state on page load.
                 txSyncMultiLabels();
+                txSyncTypeAvailability();
             });
         </script>
         <script>

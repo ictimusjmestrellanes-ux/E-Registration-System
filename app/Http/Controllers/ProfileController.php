@@ -97,6 +97,11 @@ class ProfileController extends Controller
         // Drop pre-selected types that the current categories hide so the
         // menu, chart, and title always agree (the URL self-heals on reload).
         $txTypes = array_values(array_intersect($txTypes, $txVisibleTypes));
+        // Types only flow from a picked category: without one the Type
+        // filter is locked, so stray URL types are ignored entirely.
+        if ($txCategories === []) {
+            $txTypes = [];
+        }
 
         if ($txCategories === [] && $txTypes === []) {
             $transactionTrend = Cache::remember(
@@ -148,6 +153,11 @@ class ProfileController extends Controller
     {
         $txCategories = $this->txMultiFilter($request, 'tx_category', $this->txCategoryOptions());
         $txTypes = $this->txMultiFilter($request, 'tx_type', $this->txTypeOptions());
+
+        // Types only flow from a picked category.
+        if ($txCategories === []) {
+            $txTypes = [];
+        }
 
         if ($txCategories === [] && $txTypes === []) {
             $trend = Cache::remember(
@@ -257,12 +267,11 @@ class ProfileController extends Controller
     }
 
     /**
-     * Stacked monthly series for the Total Transactions graph, sliced from
-     * the cached month x category x type grid (no extra queries).
-     * Empty arrays mean "all". The stack dimension is whichever filter is
-     * NOT pinned to a single value: no (single) filter stacks by category,
-     * one pinned category stacks by type, and a single category + single
-     * type collapse to one series.
+     * Grouped-stacked monthly series for the Total Transactions graph,
+     * sliced from the cached month x category x type grid (no extra
+     * queries). Empty arrays mean "all". Each category in scope renders a
+     * side-by-side cluster segmented by type; one category (+ optionally one
+     * type) collapses to the familiar single stacked bar.
      *
      * @return array{labels: array, datasets: array}
      */
@@ -277,78 +286,87 @@ class ProfileController extends Controller
     }
 
     /**
-     * Split one month x category x type grid into per-segment monthly
-     * series honouring the active filters (null/empty = all).
+     * Split one month x category x type grid into grouped-stacked monthly
+     * series honouring the active filters (null/empty = all). Each category
+     * in scope becomes a side-by-side cluster (dataset "stack") segmented
+     * by type, so colors always encode the transaction type. Combos without
+     * any data are omitted entirely (no bars, no legend entries).
      */
     private function stackTrendGrid(array $grid, array $months, ?array $categories, ?array $types): array
     {
         $catSet = empty($categories) ? null : array_flip($categories);
         $typeSet = empty($types) ? null : array_flip($types);
 
-        // Stack by type only when exactly one category is pinned (and type is not).
-        $byType = $catSet !== null && count($catSet) === 1
-            && ($typeSet === null || count($typeSet) !== 1);
-        $segments = [];
-
+        // (category, type) pairs holding data in at least one month.
+        $pairs = [];
         foreach ($months as $mk) {
-            foreach ($grid[$mk] ?? [] as $cat => $types) {
+            foreach ($grid[$mk] ?? [] as $cat => $typeCounts) {
                 if ($catSet !== null && ! isset($catSet[$cat])) {
                     continue;
                 }
-                foreach ($types as $t => $n) {
+                foreach ($typeCounts as $t => $n) {
                     if ($typeSet !== null && ! isset($typeSet[$t])) {
                         continue;
                     }
-                    $key = $byType ? $t : $cat;
-                    $segments[$key] = true;
+                    if ($n > 0) {
+                        $pairs[$cat][$t] = true;
+                    }
                 }
             }
         }
 
-        $keys = array_keys($segments);
-        sort($keys);
+        $cats = array_keys($pairs);
+        sort($cats);
         // Blank values stay complete in the totals; show them last.
-        $keys = array_values(array_filter($keys, fn ($k) => $k !== ''));
-        if (isset($segments[''])) {
-            $keys[] = '';
+        $cats = array_values(array_filter($cats, fn ($k) => $k !== ''));
+        if (isset($pairs[''])) {
+            $cats[] = '';
         }
 
+        // Stable per-type colors following the sorted type list.
+        $typeOrder = $this->txTypeOptions();
+        $colorIndex = [];
+        foreach ($typeOrder as $i => $t) {
+            $colorIndex[$t] = $i;
+        }
+        $blankColor = count($typeOrder);
+
+        $labelFor = fn ($v) => $v !== '' ? $v : 'Unspecified';
         $datasets = [];
-        foreach ($keys as $key) {
-            $data = [];
-            foreach ($months as $mk) {
-                $sum = 0;
-                foreach ($grid[$mk] ?? [] as $cat => $types) {
-                    if ($catSet !== null && ! isset($catSet[$cat])) {
-                        continue;
-                    }
-                    foreach ($types as $t => $n) {
-                        if ($typeSet !== null && ! isset($typeSet[$t])) {
-                            continue;
-                        }
-                        if (($byType ? $t : $cat) === $key) {
-                            $sum += $n;
-                        }
-                    }
-                }
-                $data[] = $sum;
+        foreach ($cats as $cat) {
+            $typeKeys = array_keys($pairs[$cat]);
+            sort($typeKeys);
+            $typeKeys = array_values(array_filter($typeKeys, fn ($k) => $k !== ''));
+            if (isset($pairs[$cat][''])) {
+                $typeKeys[] = '';
             }
-            $datasets[] = [
-                'label' => $key !== '' ? $key : 'Unspecified',
-                'data' => $data,
-            ];
+            foreach ($typeKeys as $t) {
+                $data = [];
+                foreach ($months as $mk) {
+                    $data[] = $grid[$mk][$cat][$t] ?? 0;
+                }
+                $datasets[] = [
+                    'label' => count($cats) === 1 ? $labelFor($t) : $labelFor($cat).' · '.$labelFor($t),
+                    'stack' => $labelFor($cat),
+                    'colorIndex' => $colorIndex[$t] ?? $blankColor,
+                    'data' => $data,
+                ];
+            }
         }
 
-        // Single category + single type: collapse to one labelled series so
-        // the bar keeps its title instead of rendering an empty legend.
-        if ($catSet !== null && $typeSet !== null
-            && count($catSet) === 1 && count($typeSet) === 1
-            && count($datasets) <= 1) {
-            $total = $datasets[0]['data'] ?? array_fill(0, count($months), 0);
-            $datasets = [[
-                'label' => array_key_first($catSet).' · '.array_key_first($typeSet),
-                'data' => $total,
-            ]];
+        // No overlap at all (e.g. one category + one foreign type): keep a
+        // single labelled zero series instead of an empty plot.
+        if ($datasets === []) {
+            $suffix = implode(' · ', array_filter([
+                $catSet !== null ? implode(', ', array_keys($catSet)) : '',
+                $typeSet !== null ? implode(', ', array_keys($typeSet)) : '',
+            ]));
+            $datasets[] = [
+                'label' => $suffix !== '' ? $suffix : 'Transactions',
+                'stack' => 'All',
+                'colorIndex' => 0,
+                'data' => array_fill(0, count($months), 0),
+            ];
         }
 
         return $datasets;
