@@ -76,7 +76,7 @@
 
         <div class="row g-4">
             <!-- Left: Main Content (col-lg-8) -->
-            <div class="col-lg-8">
+            <div class="col-lg-9">
                 <!-- Stat Cards -->
                 <div class="row g-3">
                     <div class="col-lg-4 col-md-4 col-sm-12">
@@ -99,7 +99,7 @@
                             </div>
                         </a>
                     </div>
-                    
+
                     <div class="col-lg-4 col-md-4 col-sm-12">
                         <a href="{{ route('transactions.index') }}" class="text-decoration-none">
                             <div class="card material-shadow border-info border-opacity-25 stat-card h-100">
@@ -140,7 +140,7 @@
                             </div>
                         </a>
                     </div>
-                    
+
                 </div>
                 <!--end stat cards-->
 
@@ -226,10 +226,9 @@
                                             <hr class="my-2">
                                             @foreach ($txTypeOptions ?? [] as $option)
                                                 <div class="form-check"
-                                                    @if (!in_array($option, $txVisibleTypes ?? $txTypeOptions ?? [])) style="display: none;" @endif>
+                                                    @if (!in_array($option, $txVisibleTypes ?? ($txTypeOptions ?? []))) style="display: none;" @endif>
                                                     <input class="form-check-input tx-type-check" type="checkbox"
-                                                        id="txTypeCheck_{{ $loop->index }}"
-                                                        value="{{ $option }}"
+                                                        id="txTypeCheck_{{ $loop->index }}" value="{{ $option }}"
                                                         {{ in_array($option, $txTypes ?? []) ? 'checked' : '' }}>
                                                     <label class="form-check-label"
                                                         for="txTypeCheck_{{ $loop->index }}">
@@ -276,17 +275,54 @@
                                     <div class="flex-grow-1" style="min-width: 0; height: 380px; position: relative;">
                                         <canvas id="serviceCategoryChart"></canvas>
                                     </div>
-                                    <div id="serviceCategoryLegend" class="d-flex flex-column gap-2 flex-shrink-0" style="width: 300px; max-width: 100%; max-height: 380px; overflow-y: auto;"></div>
+                                    <div id="serviceCategoryLegend" class="d-flex flex-column gap-2 flex-shrink-0"
+                                        style="width: 300px; max-width: 100%; max-height: 380px; overflow-y: auto;"></div>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
+                <div class="row g-3 mt-1" id="service-categories">
+                    <div class="col-12">
+                        <div class="card mb-0">
+                            <div class="card-body">
+                                <h5 class="mb-0">Service Categories</h5>
+                                <p class="text-muted mb-0">Overview of client service requests</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    @foreach ($categories as $key => $label)
+                        @php
+                            [$icon] = $categoryMeta[$key] ?? ['fa-circle'];
+                            // Same palette position as the Service Categories doughnut
+                            // chart so each card matches its slice/legend color.
+                            $hex = $chartColors[$loop->index % count($chartColors)];
+                            $count = $categoryCounts[$key] ?? 0;
+                        @endphp
+                        <div class="col-lg-6 col-md-2 col-sm-6" style="width: 173.5px">
+                            <a href="{{ route('transactions.category', $key) }}" class="text-decoration-none">
+                                <div class="card material-shadow category-card" style="height: 170px">
+                                    <div class="card-body text-center">
+                                        <div
+                                            class="avatar-md rounded-circle mx-auto mb-2 d-flex align-items-center justify-content-center"
+                                            style="background: {{ $hex }}1a;">
+                                            <i class="fa-solid {{ $icon }} fs-3"
+                                                style="color: {{ $hex }};"></i>
+                                        </div>
+                                        <h4 class="mb-1">{{ $count }}</h4>
+                                        <p class="text-muted mb-0">{{ $label }}</p>
+                                    </div>
+                                </div>
+                            </a>
+                        </div>
+                    @endforeach
+                </div>
             </div>
             <!--end col-lg-8 main content-->
 
             <!-- Right Sidebar: Clock & Calendar (col-lg-4) -->
-            <div class="col-lg-4">
+            <div class="col-lg-3">
                 <!-- Analog Clock Card -->
                 <div class="card material-shadow">
                     <div class="card-body p-4">
@@ -294,7 +330,8 @@
                             <i class="ri-time-line me-1"></i> Clock
                         </h6>
                         <div class="d-flex justify-content-center">
-                            <canvas id="dashAnalogClock" width="375" height="375" style="max-width: 100%;"></canvas>
+                            <canvas id="dashAnalogClock" width="375" height="375"
+                                style="max-width: 100%;"></canvas>
                         </div>
                         <div class="text-center mt-3">
                             <span id="dashDigitalClock" class="fs-5 fw-semibold text-primary"></span>
@@ -339,42 +376,64 @@
                     </div>
                 </div>
                 <!--end calendar card-->
+
+                @if (feature_allowed('Activity Logs'))
+                    <!-- Recent Activity Card -->
+                    <div class="card material-shadow mt-4">
+                        <div class="card-body p-3">
+                            <h6 class="text-muted text-uppercase fw-semibold mb-3 text-center">
+                                <i class="ri-history-line me-1"></i> Recent Activity
+                            </h6>
+                            @php
+                                $dashActionMeta = function ($action) {
+                                    $action = strtolower((string) $action);
+
+                                    return match (true) {
+                                        str_contains($action, 'create') => ['Create', 'bg-primary-subtle text-primary', 'ri-add-line'],
+                                        str_contains($action, 'update') => ['Update', 'bg-info-subtle text-info', 'ri-pencil-line'],
+                                        str_contains($action, 'delete') => ['Delete', 'bg-danger-subtle text-danger', 'ri-delete-bin-line'],
+                                        str_contains($action, 'archive') => ['Archive', 'bg-warning-subtle text-warning', 'ri-archive-line'],
+                                        str_contains($action, 'restore') => ['Restore', 'bg-success-subtle text-success', 'ri-restart-line'],
+                                        str_contains($action, 'login') => ['Login', 'bg-success-subtle text-success', 'ri-login-box-line'],
+                                        str_contains($action, 'logout') => ['Logout', 'bg-secondary-subtle text-secondary', 'ri-logout-box-r-line'],
+                                        str_contains($action, 'fingerprint') => ['Fingerprint', 'bg-primary-subtle text-primary', 'ri-fingerprint-line'],
+                                        default => ['Activity', 'bg-light text-dark', 'ri-history-line'],
+                                    };
+                                };
+                            @endphp
+                            @forelse ($recentActivities ?? [] as $activity)
+                                @php [$dashLabel, $dashBadge, $dashIcon] = $dashActionMeta($activity->action); @endphp
+                                <div class="d-flex gap-2 py-2 {{ $loop->last ? '' : 'border-bottom' }}">
+                                    <div class="flex-shrink-0">
+                                        <span class="badge {{ $dashBadge }} p-2"
+                                            title="{{ $dashLabel }}"><i class="{{ $dashIcon }}"></i></span>
+                                    </div>
+                                    <div class="flex-grow-1">
+                                        <div class="small fw-semibold"
+                                            style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">
+                                            {{ $activity->description }}</div>
+                                        <div class="text-muted" style="font-size:.75rem;">
+                                            {{ $activity->user?->name ?? 'System' }} ·
+                                            <span
+                                                title="{{ $activity->created_at?->setTimezone('Asia/Manila')->format('M d, Y h:i A') ?? '-' }}">{{ $activity->created_at?->diffForHumans() ?? '-' }}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            @empty
+                                <p class="text-muted small text-center mb-2">No recent activity.</p>
+                            @endforelse
+                            <div class="text-center mt-2">
+                                <a href="{{ route('activity.logs') }}"
+                                    class="btn btn-sm btn-soft-primary">View All Logs</a>
+                            </div>
+                        </div>
+                    </div>
+                    <!--end recent activity card-->
+                @endif
             </div>
             <!--end col-lg-4 right sidebar-->
         </div>
         <!--end main 2-column row-->
-
-        <div class="row g-3 mt-2" id="service-categories">
-            <div class="col-12">
-                <div class="card mb-0">
-                    <div class="card-body">
-                        <h5 class="mb-0">Service Categories</h5>
-                        <p class="text-muted mb-0">Overview of client service requests</p>
-                    </div>
-                </div>
-            </div>
-
-            @foreach ($categories as $key => $label)
-                @php
-                    [$icon, $color] = $categoryMeta[$key] ?? ['fa-circle', 'secondary'];
-                    $count = $categoryCounts[$key] ?? 0;
-                @endphp
-                <div class="col-xl-3 col-lg-4 col-md-6 col-sm-6">
-                    <a href="{{ route('transactions.category', $key) }}" class="text-decoration-none">
-                        <div class="card material-shadow h-100 category-card">
-                            <div class="card-body text-center">
-                                <div
-                                    class="avatar-md bg-{{ $color }} bg-opacity-10 rounded-circle mx-auto mb-3 d-flex align-items-center justify-content-center">
-                                    <i class="fa-solid {{ $icon }} text-{{ $color }} fs-3"></i>
-                                </div>
-                                <h4 class="mb-1">{{ $count }}</h4>
-                                <p class="text-muted mb-0">{{ $label }}</p>
-                            </div>
-                        </div>
-                    </a>
-                </div>
-            @endforeach
-        </div>
     @endsection
 
     @push('scripts')
@@ -533,7 +592,7 @@
                     const checkedCount = boxes.filter((b) => b.checked).length;
                     if (labelEl) {
                         labelEl.textContent = (checkedCount === 0 || checkedCount === boxes
-                            .length) ? allText :
+                                .length) ? allText :
                             (checkedCount === 1 ? boxes.find((b) => b.checked).value :
                                 checkedCount + ' selected');
                     }
@@ -829,7 +888,8 @@
                         const pct = legendTotal > 0 ? (count / legendTotal * 100).toFixed(1) : '0.0';
                         const item = document.createElement('button');
                         item.type = 'button';
-                        item.className = 'btn btn-sm btn-light d-flex align-items-center gap-2 border w-100 text-start';
+                        item.className =
+                            'btn btn-sm btn-light d-flex align-items-center gap-2 border w-100 text-start';
                         item.title = 'Toggle ' + label;
 
                         const dot = document.createElement('span');

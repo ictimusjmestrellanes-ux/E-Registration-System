@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ActivityLog;
 use App\Models\Client;
 use App\Models\TransactionEvent;
 use App\Models\TransactionHistory;
@@ -115,6 +116,8 @@ class ProfileController extends Controller
 
         $txTrendSuffix = implode(' · ', array_filter([implode(', ', $txCategories), implode(', ', $txTypes)]));
 
+        $recentActivities = $this->recentDashboardActivities();
+
         $caravanTrend = Cache::remember('dashboard.caravan_trend', 300, function () {
             $start = Carbon::create(2026, 1, 1)->startOfMonth();
 
@@ -142,7 +145,7 @@ class ProfileController extends Controller
             return ['labels' => $labels, 'data' => $data];
         });
 
-        return view('pages.dashboard', compact('totalClients', 'totalTransactions', 'txCategoryOptions', 'txCategories', 'txTypeOptions', 'txTypes', 'txVisibleTypes', 'txTrendSuffix', 'categoryCounts', 'categories', 'clientTrend', 'transactionTrend', 'caravanTrend'));
+        return view('pages.dashboard', compact('totalClients', 'totalTransactions', 'txCategoryOptions', 'txCategories', 'txTypeOptions', 'txTypes', 'txVisibleTypes', 'txTrendSuffix', 'categoryCounts', 'categories', 'clientTrend', 'transactionTrend', 'caravanTrend', 'recentActivities'));
     }
 
     /**
@@ -176,6 +179,27 @@ class ProfileController extends Controller
             'labels' => $trend['labels'],
             'datasets' => $trend['datasets'],
         ]);
+    }
+
+    /**
+     * Latest activity entries for the dashboard sidebar widget.
+     * Mirrors the Activity Logs page visibility (non-admins see only
+     * their own) and stays hidden without the Activity Logs feature.
+     *
+     * @return \Illuminate\Support\Collection
+     */
+    public function recentDashboardActivities(int $limit = 6)
+    {
+        if (! feature_allowed('Activity Logs')) {
+            return collect();
+        }
+
+        $viewOwnOnly = ! in_array(auth()->user()->role_name, ['Admin', 'Super Admin']);
+
+        return ActivityLog::with('user')->latest()
+            ->when($viewOwnOnly, fn ($query) => $query->where('user_id', auth()->id()))
+            ->take($limit)
+            ->get();
     }
 
     /**
