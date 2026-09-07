@@ -44,7 +44,7 @@
 
         <div class="row">
             @foreach ($roles as $role)
-                <div class="col-md-6 col-xl-3">
+                <div class="col-md-4 col-lg-3">
                     <div class="card">
                         <div class="card-body">
                             <div class="d-flex align-items-center justify-content-between mb-3">

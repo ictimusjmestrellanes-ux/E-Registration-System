@@ -98,26 +98,7 @@
                             </div>
                         </a>
                     </div>
-                    <div class="col-lg-4 col-md-4 col-sm-12">
-                        <a href="#service-categories" class="text-decoration-none">
-                            <div class="card material-shadow border-success border-opacity-25 stat-card h-100">
-                                <div class="card-body">
-                                    <div class="d-flex align-items-center">
-                                        <div class="flex-shrink-0 me-3">
-                                            <div
-                                                class="avatar-sm bg-success bg-opacity-10 rounded-3 d-flex align-items-center justify-content-center">
-                                                <i class="fa-solid fa-layer-group text-success fs-4"></i>
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <p class="text-muted mb-1">Total Categories</p>
-                                            <h3 class="mb-0"><?php echo e(count($categories)); ?></h3>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </a>
-                    </div>
+                    
                     <div class="col-lg-4 col-md-4 col-sm-12">
                         <a href="<?php echo e(route('transactions.index')); ?>" class="text-decoration-none">
                             <div class="card material-shadow border-info border-opacity-25 stat-card h-100">
@@ -132,6 +113,26 @@
                                         <div>
                                             <p class="text-muted mb-1">Total Transactions</p>
                                             <h3 class="mb-0"><?php echo e($totalCategoryTransactions); ?></h3>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                    <div class="col-lg-4 col-md-4 col-sm-12">
+                        <a href="#service-categories" class="text-decoration-none">
+                            <div class="card material-shadow border-success border-opacity-25 stat-card h-100">
+                                <div class="card-body">
+                                    <div class="d-flex align-items-center">
+                                        <div class="flex-shrink-0 me-3">
+                                            <div
+                                                class="avatar-sm bg-success bg-opacity-10 rounded-3 d-flex align-items-center justify-content-center">
+                                                <i class="fa-solid fa-layer-group text-success fs-4"></i>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <p class="text-muted mb-1">Total Categories</p>
+                                            <h3 class="mb-0"><?php echo e(count($categories)); ?></h3>
                                         </div>
                                     </div>
                                 </div>
@@ -165,26 +166,76 @@
                                     <p class="text-muted mb-0">Transactions per month (January 2026 - present)</p>
                                 </div>
                                 <div class="d-flex flex-wrap gap-2">
-                                    <select class="form-select form-select-sm w-auto" id="txCategorySelect"
-                                        aria-label="Filter transactions graph by category"
-                                        title="Filter by transaction category">
-                                        <option value="">All Categories</option>
-                                        <?php $__currentLoopData = $txCategoryOptions ?? []; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $option): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                            <option value="<?php echo e($option); ?>"
-                                                <?php echo e(($txCategory ?? '') === $option ? 'selected' : ''); ?>>
-                                                <?php echo e($option); ?></option>
-                                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
-                                    </select>
-                                    <select class="form-select form-select-sm w-auto" id="txTypeSelect"
-                                        aria-label="Filter transactions graph by transaction type"
-                                        title="Filter by transaction type">
-                                        <option value="">All Types</option>
-                                        <?php $__currentLoopData = $txTypeOptions ?? []; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $option): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                            <option value="<?php echo e($option); ?>"
-                                                <?php echo e(($txType ?? '') === $option ? 'selected' : ''); ?>>
-                                                <?php echo e($option); ?></option>
-                                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
-                                    </select>
+                                    <div class="dropdown" id="txCategoryDropdown">
+                                        <button
+                                            class="btn btn-light border form-select form-select-sm text-start d-flex align-items-center justify-content-between"
+                                            type="button" id="txCategoryBtn" data-bs-toggle="dropdown"
+                                            data-bs-auto-close="outside" aria-expanded="false"
+                                            aria-label="Filter transactions graph by category"
+                                            title="Filter by transaction category" style="min-width: 200px;">
+                                            <span
+                                                id="txCategoryLabel"><?php echo e(count($txCategories ?? []) === 0 || count($txCategories ?? []) === count($txCategoryOptions ?? []) ? 'All categories' : (count($txCategories) === 1 ? $txCategories[0] : count($txCategories) . ' selected')); ?></span>
+                                        </button>
+                                        <div class="dropdown-menu dropdown-menu-end p-2"
+                                            style="min-width: 230px; max-height: 260px; overflow-y: auto;">
+                                            <div class="form-check mb-2">
+                                                <input class="form-check-input" type="checkbox" id="txCategoryAll"
+                                                    value="">
+                                                <label class="form-check-label fw-semibold" for="txCategoryAll">
+                                                    All categories
+                                                </label>
+                                            </div>
+                                            <hr class="my-2">
+                                            <?php $__currentLoopData = $txCategoryOptions ?? []; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $option): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                                <div class="form-check">
+                                                    <input class="form-check-input tx-category-check" type="checkbox"
+                                                        id="txCategoryCheck_<?php echo e($loop->index); ?>"
+                                                        value="<?php echo e($option); ?>"
+                                                        <?php echo e(in_array($option, $txCategories ?? []) ? 'checked' : ''); ?>>
+                                                    <label class="form-check-label"
+                                                        for="txCategoryCheck_<?php echo e($loop->index); ?>">
+                                                        <?php echo e($option); ?>
+
+                                                    </label>
+                                                </div>
+                                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                                        </div>
+                                    </div>
+                                    <div class="dropdown" id="txTypeDropdown">
+                                        <button
+                                            class="btn btn-light border form-select form-select-sm text-start d-flex align-items-center justify-content-between"
+                                            type="button" id="txTypeBtn" data-bs-toggle="dropdown"
+                                            data-bs-auto-close="outside" aria-expanded="false"
+                                            aria-label="Filter transactions graph by transaction type"
+                                            title="Filter by transaction type" style="min-width: 200px;">
+                                            <span
+                                                id="txTypeLabel"><?php echo e(count($txTypes ?? []) === 0 || count($txTypes ?? []) === count($txTypeOptions ?? []) ? 'All types' : (count($txTypes) === 1 ? $txTypes[0] : count($txTypes) . ' selected')); ?></span>
+                                        </button>
+                                        <div class="dropdown-menu dropdown-menu-end p-2"
+                                            style="min-width: 230px; max-height: 260px; overflow-y: auto;">
+                                            <div class="form-check mb-2">
+                                                <input class="form-check-input" type="checkbox" id="txTypeAll"
+                                                    value="">
+                                                <label class="form-check-label fw-semibold" for="txTypeAll">
+                                                    All types
+                                                </label>
+                                            </div>
+                                            <hr class="my-2">
+                                            <?php $__currentLoopData = $txTypeOptions ?? []; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $option): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                                <div class="form-check">
+                                                    <input class="form-check-input tx-type-check" type="checkbox"
+                                                        id="txTypeCheck_<?php echo e($loop->index); ?>"
+                                                        value="<?php echo e($option); ?>"
+                                                        <?php echo e(in_array($option, $txTypes ?? []) ? 'checked' : ''); ?>>
+                                                    <label class="form-check-label"
+                                                        for="txTypeCheck_<?php echo e($loop->index); ?>">
+                                                        <?php echo e($option); ?>
+
+                                                    </label>
+                                                </div>
+                                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                             <div class="card-body">
@@ -378,26 +429,26 @@
             document.addEventListener('DOMContentLoaded', function() {
                 const txCanvas = document.getElementById('transactionTrendChart');
                 let txChart = null;
+                // Segment colors; the server sorts segments so colors stay stable.
+                const txPalette = ['#405189', '#0ac074', '#f7b84b', '#f06548', '#299cdb',
+                    '#a55eea', '#26c6da', '#e83e8c', '#6c757d', '#51d28c'
+                ];
+                const txColor = (i) => txPalette[i % txPalette.length];
+                const txDatasets = (sets) => (sets || []).map((s, i) => ({
+                    label: s.label,
+                    data: s.data,
+                    backgroundColor: txColor(i),
+                    borderColor: txColor(i),
+                    borderWidth: 1
+                }));
                 if (txCanvas) {
                     const txLabels = <?php echo json_encode($transactionTrend['labels'], 15, 512) ?>;
-                    const txData = <?php echo json_encode($transactionTrend['data'], 15, 512) ?>;
 
                     txChart = new Chart(txCanvas, {
-                        type: 'line',
+                        type: 'bar',
                         data: {
                             labels: txLabels,
-                            datasets: [{
-                                label: <?php echo json_encode(($txTrendSuffix ?? '') !== '' ? $txTrendSuffix . ' Transactions' : 'Transactions', 15, 512) ?>,
-                                data: txData,
-                                borderColor: '#0ac074',
-                                backgroundColor: 'rgba(10, 192, 116, 0.12)',
-                                fill: true,
-                                tension: 0.4,
-                                pointBackgroundColor: '#0ac074',
-                                pointBorderColor: '#ffffff',
-                                pointBorderWidth: 2,
-                                borderWidth: 2
-                            }]
+                            datasets: txDatasets(<?php echo json_encode($transactionTrend['datasets'], 15, 512) ?>)
                         },
                         options: {
                             responsive: true,
@@ -408,21 +459,29 @@
                                     position: 'top',
                                     labels: {
                                         boxWidth: 12,
-                                        boxHeight: 12,
-                                        usePointStyle: true,
-                                        pointStyle: 'circle'
+                                        boxHeight: 12
                                     }
                                 },
                                 tooltip: {
                                     callbacks: {
                                         label: function(context) {
-                                            return ' ' + context.parsed.y + ' transactions';
+                                            return ' ' + context.dataset.label + ': ' +
+                                                context.parsed.y + ' transactions';
+                                        },
+                                        footer: function(items) {
+                                            const total = items.reduce((sum, item) =>
+                                                sum + (item.parsed.y || 0), 0);
+                                            return 'Total: ' + total + ' transactions';
                                         }
                                     }
                                 }
                             },
                             scales: {
+                                x: {
+                                    stacked: true
+                                },
                                 y: {
+                                    stacked: true,
                                     beginAtZero: true,
                                     ticks: {
                                         precision: 0
@@ -433,101 +492,127 @@
                     });
                 }
 
-                const txCategorySelect = document.getElementById('txCategorySelect');
-                const txTypeSelect = document.getElementById('txTypeSelect');
-                const setTxSelectsDisabled = (disabled) => {
-                    if (txCategorySelect) {
-                        txCategorySelect.disabled = disabled;
+                // Multi-select dropdowns mirror the Filter Records style: an
+                // "All" master checkbox plus one box per option. Unticking
+                // everything and ticking everything both mean "no filter".
+                let txUpdatingAll = false; // guard against circular updates
+                const txMultiState = (boxCls) => {
+                    const boxes = [...document.querySelectorAll('.' + boxCls)];
+                    const checked = boxes.filter((b) => b.checked).map((b) => b.value);
+                    return {
+                        boxes,
+                        values: checked.length === boxes.length ? [] : checked
+                    };
+                };
+                const txUpdateMultiLabel = (boxCls, allBoxId, labelId, allText) => {
+                    const boxes = [...document.querySelectorAll('.' + boxCls)];
+                    const labelEl = document.getElementById(labelId);
+                    const allBox = document.getElementById(allBoxId);
+                    const checkedCount = boxes.filter((b) => b.checked).length;
+                    if (labelEl) {
+                        labelEl.textContent = (checkedCount === 0 || checkedCount === boxes
+                            .length) ? allText :
+                            (checkedCount === 1 ? boxes.find((b) => b.checked).value :
+                                checkedCount + ' selected');
                     }
-                    if (txTypeSelect) {
-                        txTypeSelect.disabled = disabled;
+                    if (allBox && !txUpdatingAll) {
+                        txUpdatingAll = true;
+                        allBox.checked = checkedCount === boxes.length;
+                        allBox.indeterminate = checkedCount > 0 && checkedCount < boxes.length;
+                        txUpdatingAll = false;
                     }
                 };
-                const txTrendLabel = (category, type) => {
-                    const parts = [];
-                    if (category) {
-                        parts.push(category);
-                    }
-                    if (type) {
-                        parts.push(type);
-                    }
-                    return parts.length > 0 ? parts.join(' · ') + ' Transactions' : 'Transactions';
+                const txSyncMultiLabels = () => {
+                    txUpdateMultiLabel('tx-category-check', 'txCategoryAll', 'txCategoryLabel',
+                        'All categories');
+                    txUpdateMultiLabel('tx-type-check', 'txTypeAll', 'txTypeLabel', 'All types');
                 };
-                const txTrendTitle = (category, type) => {
+                const txTrendTitle = (categories, types) => {
                     const parts = [];
-                    if (category) {
-                        parts.push(category);
+                    if (categories.length > 0) {
+                        parts.push(categories.join(', '));
                     }
-                    if (type) {
-                        parts.push(type);
+                    if (types.length > 0) {
+                        parts.push(types.join(', '));
                     }
                     return parts.length > 0 ? 'Total Transactions — ' + parts.join(' · ') :
                         'Total Transactions';
                 };
-                const txTrendPageUrl = (category, type) => {
+                const txTrendPageUrl = (categories, types) => {
                     const pageUrl = new URL(window.location.href);
-                    if (category) {
-                        pageUrl.searchParams.set('tx_category', category);
-                    } else {
-                        pageUrl.searchParams.delete('tx_category');
-                    }
-                    if (type) {
-                        pageUrl.searchParams.set('tx_type', type);
-                    } else {
-                        pageUrl.searchParams.delete('tx_type');
-                    }
+                    ['tx_category', 'tx_category[]', 'tx_type', 'tx_type[]'].forEach((key) =>
+                        pageUrl.searchParams.delete(key));
+                    categories.forEach((v) => pageUrl.searchParams.append('tx_category[]', v));
+                    types.forEach((v) => pageUrl.searchParams.append('tx_type[]', v));
                     return pageUrl.toString();
                 };
-                if (txCategorySelect || txTypeSelect) {
-                    // Refresh only the graph (no page reload); fall back to a
-                    // full reload only if the data request itself fails.
-                    const reloadTxTrend = async function() {
-                        const category = txCategorySelect ? txCategorySelect.value : '';
-                        const type = txTypeSelect ? txTypeSelect.value : '';
-                        setTxSelectsDisabled(true);
-                        try {
-                            const url = new URL('<?php echo e(route('dashboard.transaction-trend')); ?>', window
-                                .location.origin);
-                            if (category) {
-                                url.searchParams.set('tx_category', category);
+                // Ignore stale responses when several boxes are ticked quickly.
+                let txTrendRequestId = 0;
+                // Refresh only the graph (no page reload); fall back to a
+                // full reload only if the data request itself fails.
+                const reloadTxTrend = async function() {
+                    const categories = txMultiState('tx-category-check').values;
+                    const types = txMultiState('tx-type-check').values;
+                    const myRequest = ++txTrendRequestId;
+                    try {
+                        const url = new URL('<?php echo e(route('dashboard.transaction-trend')); ?>', window
+                            .location.origin);
+                        categories.forEach((v) => url.searchParams.append('tx_category[]', v));
+                        types.forEach((v) => url.searchParams.append('tx_type[]', v));
+                        const res = await fetch(url.toString(), {
+                            headers: {
+                                'Accept': 'application/json'
                             }
-                            if (type) {
-                                url.searchParams.set('tx_type', type);
-                            }
-                            const res = await fetch(url.toString(), {
-                                headers: {
-                                    'Accept': 'application/json'
-                                }
-                            });
-                            const payload = await res.json();
-                            if (!res.ok || !payload.success) {
-                                throw new Error(payload.message || 'Failed to load graph data.');
-                            }
-                            if (txChart) {
-                                txChart.data.labels = payload.labels;
-                                txChart.data.datasets[0].data = payload.data;
-                                txChart.data.datasets[0].label = txTrendLabel(payload.category,
-                                    payload.type);
-                                txChart.update();
-                            }
-                            const titleEl = document.getElementById('txTrendTitle');
-                            if (titleEl) {
-                                titleEl.textContent = txTrendTitle(payload.category, payload.type);
-                            }
-                            window.history.replaceState(null, '', txTrendPageUrl(category, type));
-                        } catch (error) {
-                            window.location.href = txTrendPageUrl(category, type);
-                        } finally {
-                            setTxSelectsDisabled(false);
+                        });
+                        const payload = await res.json();
+                        if (myRequest !== txTrendRequestId) {
+                            return;
                         }
-                    };
-                    if (txCategorySelect) {
-                        txCategorySelect.addEventListener('change', reloadTxTrend);
+                        if (!res.ok || !payload.success) {
+                            throw new Error(payload.message || 'Failed to load graph data.');
+                        }
+                        if (txChart) {
+                            txChart.data.labels = payload.labels;
+                            txChart.data.datasets = txDatasets(payload.datasets);
+                            txChart.update();
+                        }
+                        const titleEl = document.getElementById('txTrendTitle');
+                        if (titleEl) {
+                            titleEl.textContent = txTrendTitle(categories, types);
+                        }
+                        window.history.replaceState(null, '', txTrendPageUrl(categories, types));
+                    } catch (error) {
+                        if (myRequest === txTrendRequestId) {
+                            window.location.href = txTrendPageUrl(categories, types);
+                        }
                     }
-                    if (txTypeSelect) {
-                        txTypeSelect.addEventListener('change', reloadTxTrend);
+                };
+                document.querySelectorAll('.tx-category-check, .tx-type-check').forEach((box) => {
+                    box.addEventListener('change', () => {
+                        txSyncMultiLabels();
+                        reloadTxTrend();
+                    });
+                });
+                [
+                    ['txCategoryAll', 'tx-category-check'],
+                    ['txTypeAll', 'tx-type-check']
+                ].forEach(([allId, cls]) => {
+                    const allBox = document.getElementById(allId);
+                    if (allBox) {
+                        allBox.addEventListener('change', function() {
+                            if (txUpdatingAll) {
+                                return;
+                            }
+                            document.querySelectorAll('.' + cls).forEach((b) => {
+                                b.checked = this.checked;
+                            });
+                            txSyncMultiLabels();
+                            reloadTxTrend();
+                        });
                     }
-                }
+                });
+                // Initialize labels/master state on page load.
+                txSyncMultiLabels();
             });
         </script>
         <script>

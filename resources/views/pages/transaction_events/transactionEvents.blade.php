@@ -153,7 +153,7 @@
                                 @if (feature_allowed('Import CSV'))
                                     <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal"
                                         data-bs-target="#importModal">
-                                        <i class="ri-upload-2-line me-1"></i> Import CSV
+                                        <i class="ri-upload-2-line me-1"></i> Import CSV/XLSX
                                     </button>
                                 @else
                                     <button type="button" class="btn btn-primary btn-sm" disabled

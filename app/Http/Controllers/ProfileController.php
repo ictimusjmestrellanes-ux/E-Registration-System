@@ -80,42 +80,26 @@ class ProfileController extends Controller
             return ['labels' => $labels, 'data' => $data];
         });
 
-        $transactionTrend = Cache::remember(
-            'dashboard.transaction_trend',
-            300,
-            fn () => $this->buildTransactionTrendAll()
-        );
-
-        // Optional per-category / per-type filters for the Total Transactions
-        // graph (?tx_category=…&tx_type=…). Both compose: data is sliced from
+        // Optional multi-select category/type filters for the Total
+        // Transactions graph (?tx_category[]=…&tx_type[]=…). All combos slice
         // one cached month x category x type grid so every option stays instant.
         $txCategoryOptions = $this->txCategoryOptions();
         $txTypeOptions = $this->txTypeOptions();
 
-        $txCategory = trim((string) $request->query('tx_category', ''));
-        if ($txCategory !== '' && ! in_array($txCategory, $txCategoryOptions, true)) {
-            $txCategory = '';
+        $txCategories = $this->txMultiFilter($request, 'tx_category', $txCategoryOptions);
+        $txTypes = $this->txMultiFilter($request, 'tx_type', $txTypeOptions);
+
+        if ($txCategories === [] && $txTypes === []) {
+            $transactionTrend = Cache::remember(
+                'dashboard.transaction_trend_stacked',
+                300,
+                fn () => $this->buildStackedTransactionTrend(null, null)
+            );
+        } else {
+            $transactionTrend = $this->buildStackedTransactionTrend($txCategories, $txTypes);
         }
 
-        $txType = trim((string) $request->query('tx_type', ''));
-        if ($txType !== '' && ! in_array($txType, $txTypeOptions, true)) {
-            $txType = '';
-        }
-
-        if ($txCategory !== '' || $txType !== '') {
-            $trendGrid = $this->transactionTrendGrid();
-            $transactionTrend = [
-                'labels' => $trendGrid['labels'],
-                'data' => $this->sliceTrendGrid(
-                    $trendGrid['grid'],
-                    $trendGrid['months'],
-                    $txCategory !== '' ? $txCategory : null,
-                    $txType !== '' ? $txType : null
-                ),
-            ];
-        }
-
-        $txTrendSuffix = implode(' · ', array_filter([$txCategory, $txType]));
+        $txTrendSuffix = implode(' · ', array_filter([implode(', ', $txCategories), implode(', ', $txTypes)]));
 
         $caravanTrend = Cache::remember('dashboard.caravan_trend', 300, function () {
             $start = Carbon::create(2026, 1, 1)->startOfMonth();
@@ -144,7 +128,7 @@ class ProfileController extends Controller
             return ['labels' => $labels, 'data' => $data];
         });
 
-        return view('pages.dashboard', compact('totalClients', 'totalTransactions', 'txCategoryOptions', 'txCategory', 'txTypeOptions', 'txType', 'txTrendSuffix', 'categoryCounts', 'categories', 'clientTrend', 'transactionTrend', 'caravanTrend'));
+        return view('pages.dashboard', compact('totalClients', 'totalTransactions', 'txCategoryOptions', 'txCategories', 'txTypeOptions', 'txTypes', 'txTrendSuffix', 'categoryCounts', 'categories', 'clientTrend', 'transactionTrend', 'caravanTrend'));
     }
 
     /**
@@ -153,42 +137,49 @@ class ProfileController extends Controller
      */
     public function transactionTrend(Request $request)
     {
-        $txCategory = trim((string) $request->query('tx_category', ''));
-        if ($txCategory !== '' && ! in_array($txCategory, $this->txCategoryOptions(), true)) {
-            $txCategory = '';
-        }
+        $txCategories = $this->txMultiFilter($request, 'tx_category', $this->txCategoryOptions());
+        $txTypes = $this->txMultiFilter($request, 'tx_type', $this->txTypeOptions());
 
-        $txType = trim((string) $request->query('tx_type', ''));
-        if ($txType !== '' && ! in_array($txType, $this->txTypeOptions(), true)) {
-            $txType = '';
-        }
-
-        if ($txCategory === '' && $txType === '') {
+        if ($txCategories === [] && $txTypes === []) {
             $trend = Cache::remember(
-                'dashboard.transaction_trend',
+                'dashboard.transaction_trend_stacked',
                 300,
-                fn () => $this->buildTransactionTrendAll()
+                fn () => $this->buildStackedTransactionTrend(null, null)
             );
         } else {
-            $grid = $this->transactionTrendGrid();
-            $trend = [
-                'labels' => $grid['labels'],
-                'data' => $this->sliceTrendGrid(
-                    $grid['grid'],
-                    $grid['months'],
-                    $txCategory !== '' ? $txCategory : null,
-                    $txType !== '' ? $txType : null
-                ),
-            ];
+            $trend = $this->buildStackedTransactionTrend($txCategories, $txTypes);
         }
 
         return response()->json([
             'success' => true,
-            'category' => $txCategory,
-            'type' => $txType,
+            'categories' => $txCategories,
+            'types' => $txTypes,
             'labels' => $trend['labels'],
-            'data' => $trend['data'],
+            'datasets' => $trend['datasets'],
         ]);
+    }
+
+    /**
+     * Parse a multi-select filter: accepts repeated params
+     * (?tx_category[]=A&tx_category[]=B), a single value, or a
+     * comma-separated list. Unknown values are dropped; empty = all.
+     */
+    private function txMultiFilter(Request $request, string $key, array $options): array
+    {
+        $raw = $request->query($key, []);
+        $values = is_array($raw) ? $raw : [$raw];
+
+        $filtered = [];
+        foreach ($values as $value) {
+            foreach (explode(',', (string) $value) as $part) {
+                $part = trim($part);
+                if ($part !== '' && in_array($part, $options, true)) {
+                    $filtered[] = $part;
+                }
+            }
+        }
+
+        return array_values(array_unique($filtered));
     }
 
     private function txCategoryOptions(): array
@@ -217,29 +208,102 @@ class ProfileController extends Controller
         });
     }
 
-    private function buildTransactionTrendAll(): array
+    /**
+     * Stacked monthly series for the Total Transactions graph, sliced from
+     * the cached month x category x type grid (no extra queries).
+     * Empty arrays mean "all". The stack dimension is whichever filter is
+     * NOT pinned to a single value: no (single) filter stacks by category,
+     * one pinned category stacks by type, and a single category + single
+     * type collapse to one series.
+     *
+     * @return array{labels: array, datasets: array}
+     */
+    private function buildStackedTransactionTrend(?array $categories, ?array $types): array
     {
-        $start = Carbon::create(2026, 1, 1)->startOfMonth();
+        $grid = $this->transactionTrendGrid();
 
-        $rows = TransactionHistory::query()
-            ->selectRaw("DATE_FORMAT(transaction_date, '%Y-%m') as month, count(*) as total")
-            ->where('transaction_date', '>=', $start)
-            ->groupBy('month')
-            ->orderBy('month')
-            ->pluck('total', 'month')
-            ->toArray();
+        return [
+            'labels' => $grid['labels'],
+            'datasets' => $this->stackTrendGrid($grid['grid'], $grid['months'], $categories, $types),
+        ];
+    }
 
-        $labels = [];
-        $data = [];
-        $cursor = $start->copy();
-        while ($cursor->lte(now())) {
-            $key = $cursor->format('Y-m');
-            $labels[] = $cursor->format('M Y');
-            $data[] = $rows[$key] ?? 0;
-            $cursor->addMonth();
+    /**
+     * Split one month x category x type grid into per-segment monthly
+     * series honouring the active filters (null/empty = all).
+     */
+    private function stackTrendGrid(array $grid, array $months, ?array $categories, ?array $types): array
+    {
+        $catSet = empty($categories) ? null : array_flip($categories);
+        $typeSet = empty($types) ? null : array_flip($types);
+
+        // Stack by type only when exactly one category is pinned (and type is not).
+        $byType = $catSet !== null && count($catSet) === 1
+            && ($typeSet === null || count($typeSet) !== 1);
+        $segments = [];
+
+        foreach ($months as $mk) {
+            foreach ($grid[$mk] ?? [] as $cat => $types) {
+                if ($catSet !== null && ! isset($catSet[$cat])) {
+                    continue;
+                }
+                foreach ($types as $t => $n) {
+                    if ($typeSet !== null && ! isset($typeSet[$t])) {
+                        continue;
+                    }
+                    $key = $byType ? $t : $cat;
+                    $segments[$key] = true;
+                }
+            }
         }
 
-        return ['labels' => $labels, 'data' => $data];
+        $keys = array_keys($segments);
+        sort($keys);
+        // Blank values stay complete in the totals; show them last.
+        $keys = array_values(array_filter($keys, fn ($k) => $k !== ''));
+        if (isset($segments[''])) {
+            $keys[] = '';
+        }
+
+        $datasets = [];
+        foreach ($keys as $key) {
+            $data = [];
+            foreach ($months as $mk) {
+                $sum = 0;
+                foreach ($grid[$mk] ?? [] as $cat => $types) {
+                    if ($catSet !== null && ! isset($catSet[$cat])) {
+                        continue;
+                    }
+                    foreach ($types as $t => $n) {
+                        if ($typeSet !== null && ! isset($typeSet[$t])) {
+                            continue;
+                        }
+                        if (($byType ? $t : $cat) === $key) {
+                            $sum += $n;
+                        }
+                    }
+                }
+                $data[] = $sum;
+            }
+            $datasets[] = [
+                'label' => $key !== '' ? $key : 'Unspecified',
+                'data' => $data,
+            ];
+        }
+
+        // Single category + single type: collapse to one labelled series so
+        // the bar keeps its title instead of rendering an empty legend.
+        if ($catSet !== null && $typeSet !== null
+            && count($catSet) === 1 && count($typeSet) === 1
+            && count($datasets) <= 1) {
+            $total = $datasets[0]['data'] ?? array_fill(0, count($months), 0);
+            $datasets = [[
+                'label' => array_key_first($catSet).' · '.array_key_first($typeSet),
+                'data' => $total,
+            ]];
+        }
+
+        return $datasets;
     }
 
     /**
@@ -280,30 +344,5 @@ class ProfileController extends Controller
 
             return ['labels' => $labels, 'months' => $months, 'grid' => $grid];
         });
-    }
-
-    /**
-     * Sum one month x category x type grid down to a monthly series,
-     * honouring whichever of the two filters is active (null = all).
-     */
-    private function sliceTrendGrid(array $grid, array $months, ?string $category, ?string $type): array
-    {
-        $data = [];
-        foreach ($months as $mk) {
-            $sum = 0;
-            foreach ($grid[$mk] ?? [] as $cat => $types) {
-                if ($category !== null && $cat !== $category) {
-                    continue;
-                }
-                foreach ($types as $t => $n) {
-                    if ($type === null || $t === $type) {
-                        $sum += $n;
-                    }
-                }
-            }
-            $data[] = $sum;
-        }
-
-        return $data;
     }
 }
