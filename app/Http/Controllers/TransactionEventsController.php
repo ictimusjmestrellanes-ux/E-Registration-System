@@ -550,4 +550,71 @@ class TransactionEventsController extends Controller
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         ])->deleteFileAfterSend(true);
     }
+
+    private function xlsxColsXml(array $widths): string
+    {
+        $cols = [];
+
+        foreach ($widths as $index => $width) {
+            $column = $index + 1;
+            $cols[] = '<col min="'.$column.'" max="'.$column.'" width="'.number_format((float) $width, 2, '.', '').'" customWidth="1"/>';
+        }
+
+        return $cols === [] ? '' : '<cols>'.implode('', $cols).'</cols>';
+    }
+
+    /**
+     * Write a single XML row for an xlsx worksheet.
+     */
+    private function fwriteXlsxRow($sheet, int $rowNumber, array $values, bool $header): void
+    {
+        $cells = [];
+        $column = 1;
+
+        foreach ($values as $value) {
+            $cellReference = $this->xlsxCellReference($column).$rowNumber;
+            $stringValue = $value === null ? null : (string) $value;
+
+            if ($value === null || $value === '') {
+                $cells[] = '<c r="'.$cellReference.'"/>';
+                $column++;
+                continue;
+            }
+
+            if ($header || ! is_numeric($stringValue)) {
+                $cells[] = '<c r="'.$cellReference.'"'.($header ? ' s="1"' : '').' t="inlineStr"><is><t>'.$this->xlsxXmlEscape($stringValue).'</t></is></c>';
+                $column++;
+                continue;
+            }
+
+            $cells[] = '<c r="'.$cellReference.'" t="n"><v>'.$stringValue.'</v></c>';
+            $column++;
+        }
+
+        fwrite($sheet, '<row r="'.$rowNumber.'">'.implode('', $cells).'</row>');
+    }
+
+    private function xlsxCellReference(int $column): string
+    {
+        $letters = '';
+
+        while ($column > 0) {
+            $columnIndex = ($column - 1) % 26;
+            $letters = chr(65 + $columnIndex).$letters;
+            $column = (int) (($column - 1) / 26);
+        }
+
+        return $letters;
+    }
+
+    private function xlsxXmlEscape(string $value): string
+    {
+        return strtr($value, [
+            '&' => '&amp;',
+            '<' => '&lt;',
+            '>' => '&gt;',
+            '"' => '&quot;',
+            "'" => '&apos;',
+        ]);
+    }
 }
