@@ -355,13 +355,38 @@ class TransactionEventsController extends Controller
 
         $this->applyRecordFilters($query, $request);
 
+        // Allow sortable columns via query params: sort_by, sort_dir
+        $allowedSorts = [
+            'id' => 'id',
+            'transaction_id' => 'transferred_transaction_id',
+            'full_name' => 'full_name',
+            'age' => 'age',
+            'birth_date' => 'birth_date',
+            'contact' => 'contact_no',
+            'address' => 'address',
+            'client_category' => 'client_category',
+            'transaction_category' => 'transaction_category',
+            'transaction_type' => 'transaction_type',
+            'event_date' => 'event_date',
+            'transferred_at' => 'transferred_at',
+        ];
+
+        $sortBy = $request->input('sort_by');
+        $sortDir = strtolower($request->input('sort_dir', 'desc')) === 'asc' ? 'asc' : 'desc';
+        $sortColumn = $allowedSorts[$sortBy] ?? null;
+
         $perPage = (int) $request->input('per_page', 10);
         if (!in_array($perPage, [10, 15, 25, 50, 100], true)) {
             $perPage = 10;
         }
 
+        if ($sortColumn) {
+            $query = $query->orderBy($sortColumn, $sortDir);
+        } else {
+            $query = $query->orderByDesc('id');
+        }
+
         $events = $query->with('transferredTransaction:id,transaction_id')
-            ->orderByDesc('id')
             ->paginate($perPage)
             ->withQueryString();
 

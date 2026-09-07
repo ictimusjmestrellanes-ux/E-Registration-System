@@ -386,18 +386,31 @@
                                                     title="Select all records on this page">
                                             </th>
                                         @endif
-                                        <th data-column="id">ID</th>
-                                        <th data-column="transaction_id">Transaction ID</th>
-                                        <th data-column="full_name">Full Name</th>
-                                        <th data-column="age">Age</th>
-                                        <th data-column="birth_date">Birth Date</th>
-                                        <th data-column="contact">Contact No.</th>
-                                        <th data-column="address">Address</th>
-                                        <th data-column="client_category">Client Category</th>
-                                        <th data-column="transaction_category">Transaction Category</th>
-                                        <th data-column="transaction_type">Transaction Type</th>
-                                        <th data-column="event_date">Event Date</th>
-                                        <th style="width: 160px;" data-column="transferred_at">Transferred At</th>
+                                        @php
+                                            $currentSort = request('sort_by');
+                                            $currentDir = request('sort_dir', 'desc') === 'asc' ? 'asc' : 'desc';
+                                            $sortUrl = function ($col) use ($currentSort, $currentDir) {
+                                                $next = ($currentSort === $col && $currentDir === 'desc') ? 'asc' : 'desc';
+                                                return route('transaction-events.records', array_merge(request()->query(), ['sort_by' => $col, 'sort_dir' => $next]));
+                                            };
+                                            $sortIcon = function ($col) use ($currentSort, $currentDir) {
+                                                if ($currentSort !== $col) return '';
+                                                return $currentDir === 'asc' ? '<i class="ri-arrow-up-s-line ms-1"></i>' : '<i class="ri-arrow-down-s-line ms-1"></i>';
+                                            };
+                                        @endphp
+
+                                        <th data-column="id"><a href="{{ $sortUrl('id') }}" class="text-reset">ID {!! $sortIcon('id') !!}</a></th>
+                                        <th data-column="transaction_id"><a href="{{ $sortUrl('transaction_id') }}" class="text-reset">Transaction ID {!! $sortIcon('transaction_id') !!}</a></th>
+                                        <th data-column="full_name"><a href="{{ $sortUrl('full_name') }}" class="text-reset">Full Name {!! $sortIcon('full_name') !!}</a></th>
+                                        <th data-column="age"><a href="{{ $sortUrl('age') }}" class="text-reset">Age {!! $sortIcon('age') !!}</a></th>
+                                        <th data-column="birth_date"><a href="{{ $sortUrl('birth_date') }}" class="text-reset">Birth Date {!! $sortIcon('birth_date') !!}</a></th>
+                                        <th data-column="contact"><a href="{{ $sortUrl('contact') }}" class="text-reset">Contact No. {!! $sortIcon('contact') !!}</a></th>
+                                        <th data-column="address"><a href="{{ $sortUrl('address') }}" class="text-reset">Address {!! $sortIcon('address') !!}</a></th>
+                                        <th data-column="client_category"><a href="{{ $sortUrl('client_category') }}" class="text-reset">Client Category {!! $sortIcon('client_category') !!}</a></th>
+                                        <th data-column="transaction_category"><a href="{{ $sortUrl('transaction_category') }}" class="text-reset">Transaction Category {!! $sortIcon('transaction_category') !!}</a></th>
+                                        <th data-column="transaction_type"><a href="{{ $sortUrl('transaction_type') }}" class="text-reset">Transaction Type {!! $sortIcon('transaction_type') !!}</a></th>
+                                        <th data-column="event_date"><a href="{{ $sortUrl('event_date') }}" class="text-reset">Event Date {!! $sortIcon('event_date') !!}</a></th>
+                                        <th style="width: 160px;" data-column="transferred_at"><a href="{{ $sortUrl('transferred_at') }}" class="text-reset">Transferred At {!! $sortIcon('transferred_at') !!}</a></th>
                                         <th style="width: 120px;" class="text-center" data-column="status">Status</th>
                                         @if (auth()->user()?->role_name !== 'Viewer')
                                             <th style="width: 140px;" class="text-center">Action</th>
