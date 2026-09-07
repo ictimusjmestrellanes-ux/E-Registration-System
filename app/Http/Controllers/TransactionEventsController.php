@@ -509,6 +509,7 @@ class TransactionEventsController extends Controller
             return back()->with('error', 'Unable to generate the Excel file. Please try again.');
         }
 
+        $zip->addFile($sheetPath, 'xl/worksheets/sheet1.xml');
         $zip->addFromString('[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
             .'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
             .'<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
