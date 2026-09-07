@@ -98,7 +98,10 @@
                             </div>
                         </a>
                     </div>
+<<<<<<< HEAD
                     
+=======
+>>>>>>> f15906d17ff6ccd8a9a6949ff08611711599b18d
                     <div class="col-lg-4 col-md-4 col-sm-12">
                         <a href="<?php echo e(route('transactions.index')); ?>" class="text-decoration-none">
                             <div class="card material-shadow border-info border-opacity-25 stat-card h-100">
@@ -139,6 +142,10 @@
                             </div>
                         </a>
                     </div>
+<<<<<<< HEAD
+=======
+                    
+>>>>>>> f15906d17ff6ccd8a9a6949ff08611711599b18d
                 </div>
                 <!--end stat cards-->
 
