@@ -13,6 +13,7 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
 
 class TransactionEventsController extends Controller
@@ -553,6 +554,210 @@ class TransactionEventsController extends Controller
         ])->deleteFileAfterSend(true);
     }
 
+    public function recordsDuplicates(Request $request)
+    {
+        if (!feature_allowed('Event Records')) {
+            abort(404);
+        }
+
+        $perPage = (int) $request->input('per_page', 25);
+        if (! in_array($perPage, [10, 15, 25, 50, 100], true)) {
+            $perPage = 25;
+        }
+
+        $page = (int) $request->input('page', 1);
+
+        // Group transferred events by normalized full name + event_date + category + type
+        $groupsQuery = TransactionEvent::query()
+            ->whereNotNull('transferred_at')
+            ->selectRaw('LOWER(TRIM(full_name)) as fullname, event_date, transaction_category, transaction_type, COUNT(*) as total')
+            ->groupBy(DB::raw('LOWER(TRIM(full_name))'), 'event_date', 'transaction_category', 'transaction_type')
+            ->havingRaw('COUNT(*) > 1')
+            ->orderByDesc('total');
+
+        $allGroups = $groupsQuery->get();
+        $totalGroups = $allGroups->count();
+
+        $pageSlice = $allGroups->forPage($page, $perPage)->values();
+
+        $groups = $pageSlice->map(function ($g) {
+            $query = TransactionEvent::query()->whereNotNull('transferred_at')
+                ->whereRaw('LOWER(TRIM(full_name)) = ?', [$g->fullname]);
+
+            if ($g->event_date !== null && $g->event_date !== '') {
+                $query->whereDate('event_date', $g->event_date);
+            } else {
+                $query->whereNull('event_date')->orWhere('event_date', '');
+            }
+
+            if ($g->transaction_category !== null && $g->transaction_category !== '') {
+                $query->where('transaction_category', $g->transaction_category);
+            } else {
+                $query->whereNull('transaction_category')->orWhere('transaction_category', '');
+            }
+
+            if ($g->transaction_type !== null && $g->transaction_type !== '') {
+                $query->where('transaction_type', $g->transaction_type);
+            } else {
+                $query->whereNull('transaction_type')->orWhere('transaction_type', '');
+            }
+
+            $events = $query->orderByDesc('id')->get();
+
+            return ['events' => $events, 'total' => (int) $g->total];
+        })->values();
+
+        $exactGroups = new LengthAwarePaginator($groups, $totalGroups, $perPage, $page, [
+            'path' => url()->current(),
+            'query' => $request->query(),
+        ]);
+
+        // Provide empty paginators for the other tabs so the view can render safely.
+        $likelyGroups = new LengthAwarePaginator([], 0, $perPage, (int) $request->input('likely_page', 1), [
+            'path' => url()->current(),
+            'query' => $request->query(),
+        ]);
+        $similarGroups = new LengthAwarePaginator([], 0, $perPage, (int) $request->input('similar_page', 1), [
+            'path' => url()->current(),
+            'query' => $request->query(),
+        ]);
+
+        $filterClientCategories = TransactionEvent::whereNotNull('transferred_at')
+            ->select('client_category')->distinct()->pluck('client_category')->filter()->sort()->values();
+        $filterTransactionCategories = TransactionEvent::whereNotNull('transferred_at')
+            ->select('transaction_category')->distinct()->pluck('transaction_category')->filter()->sort()->values();
+        $filterTransactionTypes = TransactionEvent::whereNotNull('transferred_at')
+            ->select('transaction_type')->distinct()->pluck('transaction_type')->filter()->sort()->values();
+
+        return view('pages.transaction_events.recordsDuplicates', compact(
+            'exactGroups', 'likelyGroups', 'similarGroups',
+            'filterClientCategories', 'filterTransactionCategories', 'filterTransactionTypes', 'perPage'
+        ));
+    }
+
+    public function archives(Request $request)
+    {
+        if (!feature_allowed('Event Records')) {
+            abort(404);
+        }
+
+        $files = ImportArchiveFile::query()
+            ->orderByDesc('imported_at')
+            ->get()
+            ->map(function ($f) {
+                return [
+                    'name' => $f->original_filename ?: $f->filename,
+                    'imported_by' => $f->imported_by ? ['imported_by' => $f->imported_by, 'role' => $f->role ?? ''] : null,
+                    'uploaded_at' => $f->imported_at?->getTimestamp() ?? null,
+                    'size' => (int) ($f->file_size ?? 0),
+                    'download_url' => route('transaction-events.archives.download', ['filename' => $f->filename]),
+                ];
+            })->all();
+
+        return view('pages.transaction_events.transactionEventArchives', compact('files'));
+    }
+
+    public function downloadArchive(Request $request, string $filename)
+    {
+        if (!feature_allowed('Event Records')) {
+            abort(404);
+        }
+
+        $file = ImportArchiveFile::where('filename', $filename)->firstOrFail();
+
+        if (! feature_allowed('Download Archive')) {
+            abort(403);
+        }
+
+        $path = 'transaction-events-archive/' . $file->filename;
+        if (! Storage::disk('local')->exists($path)) {
+            abort(404, 'Archive file not found on disk.');
+        }
+
+        return Storage::disk('local')->download($path, $file->original_filename ?: $file->filename);
+    }
+
+    public function duplicateReview(Request $request)
+    {
+        if (!feature_allowed('Duplicate Review')) {
+            abort(404);
+        }
+
+        $perPage = (int) $request->input('per_page', 25);
+        if (! in_array($perPage, [10, 15, 25, 50, 100], true)) {
+            $perPage = 25;
+        }
+
+        $page = (int) $request->input('page', 1);
+
+        $base = TransactionEvent::whereNull('transferred_at')->where('not_duplicate', false);
+
+        $groupsQuery = (clone $base)
+            ->selectRaw('LOWER(TRIM(full_name)) as fullname, event_date, transaction_category, transaction_type, COUNT(*) as total')
+            ->groupBy(DB::raw('LOWER(TRIM(full_name))'), 'event_date', 'transaction_category', 'transaction_type')
+            ->havingRaw('COUNT(*) > 1')
+            ->orderByDesc('total');
+
+        $allGroups = $groupsQuery->get();
+        $totalGroups = $allGroups->count();
+
+        $pageSlice = $allGroups->forPage($page, $perPage)->values();
+
+        $groups = $pageSlice->map(function ($g) {
+            $query = TransactionEvent::query()->whereNull('transferred_at')->where('not_duplicate', false)
+                ->whereRaw('LOWER(TRIM(full_name)) = ?', [$g->fullname]);
+
+            if ($g->event_date !== null && $g->event_date !== '') {
+                $query->whereDate('event_date', $g->event_date);
+            } else {
+                $query->whereNull('event_date')->orWhere('event_date', '');
+            }
+
+            if ($g->transaction_category !== null && $g->transaction_category !== '') {
+                $query->where('transaction_category', $g->transaction_category);
+            } else {
+                $query->whereNull('transaction_category')->orWhere('transaction_category', '');
+            }
+
+            if ($g->transaction_type !== null && $g->transaction_type !== '') {
+                $query->where('transaction_type', $g->transaction_type);
+            } else {
+                $query->whereNull('transaction_type')->orWhere('transaction_type', '');
+            }
+
+            $events = $query->orderByDesc('id')->get();
+
+            return ['events' => $events, 'total' => (int) $g->total, 'created_at' => $events->min('created_at')];
+        })->values();
+
+        $exactGroups = new LengthAwarePaginator($groups, $totalGroups, $perPage, $page, [
+            'path' => url()->current(),
+            'query' => $request->query(),
+        ]);
+
+        $likelyGroups = new LengthAwarePaginator([], 0, $perPage, (int) $request->input('likely_page', 1), [
+            'path' => url()->current(),
+            'query' => $request->query(),
+        ]);
+        $similarGroups = new LengthAwarePaginator([], 0, $perPage, (int) $request->input('similar_page', 1), [
+            'path' => url()->current(),
+            'query' => $request->query(),
+        ]);
+
+        $filterClientCategories = (clone $base)->select('client_category')->distinct()->pluck('client_category')->filter()->sort()->values();
+        $filterTransactionCategories = (clone $base)->select('transaction_category')->distinct()->pluck('transaction_category')->filter()->sort()->values();
+        $filterTransactionTypes = (clone $base)->select('transaction_type')->distinct()->pluck('transaction_type')->filter()->sort()->values();
+
+        $notDuplicates = TransactionEvent::whereNull('transferred_at')->where('not_duplicate', true)
+            ->orderByDesc('id')->get();
+
+        return view('pages.transaction_events.duplicateReview', compact(
+            'exactGroups', 'likelyGroups', 'similarGroups',
+            'filterClientCategories', 'filterTransactionCategories', 'filterTransactionTypes',
+            'notDuplicates', 'perPage'
+        ));
+    }
+
     private function xlsxColsXml(array $widths): string
     {
         $cols = [];
@@ -744,6 +949,30 @@ class TransactionEventsController extends Controller
             }
         }
 
+        if ($rows !== []) {
+            return $rows;
+        }
+
+        // Fallback: if PhpSpreadsheet is available, use it for more robust parsing
+        if (class_exists('\PhpOffice\PhpSpreadsheet\IOFactory')) {
+            try {
+                $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($path);
+                $sheet = $spreadsheet->getActiveSheet();
+                $psRows = [];
+                foreach ($sheet->toArray(null, true, true, true) as $row) {
+                    // Normalize to zero-based numeric array and trim values
+                    $vals = array_values($row);
+                    $psRows[] = array_map(fn($c) => is_string($c) ? trim($c) : (string) $c, $vals);
+                }
+
+                if ($psRows !== []) {
+                    return $psRows;
+                }
+            } catch (\Throwable $e) {
+                // Fall through to returning empty rows below
+            }
+        }
+
         return $rows;
     }
 
@@ -765,6 +994,7 @@ class TransactionEventsController extends Controller
         $header = array_map([$this, 'normalizeImportHeader'], $rows[0]);
         $records = [];
         $skipped = 0;
+        $skippedExamples = [];
 
         for ($i = 1; $i < count($rows); $i++) {
             $row = $rows[$i];
@@ -779,6 +1009,9 @@ class TransactionEventsController extends Controller
 
             if (($mapped['full_name'] ?? '') === '') {
                 $skipped++;
+                if (count($skippedExamples) < 50) {
+                    $skippedExamples[] = ['line' => $i + 1, 'reason' => 'Missing full_name', 'data' => $mapped];
+                }
                 continue;
             }
 
@@ -786,6 +1019,9 @@ class TransactionEventsController extends Controller
                 $age = (int) $mapped['age'];
                 if ($age < 0 || $age > 120) {
                     $skipped++;
+                    if (count($skippedExamples) < 50) {
+                        $skippedExamples[] = ['line' => $i + 1, 'reason' => 'Invalid age', 'data' => $mapped];
+                    }
                     continue;
                 }
             }
@@ -795,6 +1031,9 @@ class TransactionEventsController extends Controller
                     \Carbon\Carbon::parse($mapped['event_date']);
                 } catch (\Throwable) {
                     $skipped++;
+                    if (count($skippedExamples) < 50) {
+                        $skippedExamples[] = ['line' => $i + 1, 'reason' => 'Invalid event_date', 'data' => $mapped];
+                    }
                     continue;
                 }
             }
@@ -802,7 +1041,7 @@ class TransactionEventsController extends Controller
             $records[] = $mapped;
         }
 
-        return ['rows' => $records, 'skipped' => $skipped];
+        return ['rows' => $records, 'skipped' => $skipped, 'skipped_examples' => $skippedExamples, 'headers' => $header];
     }
 
     private function importSessionKey(string $token): string
@@ -912,11 +1151,26 @@ class TransactionEventsController extends Controller
             'skipped' => $parsed['skipped'],
         ]);
 
+        if (($parsed['skipped'] ?? 0) > 0) {
+            try {
+                Log::warning('Import prepare skipped rows', [
+                    'file' => $file->getClientOriginalName(),
+                    'skipped' => $parsed['skipped'],
+                    'examples' => array_slice($parsed['skipped_examples'] ?? [], 0, 10),
+                ]);
+            } catch (\Throwable $e) {
+                // ignore logging failures
+            }
+        }
+
         return response()->json([
             'success' => true,
             'token' => $token,
             'total' => count($parsed['rows']),
             'skipped' => $parsed['skipped'],
+            'headers' => $parsed['headers'] ?? [],
+            'skipped_examples' => $parsed['skipped_examples'] ?? [],
+            'preview_rows' => array_slice($parsed['rows'] ?? [], 0, 10),
         ]);
     }
 

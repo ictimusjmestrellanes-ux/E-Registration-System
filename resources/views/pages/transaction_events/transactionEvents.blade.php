@@ -2279,7 +2279,15 @@
 
                     const total = prepareData.total;
                     if (total === 0) {
-                        throw new Error('The file has no rows to import.');
+                        let msg = prepareData.message || '';
+                        if (!msg) {
+                            if (prepareData.skipped && prepareData.skipped > 0) {
+                                msg = 'No valid rows found. ' + prepareData.skipped + ' row(s) were skipped due to invalid data.';
+                            } else {
+                                msg = 'The file has no rows to import.';
+                            }
+                        }
+                        throw new Error(msg);
                     }
 
                     const CHUNK_SIZE = 500;
