@@ -420,8 +420,11 @@ class TransactionEventsController extends Controller
         $query = TransactionEvent::whereNotNull('transferred_at');
         $this->applyRecordFilters($query, $request);
 
+        // Export should always be alphabetical by client name across all pages.
         $events = $query->with('transferredTransaction:id,transaction_id')
-            ->orderByDesc('id')->get([
+            ->orderByRaw('LOWER(full_name)')
+            ->orderBy('id')
+            ->get([
                 'id', 'full_name', 'age', 'birth_date', 'contact_no', 'address',
                 'client_category', 'transaction_category', 'transaction_type',
                 'event_date', 'transferred_at', 'transferred_transaction_id',
