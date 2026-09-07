@@ -39,7 +39,7 @@ function feature_allowed(string $feature): bool
     $role = auth()->user()->role_name ?? null;
 
     if ($role === null) {
-        return false;
+        return true;
     }
 
     $permission = \App\Models\Permission::where('feature', $feature)
