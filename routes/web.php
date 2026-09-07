@@ -39,6 +39,7 @@ Route::group(['namespace' => 'App\Http\Controllers'], function () {
         // --------------------- Dashboard ------------------//
         Route::get('dashboard', [ProfileController::class, 'dashboard'])->name('dashboard');
         Route::get('dashboard/transaction-trend', [ProfileController::class, 'transactionTrend'])->name('dashboard.transaction-trend');
+        Route::get('dashboard/transaction-trend/types', [ProfileController::class, 'transactionTrendTypes'])->name('dashboard.transaction-trend.types');
 
         // --------------------- Activity Logs ------------------//
         Route::get('activity-logs', [ActivityLogsController::class, 'index'])->name('activity.logs');
@@ -138,7 +139,7 @@ Route::group(['namespace' => 'App\Http\Controllers'], function () {
         Route::post('transaction-events/import/finish', [TransactionEventsController::class, 'finishImport'])->name('transaction-events.import.finish');
         Route::post('transaction-events/import', [TransactionEventsController::class, 'import'])->name('transaction-events.import');
         Route::post('transaction-events/transfer-selected', [TransactionEventsController::class, 'transferSelected'])->name('transaction-events.transfer-selected');
-        Route::post('transaction-events/transfer-one', [TransactionEventsController::class, 'transferOne'])->name('transaction-events.transfer-one');
+        Route::post('transaction-events/transfer-selected/ids', [TransactionEventsController::class, 'transferSelectedIds'])->name('transaction-events.transfer-selected.ids');
         Route::post('transaction-events/transfer-one', [TransactionEventsController::class, 'transferOne'])->name('transaction-events.transfer-one');
         Route::post('transaction-events/transfer-selected/prepare', [TransactionEventsController::class, 'prepareTransferSelected'])->name('transaction-events.transfer-selected.prepare');
         Route::post('transaction-events/transfer-selected/process', [TransactionEventsController::class, 'processTransferChunk'])->name('transaction-events.transfer-selected.process');
@@ -151,6 +152,7 @@ Route::group(['namespace' => 'App\Http\Controllers'], function () {
         Route::post('transaction-events/{event}/reset-duplicate', [TransactionEventsController::class, 'resetNotDuplicate'])->name('transaction-events.reset-duplicate');
         Route::post('transaction-events/{event}/transfer', [TransactionEventsController::class, 'transfer'])->name('transaction-events.transfer');
         Route::post('transaction-events/{event}/undo-transfer', [TransactionEventsController::class, 'undoTransfer'])->name('transaction-events.undo-transfer');
+        Route::delete('transaction-events/delete-selected', [TransactionEventsController::class, 'destroySelected'])->name('transaction-events.delete-selected');
         Route::delete('transaction-events/{event}/delete', [TransactionEventsController::class, 'destroy'])->name('transaction-events.delete');
     
         });

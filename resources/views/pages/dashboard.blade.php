@@ -223,7 +223,8 @@
                                             </div>
                                             <hr class="my-2">
                                             @foreach ($txTypeOptions ?? [] as $option)
-                                                <div class="form-check">
+                                                <div class="form-check"
+                                                    @if (!in_array($option, $txVisibleTypes ?? $txTypeOptions ?? [])) style="display: none;" @endif>
                                                     <input class="form-check-input tx-type-check" type="checkbox"
                                                         id="txTypeCheck_{{ $loop->index }}"
                                                         value="{{ $option }}"
@@ -515,7 +516,11 @@
                     };
                 };
                 const txUpdateMultiLabel = (boxCls, allBoxId, labelId, allText) => {
-                    const boxes = [...document.querySelectorAll('.' + boxCls)];
+                    // Hidden options (filtered out by the other dropdown) don't count.
+                    const boxes = [...document.querySelectorAll('.' + boxCls)].filter((b) => {
+                        const row = b.closest('.form-check');
+                        return !row || row.style.display !== 'none';
+                    });
                     const labelEl = document.getElementById(labelId);
                     const allBox = document.getElementById(allBoxId);
                     const checkedCount = boxes.filter((b) => b.checked).length;
@@ -597,7 +602,50 @@
                         }
                     }
                 };
-                document.querySelectorAll('.tx-category-check, .tx-type-check').forEach((box) => {
+                // Cascading menus: the Type list shows only types occurring in
+                // the selected categories. Hidden options are unchecked (they
+                // contribute zero rows under the current categories anyway).
+                let txTypesRequestId = 0;
+                const txApplyTypeVisibility = async () => {
+                    const myRequest = ++txTypesRequestId;
+                    try {
+                        const categories = txMultiState('tx-category-check').values;
+                        const url = new URL('{{ route('dashboard.transaction-trend.types') }}',
+                            window.location.origin);
+                        categories.forEach((v) => url.searchParams.append('tx_category[]', v));
+                        const res = await fetch(url.toString(), {
+                            headers: {
+                                'Accept': 'application/json'
+                            }
+                        });
+                        const payload = await res.json();
+                        if (myRequest !== txTypesRequestId || !res.ok || !payload.success) {
+                            return;
+                        }
+                        const allowed = new Set(payload.types || []);
+                        document.querySelectorAll('.tx-type-check').forEach((box) => {
+                            const row = box.closest('.form-check');
+                            const show = allowed.has(box.value);
+                            if (row) {
+                                row.style.display = show ? '' : 'none';
+                            }
+                            if (!show) {
+                                box.checked = false;
+                            }
+                        });
+                        txSyncMultiLabels();
+                    } catch (error) {
+                        // Menu stays as-is; the chart reload still applies the filter.
+                    }
+                };
+                document.querySelectorAll('.tx-category-check').forEach((box) => {
+                    box.addEventListener('change', async () => {
+                        txSyncMultiLabels();
+                        await txApplyTypeVisibility();
+                        reloadTxTrend();
+                    });
+                });
+                document.querySelectorAll('.tx-type-check').forEach((box) => {
                     box.addEventListener('change', () => {
                         txSyncMultiLabels();
                         reloadTxTrend();
@@ -613,8 +661,12 @@
                             if (txUpdatingAll) {
                                 return;
                             }
+                            // The Type "All" only covers visible options.
                             document.querySelectorAll('.' + cls).forEach((b) => {
-                                b.checked = this.checked;
+                                const row = b.closest('.form-check');
+                                if (!row || row.style.display !== 'none') {
+                                    b.checked = this.checked;
+                                }
                             });
                             txSyncMultiLabels();
                             reloadTxTrend();

@@ -116,28 +116,15 @@
                                     <i class="ri-archive-line me-1"></i> Not Allowed to View Archives
                                 </button>
                             @endif
-                            <div class="d-flex align-items-center gap-2">
-                                @unless (auth()->user()?->role_name === 'Viewer')
-                                    @if (feature_allowed('Transfer Selected'))
-                                        <button type="button" class="btn btn-success btn-sm" id="bulkTransferBtn" disabled>
-                                            <i class="ri-exchange-box-line me-1"></i> Transfer Selected
-                                        </button>
-                                        <button type="button" class="btn btn-info btn-sm" id="transferOneByOneBtn" disabled
-                                            title="Transfer the checked events one at a time. Reuses the existing client when matched, otherwise creates one.">
-                                            <i class="ri-exchange-line me-1"></i> Transfer 1 by 1
-                                        </button>
-                                    @else
-                                        <button type="button" class="btn btn-success btn-sm" disabled
-                                            title="You do not have permission to transfer selected events.">
-                                            <i class="ri-exchange-box-line me-1"></i> Not Allowed to Transfer Selected
-                                        </button>
-                                    @endif
-                                @endunless
-                            </div>
 
                             <form id="bulkTransferForm" action="{{ route('transaction-events.transfer-selected') }}"
                                 method="POST" class="d-none">
                                 @csrf
+                            </form>
+                            <form id="bulkDeleteForm" action="{{ route('transaction-events.delete-selected') }}"
+                                method="POST" class="d-none">
+                                @csrf
+                                @method('DELETE')
                             </form>
                             @unless (auth()->user()?->role_name === 'Viewer')
                                 @if (feature_allowed('Download Template'))
@@ -167,7 +154,8 @@
                                     <i class="ri-download-line me-1"></i> Export XLSX
                                 </a>
                             @endunless
-                            <span class="badge bg-primary-subtle text-primary px-4 py-2">{{ $events->total() }} total</span>
+                            <span class="badge bg-primary-subtle text-primary px-4 py-2">{{ $events->total() }}
+                                total</span>
                         </div>
                     </div>
                     <div class="card-body">
@@ -275,18 +263,55 @@
                                             id="eventAgeTo" name="age_to" placeholder="To"
                                             value="{{ request('age_to') }}">
                                     </div> --}}
-                                    
+
                                     <div class="col-12 col-md-6 col-xl-3">
-                                        <label for="eventClientCategory"
-                                            class="form-label fw-semibold text-uppercase small">Client Category</label>
-                                        <select class="form-select" id="eventClientCategory" name="client_category">
-                                            <option value="">All client categories</option>
-                                            @foreach ($clientCategories as $clientCategory)
-                                                <option value="{{ $clientCategory }}"
-                                                    {{ request('client_category') === $clientCategory ? 'selected' : '' }}>
-                                                    {{ $clientCategory }}</option>
-                                            @endforeach
-                                        </select>
+                                        <label class="form-label fw-semibold text-uppercase small">Client
+                                            Category</label>
+                                        <div class="dropdown w-100">
+                                            <button
+                                                class="btn btn-light border form-select text-start d-flex align-items-center justify-content-between"
+                                                type="button" id="eventClientCategoryBtn" data-bs-toggle="dropdown"
+                                                data-bs-auto-close="outside" aria-expanded="false"
+                                                style="padding: 0.5rem 0.75rem;">
+                                                <span id="eventClientCategoryLabel">All client categories</span>
+                                                <i class="ri-arrow-down-s-line ms-2 flex-shrink-0"></i>
+                                            </button>
+                                            <div class="dropdown-menu w-100" id="eventClientCategoryDropdown"
+                                                style="max-height: 260px; overflow-y: auto;">
+                                                <div class="p-2">
+                                                    <div class="form-check mb-2">
+                                                        <input class="form-check-input" type="checkbox"
+                                                            id="eventClientCategoryAll" value="">
+                                                        <label class="form-check-label fw-semibold"
+                                                            for="eventClientCategoryAll">
+                                                            All client categories
+                                                        </label>
+                                                    </div>
+                                                    <hr class="my-2">
+                                                    @foreach ($clientCategories as $clientCategory)
+                                                        @php
+                                                            $selectedClientCategories = collect(
+                                                                (array) request('client_category', []),
+                                                            )->filter();
+                                                            $isClientCategoryChecked = $selectedClientCategories->contains(
+                                                                $clientCategory,
+                                                            );
+                                                        @endphp
+                                                        <div class="form-check">
+                                                            <input class="form-check-input event-client-category-checkbox"
+                                                                type="checkbox"
+                                                                id="eventClientCategory_{{ $loop->index }}"
+                                                                value="{{ $clientCategory }}"
+                                                                {{ $isClientCategoryChecked ? 'checked' : '' }}>
+                                                            <label class="form-check-label"
+                                                                for="eventClientCategory_{{ $loop->index }}">
+                                                                {{ $clientCategory }}
+                                                            </label>
+                                                        </div>
+                                                    @endforeach
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
                                         <label for="eventTransactionCategory"
@@ -305,9 +330,11 @@
                                     <div class="col-12 col-md-6 col-xl-2">
                                         <label class="form-label fw-semibold text-uppercase small">Transaction Type</label>
                                         <div class="dropdown w-100">
-                                            <button class="btn btn-light border form-select text-start d-flex align-items-center justify-content-between"
+                                            <button
+                                                class="btn btn-light border form-select text-start d-flex align-items-center justify-content-between"
                                                 type="button" id="eventTypeFilterBtn" data-bs-toggle="dropdown"
-                                                data-bs-auto-close="outside" aria-expanded="false" style="padding: 0.5rem 0.75rem;">
+                                                data-bs-auto-close="outside" aria-expanded="false"
+                                                style="padding: 0.5rem 0.75rem;">
                                                 <span id="eventTypeFilterLabel">All types</span>
                                                 <i class="ri-arrow-down-s-line ms-2 flex-shrink-0"></i>
                                             </button>
@@ -324,12 +351,15 @@
                                                     <hr class="my-2">
                                                     @foreach ($transactionTypes as $txType)
                                                         @php
-                                                            $selectedTypes = collect((array) request('transaction_type', []))->filter();
+                                                            $selectedTypes = collect(
+                                                                (array) request('transaction_type', []),
+                                                            )->filter();
                                                             $isChecked = $selectedTypes->contains($txType);
                                                         @endphp
                                                         <div class="form-check">
-                                                            <input class="form-check-input event-type-checkbox" type="checkbox"
-                                                                id="eventTypeFilter_{{ $loop->index }}" value="{{ $txType }}"
+                                                            <input class="form-check-input event-type-checkbox"
+                                                                type="checkbox" id="eventTypeFilter_{{ $loop->index }}"
+                                                                value="{{ $txType }}"
                                                                 {{ $isChecked ? 'checked' : '' }}>
                                                             <label class="form-check-label"
                                                                 for="eventTypeFilter_{{ $loop->index }}">
@@ -379,11 +409,41 @@
                             class="alert alert-primary py-2 px-3 mb-3 d-none align-items-center justify-content-between flex-wrap gap-2"
                             role="alert">
                             <span id="selectAllPagesText"></span>
-                            <button type="button" id="clearSelectionBtn" class="btn btn-sm btn-light d-none">
-                                Clear selection
-                            </button>
-                        </div>
+                            <div class="d-flex align-items-center justify-content-end flex-wrap gap-2">
+                                @unless (auth()->user()?->role_name === 'Viewer')
+                                    @if (feature_allowed('Transfer Selected'))
+                                        <button type="button" class="btn btn-success btn-sm" id="bulkTransferBtn" disabled>
+                                            <i class="ri-exchange-box-line me-1"></i> Transfer Selected
+                                        </button>
+                                        <button type="button" class="btn btn-info btn-sm" id="transferOneByOneBtn" disabled
+                                            title="Transfer the checked events one at a time. When Select All is active, covers every matching event across pages. Reuses the existing client when matched, otherwise creates one.">
+                                            <i class="ri-exchange-line me-1"></i> Transfer 1 by 1
+                                        </button>
+                                    @else
+                                        <button type="button" class="btn btn-secondary btn-sm" disabled
+                                            title="You do not have permission to transfer selected events.">
+                                            <i class="ri-lock-line me-1"></i> Not Allowed to Transfer
+                                        </button>
+                                    @endif
 
+                                    @if (feature_allowed('Delete Event'))
+                                        <button type="button" class="btn btn-danger btn-sm" id="bulkDeleteBtn" disabled
+                                            title="Delete the checked events (or every matching event when Select All is active). Cannot be undone.">
+                                            <i class="ri-delete-bin-line me-1"></i> Delete Selected
+                                        </button>
+                                    @else
+                                        <button type="button" class="btn btn-secondary btn-sm" disabled
+                                            title="You do not have permission to delete events.">
+                                            <i class="ri-lock-line me-1"></i> Not Allowed to Delete
+                                        </button>
+                                    @endif
+                                @endunless
+
+                                <button type="button" id="clearSelectionBtn" class="btn btn-sm btn-light d-none">
+                                    Clear selection
+                                </button>
+                            </div>
+                        </div>
                         <div class="table-responsive">
                             <table class="table table-bordered table-hover align-middle mb-0" id="eventListTable">
                                 <thead class="table-light">
@@ -563,6 +623,57 @@
             </div>
         </div>
 
+        <!-- Transfer 1 by 1 Confirmation Modal -->
+        <div class="modal fade" id="transferOneByOneConfirmModal" tabindex="-1"
+            aria-labelledby="transferOneByOneConfirmModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered modal-sm">
+                <div class="modal-content">
+                    <div class="modal-body text-center py-4">
+                        <div class="mb-3">
+                            <i class="ri-exchange-line text-info" style="font-size: 3rem;"></i>
+                        </div>
+                        <p class="fs-5 fw-semibold mb-1" id="transferOneByOneConfirmModalLabel">Confirm Transfer 1 by 1
+                        </p>
+                        <p class="text-muted mb-0">
+                            Transfer <span class="fw-semibold" id="transferOneByOneCount">0</span>
+                            selected event(s) one at a time?
+                        </p>
+                    </div>
+                    <div class="modal-footer border-0 justify-content-center gap-3 pt-0">
+                        <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-info px-4" id="confirmTransferOneByOneBtn">
+                            <i class="ri-check-line me-1"></i> Continue
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bulk Delete Confirmation Modal -->
+        <div class="modal fade" id="bulkDeleteConfirmModal" tabindex="-1" aria-labelledby="bulkDeleteConfirmModalLabel"
+            aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered modal-sm">
+                <div class="modal-content">
+                    <div class="modal-body text-center py-4">
+                        <div class="mb-3">
+                            <i class="ri-delete-bin-line text-danger" style="font-size: 3rem;"></i>
+                        </div>
+                        <p class="fs-5 fw-semibold mb-1" id="bulkDeleteConfirmModalLabel">Confirm Delete</p>
+                        <p class="text-muted mb-0">
+                            Permanently delete <span class="fw-semibold" id="bulkDeleteCount">0</span>
+                            selected event(s)? This cannot be undone.
+                        </p>
+                    </div>
+                    <div class="modal-footer border-0 justify-content-center gap-3 pt-0">
+                        <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-danger px-4" id="confirmBulkDeleteBtn">
+                            <i class="ri-delete-bin-line me-1"></i> Delete
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Import form (hidden, used by both modals) -->
         <form id="importForm" action="{{ route('transaction-events.import') }}" method="POST"
             enctype="multipart/form-data" class="d-none">
@@ -581,11 +692,13 @@
                     <div class="modal-body">
                         <div class="mb-3">
                             <label for="csv_file_visible" class="form-label">Select CSV or Excel File</label>
-                            <input type="file" class="form-control" id="csv_file_visible" accept=".csv,.txt,.xlsx,.xls" required>
+                            <input type="file" class="form-control" id="csv_file_visible"
+                                accept=".csv,.txt,.xlsx,.xls" required>
                             <div id="csvFileError" class="invalid-feedback d-none"></div>
                         </div>
                         <div class="alert alert-info mb-0">
-                            <strong>File Format:</strong> Upload a CSV or Excel (.xlsx) file with the following columns (with header
+                            <strong>File Format:</strong> Upload a CSV or Excel (.xlsx) file with the following columns
+                            (with header
                             row):<br>
                             <code>full_name, contact_no, address, age, birth_date, client_category, transaction_category,
                                 transaction_type, event_date</code><br>
@@ -788,14 +901,18 @@
                 const text = await res.text();
 
                 if (text && text.trim().charAt(0) === '<') {
-                    let detail = `The server returned an HTML error page instead of JSON (HTTP ${res.status}).`;
+                    let detail =
+                        `The server returned an HTML error page instead of JSON (HTTP ${res.status}).`;
 
                     if (res.status === 419) {
-                        detail = 'Your session has expired (HTTP 419). Please refresh the page and try again.';
+                        detail =
+                            'Your session has expired (HTTP 419). Please refresh the page and try again.';
                     } else if (res.status === 413 || res.status === 400) {
-                        detail = `The request was too large or rejected by the server (HTTP ${res.status}). Try a smaller file or split it into fewer rows.`;
+                        detail =
+                            `The request was too large or rejected by the server (HTTP ${res.status}). Try a smaller file or split it into fewer rows.`;
                     } else if (res.status === 500 || res.status === 502 || res.status === 504) {
-                        detail = `The server had an error while processing your request (HTTP ${res.status}). Try again in a moment.`;
+                        detail =
+                            `The server had an error while processing your request (HTTP ${res.status}). Try again in a moment.`;
                     }
 
                     throw new Error(detail);
@@ -804,7 +921,8 @@
                 try {
                     return JSON.parse(text);
                 } catch (e) {
-                    throw new Error(`Invalid response from the server (HTTP ${res.status}). Please try again.`);
+                    throw new Error(
+                        `Invalid response from the server (HTTP ${res.status}). Please try again.`);
                 }
             };
 
@@ -822,6 +940,59 @@
 
             eventFiltersToggleBtn?.addEventListener('click', function() {
                 setEventFiltersVisible(eventFiltersForm.classList.contains('d-none'));
+            });
+
+            // ----- Multi-select Event Client Category filter -----
+            const eventClientCategoryAllCheckbox = document.getElementById('eventClientCategoryAll');
+            const eventClientCategoryCheckboxes = document.querySelectorAll('.event-client-category-checkbox');
+            const eventClientCategoryLabel = document.getElementById('eventClientCategoryLabel');
+            let isUpdatingEventClientCategoryAllCheckbox = false; // Flag to prevent circular event handling
+
+            function updateEventClientCategoryLabel() {
+                const checkedCount = Array.from(eventClientCategoryCheckboxes).filter(cb => cb.checked).length;
+                const totalCount = eventClientCategoryCheckboxes.length;
+
+                if (checkedCount === 0) {
+                    eventClientCategoryLabel.textContent = 'All client categories';
+                } else if (checkedCount === totalCount) {
+                    eventClientCategoryLabel.textContent = 'All client categories';
+                } else if (checkedCount === 1) {
+                    const checkedValue = Array.from(eventClientCategoryCheckboxes).find(cb => cb.checked)?.value;
+                    eventClientCategoryLabel.textContent = checkedValue || 'All client categories';
+                } else {
+                    eventClientCategoryLabel.textContent = `${checkedCount} selected`;
+                }
+
+                // Only update "All client categories" checkbox if not already updating
+                if (!isUpdatingEventClientCategoryAllCheckbox) {
+                    isUpdatingEventClientCategoryAllCheckbox = true;
+                    eventClientCategoryAllCheckbox.checked = checkedCount === totalCount;
+                    eventClientCategoryAllCheckbox.indeterminate = checkedCount > 0 && checkedCount < totalCount;
+                    isUpdatingEventClientCategoryAllCheckbox = false;
+                }
+            }
+
+            // Handle "All client categories" checkbox
+            if (eventClientCategoryAllCheckbox) {
+                eventClientCategoryAllCheckbox.addEventListener('change', function() {
+                    // Only process if this is a direct user click, not a programmatic update
+                    if (isUpdatingEventClientCategoryAllCheckbox) return;
+
+                    const shouldCheck = this.checked;
+                    eventClientCategoryCheckboxes.forEach(checkbox => {
+                        checkbox.checked = shouldCheck;
+                    });
+                    // Manually call updateEventClientCategoryLabel since individual change events won't fire
+                    updateEventClientCategoryLabel();
+                });
+            }
+
+            // Handle individual client category checkboxes
+            eventClientCategoryCheckboxes.forEach(checkbox => {
+                checkbox.addEventListener('change', function() {
+                    // When an individual checkbox changes, update All client categories checkbox state
+                    updateEventClientCategoryLabel();
+                });
             });
 
             // ----- Multi-select Event Transaction Type filter -----
@@ -860,7 +1031,7 @@
                 eventTypeFilterAllCheckbox.addEventListener('change', function() {
                     // Only process if this is a direct user click, not a programmatic update
                     if (isUpdatingEventTypeAllCheckbox) return;
-                    
+
                     const shouldCheck = this.checked;
                     eventTypeCheckboxes.forEach(checkbox => {
                         checkbox.checked = shouldCheck;
@@ -882,7 +1053,8 @@
             if (eventFiltersForm) {
                 eventFiltersForm.addEventListener('submit', function(e) {
                     // Remove any existing transaction_type hidden inputs that we may have added before
-                    const existingHiddenInputs = this.querySelectorAll('input[type="hidden"][name="transaction_type[]"]');
+                    const existingHiddenInputs = this.querySelectorAll(
+                        'input[type="hidden"][name="transaction_type[]"]');
                     existingHiddenInputs.forEach(input => input.remove());
 
                     // Get all checked individual transaction type checkboxes
@@ -890,11 +1062,11 @@
                         .filter(cb => cb.checked)
                         .map(cb => cb.value)
                         .filter(val => val !== ''); // Filter out empty values
-                    
+
                     // Only add hidden inputs if some (but not all) types are selected
                     // If none selected or all selected, don't add any filter (shows all)
                     const totalTypes = eventTypeCheckboxes.length;
-                    
+
                     if (checkedTypes.length > 0 && checkedTypes.length < totalTypes) {
                         // Add hidden input for each checked type
                         // Use transaction_type[] to ensure Laravel treats it as an array
@@ -906,13 +1078,37 @@
                             this.appendChild(hiddenInput);
                         });
                     }
-                    
+
+                    // Multi-select client categories: same none/all-means-all rule.
+                    const existingClientCategoryInputs = this.querySelectorAll(
+                        'input[type="hidden"][name="client_category[]"]');
+                    existingClientCategoryInputs.forEach(input => input.remove());
+
+                    const checkedClientCategories = Array.from(eventClientCategoryCheckboxes)
+                        .filter(cb => cb.checked)
+                        .map(cb => cb.value)
+                        .filter(val => val !== ''); // Filter out empty values
+
+                    const totalClientCategories = eventClientCategoryCheckboxes.length;
+
+                    if (checkedClientCategories.length > 0 && checkedClientCategories.length <
+                        totalClientCategories) {
+                        checkedClientCategories.forEach(category => {
+                            const hiddenInput = document.createElement('input');
+                            hiddenInput.type = 'hidden';
+                            hiddenInput.name = 'client_category[]';
+                            hiddenInput.value = category;
+                            this.appendChild(hiddenInput);
+                        });
+                    }
+
                     // Form will now submit with the hidden inputs included
                 });
             }
 
-            // Initialize label on page load
+            // Initialize labels on page load
             updateEventTypeLabel();
+            updateEventClientCategoryLabel();
 
             // ----- Per page selector -----
             document.getElementById('eventPerPageSelect')?.addEventListener('change', function() {
@@ -1057,6 +1253,11 @@
                         const anyChecked = eventCheckboxes.some((checkbox) => checkbox.checked);
                         bulkTransferBtn.disabled = !allPagesSelected && !anyChecked;
                     }
+                    const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
+                    if (bulkDeleteBtn) {
+                        const anyChecked = eventCheckboxes.some((checkbox) => checkbox.checked);
+                        bulkDeleteBtn.disabled = !allPagesSelected && !anyChecked;
+                    }
                     if (transferOneByOneBtn) {
                         // 1-by-1 works on explicitly checked rows only (not all-pages mode).
                         const anyCheckedRow = eventCheckboxes.some((checkbox) => checkbox.checked &&
@@ -1094,6 +1295,51 @@
                 syncSelectAllState();
             }
 
+            // Shared select-all payload: select_all + exclude_duplicates plus
+            // every active list filter so the backend targets exactly the rows
+            // shown across pages. Used by both bulk transfer and bulk delete.
+            const appendSelectAllInputs = (form) => {
+                const addHidden = (name, value, isFilter) => {
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = name;
+                    input.value = value;
+                    if (isFilter) {
+                        input.setAttribute('data-list-filter', '1');
+                    }
+                    form.appendChild(input);
+                };
+
+                addHidden('select_all', '1', false);
+                // Always exclude duplicates when using select all
+                addHidden('exclude_duplicates', '1', false);
+
+                const params = new URLSearchParams(window.location.search);
+
+                // Carry over the active list filters so the backend
+                // targets exactly the rows shown across pages.
+                ['search', 'contact', 'age_from', 'age_to', 'date_from', 'date_to',
+                    'duplicate_names', 'transaction_category'
+                ].forEach((name) => {
+                    const value = params.get(name);
+                    if (value !== null && value !== '') {
+                        addHidden(name, value, true);
+                    }
+                });
+
+                // Multi-value filters: forward every selected value so
+                // select-all covers the whole filtered population.
+                ['client_category', 'transaction_type'].forEach((name) => {
+                    let values = params.getAll(name + '[]');
+                    if (values.length === 0) {
+                        values = params.getAll(name);
+                    }
+                    values.filter((v) => v !== '').forEach((value) => {
+                        addHidden(name + '[]', value, true);
+                    });
+                });
+            };
+
             if (bulkTransferBtn && bulkTransferForm && bulkTransferConfirmModalEl && confirmBulkTransferBtn) {
                 const bulkTransferConfirmModal = bootstrap.Modal.getOrCreateInstance(bulkTransferConfirmModalEl);
 
@@ -1121,39 +1367,11 @@
                     // Reset previous payload.
                     bulkTransferForm.querySelectorAll(
                             'input[name="event_ids[]"], input[name="select_all"], input[data-list-filter], input[name="exclude_duplicates"]'
-                            )
+                        )
                         .forEach((input) => input.remove());
 
                     if (allPagesSelected) {
-                        const allInput = document.createElement('input');
-                        allInput.type = 'hidden';
-                        allInput.name = 'select_all';
-                        allInput.value = '1';
-                        bulkTransferForm.appendChild(allInput);
-
-                        // Always exclude duplicates when using select all
-                        const excludeDupesInput = document.createElement('input');
-                        excludeDupesInput.type = 'hidden';
-                        excludeDupesInput.name = 'exclude_duplicates';
-                        excludeDupesInput.value = '1';
-                        bulkTransferForm.appendChild(excludeDupesInput);
-
-                        // Carry over the active list filters so the backend
-                        // targets exactly the rows shown across pages.
-                        ['search', 'contact', 'age_from', 'age_to', 'date_from', 'date_to',
-                            'duplicate_names', 'client_category', 'transaction_category', 'transaction_type'
-                        ]
-                        .forEach((name) => {
-                            const value = new URLSearchParams(window.location.search).get(name);
-                            if (value !== null && value !== '') {
-                                const input = document.createElement('input');
-                                input.type = 'hidden';
-                                input.name = name;
-                                input.setAttribute('data-list-filter', '1');
-                                input.value = value;
-                                bulkTransferForm.appendChild(input);
-                            }
-                        });
+                        appendSelectAllInputs(bulkTransferForm);
                     } else {
                         if (selectedBulkTransferIds.length === 0) {
                             confirmBulkTransferBtn.disabled = false;
@@ -1170,7 +1388,8 @@
 
                     bulkTransferConfirmModal.hide();
 
-                    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute(
+                        'content') || '';
                     const apiHeaders = {
                         'X-CSRF-TOKEN': csrfToken,
                         'Accept': 'application/json',
@@ -1222,7 +1441,8 @@
                             const next = Math.min(offset + CHUNK_SIZE, total);
                             setTransferProgress(
                                 (offset / total) * 100,
-                                'Transferring events ' + (offset + 1) + ' - ' + next + ' of ' + total
+                                'Transferring events ' + (offset + 1) + ' - ' + next + ' of ' +
+                                total
                             );
 
                             const chunkBody = new URLSearchParams();
@@ -1239,7 +1459,8 @@
                             const chunkData = await parseApiResponse(chunkRes);
 
                             if (!chunkRes.ok || !chunkData.success) {
-                                throw new Error(chunkData.message || 'Transfer failed while processing rows.');
+                                throw new Error(chunkData.message ||
+                                    'Transfer failed while processing rows.');
                             }
 
                             offset = chunkData.processed;
@@ -1274,13 +1495,78 @@
                     } catch (error) {
                         progressModal.hide();
                         confirmBulkTransferBtn.disabled = false;
-                        new Message('imessage').show(error.message || 'Transfer failed.', 'fail', 'top-center');
+                        new Message('imessage').show(error.message || 'Transfer failed.', 'fail',
+                            'top-center');
                     }
                 });
 
                 bulkTransferConfirmModalEl.addEventListener('hidden.bs.modal', function() {
                     selectedBulkTransferIds = [];
                     confirmBulkTransferBtn.disabled = false;
+                });
+            }
+
+            // ----- Bulk Delete Selected (checked rows or select-all population) -----
+            const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
+            const bulkDeleteForm = document.getElementById('bulkDeleteForm');
+            const bulkDeleteConfirmModalEl = document.getElementById('bulkDeleteConfirmModal');
+            const bulkDeleteCount = document.getElementById('bulkDeleteCount');
+            const confirmBulkDeleteBtn = document.getElementById('confirmBulkDeleteBtn');
+            let selectedBulkDeleteIds = [];
+
+            if (bulkDeleteBtn && bulkDeleteForm && bulkDeleteConfirmModalEl && confirmBulkDeleteBtn) {
+                const bulkDeleteConfirmModal = bootstrap.Modal.getOrCreateInstance(bulkDeleteConfirmModalEl);
+
+                bulkDeleteBtn.addEventListener('click', function() {
+                    selectedBulkDeleteIds = eventCheckboxes
+                        .filter((checkbox) => checkbox.checked)
+                        .map((checkbox) => checkbox.value);
+
+                    if (selectedBulkDeleteIds.length === 0 && !allPagesSelected) {
+                        return;
+                    }
+
+                    if (bulkDeleteCount) {
+                        bulkDeleteCount.textContent = allPagesSelected ?
+                            totalMatchingEvents :
+                            selectedBulkDeleteIds.length;
+                    }
+
+                    bulkDeleteConfirmModal.show();
+                });
+
+                confirmBulkDeleteBtn.addEventListener('click', function() {
+                    confirmBulkDeleteBtn.disabled = true;
+
+                    // Reset previous payload.
+                    bulkDeleteForm.querySelectorAll(
+                            'input[name="event_ids[]"], input[name="select_all"], input[data-list-filter], input[name="exclude_duplicates"]'
+                        )
+                        .forEach((input) => input.remove());
+
+                    if (allPagesSelected) {
+                        appendSelectAllInputs(bulkDeleteForm);
+                    } else {
+                        if (selectedBulkDeleteIds.length === 0) {
+                            confirmBulkDeleteBtn.disabled = false;
+                            return;
+                        }
+                        selectedBulkDeleteIds.forEach((id) => {
+                            const input = document.createElement('input');
+                            input.type = 'hidden';
+                            input.name = 'event_ids[]';
+                            input.value = id;
+                            bulkDeleteForm.appendChild(input);
+                        });
+                    }
+
+                    bulkDeleteConfirmModal.hide();
+                    bulkDeleteForm.submit();
+                });
+
+                bulkDeleteConfirmModalEl.addEventListener('hidden.bs.modal', function() {
+                    selectedBulkDeleteIds = [];
+                    confirmBulkDeleteBtn.disabled = false;
                 });
             }
 
@@ -1316,17 +1602,113 @@
                 });
             }
 
-            // ----- Transfer 1 by 1: checked events, one request each -----
-            if (transferOneByOneBtn) {
+            // ----- Transfer 1 by 1: confirm first, then checked events, one request each -----
+            const transferOneByOneConfirmModalEl = document.getElementById('transferOneByOneConfirmModal');
+            const transferOneByOneCount = document.getElementById('transferOneByOneCount');
+            const confirmTransferOneByOneBtn = document.getElementById('confirmTransferOneByOneBtn');
+            let pendingOneByOneIds = [];
+
+            if (transferOneByOneBtn && transferOneByOneConfirmModalEl && confirmTransferOneByOneBtn) {
+                const transferOneByOneConfirmModal = bootstrap.Modal.getOrCreateInstance(
+                    transferOneByOneConfirmModalEl);
+
                 transferOneByOneBtn.addEventListener('click', async function() {
-                    const ids = eventCheckboxes
-                        .filter((checkbox) => checkbox.checked && !checkbox.disabled)
-                        .map((checkbox) => parseInt(checkbox.value, 10))
-                        .filter((id) => id > 0);
+                    if (allPagesSelected) {
+                        // Select All covers every matching event across pages, not
+                        // just this page's checkboxes: resolve the full id list.
+                        transferOneByOneBtn.disabled = true;
+                        try {
+                            pendingOneByOneIds = await resolveOneByOneIds();
+                        } catch (error) {
+                            transferOneByOneBtn.disabled = false;
+                            new Message('imessage').show(error.message ||
+                                'Could not resolve matching events.', 'fail',
+                                'top-center');
+                            return;
+                        }
+                        transferOneByOneBtn.disabled = false;
+                    } else {
+                        pendingOneByOneIds = eventCheckboxes
+                            .filter((checkbox) => checkbox.checked && !checkbox.disabled)
+                            .map((checkbox) => parseInt(checkbox.value, 10))
+                            .filter((id) => id > 0);
+                    }
+
+                    if (pendingOneByOneIds.length === 0) {
+                        new Message('imessage').show('No matching events found to transfer.',
+                            'fail', 'top-center');
+                        return;
+                    }
+
+                    if (transferOneByOneCount) {
+                        transferOneByOneCount.textContent = pendingOneByOneIds.length;
+                    }
+
+                    transferOneByOneConfirmModal.show();
+                });
+
+                // Resolve the whole filtered select-all population into ids.
+                const resolveOneByOneIds = async () => {
+                    const params = new URLSearchParams(window.location.search);
+                    const payload = {
+                        select_all: 1,
+                        exclude_duplicates: 1
+                    };
+                    ['search', 'contact', 'age_from', 'age_to', 'date_from', 'date_to',
+                        'duplicate_names', 'transaction_category'
+                    ].forEach((name) => {
+                        const value = params.get(name);
+                        if (value !== null && value !== '') {
+                            payload[name] = value;
+                        }
+                    });
+                    ['client_category', 'transaction_type'].forEach((name) => {
+                        let values = params.getAll(name + '[]');
+                        if (values.length === 0) {
+                            values = params.getAll(name);
+                        }
+                        values = values.filter((v) => v !== '');
+                        if (values.length > 0) {
+                            payload[name] = values;
+                        }
+                    });
+
+                    const csrfToken = document.querySelector('meta[name="csrf-token"]')
+                        ?.getAttribute('content') || '';
+                    const res = await fetch(
+                        '{{ route('transaction-events.transfer-selected.ids') }}', {
+                            method: 'POST',
+                            headers: {
+                                'X-CSRF-TOKEN': csrfToken,
+                                'Accept': 'application/json',
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify(payload),
+                        });
+                    const text = await res.text();
+                    let data;
+                    try {
+                        data = JSON.parse(text);
+                    } catch (e) {
+                        throw new Error(
+                            `Invalid response from the server (HTTP ${res.status}). Please try again.`
+                        );
+                    }
+                    if (!res.ok || !data.success) {
+                        throw new Error(data.message || 'Could not resolve matching events.');
+                    }
+                    return (data.ids || []).map((id) => parseInt(id, 10)).filter((id) => id > 0);
+                };
+
+                confirmTransferOneByOneBtn.addEventListener('click', async function() {
+                    const ids = pendingOneByOneIds.slice();
 
                     if (ids.length === 0) {
                         return;
                     }
+
+                    confirmTransferOneByOneBtn.disabled = true;
+                    transferOneByOneConfirmModal.hide();
 
                     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute(
                         'content') || '';
@@ -1405,7 +1787,9 @@
                         setProgress(100, 'Done!');
                         const summary =
                             `Transferred ${done} of ${ids.length} (${created} new client(s), ${reused} reused)` +
-                            (failed.length > 0 ? `. Skipped ${failed.length}: ${failed.slice(0, 5).join('; ')}${failed.length > 5 ? '...' : ''}` : '');
+                            (failed.length > 0 ?
+                                `. Skipped ${failed.length}: ${failed.slice(0, 5).join('; ')}${failed.length > 5 ? '...' : ''}` :
+                                '');
                         new Message('imessage').show(summary, failed.length > 0 ? 'fail' : 'success',
                             'top-center');
                         setTimeout(function() {
@@ -1422,6 +1806,11 @@
                         new Message('imessage').show(error.message || 'Transfer failed.', 'fail',
                             'top-center');
                     }
+                });
+
+                transferOneByOneConfirmModalEl.addEventListener('hidden.bs.modal', function() {
+                    pendingOneByOneIds = [];
+                    confirmTransferOneByOneBtn.disabled = false;
                 });
             }
 
@@ -1465,23 +1854,57 @@
             // errors on hosts like Azure when importing big CSVs (24k+ rows).
             const splitCsvRecords = function(text) {
                 const records = [];
-                let row = [], field = '', inQuotes = false, i = 0;
+                let row = [],
+                    field = '',
+                    inQuotes = false,
+                    i = 0;
                 while (i < text.length) {
                     const c = text[i];
                     if (inQuotes) {
                         if (c === '"') {
-                            if (text[i + 1] === '"') { field += '"'; i += 2; continue; }
-                            inQuotes = false; i += 1; continue;
+                            if (text[i + 1] === '"') {
+                                field += '"';
+                                i += 2;
+                                continue;
+                            }
+                            inQuotes = false;
+                            i += 1;
+                            continue;
                         }
-                        field += c; i += 1; continue;
+                        field += c;
+                        i += 1;
+                        continue;
                     }
-                    if (c === '"') { inQuotes = true; i += 1; continue; }
-                    if (c === ',') { row.push(field); field = ''; i += 1; continue; }
-                    if (c === '\n') { row.push(field); records.push(row); row = []; field = ''; i += 1; continue; }
-                    if (c === '\r') { i += 1; continue; }
-                    field += c; i += 1;
+                    if (c === '"') {
+                        inQuotes = true;
+                        i += 1;
+                        continue;
+                    }
+                    if (c === ',') {
+                        row.push(field);
+                        field = '';
+                        i += 1;
+                        continue;
+                    }
+                    if (c === '\n') {
+                        row.push(field);
+                        records.push(row);
+                        row = [];
+                        field = '';
+                        i += 1;
+                        continue;
+                    }
+                    if (c === '\r') {
+                        i += 1;
+                        continue;
+                    }
+                    field += c;
+                    i += 1;
                 }
-                if (field !== '' || row.length > 0) { row.push(field); records.push(row); }
+                if (field !== '' || row.length > 0) {
+                    row.push(field);
+                    records.push(row);
+                }
                 return records;
             };
 
@@ -1527,11 +1950,15 @@
                 const records = (rawRecords || []).map(function(r) {
                     return (Array.isArray(r) ? r : [r]).map(matrixCellToString);
                 });
-                if (records.length === 0) return { error: emptyMessage || 'The file is empty or has no header row.' };
+                if (records.length === 0) return {
+                    error: emptyMessage || 'The file is empty or has no header row.'
+                };
 
                 let header = records[0].map(normalizeCsvHeader).filter(Boolean);
                 if (!header.includes('full_name')) {
-                    return { error: 'Missing required column: full_name.' };
+                    return {
+                        error: 'Missing required column: full_name.'
+                    };
                 }
 
                 const rows = [];
@@ -1546,30 +1973,47 @@
                         row[h] = (raw[idx] !== undefined ? raw[idx] : '').trim();
                     });
                     ['birth_date', 'birthdate', 'event_date', 'eventdate'].forEach(function(k) {
-                        if (row[k] !== undefined && row[k] !== '') row[k] = excelSerialToDateString(row[k]);
+                        if (row[k] !== undefined && row[k] !== '') row[k] = excelSerialToDateString(row[
+                            k]);
                     });
 
                     const fullName = row.full_name || '';
                     const eventDate = row.event_date || row.eventdate || '';
                     const normKey = (v) => String(v || '').trim().toLowerCase() || '*';
-                    const eventKey = [normKey(fullName).replace(/\s+/g, ' '), normKey(row.client_category), normKey(row.transaction_category), normKey(row.transaction_type), normKey(eventDate)].join('|');
+                    const eventKey = [normKey(fullName).replace(/\s+/g, ' '), normKey(row.client_category),
+                        normKey(row.transaction_category), normKey(row.transaction_type), normKey(eventDate)
+                    ].join('|');
 
                     const age = row.age;
-                    if (age !== '' && age !== undefined && (isNaN(parseInt(age, 10)) || String(parseInt(age, 10)) !== String(age).trim())) {
-                        skippedRows.push({ line: r + 1, reason: 'Invalid age value', data: row });
+                    if (age !== '' && age !== undefined && (isNaN(parseInt(age, 10)) || String(parseInt(age,
+                            10)) !== String(age).trim())) {
+                        skippedRows.push({
+                            line: r + 1,
+                            reason: 'Invalid age value',
+                            data: row
+                        });
                         continue;
                     }
 
                     if (eventDate !== '') {
                         const parsed = new Date(eventDate);
                         if (isNaN(parsed.getTime())) {
-                            skippedRows.push({ line: r + 1, reason: 'Invalid event_date value', data: row });
+                            skippedRows.push({
+                                line: r + 1,
+                                reason: 'Invalid event_date value',
+                                data: row
+                            });
                             continue;
                         }
                     }
 
                     eventKeyCounts[eventKey] = (eventKeyCounts[eventKey] || 0) + 1;
-                    all.push({ row, fullName, eventKey, line: r + 1 });
+                    all.push({
+                        row,
+                        fullName,
+                        eventKey,
+                        line: r + 1
+                    });
                 }
 
                 rows.length = 0;
@@ -1649,9 +2093,9 @@
                         throw new Error(result.error);
                     }
 
-                    previewTotalRows.textContent = result.total_rows > 100
-                        ? `${result.total_rows.toLocaleString()} (showing first ${result.preview_rows.length})`
-                        : result.total_rows.toLocaleString();
+                    previewTotalRows.textContent = result.total_rows > 100 ?
+                        `${result.total_rows.toLocaleString()} (showing first ${result.preview_rows.length})` :
+                        result.total_rows.toLocaleString();
                     previewSkippedRows.textContent = result.skipped_rows.length.toLocaleString();
 
                     if (result.preview_rows.length > 0) {
@@ -1754,9 +2198,9 @@
                 };
                 reader.onload = function() {
                     try {
-                        const rawText = typeof reader.result === 'string'
-                            ? reader.result
-                            : new TextDecoder('utf-8').decode(reader.result);
+                        const rawText = typeof reader.result === 'string' ?
+                            reader.result :
+                            new TextDecoder('utf-8').decode(reader.result);
 
                         renderPreviewResult(parseCsvPreview(rawText));
                     } catch (error) {
@@ -1944,7 +2388,8 @@
                             `;
                             body.appendChild(tr);
                         });
-                        const suffix = data.duplicates_truncated ? ' (showing first 100 in table below)' : '';
+                        const suffix = data.duplicates_truncated ?
+                            ' (showing first 100 in table below)' : '';
                         document.getElementById('importDuplicateSummary').textContent =
                             `${Number(data.duplicates_count).toLocaleString()} of ${Number(data.total_rows).toLocaleString()} row(s) in this file already exist in the system (Transaction History or Import Events).${suffix}`;
                         bootstrap.Modal.getOrCreateInstance(document.getElementById(

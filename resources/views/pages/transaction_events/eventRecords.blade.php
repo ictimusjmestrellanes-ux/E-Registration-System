@@ -235,17 +235,48 @@
                                     </div> --}}
 
                                     <div class="col-12 col-md-6 col-xl-3">
-                                        <label for="recordClientCategoryFilter"
-                                            class="form-label fw-semibold text-uppercase small">Client Category</label>
-                                        <select class="form-select" id="recordClientCategoryFilter"
-                                            name="client_category">
-                                            <option value="">All client categories</option>
-                                            @foreach ($clientCategories as $clientCategory)
-                                                <option value="{{ $clientCategory }}"
-                                                    {{ request('client_category') === $clientCategory ? 'selected' : '' }}>
-                                                    {{ $clientCategory }}</option>
-                                            @endforeach
-                                        </select>
+                                        <label class="form-label fw-semibold text-uppercase small">Client Category</label>
+                                        <div class="dropdown w-100">
+                                            <button
+                                                class="btn btn-light border form-select text-start d-flex align-items-center justify-content-between"
+                                                type="button" id="recordClientCategoryBtn" data-bs-toggle="dropdown"
+                                                data-bs-auto-close="outside" aria-expanded="false"
+                                                style="padding: .5rem 0.75rem;">
+                                                <span id="recordClientCategoryLabel">All client categories</span>
+                                            </button>
+                                            <div class="dropdown-menu w-100" id="recordClientCategoryDropdown"
+                                                style="max-height: 260px; overflow-y: auto;">
+                                                <div class="p-2">
+                                                    <div class="form-check mb-2">
+                                                        <input class="form-check-input" type="checkbox"
+                                                            id="recordClientCategoryAll" value="">
+                                                        <label class="form-check-label fw-semibold"
+                                                            for="recordClientCategoryAll">
+                                                            All client categories
+                                                        </label>
+                                                    </div>
+                                                    <hr class="my-2">
+                                                    @foreach ($clientCategories as $clientCategory)
+                                                        @php
+                                                            $selectedClientCategories = collect(
+                                                                (array) request('client_category', []),
+                                                            )->filter();
+                                                            $isClientCategoryChecked = $selectedClientCategories->contains($clientCategory);
+                                                        @endphp
+                                                        <div class="form-check">
+                                                            <input class="form-check-input record-client-category-checkbox"
+                                                                type="checkbox" id="recordClientCategory_{{ $loop->index }}"
+                                                                value="{{ $clientCategory }}"
+                                                                {{ $isClientCategoryChecked ? 'checked' : '' }}>
+                                                            <label class="form-check-label"
+                                                                for="recordClientCategory_{{ $loop->index }}">
+                                                                {{ $clientCategory }}
+                                                            </label>
+                                                        </div>
+                                                    @endforeach
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
                                         <label for="recordCategoryFilter"
@@ -715,7 +746,7 @@
                         select_all: 1
                     };
                     ['search', 'contact', 'age_from', 'age_to', 'date_from', 'date_to',
-                        'client_category', 'transaction_category'
+                        'transaction_category'
                     ].forEach((name) => {
                         const value = params.get(name);
                         if (value !== null && value !== '') {
@@ -723,14 +754,16 @@
                         }
                     });
 
-                    // Handle transaction_type which can have multiple values
-                    const transactionTypes = params.getAll('transaction_type[]').length > 0 ?
-                        params.getAll('transaction_type[]') :
-                        params.getAll('transaction_type');
-                    const filteredTypes = transactionTypes.filter(v => v !== '');
-                    if (filteredTypes.length > 0) {
-                        payload.transaction_type = filteredTypes;
-                    }
+                    // Handle filters which can have multiple values
+                    ['client_category', 'transaction_type'].forEach((name) => {
+                        const values = params.getAll(name + '[]').length > 0 ?
+                            params.getAll(name + '[]') :
+                            params.getAll(name);
+                        const filtered = values.filter(v => v !== '');
+                        if (filtered.length > 0) {
+                            payload[name] = filtered;
+                        }
+                    });
                     const res = await fetch(undoIdsUrl, {
                         method: 'POST',
                         headers: {
@@ -825,6 +858,59 @@
                 });
             }
 
+            // Multi-select Client Category filter
+            const recordClientCategoryAllCheckbox = document.getElementById('recordClientCategoryAll');
+            const recordClientCategoryCheckboxes = document.querySelectorAll('.record-client-category-checkbox');
+            const recordClientCategoryLabel = document.getElementById('recordClientCategoryLabel');
+            let isUpdatingClientCategoryAllCheckbox = false; // Flag to prevent circular event handling
+
+            function updateRecordClientCategoryLabel() {
+                const checkedCount = Array.from(recordClientCategoryCheckboxes).filter(cb => cb.checked).length;
+                const totalCount = recordClientCategoryCheckboxes.length;
+
+                if (checkedCount === 0) {
+                    recordClientCategoryLabel.textContent = 'All client categories';
+                } else if (checkedCount === totalCount) {
+                    recordClientCategoryLabel.textContent = 'All client categories';
+                } else if (checkedCount === 1) {
+                    const checkedValue = Array.from(recordClientCategoryCheckboxes).find(cb => cb.checked)?.value;
+                    recordClientCategoryLabel.textContent = checkedValue || 'All client categories';
+                } else {
+                    recordClientCategoryLabel.textContent = `${checkedCount} selected`;
+                }
+
+                // Only update "All client categories" checkbox if not already updating
+                if (!isUpdatingClientCategoryAllCheckbox) {
+                    isUpdatingClientCategoryAllCheckbox = true;
+                    recordClientCategoryAllCheckbox.checked = checkedCount === totalCount;
+                    recordClientCategoryAllCheckbox.indeterminate = checkedCount > 0 && checkedCount < totalCount;
+                    isUpdatingClientCategoryAllCheckbox = false;
+                }
+            }
+
+            // Handle "All client categories" checkbox
+            if (recordClientCategoryAllCheckbox) {
+                recordClientCategoryAllCheckbox.addEventListener('change', function() {
+                    // Only process if this is a direct user click, not a programmatic update
+                    if (isUpdatingClientCategoryAllCheckbox) return;
+
+                    const shouldCheck = this.checked;
+                    recordClientCategoryCheckboxes.forEach(checkbox => {
+                        checkbox.checked = shouldCheck;
+                    });
+                    // Manually call updateRecordClientCategoryLabel since individual change events won't fire
+                    updateRecordClientCategoryLabel();
+                });
+            }
+
+            // Handle individual client category checkboxes
+            recordClientCategoryCheckboxes.forEach(checkbox => {
+                checkbox.addEventListener('change', function() {
+                    // When an individual checkbox changes, update All client categories checkbox state
+                    updateRecordClientCategoryLabel();
+                });
+            });
+
             // Multi-select Transaction Type filter
             const recordTypeFilterAllCheckbox = document.getElementById('recordTypeFilterAll');
             const recordTypeCheckboxes = document.querySelectorAll('.record-type-checkbox');
@@ -910,12 +996,35 @@
                         });
                     }
 
+                    // Multi-select client categories: same none/all-means-all rule.
+                    const existingClientCategoryInputs = this.querySelectorAll(
+                        'input[type="hidden"][name="client_category[]"]');
+                    existingClientCategoryInputs.forEach(input => input.remove());
+
+                    const checkedClientCategories = Array.from(recordClientCategoryCheckboxes)
+                        .filter(cb => cb.checked)
+                        .map(cb => cb.value)
+                        .filter(val => val !== ''); // Filter out empty values
+
+                    const totalClientCategories = recordClientCategoryCheckboxes.length;
+
+                    if (checkedClientCategories.length > 0 && checkedClientCategories.length < totalClientCategories) {
+                        checkedClientCategories.forEach(category => {
+                            const hiddenInput = document.createElement('input');
+                            hiddenInput.type = 'hidden';
+                            hiddenInput.name = 'client_category[]';
+                            hiddenInput.value = category;
+                            this.appendChild(hiddenInput);
+                        });
+                    }
+
                     // Form will now submit with the hidden inputs included
                 });
             }
 
-            // Initialize label on page load
+            // Initialize labels on page load
             updateRecordTypeLabel();
+            updateRecordClientCategoryLabel();
         });
     </script>
 @endpush

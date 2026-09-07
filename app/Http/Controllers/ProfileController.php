@@ -89,6 +89,15 @@ class ProfileController extends Controller
         $txCategories = $this->txMultiFilter($request, 'tx_category', $txCategoryOptions);
         $txTypes = $this->txMultiFilter($request, 'tx_type', $txTypeOptions);
 
+        // Cascading dropdowns: the Type menu lists only types that occur in
+        // the selected categories (all types when nothing is picked).
+        $txVisibleTypes = $txCategories === []
+            ? $txTypeOptions
+            : $this->txTypesForCategories($txCategories);
+        // Drop pre-selected types that the current categories hide so the
+        // menu, chart, and title always agree (the URL self-heals on reload).
+        $txTypes = array_values(array_intersect($txTypes, $txVisibleTypes));
+
         if ($txCategories === [] && $txTypes === []) {
             $transactionTrend = Cache::remember(
                 'dashboard.transaction_trend_stacked',
@@ -128,7 +137,7 @@ class ProfileController extends Controller
             return ['labels' => $labels, 'data' => $data];
         });
 
-        return view('pages.dashboard', compact('totalClients', 'totalTransactions', 'txCategoryOptions', 'txCategories', 'txTypeOptions', 'txTypes', 'txTrendSuffix', 'categoryCounts', 'categories', 'clientTrend', 'transactionTrend', 'caravanTrend'));
+        return view('pages.dashboard', compact('totalClients', 'totalTransactions', 'txCategoryOptions', 'txCategories', 'txTypeOptions', 'txTypes', 'txVisibleTypes', 'txTrendSuffix', 'categoryCounts', 'categories', 'clientTrend', 'transactionTrend', 'caravanTrend'));
     }
 
     /**
@@ -157,6 +166,45 @@ class ProfileController extends Controller
             'labels' => $trend['labels'],
             'datasets' => $trend['datasets'],
         ]);
+    }
+
+    /**
+     * Distinct transaction types occurring in the given categories
+     * (all types when the list is empty). Backs the cascading Type menu.
+     */
+    public function transactionTrendTypes(Request $request)
+    {
+        $txCategories = $this->txMultiFilter($request, 'tx_category', $this->txCategoryOptions());
+
+        return response()->json([
+            'success' => true,
+            'categories' => $txCategories,
+            'types' => $txCategories === [] ? $this->txTypeOptions() : $this->txTypesForCategories($txCategories),
+        ]);
+    }
+
+    private function txTypesForCategories(array $categories): array
+    {
+        sort($categories);
+
+        return Cache::remember(
+            'dashboard.tx_types_for_categories.'.md5(json_encode($categories)),
+            300,
+            function () use ($categories) {
+                $query = TransactionHistory::query()
+                    ->whereNotNull('events_transaction_type')
+                    ->where('events_transaction_type', '<>', '');
+
+                if ($categories !== []) {
+                    $query->whereIn('category', $categories);
+                }
+
+                return $query->distinct()
+                    ->orderBy('events_transaction_type')
+                    ->pluck('events_transaction_type')
+                    ->all();
+            }
+        );
     }
 
     /**

@@ -191,6 +191,31 @@ class TransactionEventsController extends Controller
     }
 
     /**
+     * Normalize a list filter that may arrive as a single value, a repeated
+     * ?key[]=… param, or a comma-separated list. Always returns the full
+     * set — a basic where() would silently keep only the first element.
+     *
+     * @return string[]
+     */
+    private function multiFilterValues(Request $request, string $key): array
+    {
+        $raw = $request->input($key);
+        $values = is_array($raw) ? $raw : [$raw];
+
+        $clean = [];
+        foreach ($values as $value) {
+            foreach (explode(',', (string) $value) as $part) {
+                $part = trim($part);
+                if ($part !== '') {
+                    $clean[] = $part;
+                }
+            }
+        }
+
+        return array_values(array_unique($clean));
+    }
+
+    /**
      * Shared list filters (search, contact, age range, date range) so the
      * bulk "select all across pages" transfer targets exactly what is shown.
      */
@@ -220,16 +245,16 @@ class TransactionEventsController extends Controller
             $query->whereDate('created_at', '<=', $dateTo);
         }
 
-        if ($clientCategory = $request->input('client_category')) {
-            $query->where('client_category', $clientCategory);
+        if ($clientCategories = $this->multiFilterValues($request, 'client_category')) {
+            $query->whereIn('client_category', $clientCategories);
         }
 
         if ($txCategory = $request->input('transaction_category')) {
             $query->where('transaction_category', $txCategory);
         }
 
-        if ($txType = $request->input('transaction_type')) {
-            $query->where('transaction_type', $txType);
+        if ($txTypes = $this->multiFilterValues($request, 'transaction_type')) {
+            $query->whereIn('transaction_type', $txTypes);
         }
     }
 
@@ -300,8 +325,8 @@ class TransactionEventsController extends Controller
             }
         }
 
-        if ($clientCategory = $request->input('client_category')) {
-            $query->where('client_category', $clientCategory);
+        if ($clientCategories = $this->multiFilterValues($request, 'client_category')) {
+            $query->whereIn('client_category', $clientCategories);
         }
     }
 
@@ -2447,6 +2472,36 @@ class TransactionEventsController extends Controller
         ]);
     }
 
+    /**
+     * Return every pending event id matching the current Import Events
+     * filters so Transfer 1 by 1 can run across all pages.
+     */
+    public function transferSelectedIds(Request $request)
+    {
+        if (auth()->user()->role_name === 'Viewer') {
+            abort(403, 'Viewer role is read-only.');
+        }
+
+        if (! feature_allowed('Transfer Selected')) {
+            abort(404);
+        }
+
+        if (! $request->boolean('select_all')) {
+            return response()->json(['success' => false, 'message' => 'Cross-page selection was not requested.'], 422);
+        }
+
+        $ids = $this->resolveTransferSelectedEvents($request)
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        return response()->json([
+            'success' => true,
+            'ids' => $ids,
+            'total' => count($ids),
+        ]);
+    }
+
     public function transferSelected(Request $request)
     {
         $events = $this->resolveTransferSelectedEvents($request);
@@ -2520,6 +2575,56 @@ class TransactionEventsController extends Controller
 
         return redirect()->route('transaction-events.index')
             ->with('success', "Event #{$eventId} ({$fullName}) deleted successfully.");
+    }
+
+    /**
+     * Bulk-delete pending events: either explicitly checked event_ids or the
+     * whole filtered select-all population (same scope as Transfer Selected).
+     * Transferred events can never match and are therefore never deleted.
+     */
+    public function destroySelected(Request $request)
+    {
+        $authUser = auth()->user();
+        if ($authUser->role_name === 'Viewer') {
+            abort(403, 'Viewer role is read-only.');
+        }
+
+        if (! feature_allowed('Delete Event')) {
+            abort(404);
+        }
+
+        $events = $this->resolveTransferSelectedEvents($request);
+
+        if ($events->isEmpty()) {
+            return redirect()->route('transaction-events.index')
+                ->with('error', 'No matching pending events to delete.');
+        }
+
+        $ids = $events->pluck('id')->all();
+        $count = count($ids);
+
+        TransactionEvent::query()->whereIn('id', $ids)->delete();
+
+        $this->clearDuplicateCaches();
+
+        ActivityLog::create([
+            'user_id' => auth()->id(),
+            'action' => 'events_bulk_deleted',
+            'description' => "Bulk-deleted {$count} pending transaction event(s) from the Import Events list.",
+            'subject_type' => 'TransactionEvent',
+            'subject_id' => null,
+            'properties' => json_encode([
+                'count' => $count,
+                'select_all' => $request->boolean('select_all'),
+                'filters' => $request->only([
+                    'search', 'contact', 'age_from', 'age_to', 'date_from', 'date_to',
+                    'duplicate_names', 'client_category', 'transaction_category', 'transaction_type',
+                ]),
+            ], JSON_INVALID_UTF8_SUBSTITUTE),
+        ]);
+
+        return redirect()->route('transaction-events.index')
+            ->with('success', "Deleted {$count} pending event(s). This cannot be undone.");
     }
 
     private function nextTransferredTransactionId(string $clientId): string
