@@ -968,6 +968,7 @@
                     });
                     // Manually call updateRecordTypeLabel since individual change events won't fire
                     updateRecordTypeLabel();
+                    syncRecordClientCategoryVisibility();
                 });
             }
 
@@ -976,6 +977,7 @@
                 checkbox.addEventListener('change', function() {
                     // When an individual checkbox changes, update All types checkbox state
                     updateRecordTypeLabel();
+                    syncRecordClientCategoryVisibility();
                 });
             });
 
@@ -1038,6 +1040,49 @@
             // Initialize labels on page load
             updateRecordTypeLabel();
             updateRecordClientCategoryLabel();
+            syncRecordClientCategoryVisibility();
+
+            // Filter client-category dropdown based on checked transaction types
+            const recordTypeClientCategoryMap = @json($typeClientCategories ?? []);
+
+            function syncRecordClientCategoryVisibility() {
+                const checkedTypes = Array.from(recordTypeCheckboxes)
+                    .filter(cb => cb.checked)
+                    .map(cb => cb.value)
+                    .filter(Boolean);
+
+                const allTypesSelected = checkedTypes.length === 0 || checkedTypes.length === recordTypeCheckboxes.length;
+                const allowedCategories = new Set();
+
+                if (!allTypesSelected) {
+                    checkedTypes.forEach((type) => {
+                        const categories = recordTypeClientCategoryMap[type] || [];
+                        categories.forEach((category) => allowedCategories.add(category));
+                    });
+                }
+
+                recordClientCategoryCheckboxes.forEach((checkbox) => {
+                    const row = checkbox.closest('.form-check');
+                    const shouldShow = allTypesSelected || allowedCategories.has(checkbox.value);
+
+                    if (row) {
+                        row.style.display = shouldShow ? '' : 'none';
+                    }
+
+                    if (!shouldShow) {
+                        checkbox.checked = false;
+                    }
+                });
+
+                updateRecordClientCategoryLabel();
+            }
+
+            // Initial visibility sync
+            syncRecordClientCategoryVisibility();
+
+            // Sync visibility on transaction type change
+            document.getElementById('recordTypeFilterBtn')?.addEventListener('click', syncRecordClientCategoryVisibility);
+            document.getElementById('recordClientCategoryBtn')?.addEventListener('click', syncRecordClientCategoryVisibility);
         });
     </script>
 @endpush
