@@ -364,10 +364,9 @@ class TransactionEventsController extends Controller
     }
 
     /**
-     * Normalized 5-field duplicate key for transferred records:
-     * Full Name + Client Category + Transaction Category +
-     * Transaction Type + Event Date (same definition as the
-     * "exact duplicates" on View Duplicate Records).
+     * Normalized exact-match duplicate key for transferred records.
+     * Exact match is: Same Full Name + Client Category +
+     * Transaction Category + Transaction Type + Event Date.
      */
     private function duplicateRecordKey(mixed $row): string
     {
@@ -382,7 +381,7 @@ class TransactionEventsController extends Controller
                 $raw = $row->{$key} ?? null;
             }
 
-            return trim((string) ($raw ?? ''));
+            return strtolower(trim((string) ($raw ?? '')));
         };
 
         $eventDate = $value('event_date');
@@ -399,7 +398,7 @@ class TransactionEventsController extends Controller
         }
 
         return implode('|', [
-            strtolower($value('full_name')),
+            $value('full_name'),
             $value('client_category'),
             $value('transaction_category'),
             $value('transaction_type'),
@@ -408,8 +407,10 @@ class TransactionEventsController extends Controller
     }
 
     /**
-     * Every 5-field duplicate key (see duplicateRecordKey()) occurring more
-     * than once among transferred records.
+     * Every exact-match duplicate key (see duplicateRecordKey()) occurring
+     * more than once among transferred records. Exact match is: Same
+     * Full Name + Client Category + Transaction Category +
+     * Transaction Type + Event Date.
      *
      * @return string[]
      */
@@ -417,18 +418,18 @@ class TransactionEventsController extends Controller
     {
         $groups = TransactionEvent::query()
             ->whereNotNull('transferred_at')
-            ->selectRaw('LOWER(TRIM(full_name)) as nk_name, event_date, client_category, transaction_category, transaction_type, COUNT(*) as total')
-            ->groupBy(DB::raw('LOWER(TRIM(full_name))'), 'event_date', 'client_category', 'transaction_category', 'transaction_type')
+            ->selectRaw("LOWER(TRIM(COALESCE(full_name,''))) as nk_name, COALESCE(DATE(event_date),'') as nk_event_date, LOWER(TRIM(COALESCE(client_category,''))) as nk_client_category, LOWER(TRIM(COALESCE(transaction_category,''))) as nk_transaction_category, LOWER(TRIM(COALESCE(transaction_type,''))) as nk_transaction_type, COUNT(*) as total")
+            ->groupBy(DB::raw("LOWER(TRIM(COALESCE(full_name,'')))"), DB::raw("COALESCE(DATE(event_date),'')"), DB::raw("LOWER(TRIM(COALESCE(client_category,'')))"), DB::raw("LOWER(TRIM(COALESCE(transaction_category,'')))"), DB::raw("LOWER(TRIM(COALESCE(transaction_type,'')))"))
             ->havingRaw('COUNT(*) > 1')
             ->get();
 
         return $groups
             ->map(fn ($group) => $this->duplicateRecordKey([
                 'full_name' => $group->nk_name ?? '',
-                'client_category' => $group->client_category ?? '',
-                'transaction_category' => $group->transaction_category ?? '',
-                'transaction_type' => $group->transaction_type ?? '',
-                'event_date' => $group->event_date ?? '',
+                'client_category' => $group->nk_client_category ?? '',
+                'transaction_category' => $group->nk_transaction_category ?? '',
+                'transaction_type' => $group->nk_transaction_type ?? '',
+                'event_date' => $group->nk_event_date ?? '',
             ]))
             ->unique()
             ->values()
@@ -679,131 +680,165 @@ class TransactionEventsController extends Controller
         ])->deleteFileAfterSend(true);
     }
 
+    /**
+     * Paginate group descriptors in SQL, then fetch the visible groups in one
+     * joined query. Query count is independent of the number of duplicates.
+     *
+     * Exact match is: Same Full Name + Client Category +
+     * Transaction Category + Transaction Type + Event Date (normalized:
+     * case-insensitive, trimmed, date-only so "PWD" = "pwd" and datetimes
+     * on the same day still match).
+     */
+    private function recordDuplicateNormalizedExpression(string $column): string
+    {
+        return match ($column) {
+            'full_name' => "LOWER(TRIM(COALESCE(full_name,'')))",
+            'client_category' => "LOWER(TRIM(COALESCE(client_category,'')))",
+            'transaction_category' => "LOWER(TRIM(COALESCE(transaction_category,'')))",
+            'transaction_type' => "LOWER(TRIM(COALESCE(transaction_type,'')))",
+            'event_date' => "COALESCE(DATE(event_date),'')",
+            default => $column,
+        };
+    }
+
+    /**
+     * Narrow the duplicate-group population by the Filter Duplicates form
+     * (keyword, multi-select categories/type, event date range). Applied to
+     * each pattern's base query before grouping so counts and pages reflect
+     * exactly what the filters show.
+     */
+    private function applyRecordDuplicatePrefilters($query, Request $request): void
+    {
+        if ($search = trim((string) $request->input('search', ''))) {
+            $query->where(function ($matches) use ($search) {
+                $matches->where('full_name', 'like', "%{$search}%")
+                    ->orWhere('client_category', 'like', "%{$search}%")
+                    ->orWhere('transaction_category', 'like', "%{$search}%")
+                    ->orWhere('transaction_type', 'like', "%{$search}%");
+            });
+        }
+
+        if ($values = $this->multiFilterValues($request, 'client_category')) {
+            $query->whereIn('client_category', $values);
+        }
+
+        if ($values = $this->multiFilterValues($request, 'transaction_category')) {
+            $query->whereIn('transaction_category', $values);
+        }
+
+        if ($values = $this->multiFilterValues($request, 'transaction_type')) {
+            $query->whereIn('transaction_type', $values);
+        }
+
+        if ($from = $request->input('date_from')) {
+            $query->whereDate('event_date', '>=', $from);
+        }
+
+        if ($to = $request->input('date_to')) {
+            $query->whereDate('event_date', '<=', $to);
+        }
+    }
+
+    private function paginatedRecordDuplicateGroups(array $patterns, Request $request, int $perPage, string $pageName): array
+    {
+        $columns = ['event_date', 'client_category', 'transaction_category', 'transaction_type'];
+        $union = null;
+        foreach ($patterns as $pattern => $groupColumns) {
+            $nameExpr = $this->recordDuplicateNormalizedExpression('full_name');
+            $query = DB::table('transaction_events')->whereNotNull('transferred_at');
+            $this->applyRecordDuplicatePrefilters($query, $request);
+            $query->selectRaw($nameExpr.' as fullname, COUNT(*) as total, MIN(id) as group_id')
+                ->selectRaw('? as pattern', [$pattern])
+                ->groupBy(DB::raw($nameExpr), ...array_map(fn ($c) => DB::raw($this->recordDuplicateNormalizedExpression($c)), $groupColumns))
+                ->havingRaw('COUNT(*) > 1');
+            foreach ($columns as $column) {
+                $query->selectRaw(in_array($column, $groupColumns, true) ? $this->recordDuplicateNormalizedExpression($column).' as '.$column : 'NULL as '.$column);
+            }
+            $union = $union === null ? $query : $union->unionAll($query);
+        }
+
+        $groupQuery = DB::query()->fromSub($union, 'duplicate_candidates');
+        $totals = (clone $groupQuery)->selectRaw('COUNT(*) as groups_total, COALESCE(SUM(total), 0) as records_total')->first();
+        $page = max(1, (int) $request->input($pageName, $pageName === 'exact_page' ? $request->input('page', 1) : 1));
+        $descriptors = $groupQuery->orderByDesc('total')->orderBy('pattern')->orderBy('group_id')
+            ->forPage($page, $perPage)->get();
+        $groups = collect();
+        if ($descriptors->isNotEmpty()) {
+            // A small bound-value table avoids re-running the aggregate query
+            // when loading the events for this page.
+            $pageTable = null;
+            foreach ($descriptors as $descriptor) {
+                $fields = ['fullname', 'group_id', 'pattern', ...$columns];
+                $row = DB::query()->selectRaw(
+                    implode(', ', array_map(fn ($field) => '? as '.$field, $fields)),
+                    array_map(fn ($field) => $descriptor->$field, $fields)
+                );
+                $pageTable = $pageTable === null ? $row : $pageTable->unionAll($row);
+            }
+            $events = TransactionEvent::query()->whereNotNull('transaction_events.transferred_at')
+                ->joinSub($pageTable, 'visible_groups', function ($join) use ($patterns) {
+                    $join->on(DB::raw(str_replace('full_name', 'transaction_events.full_name', $this->recordDuplicateNormalizedExpression('full_name'))), '=', 'visible_groups.fullname');
+                    $join->where(function ($matches) use ($patterns) {
+                        foreach ($patterns as $pattern => $groupColumns) {
+                            $matches->orWhere(function ($match) use ($pattern, $groupColumns) {
+                                $match->where('visible_groups.pattern', $pattern);
+                                foreach ($groupColumns as $column) {
+                                    // Normalized values are never NULL (COALESCE to ''),
+                                    // so plain equality is null-safe. Never let an OR
+                                    // escape the name/transferred constraints.
+                                    $expr = str_replace($column, 'transaction_events.'.$column, $this->recordDuplicateNormalizedExpression($column));
+                                    $match->whereRaw('('.$expr.' = visible_groups.'.$column.')');
+                                }
+                            });
+                        }
+                    });
+                })
+                ->select('transaction_events.*', 'visible_groups.group_id as duplicate_group_id', 'visible_groups.pattern as duplicate_pattern')
+                ->with('transferredTransaction:id,transaction_id')
+                ->orderByDesc('transaction_events.id')->get()
+                ->groupBy(fn ($event) => $event->duplicate_pattern.':'.$event->duplicate_group_id);
+            $groups = $descriptors->map(fn ($descriptor) => [
+                'events' => $events->get($descriptor->pattern.':'.$descriptor->group_id, collect()),
+                'total' => (int) $descriptor->total,
+            ]);
+        }
+
+        return [new LengthAwarePaginator($groups, (int) $totals->groups_total, $perPage, $page, [
+            'path' => url()->current(),
+            'query' => array_merge($request->query(), ['duplicate_tab' => $pageName === 'likely_page' ? 'likely' : 'exact']),
+            'pageName' => $pageName,
+        ]), (int) $totals->records_total];
+    }
+
     public function recordsDuplicates(Request $request)
     {
         if (!feature_allowed('Event Records')) {
             abort(404);
         }
-
-        $perPage = (int) $request->input('per_page', 25);
-        if (! in_array($perPage, [10, 15, 25, 50, 100], true)) {
-            $perPage = 25;
+        $perPage = (int) $request->input('per_page', 10);
+        if (!in_array($perPage, [10, 15, 25, 50, 100], true)) {
+            $perPage = 10;
         }
 
-        $page = (int) $request->input('page', 1);
-
-        // Group transferred events by normalized full name + event_date + category + type
-        $groupsQuery = TransactionEvent::query()
-            ->whereNotNull('transferred_at')
-            ->selectRaw('LOWER(TRIM(full_name)) as fullname, event_date, client_category, transaction_category, transaction_type, COUNT(*) as total')
-            ->groupBy(DB::raw('LOWER(TRIM(full_name))'), 'event_date', 'client_category', 'transaction_category', 'transaction_type')
-            ->havingRaw('COUNT(*) > 1')
-            ->orderByDesc('total');
-
-        $allGroups = $groupsQuery->get();
-        $totalGroups = $allGroups->count();
-
-        $pageSlice = $allGroups->forPage($page, $perPage)->values();
-
-        $groups = $pageSlice->map(function ($g) {
-            $query = TransactionEvent::query()->whereNotNull('transferred_at')
-                ->whereRaw('LOWER(TRIM(full_name)) = ?', [$g->fullname]);
-
-            if ($g->event_date !== null && $g->event_date !== '') {
-                $query->whereDate('event_date', $g->event_date);
-            } else {
-                $query->whereNull('event_date')->orWhere('event_date', '');
-            }
-
-            if ($g->client_category !== null && $g->client_category !== '') {
-                $query->where('client_category', $g->client_category);
-            } else {
-                $query->whereNull('client_category')->orWhere('client_category', '');
-            }
-
-            if ($g->transaction_category !== null && $g->transaction_category !== '') {
-                $query->where('transaction_category', $g->transaction_category);
-            } else {
-                $query->whereNull('transaction_category')->orWhere('transaction_category', '');
-            }
-
-            if ($g->transaction_type !== null && $g->transaction_type !== '') {
-                $query->where('transaction_type', $g->transaction_type);
-            } else {
-                $query->whereNull('transaction_type')->orWhere('transaction_type', '');
-            }
-
-            $events = $query->orderByDesc('id')->get();
-
-            return ['events' => $events, 'total' => (int) $g->total];
-        })->values();
-        $exactGroups = new LengthAwarePaginator($groups, $totalGroups, $perPage, $page, [
-            'path' => url()->current(),
-            'query' => $request->query(),
+        // Exact match is: Same Full Name + Client Category +
+        // Transaction Category + Transaction Type + Event Date.
+        [$exactGroups, $exactRecordsTotal] = $this->paginatedRecordDuplicateGroups([
+            'exact' => ['event_date', 'client_category', 'transaction_category', 'transaction_type'],
+        ], $request, $perPage, 'exact_page');
+        [$likelyGroups, $likelyRecordsTotal] = $this->paginatedRecordDuplicateGroups([
+            'event_date+transaction_category' => ['event_date', 'transaction_category'],
+            'event_date+transaction_type' => ['event_date', 'transaction_type'],
+            'transaction_category+transaction_type' => ['transaction_category', 'transaction_type'],
+            'event_date' => ['event_date'],
+            'transaction_type' => ['transaction_type'],
+            'transaction_category' => ['transaction_category'],
+        ], $request, $perPage, 'likely_page');
+        $similarGroups = new LengthAwarePaginator([], 0, $perPage, 1, [
+            'path' => url()->current(), 'query' => $request->query(), 'pageName' => 'similar_page',
         ]);
-
-        // Build likely-match groups by three patterns
-        $likelyCollection = collect();
-        $seen = [];
-        $patterns = [
-            ['client_category', 'transaction_category'],
-            ['transaction_type', 'event_date'],
-            ['transaction_category', 'transaction_type'],
-        ];
-
-        foreach ($patterns as $pi => $cols) {
-            $sel = 'LOWER(TRIM(full_name)) as fullname, ' . implode(', ', $cols) . ', COUNT(*) as total';
-            $groupRows = TransactionEvent::query()
-                ->whereNotNull('transferred_at')
-                ->selectRaw($sel)
-                ->groupBy(DB::raw('LOWER(TRIM(full_name))'), ...$cols)
-                ->havingRaw('COUNT(*) > 1')
-                ->get();
-
-            foreach ($groupRows as $g) {
-                $keyParts = [$pi, $g->fullname];
-                foreach ($cols as $c) {
-                    $keyParts[] = (string) ($g->$c ?? '');
-                }
-                $key = implode('|', $keyParts);
-                if (isset($seen[$key])) {
-                    continue;
-                }
-                $seen[$key] = true;
-
-                $query = TransactionEvent::query()->whereNotNull('transferred_at')
-                    ->whereRaw('LOWER(TRIM(full_name)) = ?', [$g->fullname]);
-
-                foreach ($cols as $c) {
-                    $val = $g->$c ?? null;
-                    if ($c === 'event_date') {
-                        if ($val !== null && $val !== '') {
-                            $query->whereDate('event_date', $val);
-                        } else {
-                            $query->whereNull('event_date')->orWhere('event_date', '');
-                        }
-                    } else {
-                        if ($val !== null && $val !== '') {
-                            $query->where($c, $val);
-                        } else {
-                            $query->whereNull($c)->orWhere($c, '');
-                        }
-                    }
-                }
-
-                $events = $query->orderByDesc('id')->get();
-                $likelyCollection->push(['events' => $events, 'total' => (int) $g->total]);
-            }
-        }
-
-        $likelyGroups = new LengthAwarePaginator($likelyCollection->values(), $likelyCollection->count(), $perPage, (int) $request->input('likely_page', 1), [
-            'path' => url()->current(),
-            'query' => $request->query(),
-        ]);
-        $similarGroups = new LengthAwarePaginator([], 0, $perPage, (int) $request->input('similar_page', 1), [
-            'path' => url()->current(),
-            'query' => $request->query(),
-        ]);
+        $exactGroupsTotal = $exactGroups->total();
+        $likelyGroupsTotal = $likelyGroups->total();
+        $similarGroupsTotal = $similarRecordsTotal = 0;
 
         $filterClientCategories = TransactionEvent::whereNotNull('transferred_at')
             ->select('client_category')->distinct()->pluck('client_category')->filter()->sort()->values();
@@ -813,11 +848,11 @@ class TransactionEventsController extends Controller
             ->select('transaction_type')->distinct()->pluck('transaction_type')->filter()->sort()->values();
 
         return view('pages.transaction_events.recordsDuplicates', compact(
-            'exactGroups', 'likelyGroups', 'similarGroups',
+            'exactGroups', 'likelyGroups', 'similarGroups', 'exactRecordsTotal', 'likelyRecordsTotal', 'similarRecordsTotal',
+            'exactGroupsTotal', 'likelyGroupsTotal', 'similarGroupsTotal',
             'filterClientCategories', 'filterTransactionCategories', 'filterTransactionTypes', 'perPage'
         ));
     }
-
     public function archives(Request $request)
     {
         if (!feature_allowed('Event Records')) {
@@ -866,9 +901,9 @@ class TransactionEventsController extends Controller
             abort(404);
         }
 
-        $perPage = (int) $request->input('per_page', 25);
+        $perPage = (int) $request->input('per_page', 10);
         if (! in_array($perPage, [10, 15, 25, 50, 100], true)) {
-            $perPage = 25;
+            $perPage = 10;
         }
 
         $page = (int) $request->input('page', 1);
@@ -924,13 +959,19 @@ class TransactionEventsController extends Controller
             'query' => $request->query(),
         ]);
 
-        // Build likely-match groups (three patterns requested)
+        // Build likely-match groups: Same Full Name plus at least one of:
+        // Event Date + Transaction Category, Event Date + Transaction Type,
+        // Transaction Category + Transaction Type, Event Date only,
+        // Transaction Type only, or Transaction Category only.
         $likelyCollection = collect();
         $seen = [];
         $patterns = [
-            ['client_category', 'transaction_category'],
-            ['transaction_type', 'event_date'],
+            ['event_date', 'transaction_category'],
+            ['event_date', 'transaction_type'],
             ['transaction_category', 'transaction_type'],
+            ['event_date'],
+            ['transaction_type'],
+            ['transaction_category'],
         ];
 
         foreach ($patterns as $pi => $cols) {
@@ -2497,12 +2538,22 @@ class TransactionEventsController extends Controller
             abort(422, 'No event ids were selected.');
         }
 
+        // Duplicates (same full name, client category, transaction category,
+        // transaction type and event date) are excluded from bulk Select All
+        // and must be resolved in View Duplicate Records instead.
+        $duplicateKeys = array_flip($this->duplicateRecordKeys());
+
         $undone = 0;
         $skipped = 0;
 
         foreach ($ids as $id) {
             $event = TransactionEvent::find($id);
             if (! $event || $event->transferred_at === null) {
+                $skipped++;
+                continue;
+            }
+
+            if (isset($duplicateKeys[$this->duplicateRecordKey($event)])) {
                 $skipped++;
                 continue;
             }

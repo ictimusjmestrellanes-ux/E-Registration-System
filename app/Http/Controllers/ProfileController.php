@@ -117,11 +117,6 @@ class ProfileController extends Controller
         // Drop pre-selected types that the current categories hide so the
         // menu, chart, and title always agree (the URL self-heals on reload).
         $txTypes = array_values(array_intersect($txTypes, $txVisibleTypes));
-        // Types only flow from a picked category: without one the Type
-        // filter is locked, so stray URL types are ignored entirely.
-        if ($txCategories === []) {
-            $txTypes = [];
-        }
 
         if ($txCategories === [] && $txTypes === []) {
             $transactionTrend = Cache::remember(
@@ -270,9 +265,8 @@ class ProfileController extends Controller
         $txCategories = $this->txMultiFilter($request, 'tx_category', $this->txCategoryOptions());
         $txTypes = $this->txMultiFilter($request, 'tx_type', $this->txTypeOptions());
 
-        // Types only flow from a picked category.
-        if ($txCategories === []) {
-            $txTypes = [];
+        if ($txCategories !== []) {
+            $txTypes = array_values(array_intersect($txTypes, $this->txTypesForCategories($txCategories)));
         }
 
         if ($txCategories === [] && $txTypes === []) {

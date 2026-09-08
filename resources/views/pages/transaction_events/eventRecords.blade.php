@@ -438,8 +438,8 @@
                                                 <td class="text-center">
                                                     <input class="form-check-input event-select-checkbox" type="checkbox"
                                                         value="{{ $event->id }}"
-                                                        @if (in_array($event->id, $duplicateRecordIds ?? [], true)) data-duplicate="1"
-                                                            title="Duplicate record (same full name, client category, transaction category, transaction type and event date) - excluded from Select All"
+                                                        @if (in_array($event->id, $duplicateRecordIds ?? [], true)) data-duplicate="1" disabled
+                                                            title="Duplicate record (same full name, client category, transaction category, transaction type and event date) - excluded from Select All. Resolve it in View Duplicate Records."
                                                         @else
                                                             title="Select event #{{ $event->id }}" @endif>
                                                 </td>
@@ -682,14 +682,13 @@
             const syncUndoSelection = () => {
                 const boxes = selectedEventCheckboxes();
                 const selectable = selectableEventCheckboxes();
-                const checked = boxes.filter((b) => b.checked);
                 const checkedSelectable = selectable.filter((b) => b.checked);
-                const count = allPagesSelected ? totalMatchingEvents : checked.length;
+                const count = allPagesSelected ? totalMatchingEvents : checkedSelectable.length;
                 if (undoSelectedCount) {
                     undoSelectedCount.textContent = `${count} selected`;
                 }
                 if (undoSelectedBtn) {
-                    undoSelectedBtn.disabled = !allPagesSelected && checked.length === 0;
+                    undoSelectedBtn.disabled = !allPagesSelected && checkedSelectable.length === 0;
                 }
                 if (eventSelectAll) {
                     if (allPagesSelected) {
@@ -792,8 +791,10 @@
 
                 const resolveUndoIds = async (onResolving) => {
                     if (!allPagesSelected) {
+                        // Duplicates are disabled in the UI, but filter again
+                        // here so a duplicate can never slip into bulk undo.
                         return selectedEventCheckboxes()
-                            .filter((b) => b.checked)
+                            .filter((b) => b.checked && !b.dataset.duplicate)
                             .map((b) => parseInt(b.value, 10))
                             .filter((id) => id > 0);
                     }

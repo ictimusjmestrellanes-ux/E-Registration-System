@@ -240,9 +240,7 @@
                                             style="width: 230px" type="button" id="txTypeBtn" data-bs-toggle="dropdown"
                                             data-bs-auto-close="outside" aria-expanded="false"
                                             aria-label="Filter transactions graph by transaction type"
-                                            title="{{ count($txCategories ?? []) === 0 ? 'Select a transaction category first' : 'Filter by transaction type' }}"
-                                            style="min-width: 200px;"
-                                            {{ count($txCategories ?? []) === 0 ? 'disabled' : '' }}>
+                                            title="Filter by transaction type">
                                             <span
                                                 id="txTypeLabel">{{ count($txTypes ?? []) === 0 || count($txTypes ?? []) === count($txTypeOptions ?? []) ? 'All types' : (count($txTypes) === 1 ? $txTypes[0] : count($txTypes) . ' selected') }}</span>
                                         </button>
@@ -1151,9 +1149,26 @@
                             labels: txLabels,
                             datasets: txDatasets(@json($transactionTrend['datasets']), txLabels)
                         },
+                        plugins: [{
+                            id: 'totalTransactionCounts',
+                            afterDatasetsDraw(chart) {
+                                const { ctx } = chart;
+                                ctx.save();
+                                ctx.font = '600 12px sans-serif';
+                                ctx.fillStyle = '#405189';
+                                ctx.textAlign = 'center';
+                                ctx.textBaseline = 'bottom';
+                                chart.getDatasetMeta(0).data.forEach((bar, index) => {
+                                    ctx.fillText(Number(chart.data.datasets[0].data[index])
+                                        .toLocaleString(), bar.x, bar.y - 6);
+                                });
+                                ctx.restore();
+                            }
+                        }],
                         options: {
                             responsive: true,
                             maintainAspectRatio: false,
+                            layout: { padding: { top: 22 } },
                             interaction: { mode: 'index', intersect: false },
                             plugins: {
                                 legend: {
@@ -1207,7 +1222,10 @@
                 // everything and ticking everything both mean "no filter".
                 let txUpdatingAll = false; // guard against circular updates
                 const txMultiState = (boxCls) => {
-                    const boxes = [...document.querySelectorAll('.' + boxCls)];
+                    const boxes = [...document.querySelectorAll('.' + boxCls)].filter((box) => {
+                        const row = box.closest('.form-check');
+                        return !row || row.style.display !== 'none';
+                    });
                     const checked = boxes.filter((b) => b.checked).map((b) => b.value);
                     return {
                         boxes,
@@ -1231,7 +1249,7 @@
                     }
                     if (allBox && !txUpdatingAll) {
                         txUpdatingAll = true;
-                        allBox.checked = checkedCount === boxes.length;
+                        allBox.checked = checkedCount === 0 || checkedCount === boxes.length;
                         allBox.indeterminate = checkedCount > 0 && checkedCount < boxes.length;
                         txUpdatingAll = false;
                     }
@@ -1337,35 +1355,10 @@
                         // Menu stays as-is; the chart reload still applies the filter.
                     }
                 };
-                // Types only flow from a picked category: the Type menu stays
-                // locked until at least one category box is ticked. Clearing
-                // the last category resets the type selection.
-                const txSyncTypeAvailability = () => {
-                    const btn = document.getElementById('txTypeBtn');
-                    const anyCat = document.querySelectorAll('.tx-category-check:checked').length > 0;
-                    if (btn) {
-                        btn.disabled = !anyCat;
-                        btn.title = anyCat ? 'Filter by transaction type' :
-                            'Select a transaction category first';
-                    }
-                    if (!anyCat) {
-                        document.querySelectorAll('.tx-type-check').forEach((b) => {
-                            b.checked = false;
-                            const row = b.closest('.form-check');
-                            if (row) {
-                                row.style.display = '';
-                            }
-                        });
-                        txSyncMultiLabels();
-                    }
-                    return anyCat;
-                };
                 document.querySelectorAll('.tx-category-check').forEach((box) => {
                     box.addEventListener('change', async () => {
                         txSyncMultiLabels();
-                        if (txSyncTypeAvailability()) {
-                            await txApplyTypeVisibility();
-                        }
+                        await txApplyTypeVisibility();
                         reloadTxTrend();
                     });
                 });
@@ -1394,9 +1387,7 @@
                             });
                             txSyncMultiLabels();
                             if (isCategory) {
-                                if (txSyncTypeAvailability()) {
-                                    await txApplyTypeVisibility();
-                                }
+                                await txApplyTypeVisibility();
                             }
                             reloadTxTrend();
                         });
@@ -1404,7 +1395,6 @@
                 });
                 // Initialize labels/master state on page load.
                 txSyncMultiLabels();
-                txSyncTypeAvailability();
             });
         </script>
         <script>

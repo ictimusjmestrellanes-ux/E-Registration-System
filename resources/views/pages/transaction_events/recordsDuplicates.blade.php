@@ -26,6 +26,7 @@
                 <div class="card">
                     <div class="card-body">
                         @php
+                            $showLikely = request('duplicate_tab', request()->has('likely_page') ? 'likely' : 'exact') === 'likely';
                             $exactCount = $exactRecordsTotal ?? $exactGroups->sum('total');
                             $likelyCount = $likelyRecordsTotal ?? $likelyGroups->sum('total');
                             $similarCount = $similarRecordsTotal ?? $similarGroups->sum('total');
@@ -122,40 +123,130 @@
                                         </div>
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
-                                        <label for="dupClientCategoryFilter"
-                                            class="form-label fw-semibold text-uppercase small">Client Category</label>
-                                        <select class="form-select" id="dupClientCategoryFilter" name="client_category">
-                                            <option value="">All Client Categories</option>
-                                            @foreach (($filterClientCategories ?? []) as $clientCategory)
-                                                <option value="{{ $clientCategory }}"
-                                                    {{ strtolower(request('client_category', '')) === strtolower($clientCategory) ? 'selected' : '' }}>
-                                                    {{ $clientCategory }}</option>
-                                            @endforeach
-                                        </select>
+                                        <label class="form-label fw-semibold text-uppercase small">Client Category</label>
+                                        <div class="dropdown w-100">
+                                            <button
+                                                class="btn btn-light border form-select text-start d-flex align-items-center justify-content-between"
+                                                type="button" id="dupClientCategoryBtn" data-bs-toggle="dropdown"
+                                                data-bs-auto-close="outside" aria-expanded="false"
+                                                style="padding: .5rem 0.75rem;">
+                                                <span id="dupClientCategoryLabel">All client categories</span>
+                                            </button>
+                                            <div class="dropdown-menu w-100" id="dupClientCategoryDropdown"
+                                                style="max-height: 260px; overflow-y: auto;">
+                                                <div class="p-2">
+                                                    <div class="form-check mb-2">
+                                                        <input class="form-check-input" type="checkbox"
+                                                            id="dupClientCategoryAll" value="">
+                                                        <label class="form-check-label fw-semibold"
+                                                            for="dupClientCategoryAll">
+                                                            All client categories
+                                                        </label>
+                                                    </div>
+                                                    <hr class="my-2">
+                                                    @foreach (($filterClientCategories ?? []) as $clientCategory)
+                                                        @php
+                                                            $dupSelectedClientCategories = collect((array) request('client_category', []))->filter();
+                                                            $dupIsClientCategoryChecked = $dupSelectedClientCategories->contains($clientCategory);
+                                                        @endphp
+                                                        <div class="form-check">
+                                                            <input class="form-check-input dup-client-category-checkbox"
+                                                                type="checkbox" id="dupClientCategory_{{ $loop->index }}"
+                                                                value="{{ $clientCategory }}"
+                                                                {{ $dupIsClientCategoryChecked ? 'checked' : '' }}>
+                                                            <label class="form-check-label"
+                                                                for="dupClientCategory_{{ $loop->index }}">
+                                                                {{ $clientCategory }}
+                                                            </label>
+                                                        </div>
+                                                    @endforeach
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
-                                        <label for="dupTransactionCategoryFilter"
-                                            class="form-label fw-semibold text-uppercase small">Transaction Category</label>
-                                        <select class="form-select" id="dupTransactionCategoryFilter" name="transaction_category">
-                                            <option value="">All Categories</option>
-                                            @foreach (($filterTransactionCategories ?? []) as $transactionCategory)
-                                                <option value="{{ $transactionCategory }}"
-                                                    {{ strtolower(request('transaction_category', '')) === strtolower($transactionCategory) ? 'selected' : '' }}>
-                                                    {{ $transactionCategory }}</option>
-                                            @endforeach
-                                        </select>
+                                        <label class="form-label fw-semibold text-uppercase small">Transaction Category</label>
+                                        <div class="dropdown w-100">
+                                            <button
+                                                class="btn btn-light border form-select text-start d-flex align-items-center justify-content-between"
+                                                type="button" id="dupTransactionCategoryBtn" data-bs-toggle="dropdown"
+                                                data-bs-auto-close="outside" aria-expanded="false"
+                                                style="padding: .5rem 0.75rem;">
+                                                <span id="dupTransactionCategoryLabel">All categories</span>
+                                            </button>
+                                            <div class="dropdown-menu w-100" id="dupTransactionCategoryDropdown"
+                                                style="max-height: 260px; overflow-y: auto;">
+                                                <div class="p-2">
+                                                    <div class="form-check mb-2">
+                                                        <input class="form-check-input" type="checkbox"
+                                                            id="dupTransactionCategoryAll" value="">
+                                                        <label class="form-check-label fw-semibold"
+                                                            for="dupTransactionCategoryAll">
+                                                            All categories
+                                                        </label>
+                                                    </div>
+                                                    <hr class="my-2">
+                                                    @foreach (($filterTransactionCategories ?? []) as $transactionCategory)
+                                                        @php
+                                                            $dupSelectedTransactionCategories = collect((array) request('transaction_category', []))->filter();
+                                                            $dupIsTransactionCategoryChecked = $dupSelectedTransactionCategories->contains($transactionCategory);
+                                                        @endphp
+                                                        <div class="form-check">
+                                                            <input class="form-check-input dup-transaction-category-checkbox"
+                                                                type="checkbox" id="dupTransactionCategory_{{ $loop->index }}"
+                                                                value="{{ $transactionCategory }}"
+                                                                {{ $dupIsTransactionCategoryChecked ? 'checked' : '' }}>
+                                                            <label class="form-check-label"
+                                                                for="dupTransactionCategory_{{ $loop->index }}">
+                                                                {{ $transactionCategory }}
+                                                            </label>
+                                                        </div>
+                                                    @endforeach
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
-                                        <label for="dupTransactionTypeFilter"
-                                            class="form-label fw-semibold text-uppercase small">Transaction Type</label>
-                                        <select class="form-select" id="dupTransactionTypeFilter" name="transaction_type">
-                                            <option value="">All Types</option>
-                                            @foreach (($filterTransactionTypes ?? []) as $transactionType)
-                                                <option value="{{ $transactionType }}"
-                                                    {{ strtolower(request('transaction_type', '')) === strtolower($transactionType) ? 'selected' : '' }}>
-                                                    {{ $transactionType }}</option>
-                                            @endforeach
-                                        </select>
+                                        <label class="form-label fw-semibold text-uppercase small">Transaction Type</label>
+                                        <div class="dropdown w-100">
+                                            <button
+                                                class="btn btn-light border form-select text-start d-flex align-items-center justify-content-between"
+                                                type="button" id="dupTransactionTypeBtn" data-bs-toggle="dropdown"
+                                                data-bs-auto-close="outside" aria-expanded="false"
+                                                style="padding: .5rem 0.75rem;">
+                                                <span id="dupTransactionTypeLabel">All types</span>
+                                            </button>
+                                            <div class="dropdown-menu w-100" id="dupTransactionTypeDropdown"
+                                                style="max-height: 260px; overflow-y: auto;">
+                                                <div class="p-2">
+                                                    <div class="form-check mb-2">
+                                                        <input class="form-check-input" type="checkbox"
+                                                            id="dupTransactionTypeAll" value="">
+                                                        <label class="form-check-label fw-semibold"
+                                                            for="dupTransactionTypeAll">
+                                                            All types
+                                                        </label>
+                                                    </div>
+                                                    <hr class="my-2">
+                                                    @foreach (($filterTransactionTypes ?? []) as $transactionType)
+                                                        @php
+                                                            $dupSelectedTransactionTypes = collect((array) request('transaction_type', []))->filter();
+                                                            $dupIsTransactionTypeChecked = $dupSelectedTransactionTypes->contains($transactionType);
+                                                        @endphp
+                                                        <div class="form-check">
+                                                            <input class="form-check-input dup-transaction-type-checkbox"
+                                                                type="checkbox" id="dupTransactionType_{{ $loop->index }}"
+                                                                value="{{ $transactionType }}"
+                                                                {{ $dupIsTransactionTypeChecked ? 'checked' : '' }}>
+                                                            <label class="form-check-label"
+                                                                for="dupTransactionType_{{ $loop->index }}">
+                                                                {{ $transactionType }}
+                                                            </label>
+                                                        </div>
+                                                    @endforeach
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
                                         <label for="dupDateFrom"
@@ -187,13 +278,13 @@
 
                         <ul class="nav nav-tabs mb-4" role="tablist">
                             <li class="nav-item">
-                                <a class="nav-link active" data-bs-toggle="tab" href="#rexact-tab" role="tab">
+                                <a class="nav-link {{ $showLikely ? '' : 'active' }}" data-bs-toggle="tab" href="#rexact-tab" role="tab">
                                     Exact Match
                                     <span class="badge bg-danger-subtle text-danger ms-1">{{ $exactGroupsTotal ?? $exactGroups->count() }}</span>
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link" data-bs-toggle="tab" href="#rlikely-tab" role="tab">
+                                <a class="nav-link {{ $showLikely ? 'active' : '' }}" data-bs-toggle="tab" href="#rlikely-tab" role="tab">
                                     Likely Match
                                     <span class="badge bg-warning-subtle text-warning ms-1">{{ $likelyGroupsTotal ?? $likelyGroups->count() }}</span>
                                 </a>
@@ -212,7 +303,7 @@
                         </div>
 
                         <div class="tab-content">
-                            <div class="tab-pane fade show active" id="rexact-tab" role="tabpanel">
+                            <div class="tab-pane fade {{ $showLikely ? '' : 'show active' }}" id="rexact-tab" role="tabpanel">
                                 <div class="alert alert-danger-subtle d-flex align-items-center mb-3 py-2" role="alert">
                                     <i class="ri-error-warning-line fs-4 me-2"></i>
                                     <div class="small">Same <strong>Full Name</strong>, <strong>Client Category</strong>, <strong>Transaction Category</strong>, <strong>Transaction Type</strong>, and <strong>Event Date</strong>. High confidence duplicates.</div>
@@ -233,7 +324,7 @@
                                 @endif
                             </div>
 
-                            <div class="tab-pane fade" id="rlikely-tab" role="tabpanel">
+                            <div class="tab-pane fade {{ $showLikely ? 'show active' : '' }}" id="rlikely-tab" role="tabpanel">
                                 <div class="alert alert-warning-subtle d-flex align-items-center mb-3 py-2" role="alert">
                                     <i class="ri-alert-line fs-4 me-2"></i>
                                     <div class="small">
@@ -311,6 +402,66 @@
                 url.searchParams.set('per_page', this.value);
                 ['exact_page', 'likely_page', 'similar_page', 'page'].forEach((k) => url.searchParams.delete(k));
                 window.location.href = url.toString();
+            });
+
+            // ----- Multi-select dropdowns (Client Category / Transaction Category / Transaction Type) -----
+            const setupDupMultiSelect = (allId, checkboxClass, labelId, allLabel) => {
+                const allCheckbox = document.getElementById(allId);
+                const checkboxes = Array.from(document.querySelectorAll('.' + checkboxClass));
+                const label = document.getElementById(labelId);
+                let updating = false;
+
+                const syncLabel = () => {
+                    const checked = checkboxes.filter((cb) => cb.checked);
+                    if (!label) return;
+                    if (checked.length === 0 || checked.length === checkboxes.length) {
+                        label.textContent = allLabel;
+                    } else if (checked.length === 1) {
+                        label.textContent = checked[0].value;
+                    } else {
+                        label.textContent = checked.length + ' selected';
+                    }
+                    if (allCheckbox && !updating) {
+                        updating = true;
+                        allCheckbox.checked = checked.length === checkboxes.length;
+                        allCheckbox.indeterminate = checked.length > 0 && checked.length < checkboxes.length;
+                        updating = false;
+                    }
+                };
+
+                allCheckbox?.addEventListener('change', function() {
+                    if (updating) return;
+                    const shouldCheck = this.checked;
+                    checkboxes.forEach((cb) => { cb.checked = shouldCheck; });
+                    syncLabel();
+                });
+
+                checkboxes.forEach((cb) => cb.addEventListener('change', syncLabel));
+                syncLabel();
+            };
+
+            setupDupMultiSelect('dupClientCategoryAll', 'dup-client-category-checkbox', 'dupClientCategoryLabel', 'All client categories');
+            setupDupMultiSelect('dupTransactionCategoryAll', 'dup-transaction-category-checkbox', 'dupTransactionCategoryLabel', 'All categories');
+            setupDupMultiSelect('dupTransactionTypeAll', 'dup-transaction-type-checkbox', 'dupTransactionTypeLabel', 'All types');
+
+            formEl?.addEventListener('submit', function() {
+                const injectMulti = (checkboxClass, fieldName) => {
+                    this.querySelectorAll('input[type="hidden"][name="' + fieldName + '[]"]').forEach((el) => el.remove());
+                    const boxes = Array.from(document.querySelectorAll('.' + checkboxClass));
+                    const checked = boxes.filter((cb) => cb.checked).map((cb) => cb.value).filter((v) => v !== '');
+                    if (checked.length > 0 && checked.length < boxes.length) {
+                        checked.forEach((val) => {
+                            const hidden = document.createElement('input');
+                            hidden.type = 'hidden';
+                            hidden.name = fieldName + '[]';
+                            hidden.value = val;
+                            this.appendChild(hidden);
+                        });
+                    }
+                };
+                injectMulti('dup-client-category-checkbox', 'client_category');
+                injectMulti('dup-transaction-category-checkbox', 'transaction_category');
+                injectMulti('dup-transaction-type-checkbox', 'transaction_type');
             });
             const initialHash = window.location.hash;
             if (initialHash) {

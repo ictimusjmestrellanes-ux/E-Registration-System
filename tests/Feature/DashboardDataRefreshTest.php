@@ -316,6 +316,39 @@ class DashboardDataRefreshTest extends TestCase
         }
     }
 
+    public function test_total_transactions_can_filter_types_across_all_categories_and_reset(): void
+    {
+        Carbon::setTestNow('2026-09-08 12:00:00');
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+
+        foreach ([['CARAVAN', 'TRANCH 1'], ['events', 'TRANCH 1'], ['events', 'TRANCH 2']] as $index => [$category, $type]) {
+            TransactionHistory::forceCreate([
+                'transaction_id' => 'TYPE-FILTER-'.$index,
+                'client_id' => '2600001',
+                'category' => $category,
+                'type' => 'EVENTS',
+                'events_transaction_type' => $type,
+                'transaction_date' => '2026-09-08',
+            ]);
+        }
+
+        $filters = ['tx_type' => ['TRANCH 1']];
+        $filtered = $this->getJson(route('dashboard.transaction-trend', $filters))
+            ->assertOk()->assertJsonPath('types', ['TRANCH 1']);
+        $this->assertTransactionTrendPoint($filtered->json(), 'Sep 2026', 2);
+
+        $dashboard = $this->get(route('dashboard', $filters))->assertOk();
+        $this->assertSame(['TRANCH 1'], $dashboard->viewData('txTypes'));
+        $this->assertTransactionTrendPoint($dashboard->viewData('transactionTrend'), 'Sep 2026', 2);
+
+        $reset = $this->getJson(route('dashboard.transaction-trend'))
+            ->assertOk()->assertJsonPath('types', []);
+        $this->assertTransactionTrendPoint($reset->json(), 'Sep 2026', 3);
+
+        $this->getJson(route('dashboard.transaction-trend.types'))
+            ->assertOk()->assertJsonPath('types', ['TRANCH 1', 'TRANCH 2']);
+    }
+
     /**
      * @param  array{labels: array<int, string>, data: array<int, int|string>}  $chart
      */
