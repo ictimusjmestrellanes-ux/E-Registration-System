@@ -66,6 +66,28 @@ class TransactionEventsImportTest extends TestCase
         $this->assertNull(TransactionEvent::query()->where('full_name', 'RICARDO MONICIPYO')->first());
     }
 
+    public function test_import_accepts_excel_birth_dates_before_1941(): void
+    {
+        Storage::fake('local');
+        $this->actingAs(User::factory()->create());
+        $dates = [12692 => '1934-09-30', 14431 => '1939-07-05', 12320 => '1933-09-23', 13067 => '1935-10-10'];
+
+        foreach (['birth_date', 'birthdate'] as $header) {
+            $rows = ['full_name,'.$header.',event_date'];
+            foreach ($dates as $serial => $date) {
+                $rows[] = 'Historical Client '.$serial.','.$serial.',46270';
+            }
+            $csv = implode("\n", $rows);
+            $prepare = $this->post(route('transaction-events.import.prepare'), [
+                'csv_file' => $this->csvUpload($csv),
+            ])->assertOk()->assertJsonPath('total', 4)->assertJsonPath('skipped', 0);
+            foreach (array_values($dates) as $index => $date) {
+                $prepare->assertJsonPath('preview_rows.'.$index.'.'.$header, $date);
+                $prepare->assertJsonPath('preview_rows.'.$index.'.event_date', '2026-09-05');
+            }
+        }
+    }
+
     public function test_import_accepts_spaced_transaction_event_headers(): void
     {
         $this->actingAs(User::factory()->create());

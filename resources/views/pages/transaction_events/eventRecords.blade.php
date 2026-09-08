@@ -64,6 +64,8 @@
             'age_to',
             'date_from',
             'date_to',
+            'event_date_from',
+            'event_date_to',
             'client_category',
             'transaction_category',
             'transaction_type',
@@ -103,7 +105,7 @@
                                 <div>
                                     <div class="fw-bold fs-5">Filter Records</div>
                                     <div class="text-muted small">Narrow transferred records by keyword, contact, age,
-                                        categories, and transferred date range.</div>
+                                        categories, event date, and transferred date range.</div>
 
                                 </div>
                                 <div class="d-flex flex-wrap gap-2 align-items-center">
@@ -336,6 +338,18 @@
                                         </div>
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
+                                        <label for="recordEventDateFrom"
+                                            class="form-label fw-semibold text-uppercase small">Event Date From</label>
+                                        <input type="date" class="form-control" id="recordEventDateFrom" name="event_date_from"
+                                            value="{{ request('event_date_from') }}">
+                                    </div>
+                                    <div class="col-12 col-md-6 col-xl-2">
+                                        <label for="recordEventDateTo"
+                                            class="form-label fw-semibold text-uppercase small">Event Date To</label>
+                                        <input type="date" class="form-control" id="recordEventDateTo" name="event_date_to"
+                                            value="{{ request('event_date_to') }}">
+                                    </div>
+                                    <div class="col-12 col-md-6 col-xl-2">
                                         <label for="recordDateFrom"
                                             class="form-label fw-semibold text-uppercase small">Transferred From</label>
                                         <input type="date" class="form-control" id="recordDateFrom" name="date_from"
@@ -424,7 +438,10 @@
                                                 <td class="text-center">
                                                     <input class="form-check-input event-select-checkbox" type="checkbox"
                                                         value="{{ $event->id }}"
-                                                        title="Select event #{{ $event->id }}">
+                                                        @if (in_array($event->id, $duplicateRecordIds ?? [], true)) data-duplicate="1"
+                                                            title="Duplicate record (same full name, client category, transaction category, transaction type and event date) - excluded from Select All"
+                                                        @else
+                                                            title="Select event #{{ $event->id }}" @endif>
                                                 </td>
                                             @endif
                                             <td data-column="id">{{ $event->id }}</td>
@@ -639,7 +656,8 @@
                     undoClearBtn.classList.remove('d-none');
                 }
                 undoBarText.innerHTML = '<i class="ri-check-double-line me-1"></i><strong>All ' +
-                    totalMatchingEvents + '</strong> matching records are selected (across all pages).';
+                    totalMatchingEvents +
+                    '</strong> matching records are selected (across all pages). Duplicate records (same full name, client category, transaction category, transaction type and event date) are excluded.';
             };
 
             const clearAllUndoSelection = () => {
@@ -657,9 +675,15 @@
 
             undoClearBtn?.addEventListener('click', clearAllUndoSelection);
 
+            // Duplicate records (same 5-field key) are never auto-checked.
+            const selectableEventCheckboxes = () => selectedEventCheckboxes()
+                .filter((b) => !b.dataset.duplicate);
+
             const syncUndoSelection = () => {
                 const boxes = selectedEventCheckboxes();
+                const selectable = selectableEventCheckboxes();
                 const checked = boxes.filter((b) => b.checked);
+                const checkedSelectable = selectable.filter((b) => b.checked);
                 const count = allPagesSelected ? totalMatchingEvents : checked.length;
                 if (undoSelectedCount) {
                     undoSelectedCount.textContent = `${count} selected`;
@@ -668,22 +692,45 @@
                     undoSelectedBtn.disabled = !allPagesSelected && checked.length === 0;
                 }
                 if (eventSelectAll) {
-                    eventSelectAll.checked = allPagesSelected ||
-                        (boxes.length > 0 && checked.length === boxes.length);
-                    eventSelectAll.indeterminate = !allPagesSelected && checked.length > 0 &&
-                        checked.length < boxes.length;
+                    if (allPagesSelected) {
+                        eventSelectAll.checked = true;
+                        eventSelectAll.indeterminate = false;
+                    } else {
+                        eventSelectAll.checked =
+                            (selectable.length > 0 && checkedSelectable.length === selectable.length);
+                        eventSelectAll.indeterminate = !allPagesSelected && checkedSelectable.length > 0 &&
+                            checkedSelectable.length < selectable.length;
+                    }
+                    // Keep Select All enabled even when the first page contains
+                    // duplicates: duplicates are skipped, not a reason to lock
+                    // the checkbox. Only disable when there is nothing at all
+                    // on this page (or no other pages to cover).
+                    eventSelectAll.disabled = boxes.length === 0 ||
+                        (selectable.length === 0 && !hasMorePages);
                 }
             };
 
             eventSelectAll?.addEventListener('change', function() {
-                selectedEventCheckboxes().forEach((b) => {
+                // Duplicates stay unchecked: only non-duplicate rows on this
+                // page are checked, even when Select All is used.
+                selectableEventCheckboxes().forEach((b) => {
                     b.checked = eventSelectAll.checked;
                 });
-                if (eventSelectAll.checked && hasMorePages) {
-                    // Everything on this page means all pages: every matching
-                    // record across all pages becomes selected.
-                    allPagesSelected = true;
-                    showUndoBarAllSelected();
+                if (eventSelectAll.checked) {
+                    if (hasMorePages) {
+                        // Everything on this page means all pages: every matching
+                        // record across all pages becomes selected.
+                        allPagesSelected = true;
+                        showUndoBarAllSelected();
+                    } else if (selectableEventCheckboxes().length === 0) {
+                        // Single page with only duplicates: nothing to select.
+                        eventSelectAll.checked = false;
+                        allPagesSelected = false;
+                        hideUndoBar();
+                    } else {
+                        allPagesSelected = false;
+                        hideUndoBar();
+                    }
                 } else {
                     allPagesSelected = false;
                     hideUndoBar();
@@ -751,14 +798,18 @@
                             .filter((id) => id > 0);
                     }
                     // Resolve every id matching the current list filters.
+                    // Duplicates (same full name, client category, transaction
+                    // category, transaction type and event date) are excluded.
                     if (onResolving) {
                         onResolving();
                     }
                     const params = new URLSearchParams(window.location.search);
                     const payload = {
-                        select_all: 1
+                        select_all: 1,
+                        exclude_duplicates: 1
                     };
                     ['search', 'contact', 'age_from', 'age_to', 'date_from', 'date_to',
+                        'event_date_from', 'event_date_to',
                         'transaction_category'
                     ].forEach((name) => {
                         const value = params.get(name);

@@ -164,7 +164,7 @@
                                 <div>
                                     <div class="fw-bold fs-5">Filter Events</div>
                                     <div class="text-muted small">Narrow pending events by keyword, contact, age,
-                                        and created date range.</div>
+                                        event date range, and imported date range.</div>
                                 </div>
                                 <div class="d-flex flex-wrap gap-2 align-items-center">
                                     <button type="button" class="btn btn-sm btn-outline-primary client-filters-toggle-btn"
@@ -178,6 +178,8 @@
                                             'age_to',
                                             'date_from',
                                             'date_to',
+                                            'event_date_from',
+                                            'event_date_to',
                                             'client_category',
                                             'transaction_category',
                                             'transaction_type',
@@ -232,7 +234,7 @@
                             </div>
 
                             <form method="GET" id="eventFiltersForm"
-                                class="{{ request()->hasAny(['search', 'contact', 'age_from', 'age_to', 'date_from', 'date_to', 'client_category', 'transaction_category', 'transaction_type']) ? '' : 'd-none' }}">
+                                class="{{ request()->hasAny(['search', 'contact', 'age_from', 'age_to', 'date_from', 'date_to', 'event_date_from', 'event_date_to', 'client_category', 'transaction_category', 'transaction_type']) ? '' : 'd-none' }}">
                                 <div class="row g-3 mt-1 align-items-end">
                                     <div class="col-12 col-xl-4">
                                         <label for="eventKeywordInput"
@@ -374,15 +376,29 @@
 
                                     <div class="col-12 col-md-6 col-xl-2">
                                         <label for="eventDateFrom"
-                                            class="form-label fw-semibold text-uppercase small">Date From</label>
-                                        <input type="date" class="form-control" id="eventDateFrom" name="date_from"
-                                            value="{{ request('date_from') }}">
+                                            class="form-label fw-semibold text-uppercase small">Event Date From</label>
+                                        <input type="date" class="form-control" id="eventDateFrom"
+                                            name="event_date_from" value="{{ request('event_date_from') }}">
                                     </div>
 
                                     <div class="col-12 col-md-6 col-xl-2">
-                                        <label for="eventDateTo" class="form-label fw-semibold text-uppercase small">Date
-                                            To</label>
-                                        <input type="date" class="form-control" id="eventDateTo" name="date_to"
+                                        <label for="eventDateTo"
+                                            class="form-label fw-semibold text-uppercase small">Event Date To</label>
+                                        <input type="date" class="form-control" id="eventDateTo"
+                                            name="event_date_to" value="{{ request('event_date_to') }}">
+                                    </div>
+
+                                    <div class="col-12 col-md-6 col-xl-2">
+                                        <label for="eventImportedFrom"
+                                            class="form-label fw-semibold text-uppercase small">Imported From</label>
+                                        <input type="date" class="form-control" id="eventImportedFrom"
+                                            name="date_from" value="{{ request('date_from') }}">
+                                    </div>
+
+                                    <div class="col-12 col-md-6 col-xl-2">
+                                        <label for="eventImportedTo"
+                                            class="form-label fw-semibold text-uppercase small">Imported To</label>
+                                        <input type="date" class="form-control" id="eventImportedTo" name="date_to"
                                             value="{{ request('date_to') }}">
                                     </div>
 
@@ -394,7 +410,7 @@
                                 </div>
 
                                 <div class="small mt-3" id="eventSearchSummary">
-                                    {{ request()->hasAny(['search', 'contact', 'age_from', 'age_to', 'date_from', 'date_to', 'client_category', 'transaction_category', 'transaction_type']) ? 'Filtered events are shown below.' : 'Showing all pending events.' }}
+                                    {{ request()->hasAny(['search', 'contact', 'age_from', 'age_to', 'date_from', 'date_to', 'event_date_from', 'event_date_to', 'client_category', 'transaction_category', 'transaction_type']) ? 'Filtered events are shown below.' : 'Showing all pending events.' }}
                                 </div>
                             </form>
                         </div>
@@ -1135,6 +1151,8 @@
                     'age_to',
                     'date_from',
                     'date_to',
+                    'event_date_from',
+                    'event_date_to',
                     'client_category',
                     'transaction_category',
                     'transaction_type',
@@ -1204,11 +1222,14 @@
             const confirmBulkTransferBtn = document.getElementById('confirmBulkTransferBtn');
             let selectedBulkTransferIds = [];
             const totalMatchingEvents = @json($events->total());
+            const selectableTotal = @json($selectableTotal ?? $events->total());
             let allPagesSelected = false;
 
             if (selectAll) {
                 const selectableCheckboxes = () => eventCheckboxes.filter((checkbox) => !checkbox.dataset
                     .duplicate && !checkbox.disabled);
+
+                const enabledCheckboxes = () => eventCheckboxes.filter((checkbox) => !checkbox.disabled);
 
                 const hasMorePages = @json($events->lastPage() > 1);
 
@@ -1233,7 +1254,7 @@
                         clearBtn.classList.remove('d-none');
                     }
                     barText.innerHTML = '<i class="ri-check-double-line me-1"></i><strong>All ' +
-                        totalMatchingEvents + '</strong> matching events are selected (across all pages).';
+                        selectableTotal + '</strong> matching events are selected (across all pages). Duplicate names are excluded.';
                 };
 
                 const clearAllSelection = () => {
@@ -1254,10 +1275,22 @@
                 var syncSelectAllState = () => {
                     const selectable = selectableCheckboxes();
                     const checkedCount = selectable.filter((checkbox) => checkbox.checked).length;
-                    selectAll.checked = allPagesSelected ||
-                        (selectable.length > 0 && checkedCount === selectable.length);
-                    selectAll.indeterminate = checkedCount > 0 && checkedCount < selectable.length;
-                    selectAll.disabled = selectable.length === 0;
+                    if (allPagesSelected) {
+                        selectAll.checked = true;
+                        selectAll.indeterminate = false;
+                    } else {
+                        selectAll.checked =
+                            (selectable.length > 0 && checkedCount === selectable.length);
+                        selectAll.indeterminate = checkedCount > 0 && checkedCount < selectable.length;
+                    }
+                    // Keep Select All enabled even when the first page contains
+                    // duplicates: duplicates are skipped, not a reason to lock
+                    // the checkbox. Disable when there is nothing to select:
+                    // no enabled rows, only duplicates on this single page,
+                    // or the whole remaining filtered data is duplicates.
+                    selectAll.disabled = enabledCheckboxes().length === 0 ||
+                        selectableTotal === 0 ||
+                        (selectable.length === 0 && !hasMorePages);
                     if (bulkTransferBtn) {
                         // Any manual selection (including duplicate-named rows) enables the button.
                         const anyChecked = eventCheckboxes.some((checkbox) => checkbox.checked);
@@ -1269,22 +1302,46 @@
                         bulkDeleteBtn.disabled = !allPagesSelected && !anyChecked;
                     }
                     if (transferOneByOneBtn) {
-                        // 1-by-1 works on explicitly checked rows only (not all-pages mode).
+                        // 1-by-1 resolves the full select-all population when
+                        // all-pages mode is active, so keep it enabled there
+                        // even if this page's rows are all duplicates.
                         const anyCheckedRow = eventCheckboxes.some((checkbox) => checkbox.checked &&
                             !checkbox.disabled);
-                        transferOneByOneBtn.disabled = !anyCheckedRow;
+                        transferOneByOneBtn.disabled = !allPagesSelected && !anyCheckedRow;
                     }
                 };
 
                 selectAll.addEventListener('change', function() {
+                    // If the whole remaining data is duplicates, there is
+                    // nothing selectable: revert immediately.
+                    if (selectAll.checked && selectableTotal === 0) {
+                        selectAll.checked = false;
+                        allPagesSelected = false;
+                        hideBar();
+                        syncSelectAllState();
+                        return;
+                    }
+                    // Duplicates stay unchecked: only non-duplicate rows on this
+                    // page are checked, even when Select All is used.
                     selectableCheckboxes().forEach((checkbox) => {
                         checkbox.checked = selectAll.checked;
                     });
-                    if (selectAll.checked && hasMorePages) {
-                        // Selecting everything on this page means all pages:
-                        // mark every matching event across all pages as selected.
-                        allPagesSelected = true;
-                        showBarAllSelected();
+                    if (selectAll.checked) {
+                        if (hasMorePages) {
+                            // Selecting everything on this page means all pages:
+                            // mark every matching event across all pages as selected
+                            // (backend excludes duplicates via exclude_duplicates).
+                            allPagesSelected = true;
+                            showBarAllSelected();
+                        } else if (selectableCheckboxes().length === 0) {
+                            // Single page with only duplicates: nothing to select.
+                            selectAll.checked = false;
+                            allPagesSelected = false;
+                            hideBar();
+                        } else {
+                            allPagesSelected = false;
+                            hideBar();
+                        }
                     } else {
                         allPagesSelected = false;
                         hideBar();
@@ -1329,6 +1386,7 @@
                 // Carry over the active list filters so the backend
                 // targets exactly the rows shown across pages.
                 ['search', 'contact', 'age_from', 'age_to', 'date_from', 'date_to',
+                    'event_date_from', 'event_date_to',
                     'duplicate_names', 'transaction_category'
                 ].forEach((name) => {
                     const value = params.get(name);
@@ -1364,7 +1422,7 @@
 
                     if (bulkTransferCount) {
                         bulkTransferCount.textContent = allPagesSelected ?
-                            totalMatchingEvents :
+                            selectableTotal :
                             selectedBulkTransferIds.length;
                     }
 
@@ -1538,7 +1596,7 @@
 
                     if (bulkDeleteCount) {
                         bulkDeleteCount.textContent = allPagesSelected ?
-                            totalMatchingEvents :
+                            selectableTotal :
                             selectedBulkDeleteIds.length;
                     }
 
@@ -1665,6 +1723,7 @@
                         exclude_duplicates: 1
                     };
                     ['search', 'contact', 'age_from', 'age_to', 'date_from', 'date_to',
+                        'event_date_from', 'event_date_to',
                         'duplicate_names', 'transaction_category'
                     ].forEach((name) => {
                         const value = params.get(name);

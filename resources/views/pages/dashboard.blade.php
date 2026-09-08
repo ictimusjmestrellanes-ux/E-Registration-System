@@ -44,6 +44,32 @@
     @endphp
 
     <style>
+        .distribution-card {
+            min-height: 350px;
+            height: 100%;
+        }
+
+        .distribution-layout {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .distribution-chart {
+            flex: 1 1 220px;
+            min-width: 0;
+            height: 250px;
+            position: relative;
+        }
+
+        .distribution-legend {
+            flex: 1 1 260px;
+            min-width: 0;
+            max-height: 250px;
+            overflow-y: auto;
+        }
+
         .category-card,
         .stat-card {
             transition: transform .15s ease-in-out, box-shadow .15s ease-in-out;
@@ -171,7 +197,7 @@
                                 <div>
                                     <h5 class="mb-0" id="txTrendTitle">Total
                                         Transactions{{ ($txTrendSuffix ?? '') !== '' ? ' — ' . $txTrendSuffix : '' }}</h5>
-                                    <p class="text-muted mb-0">Monthly transactions through {{ now()->format('F Y') }}</p>
+                                    <p class="text-muted mb-0">Monthly totals through {{ now()->format('F Y') }}. Hover or tap a bar for the breakdown.</p>
                                 </div>
                                 <div class="d-flex flex-wrap gap-2">
                                     <div class="dropdown" id="txCategoryDropdown">
@@ -248,7 +274,8 @@
                             </div>
                             <div class="card-body">
                                 <div class="w-100" style="height: 230px; position: relative;">
-                                    <canvas id="transactionTrendChart"></canvas>
+                                    <canvas id="transactionTrendChart" role="img"
+                                        aria-label="Monthly transaction totals for the selected categories and types"></canvas>
                                 </div>
                             </div>
                         </div>
@@ -426,11 +453,6 @@
                                 </div>
                             </div>
 
-                            <div class="text-end">
-                                <span class="text-muted">Total in selected period</span>
-                                <h3 class="mb-0 text-primary" id="transactionDateTotal">
-                                    {{ number_format(array_sum($transactionDateTrend['data'])) }}</h3>
-                            </div>
                         </div>
                     </div>
                     <div class="card-body">
@@ -487,18 +509,17 @@
                     <div class="row g-3">
                         <!-- Service Category Chart -->
                         <div class="col-12 col-xl-6">
-                            <div class="card material-shadow" style="height: 350px">
+                            <div class="card material-shadow distribution-card">
                                 <div class="card-header">
                                     <h5 class="mb-0">Service Categories Distribution</h5>
                                     <p class="text-muted mb-0">Share of transactions per service category</p>
                                 </div>
                                 <div class="card-body">
-                                    <div class="d-flex flex-column flex-lg-row gap-3">
-                                        <div class="flex-grow-1" style="min-width: 0; height: 250px; position: relative;">
+                                    <div class="distribution-layout">
+                                        <div class="distribution-chart">
                                             <canvas id="serviceCategoryChart"></canvas>
                                         </div>
-                                        <div id="serviceCategoryLegend" class="d-flex flex-column gap-2 flex-shrink-0"
-                                            style="width: 300px; max-width: 100%; max-height: 250px; overflow-y: auto;">
+                                        <div id="serviceCategoryLegend" class="distribution-legend d-flex flex-column gap-2">
                                         </div>
                                     </div>
                                 </div>
@@ -507,18 +528,24 @@
 
                         <!-- Client Category Chart -->
                         <div class="col-12 col-xl-6">
-                            <div class="card material-shadow" style="height: 350px">
+                            <div class="card material-shadow distribution-card">
                                 <div class="card-header">
                                     <h5 class="mb-0">Client Category Distribution</h5>
                                     <p class="text-muted mb-0">Share of transactions per client category</p>
                                 </div>
                                 <div class="card-body">
-                                    <div class="d-flex flex-column flex-lg-row gap-3">
-                                        <div class="flex-grow-1" style="min-width: 0; height: 250px; position: relative;">
-                                            <canvas id="clientCategoryChart"></canvas>
+                                    <div class="distribution-layout">
+                                        <div class="distribution-chart">
+                                            @if (array_sum($clientCategoryDistribution['data']) > 0)
+                                                <canvas id="clientCategoryChart"></canvas>
+                                            @else
+                                                <div class="d-flex align-items-center justify-content-center h-100 text-center text-muted"
+                                                    role="status">
+                                                    No transactions with a client category are available.
+                                                </div>
+                                            @endif
                                         </div>
-                                        <div id="clientCategoryLegend" class="d-flex flex-column gap-2 flex-shrink-0"
-                                            style="width: 300px; max-width: 100%; max-height: 250px; overflow-y: auto;">
+                                        <div id="clientCategoryLegend" class="distribution-legend d-flex flex-column gap-2">
                                         </div>
                                     </div>
                                 </div>
@@ -946,8 +973,6 @@
                             .length * 80) + 'px';
                         dateChart.resize();
                         dateChart.update();
-                        document.getElementById('transactionDateTotal').textContent = Number(payload.total)
-                            .toLocaleString();
                         document.getElementById('transactionDateDescription').textContent = payload.description;
                         document.getElementById('transactionDateCurrentMonth').classList.toggle('d-none', !payload
                             .labels.includes(currentMonth));
@@ -1100,23 +1125,23 @@
             document.addEventListener('DOMContentLoaded', function() {
                 const txCanvas = document.getElementById('transactionTrendChart');
                 let txChart = null;
-                // Segment colors keyed by the server-assigned type index so a
-                // transaction type keeps its color in every filter state.
-                const txPalette = ['#405189', '#0ac074', '#f7b84b', '#f06548', '#299cdb',
-                    '#a55eea', '#26c6da', '#e83e8c', '#6c757d', '#51d28c'
-                ];
-                const txColor = (i) => txPalette[i % txPalette.length];
-                const txDatasets = (sets) => (sets || []).map((s) => ({
-                    label: s.label,
-                    data: s.data,
-                    // Shared stack id = side-by-side cluster per category.
-                    stack: s.stack,
-                    // Color encodes the transaction type; the index is assigned
-                    // server-side so a type keeps its color in every state.
-                    backgroundColor: txColor(s.colorIndex ?? 0),
-                    borderColor: txColor(s.colorIndex ?? 0),
-                    borderWidth: 1
-                }));
+                let txBreakdown = [];
+                // Each server series is a category/type pair. Sum them once
+                // per month so bar height always represents the filtered total.
+                const txDatasets = (sets, labels) => {
+                    txBreakdown = sets || [];
+                    return [{
+                        label: 'Total transactions',
+                        data: labels.map((_, index) => txBreakdown.reduce((total, series) =>
+                            total + (Number(series.data[index]) || 0), 0)),
+                        backgroundColor: '#405189',
+                        hoverBackgroundColor: '#293966',
+                        borderRadius: 5,
+                        maxBarThickness: 48,
+                        barPercentage: 0.8,
+                        categoryPercentage: 0.8
+                    }];
+                };
                 if (txCanvas) {
                     const txLabels = @json($transactionTrend['labels']);
 
@@ -1124,43 +1149,52 @@
                         type: 'bar',
                         data: {
                             labels: txLabels,
-                            datasets: txDatasets(@json($transactionTrend['datasets']))
+                            datasets: txDatasets(@json($transactionTrend['datasets']), txLabels)
                         },
                         options: {
                             responsive: true,
                             maintainAspectRatio: false,
+                            interaction: { mode: 'index', intersect: false },
                             plugins: {
                                 legend: {
-                                    display: true,
-                                    position: 'top',
-                                    labels: {
-                                        boxWidth: 12,
-                                        boxHeight: 12
-                                    }
+                                    display: false
                                 },
                                 tooltip: {
+                                    displayColors: false,
                                     callbacks: {
                                         label: function(context) {
-                                            return ' ' + context.dataset.label + ': ' +
-                                                context.parsed.y + ' transactions';
+                                            return 'Total: ' + context.parsed.y.toLocaleString() + ' transactions';
                                         },
-                                        footer: function(items) {
-                                            const total = items.reduce((sum, item) =>
-                                                sum + (item.parsed.y || 0), 0);
-                                            return 'Total: ' + total + ' transactions';
+                                        afterBody: function(items) {
+                                            if (!items.length) return [];
+                                            const index = items[0].dataIndex;
+                                            const breakdown = txBreakdown.map(series => ({
+                                                label: series.label,
+                                                count: Number(series.data[index]) || 0
+                                            })).filter(row => row.count > 0)
+                                                .sort((a, b) => b.count - a.count);
+                                            const lines = breakdown.slice(0, 5).map(row =>
+                                                row.label + ': ' + row.count.toLocaleString());
+                                            if (breakdown.length > 5) {
+                                                const remaining = breakdown.slice(5).reduce((sum, row) => sum + row.count, 0);
+                                                lines.push('Remaining categories/types: ' + remaining.toLocaleString());
+                                            }
+                                            return lines;
                                         }
                                     }
                                 }
                             },
                             scales: {
                                 x: {
-                                    stacked: true
+                                    grid: { display: false },
+                                    ticks: { autoSkip: true, maxRotation: 0, maxTicksLimit: 8 }
                                 },
                                 y: {
-                                    stacked: true,
                                     beginAtZero: true,
+                                    grace: '10%',
                                     ticks: {
-                                        precision: 0
+                                        precision: 0,
+                                        callback: value => Number(value).toLocaleString()
                                     }
                                 }
                             }
@@ -1253,7 +1287,7 @@
                         }
                         if (txChart) {
                             txChart.data.labels = payload.labels;
-                            txChart.data.datasets = txDatasets(payload.datasets);
+                            txChart.data.datasets = txDatasets(payload.datasets, payload.labels);
                             txChart.update();
                         }
                         const titleEl = document.getElementById('txTrendTitle');

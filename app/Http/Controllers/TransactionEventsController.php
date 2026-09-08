@@ -58,6 +58,21 @@ class TransactionEventsController extends Controller
 
         $events = $query->paginate($perPage)->withQueryString();
 
+        // How many rows would Select All actually target (duplicates excluded).
+        // If the remaining filtered data is all duplicates, this is 0 and the
+        // Select All checkbox must stay disabled.
+        if ($request->boolean('duplicate_names')) {
+            $selectableTotal = 0;
+        } else {
+            $selectableQuery = TransactionEvent::whereNull('transferred_at')
+                ->where('not_duplicate', false);
+            $this->applyEventListFilters($selectableQuery, $request);
+            if (! empty($duplicateFullNames)) {
+                $selectableQuery->whereNotIn('full_name', $duplicateFullNames);
+            }
+            $selectableTotal = (clone $selectableQuery)->count();
+        }
+
         // Distinct values (from pending events) for the dropdown filters.
         $pendingBase = TransactionEvent::whereNull('transferred_at')->where('not_duplicate', false);
         $clientCategories = (clone $pendingBase)->select('client_category')->distinct()
@@ -80,7 +95,7 @@ class TransactionEventsController extends Controller
             ->count();
 
         return view('pages.transaction_events.transactionEvents',
-            compact('events', 'totalDuplicateGroups', 'duplicateFullNames', 'clientCategories', 'transactionCategories', 'transactionTypes'));
+            compact('events', 'totalDuplicateGroups', 'duplicateFullNames', 'clientCategories', 'transactionCategories', 'transactionTypes', 'selectableTotal'));
     }
 
     /**
@@ -247,6 +262,14 @@ class TransactionEventsController extends Controller
             $query->whereDate('created_at', '<=', $dateTo);
         }
 
+        if ($eventDateFrom = $request->input('event_date_from')) {
+            $query->whereDate('event_date', '>=', $eventDateFrom);
+        }
+
+        if ($eventDateTo = $request->input('event_date_to')) {
+            $query->whereDate('event_date', '<=', $eventDateTo);
+        }
+
         if ($clientCategories = $this->multiFilterValues($request, 'client_category')) {
             $query->whereIn('client_category', $clientCategories);
         }
@@ -308,6 +331,14 @@ class TransactionEventsController extends Controller
             $query->whereDate('transferred_at', '<=', $to);
         }
 
+        if ($eventDateFrom = $request->input('event_date_from')) {
+            $query->whereDate('event_date', '>=', $eventDateFrom);
+        }
+
+        if ($eventDateTo = $request->input('event_date_to')) {
+            $query->whereDate('event_date', '<=', $eventDateTo);
+        }
+
         if ($category = $request->input('transaction_category')) {
             $query->where('transaction_category', $category);
         }
@@ -333,18 +364,102 @@ class TransactionEventsController extends Controller
     }
 
     /**
+     * Normalized 5-field duplicate key for transferred records:
+     * Full Name + Client Category + Transaction Category +
+     * Transaction Type + Event Date (same definition as the
+     * "exact duplicates" on View Duplicate Records).
+     */
+    private function duplicateRecordKey(mixed $row): string
+    {
+        $value = function (string $key) use ($row): string {
+            $raw = null;
+
+            if (is_array($row)) {
+                $raw = $row[$key] ?? null;
+            } elseif ($row instanceof \Illuminate\Database\Eloquent\Model) {
+                $raw = $row->getAttribute($key);
+            } elseif (is_object($row)) {
+                $raw = $row->{$key} ?? null;
+            }
+
+            return trim((string) ($raw ?? ''));
+        };
+
+        $eventDate = $value('event_date');
+        if ($eventDate !== '') {
+            if (preg_match('/^\d{4}-\d{2}-\d{2}/', $eventDate)) {
+                $eventDate = substr($eventDate, 0, 10);
+            } else {
+                try {
+                    $eventDate = \Carbon\Carbon::parse($eventDate)->toDateString();
+                } catch (\Throwable) {
+                    // Keep the raw value when it is not a parseable date.
+                }
+            }
+        }
+
+        return implode('|', [
+            strtolower($value('full_name')),
+            $value('client_category'),
+            $value('transaction_category'),
+            $value('transaction_type'),
+            $eventDate,
+        ]);
+    }
+
+    /**
+     * Every 5-field duplicate key (see duplicateRecordKey()) occurring more
+     * than once among transferred records.
+     *
+     * @return string[]
+     */
+    private function duplicateRecordKeys(): array
+    {
+        $groups = TransactionEvent::query()
+            ->whereNotNull('transferred_at')
+            ->selectRaw('LOWER(TRIM(full_name)) as nk_name, event_date, client_category, transaction_category, transaction_type, COUNT(*) as total')
+            ->groupBy(DB::raw('LOWER(TRIM(full_name))'), 'event_date', 'client_category', 'transaction_category', 'transaction_type')
+            ->havingRaw('COUNT(*) > 1')
+            ->get();
+
+        return $groups
+            ->map(fn ($group) => $this->duplicateRecordKey([
+                'full_name' => $group->nk_name ?? '',
+                'client_category' => $group->client_category ?? '',
+                'transaction_category' => $group->transaction_category ?? '',
+                'transaction_type' => $group->transaction_type ?? '',
+                'event_date' => $group->event_date ?? '',
+            ]))
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
      * Resolve every transferred event id matching the current Event Records
-     * filters (for cross-page bulk undo).
+     * filters (for cross-page bulk undo). When $excludeDuplicates is true,
+     * rows belonging to a 5-field duplicate group are left out so Select All
+     * never checks them.
      *
      * @return int[]
      */
-    private function resolveUndoSelectedIds(Request $request): array
+    private function resolveUndoSelectedIds(Request $request, bool $excludeDuplicates = false): array
     {
         $query = TransactionEvent::query()->whereNotNull('transferred_at');
 
         $this->applyRecordFilters($query, $request);
 
-        return $query->orderByDesc('id')->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $rows = $query->orderByDesc('id')->get([
+            'id', 'full_name', 'client_category', 'transaction_category', 'transaction_type', 'event_date',
+        ]);
+
+        if ($excludeDuplicates) {
+            $duplicateKeys = array_flip($this->duplicateRecordKeys());
+
+            $rows = $rows->reject(fn ($row) => isset($duplicateKeys[$this->duplicateRecordKey($row)]));
+        }
+
+        return $rows->pluck('id')->map(fn ($id) => (int) $id)->all();
     }
 
     public function records(Request $request)
@@ -415,7 +530,17 @@ class TransactionEventsController extends Controller
             ->map(fn ($items) => $items->pluck('client_category')->filter()->unique()->sort()->values()->all())
             ->all();
 
-        return view('pages.transaction_events.eventRecords', compact('events', 'categories', 'types', 'clientCategories', 'typeClientCategories'));
+        // Ids on this page belonging to a 5-field duplicate group so Select
+        // All can leave them unchecked.
+        $duplicateKeySet = array_flip($this->duplicateRecordKeys());
+        $duplicateRecordIds = $events->getCollection()
+            ->filter(fn ($event) => isset($duplicateKeySet[$this->duplicateRecordKey($event)]))
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
+
+        return view('pages.transaction_events.eventRecords', compact('events', 'categories', 'types', 'clientCategories', 'typeClientCategories', 'duplicateRecordIds'));
     }
 
     /**
@@ -974,7 +1099,12 @@ class TransactionEventsController extends Controller
         $path = $file instanceof \Illuminate\Http\UploadedFile ? $file->getRealPath() : $file;
         $name = strtolower((string) ($filename ?: ($file instanceof \Illuminate\Http\UploadedFile ? $file->getClientOriginalName() : basename((string) $path))));
 
-        if ($name === '' || str_ends_with($name, '.xlsx')) {
+        if ($name === ''
+            || str_ends_with($name, '.xlsx')
+            || str_ends_with($name, '.xlsm')
+            || str_ends_with($name, '.xltx')
+            || str_ends_with($name, '.xltm')
+            || str_ends_with($name, '.xls')) {
             return $this->parseXlsxImportFile($path);
         }
 
@@ -1002,9 +1132,50 @@ class TransactionEventsController extends Controller
      *
      * @return array<int, array<int, string>>
      */
+    /**
+     * Convert an .xlsx cell reference (e.g. "C12", "AA7") to a zero-based
+     * column index. Returns null when the reference carries no column part.
+     */
+    private function xlsxColumnIndexFromReference(?string $reference): ?int
+    {
+        if ($reference === null || $reference === '') {
+            return null;
+        }
+
+        if (! preg_match('/^([A-Za-z]+)/', $reference, $matches)) {
+            return null;
+        }
+
+        $letters = strtoupper($matches[1]);
+        $index = 0;
+        for ($i = 0; $i < strlen($letters); $i++) {
+            $index = $index * 26 + (ord($letters[$i]) - 64);
+        }
+
+        return $index - 1;
+    }
+
+    /**
+     * Collect every descendant <t> text node (namespace-agnostic) so both
+     * plain (<si><t>) and rich-text (<si><r><t>>, <is><r><t>>) strings
+     * resolve to their visible value.
+     */
+    private function xlsxCollectText(\SimpleXMLElement $node): string
+    {
+        $text = '';
+        $parts = $node->xpath('.//*[local-name()="t"]');
+        if (is_array($parts)) {
+            foreach ($parts as $part) {
+                $text .= (string) $part;
+            }
+        }
+
+        return $text;
+    }
+
     private function parseXlsxImportFile(string $path): array
     {
-        if (! file_exists($path)) {
+        if (! is_string($path) || $path === '' || ! file_exists($path)) {
             return [];
         }
 
@@ -1016,14 +1187,13 @@ class TransactionEventsController extends Controller
         $sharedStrings = [];
         $sharedXml = $zip->getFromName('xl/sharedStrings.xml');
         if ($sharedXml !== false) {
-            $shared = simplexml_load_string($sharedXml);
+            $shared = @simplexml_load_string($sharedXml);
             if ($shared !== false) {
-                foreach ($shared->si as $si) {
-                    $text = '';
-                    foreach ($si->t as $node) {
-                        $text .= (string) $node;
+                $siNodes = $shared->xpath('//*[local-name()="si"]');
+                if (is_array($siNodes)) {
+                    foreach ($siNodes as $si) {
+                        $sharedStrings[] = $this->xlsxCollectText($si);
                     }
-                    $sharedStrings[] = $text;
                 }
             }
         }
@@ -1031,13 +1201,22 @@ class TransactionEventsController extends Controller
         $sheetPath = null;
         $relsXml = $zip->getFromName('xl/_rels/workbook.xml.rels');
         if ($relsXml !== false) {
-            $rels = simplexml_load_string($relsXml);
+            $rels = @simplexml_load_string($relsXml);
             if ($rels !== false) {
-                foreach ($rels->Relationship as $relationship) {
-                    $target = (string) $relationship->attributes()->Target;
-                    if (str_contains((string) $relationship->attributes()->Type, 'worksheet')) {
-                        $sheetPath = 'xl/' . ltrim((string) $target, '/');
-                        break;
+                $relNodes = $rels->xpath('//*[local-name()="Relationship"]');
+                if (is_array($relNodes)) {
+                    foreach ($relNodes as $relationship) {
+                        $type = (string) ($relationship->attributes()->Type ?? '');
+                        if (str_contains($type, 'worksheet')) {
+                            $target = (string) ($relationship->attributes()->Target ?? '');
+                            // Targets are relative to xl/ (e.g. worksheets/sheet1.xml).
+                            $target = ltrim($target, '/');
+                            if (! str_starts_with($target, 'xl/')) {
+                                $target = 'xl/' . $target;
+                            }
+                            $sheetPath = $target;
+                            break;
+                        }
                     }
                 }
             }
@@ -1048,42 +1227,100 @@ class TransactionEventsController extends Controller
         }
 
         $sheetXml = $zip->getFromName($sheetPath);
+        if ($sheetXml === false) {
+            // Fall back to the first worksheet part when the rels target
+            // is missing or uses an unexpected layout.
+            $sheetXml = false;
+            for ($i = 0; $i < $zip->numFiles; $i++) {
+                $entry = $zip->getNameIndex($i);
+                if (is_string($entry) && preg_match('#^xl/worksheets/sheet\d+\.xml$#', $entry)) {
+                    $sheetXml = $zip->getFromName($entry);
+                    break;
+                }
+            }
+        }
         $zip->close();
 
         if ($sheetXml === false) {
             return [];
         }
 
-        $sheet = simplexml_load_string($sheetXml);
+        $sheet = @simplexml_load_string($sheetXml);
         if ($sheet === false) {
             return [];
         }
 
         $rows = [];
-        $ns = $sheet->getNamespaces(true);
-        $sheetData = $sheet->children($ns['main'] ?? null)->sheetData ?? null;
-        if ($sheetData === null) {
+        $rowNodes = $sheet->xpath('//*[local-name()="sheetData"]/*[local-name()="row"]');
+        if (! is_array($rowNodes) || $rowNodes === []) {
             return [];
         }
 
-        foreach ($sheetData->row as $rowNode) {
-            $values = [];
-            foreach ($rowNode->c as $cell) {
-                $cellType = (string) ($cell->attributes()->t ?: 'n');
+        foreach ($rowNodes as $rowNode) {
+            $cells = $rowNode->xpath('./*[local-name()="c"]');
+            if (! is_array($cells) || $cells === []) {
+                continue;
+            }
+
+            $byColumn = [];
+            $maxColumn = -1;
+            $sequential = 0;
+            foreach ($cells as $cell) {
+                $ref = (string) ($cell->attributes()->r ?? '');
+                $column = $this->xlsxColumnIndexFromReference($ref !== '' ? $ref : null);
+                if ($column === null) {
+                    $column = $sequential;
+                }
+                $sequential = max($sequential, $column + 1);
+
+                $cellType = (string) ($cell->attributes()->t ?? '');
                 $value = '';
                 if ($cellType === 'inlineStr') {
-                    $value = (string) $cell->is->t;
+                    $isNodes = $cell->xpath('./*[local-name()="is"]');
+                    if (is_array($isNodes) && isset($isNodes[0])) {
+                        $value = $this->xlsxCollectText($isNodes[0]);
+                    }
                 } elseif ($cellType === 's') {
-                    $index = (int) $cell->v;
-                    $value = $sharedStrings[$index] ?? '';
+                    $vNodes = $cell->xpath('./*[local-name()="v"]');
+                    $raw = trim((string) ($vNodes[0] ?? ''));
+                    // A missing/empty <v> means an intentionally blank cell.
+                    if ($raw !== '' && is_numeric($raw)) {
+                        $value = $sharedStrings[(int) $raw] ?? '';
+                    } else {
+                        $value = '';
+                    }
+                } elseif ($cellType === 'b') {
+                    $vNodes = $cell->xpath('./*[local-name()="v"]');
+                    $value = trim((string) ($vNodes[0] ?? ''));
+                } elseif ($cellType === 'e') {
+                    // Excel error values (#DIV/0!, #N/A, ...) carry no data.
+                    $value = '';
                 } else {
-                    $value = (string) $cell->v;
+                    // Covers n (numbers incl. date serials), str (formula
+                    // string results), and cells with no t attribute.
+                    $vNodes = $cell->xpath('./*[local-name()="v"]');
+                    $value = (string) ($vNodes[0] ?? '');
                 }
-                $values[] = $this->sanitizeImportCellValue($value);
+                $byColumn[$column] = $this->sanitizeImportCellValue($value);
+                $maxColumn = max($maxColumn, $column);
             }
-            if ($values !== []) {
-                $rows[] = $values;
+            if ($maxColumn < 0) {
+                continue;
             }
+            $values = [];
+            $allEmpty = true;
+            for ($i = 0; $i <= $maxColumn; $i++) {
+                $cellValue = $byColumn[$i] ?? '';
+                $values[] = $cellValue;
+                if ($cellValue !== '') {
+                    $allEmpty = false;
+                }
+            }
+            // Skip fully blank rows (e.g. trailing empty rows Excel keeps).
+            if ($allEmpty) {
+                continue;
+            }
+            $rows[] = $values;
         }
 
         if ($rows !== []) {
@@ -1127,11 +1364,11 @@ class TransactionEventsController extends Controller
      * system) to Y-m-d. Date-formatted .xlsx cells arrive as plain numbers
      * like "46268" from the native parser; without this every such row is
      * rejected as "Invalid event_date". Pure integers outside the plausible
-     * modern range are left untouched so real data entry mistakes (e.g. an
+     * supported range are left untouched so real data entry mistakes (e.g. an
      * age typed into a date column) still fail validation instead of
      * becoming silent garbage dates.
      */
-    private function normalizeMaybeExcelSerialDate(string $value): string
+    private function normalizeMaybeExcelSerialDate(string $value, bool $isBirthDate = false): string
     {
         $trimmed = trim($value);
 
@@ -1141,7 +1378,10 @@ class TransactionEventsController extends Controller
 
         $serial = (int) floor((float) $trimmed);
 
-        if ($serial < 15000 || $serial > 80000) {
+        // Birth dates can predate the modern event-date range. Start after
+        // Excel's fictitious 1900-02-29 so the shared epoch remains accurate.
+        $minimumSerial = $isBirthDate ? 61 : 15000;
+        if ($serial < $minimumSerial || $serial > 80000) {
             return $value;
         }
 
@@ -1187,7 +1427,10 @@ class TransactionEventsController extends Controller
             // before validation so correct files are not mass-skipped.
             foreach (['birth_date', 'birthdate', 'event_date'] as $dateKey) {
                 if (isset($mapped[$dateKey]) && $mapped[$dateKey] !== '') {
-                    $mapped[$dateKey] = $this->normalizeMaybeExcelSerialDate((string) $mapped[$dateKey]);
+                    $mapped[$dateKey] = $this->normalizeMaybeExcelSerialDate(
+                        (string) $mapped[$dateKey],
+                        in_array($dateKey, ['birth_date', 'birthdate'], true)
+                    );
                 }
             }
 
@@ -2224,6 +2467,12 @@ class TransactionEventsController extends Controller
         $query = TransactionEvent::query()->whereNull('transferred_at')->where('not_duplicate', false);
         $this->applyEventListFilters($query, $request);
 
+        if ($request->boolean('duplicate_names')) {
+            $query->whereIn('full_name', $this->duplicateFullNamesList());
+        } elseif ($request->boolean('exclude_duplicates')) {
+            $query->whereNotIn('full_name', $this->duplicateFullNamesList());
+        }
+
         $ids = $query->orderByDesc('id')->pluck('id')->map(fn ($id) => (int) $id)->all();
 
         return response()->json([
@@ -2295,15 +2544,14 @@ class TransactionEventsController extends Controller
             'select_all' => ['required', 'accepted'],
         ]);
 
-        $query = TransactionEvent::query()->whereNotNull('transferred_at');
-        $this->applyRecordFilters($query, $request);
-
-        $ids = $query->orderByDesc('id')->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $excludeDuplicates = $request->boolean('exclude_duplicates');
+        $ids = $this->resolveUndoSelectedIds($request, $excludeDuplicates);
 
         return response()->json([
             'success' => true,
             'total' => count($ids),
             'ids' => $ids,
+            'excluded_duplicates' => $excludeDuplicates,
         ]);
     }
 
@@ -2344,5 +2592,400 @@ class TransactionEventsController extends Controller
         TransactionEvent::whereIn('id', $ids)->update(['not_duplicate' => true]);
 
         return redirect()->back()->with('success', 'Duplicate group marked as not duplicate.');
+    }
+
+    public function removedDuplicates()
+    {
+        $events = TransactionEvent::where('not_duplicate', true)
+            ->orderByDesc('updated_at')
+            ->paginate(15)
+            ->withQueryString();
+
+        return view('pages.transaction_events.removedDuplicates', compact('events'));
+    }
+
+    /**
+     * Resolve the pending events targeted by a bulk delete request: either
+     * explicitly checked event_ids or the whole filtered select-all
+     * population (same scope as Transfer Selected). Transferred rows can
+     * never match and are therefore never deleted.
+     */
+    private function resolveDeleteSelectedEvents(Request $request): Collection
+    {
+        if ($request->boolean('select_all')) {
+            $query = TransactionEvent::query()
+                ->whereNull('transferred_at')
+                ->where('not_duplicate', false);
+
+            $this->applyEventListFilters($query, $request);
+
+            if ($request->boolean('duplicate_names')) {
+                $query->whereIn('full_name', $this->duplicateFullNamesList());
+            } elseif ($request->boolean('exclude_duplicates')) {
+                $query->whereNotIn('full_name', $this->duplicateFullNamesList());
+            }
+
+            return $query->get();
+        }
+
+        $ids = array_values(array_filter(array_map('intval', (array) $request->input('event_ids', []))));
+
+        if ($ids === []) {
+            return collect();
+        }
+
+        return TransactionEvent::query()
+            ->whereIn('id', $ids)
+            ->whereNull('transferred_at')
+            ->where('not_duplicate', false)
+            ->get();
+    }
+
+    public function destroy(TransactionEvent $event)
+    {
+        if (auth()->user()?->role_name === 'Viewer') {
+            abort(403, 'Viewer role is read-only.');
+        }
+
+        if ($event->transferred_at !== null) {
+            return redirect()->route('transaction-events.index')
+                ->with('error', 'Event #' . $event->id . ' is already approved/transferred and cannot be deleted.');
+        }
+
+        $fullName = $event->full_name;
+        $eventId = $event->id;
+
+        $event->delete();
+
+        ActivityLog::create([
+            'user_id' => auth()->id(),
+            'action' => 'event_deleted',
+            'description' => "Deleted transaction event #{$eventId} ({$fullName}) from the Import Events list.",
+            'subject_type' => 'TransactionEvent',
+            'subject_id' => $eventId,
+            'properties' => ['event_id' => $eventId, 'full_name' => $fullName],
+        ]);
+
+        return redirect()->route('transaction-events.index')
+            ->with('success', "Event #{$eventId} ({$fullName}) deleted successfully.");
+    }
+
+    /**
+     * Bulk-delete pending events: either explicitly checked event_ids or the
+     * whole filtered select-all population (same scope as Transfer Selected).
+     * Transferred events can never match and are therefore never deleted.
+     */
+    public function destroySelected(Request $request)
+    {
+        if (auth()->user()?->role_name === 'Viewer') {
+            abort(403, 'Viewer role is read-only.');
+        }
+
+        if (! feature_allowed('Delete Event')) {
+            abort(404);
+        }
+
+        $events = $this->resolveDeleteSelectedEvents($request);
+
+        if ($events->isEmpty()) {
+            return redirect()->route('transaction-events.index')
+                ->with('error', 'No matching pending events to delete.');
+        }
+
+        $ids = $events->pluck('id')->all();
+        $count = count($ids);
+
+        TransactionEvent::query()->whereIn('id', $ids)->delete();
+
+        ActivityLog::create([
+            'user_id' => auth()->id(),
+            'action' => 'events_bulk_deleted',
+            'description' => "Bulk-deleted {$count} pending transaction event(s) from the Import Events list.",
+            'subject_type' => 'TransactionEvent',
+            'subject_id' => null,
+            'properties' => [
+                'count' => $count,
+                'select_all' => $request->boolean('select_all'),
+                'filters' => $request->only([
+                    'search', 'contact', 'age_from', 'age_to', 'date_from', 'date_to',
+                    'event_date_from', 'event_date_to',
+                    'duplicate_names', 'client_category', 'transaction_category', 'transaction_type',
+                ]),
+            ],
+        ]);
+
+        return redirect()->route('transaction-events.index')
+            ->with('success', "Deleted {$count} pending event(s). This cannot be undone.");
+    }
+
+    private const TRANSFER_SESSION_DIR = 'transfer-sessions';
+
+    /**
+     * Resolve the pending events targeted by a bulk transfer request: either
+     * explicitly checked event_ids or the whole filtered select-all
+     * population across pages.
+     */
+    private function resolveBulkTransferEvents(Request $request): Collection
+    {
+        if ($request->boolean('select_all')) {
+            $query = TransactionEvent::query()
+                ->whereNull('transferred_at')
+                ->where('not_duplicate', false);
+
+            $this->applyEventListFilters($query, $request);
+
+            if ($request->boolean('duplicate_names')) {
+                $query->whereIn('full_name', $this->duplicateFullNamesList());
+            } elseif ($request->boolean('exclude_duplicates')) {
+                $query->whereNotIn('full_name', $this->duplicateFullNamesList());
+            }
+
+            return $query->orderByDesc('id')->get();
+        }
+
+        $ids = array_values(array_filter(array_map('intval', (array) $request->input('event_ids', []))));
+
+        if ($ids === []) {
+            return collect();
+        }
+
+        return TransactionEvent::query()
+            ->whereIn('id', $ids)
+            ->whereNull('transferred_at')
+            ->where('not_duplicate', false)
+            ->get();
+    }
+
+    /**
+     * Transfer one pending event into a client history record.
+     *
+     * @return array{success: bool, created_client: bool}
+     */
+    private function transferSinglePendingEvent(TransactionEvent $event): array
+    {
+        if ($event->transferred_at !== null) {
+            return ['success' => false, 'created_client' => false];
+        }
+
+        $client = $this->findOrCreateClientForEvent($event->full_name, [
+            'full_name' => $event->full_name,
+            'client_category' => $event->client_category,
+            'contact_no' => $event->contact_no,
+            'address' => $event->address,
+            'age' => $event->age,
+            'birth_date' => $event->birth_date?->format('Y-m-d'),
+        ], $event->birth_date?->format('Y-m-d'));
+
+        $isNewClient = $client->wasRecentlyCreated;
+
+        $history = TransactionHistory::create([
+            'client_id' => $client->client_id,
+            'client_category' => $event->client_category ?? '',
+            'transaction_id' => $this->nextTransactionIdForClient($client->client_id),
+            'transaction_date' => $event->event_date?->format('Y-m-d') ?? now()->toDateString(),
+            'category' => $event->transaction_category ?? '',
+            'type' => $event->transaction_type ?? '',
+            'events_transaction_type' => $event->transaction_type ?? '',
+            'status' => 'Approved',
+            'source' => 'transfer',
+            'description' => 'Transferred from event record.',
+        ]);
+
+        $event->update([
+            'transferred_at' => now(),
+            'transferred_transaction_id' => $history->id,
+        ]);
+
+        return ['success' => true, 'created_client' => $isNewClient];
+    }
+
+    private function saveTransferSession(string $token, array $data): void
+    {
+        Storage::disk('local')->makeDirectory(self::TRANSFER_SESSION_DIR);
+        Storage::disk('local')->put(
+            self::TRANSFER_SESSION_DIR . '/' . $token . '.json',
+            json_encode($data, JSON_INVALID_UTF8_SUBSTITUTE)
+        );
+    }
+
+    private function loadTransferSession(string $token): ?array
+    {
+        $path = self::TRANSFER_SESSION_DIR . '/' . $token . '.json';
+
+        if (! Storage::disk('local')->exists($path)) {
+            return null;
+        }
+
+        $decoded = json_decode(Storage::disk('local')->get($path), true);
+
+        return is_array($decoded) ? $decoded : null;
+    }
+
+    private function cleanupStaleTransferSessions(): void
+    {
+        try {
+            foreach (Storage::disk('local')->files(self::TRANSFER_SESSION_DIR) as $file) {
+                if (now()->timestamp - Storage::disk('local')->lastModified($file) > 7200) {
+                    Storage::disk('local')->delete($file);
+                }
+            }
+        } catch (\Throwable) {
+            // Session cleanup is best-effort only.
+        }
+    }
+
+    /**
+     * Chunked "Transfer Selected" step 1: resolve the target ids once and
+     * cache them so the browser can transfer in slices with live progress.
+     */
+    public function prepareTransferSelected(Request $request)
+    {
+        if (auth()->user()?->role_name === 'Viewer') {
+            abort(403, 'Viewer role is read-only.');
+        }
+
+        $events = $this->resolveBulkTransferEvents($request);
+
+        if ($events->isEmpty()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Selected transaction events are already transferred or no longer available.',
+            ], 422);
+        }
+
+        $token = md5(uniqid((string) auth()->id(), true));
+        $this->cleanupStaleTransferSessions();
+        $this->saveTransferSession($token, [
+            'ids' => $events->pluck('id')->map(fn ($id) => (int) $id)->values()->all(),
+            'successCount' => 0,
+            'skippedCount' => 0,
+            'createdClients' => 0,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'token' => $token,
+            'total' => $events->count(),
+        ]);
+    }
+
+    /**
+     * Chunked "Transfer Selected" step 2: transfer one slice of ids.
+     */
+    public function processTransferChunk(Request $request)
+    {
+        if (auth()->user()?->role_name === 'Viewer') {
+            abort(403, 'Viewer role is read-only.');
+        }
+
+        @ini_set('memory_limit', '512M');
+        @set_time_limit(300);
+
+        $request->validate([
+            'token' => ['required', 'string'],
+            'offset' => ['required', 'integer', 'min:0'],
+        ]);
+
+        $limit = min(max((int) $request->input('limit', 200), 1), 1000);
+        $session = $this->loadTransferSession($request->input('token'));
+
+        if ($session === null) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Transfer session not found. Please start the transfer again.',
+            ], 404);
+        }
+
+        $ids = $session['ids'] ?? [];
+        $offset = (int) $request->input('offset');
+        $slice = array_slice($ids, $offset, $limit);
+
+        if ($slice !== []) {
+            $events = TransactionEvent::query()
+                ->whereIn('id', $slice)
+                ->whereNull('transferred_at')
+                ->where('not_duplicate', false)
+                ->get();
+
+            foreach ($events as $event) {
+                $result = $this->transferSinglePendingEvent($event);
+
+                if ($result['success']) {
+                    $session['successCount'] = ($session['successCount'] ?? 0) + 1;
+
+                    if ($result['created_client']) {
+                        $session['createdClients'] = ($session['createdClients'] ?? 0) + 1;
+                    }
+                } else {
+                    $session['skippedCount'] = ($session['skippedCount'] ?? 0) + 1;
+                }
+            }
+
+            // Ids that no longer resolve (already transferred/deleted) count as skipped.
+            $missing = count($slice) - $events->count();
+            if ($missing > 0) {
+                $session['skippedCount'] = ($session['skippedCount'] ?? 0) + $missing;
+            }
+
+            $this->saveTransferSession($request->input('token'), $session);
+        }
+
+        $processed = $offset + count($slice);
+
+        return response()->json([
+            'success' => true,
+            'processed' => $processed,
+            'total' => count($ids),
+            'done' => $processed >= count($ids),
+        ]);
+    }
+
+    /**
+     * Chunked "Transfer Selected" step 3: summarize and clean up the session.
+     */
+    public function finishTransferSelected(Request $request)
+    {
+        if (auth()->user()?->role_name === 'Viewer') {
+            abort(403, 'Viewer role is read-only.');
+        }
+
+        $request->validate([
+            'token' => ['required', 'string'],
+        ]);
+
+        $session = $this->loadTransferSession($request->input('token'));
+
+        if ($session === null) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Transfer session not found. Please start the transfer again.',
+            ], 404);
+        }
+
+        $successCount = (int) ($session['successCount'] ?? 0);
+        $skippedCount = (int) ($session['skippedCount'] ?? 0);
+        $createdClients = (int) ($session['createdClients'] ?? 0);
+
+        Storage::disk('local')->delete(self::TRANSFER_SESSION_DIR . '/' . $request->input('token') . '.json');
+
+        $message = "Transferred {$successCount} event(s).";
+        if ($createdClients > 0) {
+            $message .= " Auto-created {$createdClients} new client(s).";
+        }
+        if ($skippedCount > 0) {
+            $message .= " Skipped {$skippedCount} event(s).";
+        }
+
+        return response()->json([
+            'success' => true,
+            'type' => $successCount > 0 ? 'success' : 'error',
+            'message' => $message,
+            'successCount' => $successCount,
+            'skippedCount' => $skippedCount,
+            'createdClients' => $createdClients,
+            'redirect' => $successCount > 0
+                ? route('transaction-events.records')
+                : route('transaction-events.index'),
+        ]);
     }
 }
