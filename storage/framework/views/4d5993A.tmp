@@ -1,7 +1,6 @@
-@extends('layouts.master')
-@section('title', 'ERS | Dashboard')
-@section('content')
-    @php
+<?php $__env->startSection('title', 'ERS | Dashboard'); ?>
+<?php $__env->startSection('content'); ?>
+    <?php
         $categoryMeta = [
             'social_services' => ['fa-hand-holding-heart', 'primary'],
             'solicitation' => ['fa-file-invoice', 'success'],
@@ -41,7 +40,7 @@
                 : (now()->hour >= 12 && now()->hour <= 17
                     ? 'Good Afternoon'
                     : 'Good Evening');
-    @endphp
+    ?>
 
     <style>
         .category-card,
@@ -65,7 +64,7 @@
                         <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
                             <div>
                                 <h4 class="mb-1">Dashboard</h4>
-                                <p class="text-muted mb-0">{{ $timeGreeting }}, {{ auth()->user()?->name ?? 'User' }}.</p>
+                                <p class="text-muted mb-0"><?php echo e($timeGreeting); ?>, <?php echo e(auth()->user()?->name ?? 'User'); ?>.</p>
                             </div>
                         </div>
                     </div>
@@ -80,7 +79,7 @@
                 <!-- Stat Cards -->
                 <div class="row g-3">
                     <div class="col-lg-4 col-md-4 col-sm-12">
-                        <a href="{{ route('client.list') }}" class="text-decoration-none">
+                        <a href="<?php echo e(route('client.list')); ?>" class="text-decoration-none">
                             <div class="card material-shadow border-primary border-opacity-25 stat-card h-100">
                                 <div class="card-body">
                                     <div class="d-flex align-items-center">
@@ -92,7 +91,7 @@
                                         </div>
                                         <div>
                                             <p class="text-muted mb-1">Total Registered Clients</p>
-                                            <h3 class="mb-0">{{ number_format($totalClients) }}</h3>
+                                            <h3 class="mb-0"><?php echo e(number_format($totalClients)); ?></h3>
                                         </div>
                                     </div>
                                 </div>
@@ -101,7 +100,7 @@
                     </div>
 
                     <div class="col-lg-4 col-md-4 col-sm-12">
-                        <a href="{{ route('transactions.index') }}" class="text-decoration-none">
+                        <a href="<?php echo e(route('transactions.index')); ?>" class="text-decoration-none">
                             <div class="card material-shadow border-info border-opacity-25 stat-card h-100">
                                 <div class="card-body">
                                     <div class="d-flex align-items-center">
@@ -113,7 +112,7 @@
                                         </div>
                                         <div>
                                             <p class="text-muted mb-1">Total Transactions</p>
-                                            <h3 class="mb-0">{{ number_format($totalCategoryTransactions) }}</h3>
+                                            <h3 class="mb-0"><?php echo e(number_format($totalCategoryTransactions)); ?></h3>
                                         </div>
                                     </div>
                                 </div>
@@ -133,7 +132,7 @@
                                         </div>
                                         <div>
                                             <p class="text-muted mb-1">Total Categories</p>
-                                            <h3 class="mb-0">{{ count($categories) }}</h3>
+                                            <h3 class="mb-0"><?php echo e(count($categories)); ?></h3>
                                         </div>
                                     </div>
                                 </div>
@@ -149,11 +148,11 @@
                     <div class="card-header d-flex flex-wrap gap-2 align-items-center justify-content-between">
                         <div>
                             <h5 class="mb-0">Total Registered Clients</h5>
-                            <p class="text-muted mb-0">Monthly client registrations through {{ now()->format('F Y') }}</p>
+                            <p class="text-muted mb-0">Monthly client registrations through <?php echo e(now()->format('F Y')); ?></p>
                         </div>
                         <div class="text-end">
                             <span class="text-muted">Total clients</span>
-                            <h3 class="mb-0 text-primary">{{ number_format($totalClients) }}</h3>
+                            <h3 class="mb-0 text-primary"><?php echo e(number_format($totalClients)); ?></h3>
                         </div>
                     </div>
                     <div class="card-body">
@@ -170,8 +169,8 @@
                             <div class="card-header d-flex flex-wrap gap-2 align-items-center justify-content-between">
                                 <div>
                                     <h5 class="mb-0" id="txTrendTitle">Total
-                                        Transactions{{ ($txTrendSuffix ?? '') !== '' ? ' — ' . $txTrendSuffix : '' }}</h5>
-                                    <p class="text-muted mb-0">Monthly transactions through {{ now()->format('F Y') }}</p>
+                                        Transactions<?php echo e(($txTrendSuffix ?? '') !== '' ? ' — ' . $txTrendSuffix : ''); ?></h5>
+                                    <p class="text-muted mb-0">Monthly transactions through <?php echo e(now()->format('F Y')); ?></p>
                                 </div>
                                 <div class="d-flex flex-wrap gap-2">
                                     <div class="dropdown" id="txCategoryDropdown">
@@ -182,7 +181,7 @@
                                             aria-label="Filter transactions graph by category"
                                             title="Filter by transaction category" style="min-width: 200px;">
                                             <span
-                                                id="txCategoryLabel">{{ count($txCategories ?? []) === 0 || count($txCategories ?? []) === count($txCategoryOptions ?? []) ? 'All categories' : (count($txCategories) === 1 ? $txCategories[0] : count($txCategories) . ' selected') }}</span>
+                                                id="txCategoryLabel"><?php echo e(count($txCategories ?? []) === 0 || count($txCategories ?? []) === count($txCategoryOptions ?? []) ? 'All categories' : (count($txCategories) === 1 ? $txCategories[0] : count($txCategories) . ' selected')); ?></span>
                                         </button>
                                         <div class="dropdown-menu dropdown-menu-end p-2"
                                             style="min-width: 230px; max-height: 260px; overflow-y: auto;">
@@ -194,18 +193,19 @@
                                                 </label>
                                             </div>
                                             <hr class="my-2">
-                                            @foreach ($txCategoryOptions ?? [] as $option)
+                                            <?php $__currentLoopData = $txCategoryOptions ?? []; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $option): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                                 <div class="form-check">
                                                     <input class="form-check-input tx-category-check" type="checkbox"
-                                                        id="txCategoryCheck_{{ $loop->index }}"
-                                                        value="{{ $option }}"
-                                                        {{ in_array($option, $txCategories ?? []) ? 'checked' : '' }}>
+                                                        id="txCategoryCheck_<?php echo e($loop->index); ?>"
+                                                        value="<?php echo e($option); ?>"
+                                                        <?php echo e(in_array($option, $txCategories ?? []) ? 'checked' : ''); ?>>
                                                     <label class="form-check-label"
-                                                        for="txCategoryCheck_{{ $loop->index }}">
-                                                        {{ $option }}
+                                                        for="txCategoryCheck_<?php echo e($loop->index); ?>">
+                                                        <?php echo e($option); ?>
+
                                                     </label>
                                                 </div>
-                                            @endforeach
+                                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                         </div>
                                     </div>
                                     <div class="dropdown" id="txTypeDropdown">
@@ -214,11 +214,11 @@
                                             style="width: 230px" type="button" id="txTypeBtn" data-bs-toggle="dropdown"
                                             data-bs-auto-close="outside" aria-expanded="false"
                                             aria-label="Filter transactions graph by transaction type"
-                                            title="{{ count($txCategories ?? []) === 0 ? 'Select a transaction category first' : 'Filter by transaction type' }}"
+                                            title="<?php echo e(count($txCategories ?? []) === 0 ? 'Select a transaction category first' : 'Filter by transaction type'); ?>"
                                             style="min-width: 200px;"
-                                            {{ count($txCategories ?? []) === 0 ? 'disabled' : '' }}>
+                                            <?php echo e(count($txCategories ?? []) === 0 ? 'disabled' : ''); ?>>
                                             <span
-                                                id="txTypeLabel">{{ count($txTypes ?? []) === 0 || count($txTypes ?? []) === count($txTypeOptions ?? []) ? 'All types' : (count($txTypes) === 1 ? $txTypes[0] : count($txTypes) . ' selected') }}</span>
+                                                id="txTypeLabel"><?php echo e(count($txTypes ?? []) === 0 || count($txTypes ?? []) === count($txTypeOptions ?? []) ? 'All types' : (count($txTypes) === 1 ? $txTypes[0] : count($txTypes) . ' selected')); ?></span>
                                         </button>
                                         <div class="dropdown-menu dropdown-menu-end p-2"
                                             style="min-width: 230px; max-height: 260px; overflow-y: auto;">
@@ -230,18 +230,19 @@
                                                 </label>
                                             </div>
                                             <hr class="my-2">
-                                            @foreach ($txTypeOptions ?? [] as $option)
+                                            <?php $__currentLoopData = $txTypeOptions ?? []; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $option): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                                 <div class="form-check"
-                                                    @if (!in_array($option, $txVisibleTypes ?? ($txTypeOptions ?? []))) style="display: none;" @endif>
+                                                    <?php if(!in_array($option, $txVisibleTypes ?? ($txTypeOptions ?? []))): ?> style="display: none;" <?php endif; ?>>
                                                     <input class="form-check-input tx-type-check" type="checkbox"
-                                                        id="txTypeCheck_{{ $loop->index }}" value="{{ $option }}"
-                                                        {{ in_array($option, $txTypes ?? []) ? 'checked' : '' }}>
+                                                        id="txTypeCheck_<?php echo e($loop->index); ?>" value="<?php echo e($option); ?>"
+                                                        <?php echo e(in_array($option, $txTypes ?? []) ? 'checked' : ''); ?>>
                                                     <label class="form-check-label"
-                                                        for="txTypeCheck_{{ $loop->index }}">
-                                                        {{ $option }}
+                                                        for="txTypeCheck_<?php echo e($loop->index); ?>">
+                                                        <?php echo e($option); ?>
+
                                                     </label>
                                                 </div>
-                                            @endforeach
+                                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                         </div>
                                     </div>
                                 </div>
@@ -261,16 +262,20 @@
                         <div>
                             <h5 class="mb-0">Transactions by Transaction Date</h5>
                             <p class="text-muted mb-0" id="transactionDateDescription">
-                                @if ($transactionDates !== [])
-                                    Monthly totals for {{ count($transactionDates) }} selected
-                                    {{ count($transactionDates) === 1 ? 'date' : 'dates' }}
-                                @elseif ($transactionDateFrom || $transactionDateTo)
-                                    {{ $transactionDateFrom ? \Carbon\Carbon::parse($transactionDateFrom)->format('M d, Y') : 'All earlier dates' }}
+                                <?php if($transactionDates !== []): ?>
+                                    Monthly totals for <?php echo e(count($transactionDates)); ?> selected
+                                    <?php echo e(count($transactionDates) === 1 ? 'date' : 'dates'); ?>
+
+                                <?php elseif($transactionDateFrom || $transactionDateTo): ?>
+                                    <?php echo e($transactionDateFrom ? \Carbon\Carbon::parse($transactionDateFrom)->format('M d, Y') : 'All earlier dates'); ?>
+
                                     –
-                                    {{ $transactionDateTo ? \Carbon\Carbon::parse($transactionDateTo)->format('M d, Y') : now()->format('M d, Y') }}
-                                @else
-                                    Monthly totals from Transaction History through {{ now()->format('F Y') }}
-                                @endif
+                                    <?php echo e($transactionDateTo ? \Carbon\Carbon::parse($transactionDateTo)->format('M d, Y') : now()->format('M d, Y')); ?>
+
+                                <?php else: ?>
+                                    Monthly totals from Transaction History through <?php echo e(now()->format('F Y')); ?>
+
+                                <?php endif; ?>
                             </p>
                         </div>
                         <div class="d-flex flex-wrap align-items-center gap-3">
@@ -278,41 +283,41 @@
                             <div class="dropdown" id="transactionDateCategoryDropdown">
                                 <button
                                     class="btn btn-light border form-select form-select-sm text-start d-flex align-items-center justify-content-between"
-                                    style="width: 190px;" type="button" id="transactionDateCategoryBtn"
+                                    style="width: 180px;" type="button" id="transactionDateCategoryBtn"
                                     data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false"
                                     aria-controls="transactionDateCategoryMenu"
                                     aria-label="Filter monthly transactions by transaction category">
                                     <span id="transactionDateCategoryLabel"
-                                        class="text-truncate pe-3">{{ count($transactionDateCategories) === 1 ? $transactionDateCategories[0] : (count($transactionDateCategories) > 1 ? count($transactionDateCategories) . ' categories selected' : 'All categories') }}</span>
+                                        class="text-truncate pe-3"><?php echo e(count($transactionDateCategories) === 1 ? $transactionDateCategories[0] : (count($transactionDateCategories) > 1 ? count($transactionDateCategories) . ' categories selected' : 'All categories')); ?></span>
                                 </button>
                                 <div class="dropdown-menu dropdown-menu-end p-3" id="transactionDateCategoryMenu"
                                     aria-labelledby="transactionDateCategoryBtn"
-                                    style="width: 190px; max-width: calc(100vw - 40px);">
+                                    style="width: 180px; max-width: calc(100vw - 40px);">
                                     <label for="transactionDateCategorySearch" class="visually-hidden">Search transaction
                                         categories</label>
                                     <input type="search" id="transactionDateCategorySearch"
                                         class="form-control form-control-sm mb-2" placeholder="Search categories…">
                                     <div class="form-check mb-2">
                                         <input class="form-check-input" type="checkbox" id="transactionDateCategoryAll"
-                                            {{ $transactionDateCategories === [] ? 'checked' : '' }}>
+                                            <?php echo e($transactionDateCategories === [] ? 'checked' : ''); ?>>
                                         <label class="form-check-label fw-semibold" for="transactionDateCategoryAll">All
                                             categories</label>
                                     </div>
                                     <hr class="my-2">
                                     <div style="max-height: 240px; overflow-y: auto;">
-                                        @forelse ($txCategoryOptions as $category)
+                                        <?php $__empty_1 = true; $__currentLoopData = $txCategoryOptions; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $category): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
                                             <div class="form-check transaction-date-category-option">
                                                 <input class="form-check-input transaction-date-category-check"
                                                     type="checkbox" name="transaction_date_categories[]"
-                                                    id="transactionDateCategoryOption_{{ $loop->index }}"
-                                                    value="{{ $category }}"
-                                                    {{ in_array($category, $transactionDateCategories, true) ? 'checked' : '' }}>
+                                                    id="transactionDateCategoryOption_<?php echo e($loop->index); ?>"
+                                                    value="<?php echo e($category); ?>"
+                                                    <?php echo e(in_array($category, $transactionDateCategories, true) ? 'checked' : ''); ?>>
                                                 <label class="form-check-label"
-                                                    for="transactionDateCategoryOption_{{ $loop->index }}">{{ $category }}</label>
+                                                    for="transactionDateCategoryOption_<?php echo e($loop->index); ?>"><?php echo e($category); ?></label>
                                             </div>
-                                        @empty
+                                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                                             <p class="text-muted small mb-0">No transaction categories available.</p>
-                                        @endforelse
+                                        <?php endif; ?>
                                     </div>
                                     <p class="text-muted small mb-0 d-none" id="transactionDateCategoryNoMatches">No
                                         matching categories.</p>
@@ -321,42 +326,43 @@
                             <div class="dropdown" id="transactionDateTypeDropdown">
                                 <button
                                     class="btn btn-light border form-select form-select-sm text-start d-flex align-items-center justify-content-between"
-                                    style="width: 190px;" type="button" id="transactionDateTypeBtn"
+                                    style="width: 180px;" type="button" id="transactionDateTypeBtn"
                                     data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false"
                                     aria-controls="transactionDateTypeMenu"
                                     aria-label="Filter monthly transactions by transaction type">
                                     <span id="transactionDateTypeLabel"
-                                        class="text-truncate pe-3">{{ count($transactionDateTypes) === 1 ? $transactionDateTypes[0] : (count($transactionDateTypes) > 1 ? count($transactionDateTypes) . ' types selected' : 'All types') }}</span>
+                                        class="text-truncate pe-3"><?php echo e(count($transactionDateTypes) === 1 ? $transactionDateTypes[0] : (count($transactionDateTypes) > 1 ? count($transactionDateTypes) . ' types selected' : 'All types')); ?></span>
                                 </button>
                                 <div class="dropdown-menu dropdown-menu-end p-3" id="transactionDateTypeMenu"
                                     aria-labelledby="transactionDateTypeBtn"
-                                    style="width: 190px; max-width: calc(100vw - 40px);">
+                                    style="width: 180px; max-width: calc(100vw - 40px);">
                                     <label for="transactionDateTypeSearch" class="visually-hidden">Search transaction
                                         types</label>
                                     <input type="search" id="transactionDateTypeSearch"
                                         class="form-control form-control-sm mb-2" placeholder="Search types…">
                                     <div class="form-check mb-2">
                                         <input class="form-check-input" type="checkbox" id="transactionDateTypeAll"
-                                            {{ $transactionDateTypes === [] ? 'checked' : '' }}>
+                                            <?php echo e($transactionDateTypes === [] ? 'checked' : ''); ?>>
                                         <label class="form-check-label fw-semibold" for="transactionDateTypeAll">All
                                             types</label>
                                     </div>
                                     <hr class="my-2">
                                     <div style="max-height: 240px; overflow-y: auto;">
-                                        @forelse ($txTypeOptions as $type)
-                                            <div class="form-check transaction-date-type-option {{ in_array($type, $transactionDateTypeOptions, true) ? '' : 'd-none' }}">
+                                        <?php $__empty_1 = true; $__currentLoopData = $txTypeOptions; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $type): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
+                                            <div class="form-check transaction-date-type-option <?php echo e(in_array($type, $transactionDateTypeOptions, true) ? '' : 'd-none'); ?>">
                                                 <input class="form-check-input transaction-date-type-check"
                                                     type="checkbox" name="transaction_date_types[]"
-                                                    id="transactionDateTypeOption_{{ $loop->index }}"
-                                                    value="{{ $type }}"
-                                                    {{ in_array($type, $transactionDateTypeOptions, true) ? '' : 'disabled' }}
-                                                    {{ in_array($type, $transactionDateTypes, true) ? 'checked' : '' }}>
+                                                    id="transactionDateTypeOption_<?php echo e($loop->index); ?>"
+                                                    value="<?php echo e($type); ?>"
+                                                    <?php echo e(in_array($type, $transactionDateTypeOptions, true) ? '' : 'disabled'); ?>
+
+                                                    <?php echo e(in_array($type, $transactionDateTypes, true) ? 'checked' : ''); ?>>
                                                 <label class="form-check-label"
-                                                    for="transactionDateTypeOption_{{ $loop->index }}">{{ $type }}</label>
+                                                    for="transactionDateTypeOption_<?php echo e($loop->index); ?>"><?php echo e($type); ?></label>
                                             </div>
-                                        @empty
+                                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                                             <p class="text-muted small mb-0">No transaction types available.</p>
-                                        @endforelse
+                                        <?php endif; ?>
                                     </div>
                                     <p class="text-muted small mb-0 d-none" id="transactionDateTypeNoMatches">No
                                         matching types.</p>
@@ -370,18 +376,18 @@
                                     aria-controls="transactionDateMenu"
                                     aria-label="Filter transactions by transaction date">
                                     <span
-                                        id="transactionDateLabel">{{ count($transactionDates) === 1 ? \Carbon\Carbon::parse($transactionDates[0])->format('M d, Y') : (count($transactionDates) > 1 ? count($transactionDates) . ' dates selected' : 'All dates') }}</span>
+                                        id="transactionDateLabel"><?php echo e(count($transactionDates) === 1 ? \Carbon\Carbon::parse($transactionDates[0])->format('M d, Y') : (count($transactionDates) > 1 ? count($transactionDates) . ' dates selected' : 'All dates')); ?></span>
                                 </button>
                                 <div class="dropdown-menu dropdown-menu-end p-3" id="transactionDateMenu"
                                     aria-labelledby="transactionDateBtn"
                                     style="width: 180px; max-width: calc(100vw - 40px);">
                                     <div class="row g-2">
-                                        @foreach ($txCategories as $category)
-                                            <input type="hidden" name="tx_category[]" value="{{ $category }}">
-                                        @endforeach
-                                        @foreach ($txTypes as $type)
-                                            <input type="hidden" name="tx_type[]" value="{{ $type }}">
-                                        @endforeach
+                                        <?php $__currentLoopData = $txCategories; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $category): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                            <input type="hidden" name="tx_category[]" value="<?php echo e($category); ?>">
+                                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                                        <?php $__currentLoopData = $txTypes; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $type): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                            <input type="hidden" name="tx_type[]" value="<?php echo e($type); ?>">
+                                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                         <div class="col-12">
                                             <label for="transactionDateSearch" class="visually-hidden">Search transaction
                                                 dates</label>
@@ -391,37 +397,39 @@
                                         <div class="col-12">
                                             <div class="form-check mb-2">
                                                 <input class="form-check-input" type="checkbox" id="transactionDateAll"
-                                                    {{ $transactionDates === [] ? 'checked' : '' }}>
+                                                    <?php echo e($transactionDates === [] ? 'checked' : ''); ?>>
                                                 <label class="form-check-label fw-semibold" for="transactionDateAll">All
                                                     dates</label>
                                             </div>
                                             <hr class="my-2">
                                             <div style="max-height: 240px; overflow-y: auto;">
-                                                @forelse ($transactionDateOptions as $date)
-                                                    <div class="form-check transaction-date-option {{ in_array($date, $transactionDateVisibleDates, true) ? '' : 'd-none' }}">
+                                                <?php $__empty_1 = true; $__currentLoopData = $transactionDateOptions; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $date): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
+                                                    <div class="form-check transaction-date-option <?php echo e(in_array($date, $transactionDateVisibleDates, true) ? '' : 'd-none'); ?>">
                                                         <input class="form-check-input transaction-date-check"
                                                             type="checkbox" name="transaction_dates[]"
-                                                            id="transactionDateOption_{{ $loop->index }}"
-                                                            value="{{ $date }}"
-                                                            {{ in_array($date, $transactionDateVisibleDates, true) ? '' : 'disabled' }}
-                                                            {{ in_array($date, $transactionDates, true) ? 'checked' : '' }}>
+                                                            id="transactionDateOption_<?php echo e($loop->index); ?>"
+                                                            value="<?php echo e($date); ?>"
+                                                            <?php echo e(in_array($date, $transactionDateVisibleDates, true) ? '' : 'disabled'); ?>
+
+                                                            <?php echo e(in_array($date, $transactionDates, true) ? 'checked' : ''); ?>>
                                                         <label class="form-check-label"
-                                                            for="transactionDateOption_{{ $loop->index }}">
-                                                            {{ \Carbon\Carbon::parse($date)->format('M d, Y') }}
+                                                            for="transactionDateOption_<?php echo e($loop->index); ?>">
+                                                            <?php echo e(\Carbon\Carbon::parse($date)->format('M d, Y')); ?>
+
                                                         </label>
                                                     </div>
-                                                @empty
+                                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                                                     <p class="text-muted small mb-0">No transaction dates available.</p>
-                                                @endforelse
+                                                <?php endif; ?>
                                             </div>
                                             <p class="text-muted small mb-0 d-none" id="transactionDateNoMatches">No
                                                 matching dates.</p>
                                         </div>
-                                        @if ($errors->has('transaction_dates') || $errors->has('transaction_dates.*'))
+                                        <?php if($errors->has('transaction_dates') || $errors->has('transaction_dates.*')): ?>
                                             <div class="col-12 text-danger small" role="alert">Select valid transaction
                                                 dates from the list.</div>
-                                        @endif
-                                        {{-- <div class="col-12 text-muted small">Select dates to update the chart automatically.</div> --}}
+                                        <?php endif; ?>
+                                        
                                     </div>
                                 </div>
                             </div>
@@ -429,7 +437,7 @@
                             <div class="text-end">
                                 <span class="text-muted">Total in selected period</span>
                                 <h3 class="mb-0 text-primary" id="transactionDateTotal">
-                                    {{ number_format(array_sum($transactionDateTrend['data'])) }}</h3>
+                                    <?php echo e(number_format(array_sum($transactionDateTrend['data']))); ?></h3>
                             </div>
                         </div>
                     </div>
@@ -439,17 +447,12 @@
                         <div class="overflow-auto" tabindex="0" role="region"
                             aria-label="Monthly transaction chart; scroll horizontally for more months">
                             <div id="transactionDatePlot"
-                                style="height: 280px; position: relative; min-width: {{ max(320, count($transactionDateTrend['labels']) * 80) }}px;">
+                                style="height: 280px; position: relative; min-width: <?php echo e(max(320, count($transactionDateTrend['labels']) * 80)); ?>px;">
                                 <canvas id="transactionDateChart" role="img"
                                     aria-label="Transaction counts by transaction date for each month. Exact values follow in a table."></canvas>
                             </div>
                         </div>
-                        <p id="transactionDateCurrentMonth"
-                            class="text-muted small mt-2 mb-0 {{ in_array(now()->format('M Y'), $transactionDateTrend['labels']) ? '' : 'd-none' }}">
-                            {{ now()->format('F Y') }} is the current month and is still in progress.</p>
-                        <p id="transactionDateEmpty"
-                            class="text-muted mt-2 mb-0 {{ array_sum($transactionDateTrend['data']) === 0 ? '' : 'd-none' }}">
-                            No transactions found for this period.</p>
+                        
                         <table class="visually-hidden">
                             <caption>Monthly transaction counts by transaction date</caption>
                             <thead>
@@ -459,29 +462,19 @@
                                 </tr>
                             </thead>
                             <tbody id="transactionDateTableBody">
-                                @foreach ($transactionDateTrend['labels'] as $index => $month)
+                                <?php $__currentLoopData = $transactionDateTrend['labels']; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $index => $month): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                     <tr>
-                                        <th scope="row">{{ $month }}</th>
-                                        <td>{{ $transactionDateTrend['data'][$index] }}</td>
+                                        <th scope="row"><?php echo e($month); ?></th>
+                                        <td><?php echo e($transactionDateTrend['data'][$index]); ?></td>
                                     </tr>
-                                @endforeach
+                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                             </tbody>
                         </table>
                     </div>
                 </div>
 
                 <!-- CARAVAN Trend Chart -->
-                {{-- <div class="card material-shadow mt-4">
-                    <div class="card-header">
-                        <h5 class="mb-0">CARAVAN Transactions</h5>
-                        <p class="text-muted mb-0">Caravan registrations per month (January 2026 - present)</p>
-                    </div>
-                    <div class="card-body">
-                        <div class="w-100" style="height: 280px; position: relative;">
-                            <canvas id="caravanTrendChart"></canvas>
-                        </div>
-                    </div>
-                </div> --}}
+                
 
                 <div class="col-12 mt-4">
                     <div class="row g-3">
@@ -537,30 +530,30 @@
                         </div>
                     </div>
 
-                    @foreach ($categories as $key => $label)
-                        @php
+                    <?php $__currentLoopData = $categories; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $key => $label): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                        <?php
                             [$icon] = $categoryMeta[$key] ?? ['fa-circle'];
                             // Same palette position as the Service Categories doughnut
                             // chart so each card matches its slice/legend color.
                             $hex = $chartColors[$loop->index % count($chartColors)];
                             $count = $categoryCounts[$key] ?? 0;
-                        @endphp
+                        ?>
                         <div class="col-lg-6 col-md-2 col-sm-6" style="width: 173.5px">
-                            <a href="{{ route('transactions.category', $key) }}" class="text-decoration-none">
+                            <a href="<?php echo e(route('transactions.category', $key)); ?>" class="text-decoration-none">
                                 <div class="card material-shadow category-card" style="height: 170px">
                                     <div class="card-body text-center">
                                         <div class="avatar-md rounded-circle mx-auto mb-2 d-flex align-items-center justify-content-center"
-                                            style="background: {{ $hex }}1a;">
-                                            <i class="fa-solid {{ $icon }} fs-3"
-                                                style="color: {{ $hex }};"></i>
+                                            style="background: <?php echo e($hex); ?>1a;">
+                                            <i class="fa-solid <?php echo e($icon); ?> fs-3"
+                                                style="color: <?php echo e($hex); ?>;"></i>
                                         </div>
-                                        <h4 class="mb-1">{{ number_format($count) }}</h4>
-                                        <p class="text-muted mb-0">{{ $label }}</p>
+                                        <h4 class="mb-1"><?php echo e(number_format($count)); ?></h4>
+                                        <p class="text-muted mb-0"><?php echo e($label); ?></p>
                                     </div>
                                 </div>
                             </a>
                         </div>
-                    @endforeach
+                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                 </div>
             </div>
             <!--end col-lg-8 main content-->
@@ -621,14 +614,14 @@
                 </div>
                 <!--end calendar card-->
 
-                @if (feature_allowed('Activity Logs'))
+                <?php if(feature_allowed('Activity Logs')): ?>
                     <!-- Recent Activity Card -->
                     <div class="card material-shadow mt-4">
                         <div class="card-body p-3">
                             <h6 class="text-muted text-uppercase fw-semibold mb-3 text-center">
                                 <i class="ri-history-line me-1"></i> Recent Activity
                             </h6>
-                            @php
+                            <?php
                                 $dashActionMeta = function ($action) {
                                     $action = strtolower((string) $action);
 
@@ -676,56 +669,56 @@
                                         default => ['Activity', 'bg-light text-dark', 'ri-history-line'],
                                     };
                                 };
-                            @endphp
-                            @forelse ($recentActivities ?? [] as $activity)
-                                @php [$dashLabel, $dashBadge, $dashIcon] = $dashActionMeta($activity->action); @endphp
-                                <div class="d-flex gap-2 py-2 {{ $loop->last ? '' : 'border-bottom' }}">
+                            ?>
+                            <?php $__empty_1 = true; $__currentLoopData = $recentActivities ?? []; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $activity): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
+                                <?php [$dashLabel, $dashBadge, $dashIcon] = $dashActionMeta($activity->action); ?>
+                                <div class="d-flex gap-2 py-2 <?php echo e($loop->last ? '' : 'border-bottom'); ?>">
                                     <div class="flex-shrink-0">
-                                        <span class="badge {{ $dashBadge }} p-2" title="{{ $dashLabel }}"><i
-                                                class="{{ $dashIcon }}"></i></span>
+                                        <span class="badge <?php echo e($dashBadge); ?> p-2" title="<?php echo e($dashLabel); ?>"><i
+                                                class="<?php echo e($dashIcon); ?>"></i></span>
                                     </div>
                                     <div class="flex-grow-1">
                                         <div class="small fw-semibold"
                                             style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">
-                                            {{ $activity->description }}</div>
+                                            <?php echo e($activity->description); ?></div>
                                         <div class="text-muted" style="font-size:.75rem;">
-                                            {{ $activity->user?->name ?? 'System' }} ·
+                                            <?php echo e($activity->user?->name ?? 'System'); ?> ·
                                             <span
-                                                title="{{ $activity->created_at?->setTimezone('Asia/Manila')->format('M d, Y h:i A') ?? '-' }}">{{ $activity->created_at?->diffForHumans() ?? '-' }}</span>
+                                                title="<?php echo e($activity->created_at?->setTimezone('Asia/Manila')->format('M d, Y h:i A') ?? '-'); ?>"><?php echo e($activity->created_at?->diffForHumans() ?? '-'); ?></span>
                                         </div>
                                     </div>
                                 </div>
-                            @empty
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                                 <p class="text-muted small text-center mb-2">No recent activity.</p>
-                            @endforelse
+                            <?php endif; ?>
                             <div class="text-center mt-2">
-                                <a href="{{ route('activity.logs') }}" class="btn btn-sm btn-soft-primary">View All
+                                <a href="<?php echo e(route('activity.logs')); ?>" class="btn btn-sm btn-soft-primary">View All
                                     Logs</a>
                             </div>
                         </div>
                     </div>
                     <!--end recent activity card-->
-                @endif
+                <?php endif; ?>
             </div>
             <!--end col-lg-4 right sidebar-->
         </div>
         <!--end main 2-column row-->
-    @endsection
+    <?php $__env->stopSection(); ?>
 
-    @push('scripts')
-        <script src="{{ asset('assets/libs/chart.js/chart.umd.min.js') }}"></script>
+    <?php $__env->startPush('scripts'); ?>
+        <script src="<?php echo e(asset('assets/libs/chart.js/chart.umd.min.js')); ?>"></script>
         <script>
             document.addEventListener('DOMContentLoaded', function() {
-                @if ($errors->has('transaction_dates') || $errors->has('transaction_dates.*'))
+                <?php if($errors->has('transaction_dates') || $errors->has('transaction_dates.*')): ?>
                     const dateFilterButton = document.getElementById('transactionDateBtn');
                     if (dateFilterButton && window.bootstrap?.Dropdown) {
                         bootstrap.Dropdown.getOrCreateInstance(dateFilterButton).show();
                         document.getElementById('transactionDateSearch')?.focus();
                     }
-                @endif
+                <?php endif; ?>
                 const dateChecks = [...document.querySelectorAll('.transaction-date-check')];
-                let availableTypes = new Set(@json($transactionDateTypeOptions));
-                let availableDates = new Set(@json($transactionDateVisibleDates));
+                let availableTypes = new Set(<?php echo json_encode($transactionDateTypeOptions, 15, 512) ?>);
+                let availableDates = new Set(<?php echo json_encode($transactionDateVisibleDates, 15, 512) ?>);
                 let loadingOptions = false;
                 const categoryChecks = [...document.querySelectorAll('.transaction-date-category-check')];
                 const allCategories = document.getElementById('transactionDateCategoryAll');
@@ -825,9 +818,9 @@
                 updateOptionVisibility();
                 const canvas = document.getElementById('transactionDateChart');
                 if (!canvas) return;
-                const labels = @json($transactionDateTrend['labels']);
-                const counts = @json($transactionDateTrend['data']);
-                const currentMonth = @json(now()->format('M Y'));
+                const labels = <?php echo json_encode($transactionDateTrend['labels'], 15, 512) ?>;
+                const counts = <?php echo json_encode($transactionDateTrend['data'], 15, 512) ?>;
+                const currentMonth = <?php echo json_encode(now()->format('M Y'), 15, 512) ?>;
 
                 const dateChart = new Chart(canvas, {
                     type: 'bar',
@@ -920,7 +913,7 @@
                     pendingRequest?.abort();
                     pendingRequest = new AbortController();
                     const selected = dateChecks.filter(input => input.checked).map(input => input.value);
-                    const url = new URL(@json(route('dashboard.transaction-date-trend')), window.location.origin);
+                    const url = new URL(<?php echo json_encode(route('dashboard.transaction-date-trend'), 15, 512) ?>, window.location.origin);
                     typeChecks.filter(input => input.checked).forEach(input => url.searchParams.append('transaction_date_types[]', input.value));
                     selected.forEach(date => url.searchParams.append('transaction_dates[]', date));
                     categoryChecks.filter(input => input.checked).forEach(input => url.searchParams.append(
@@ -1015,8 +1008,8 @@
             document.addEventListener('DOMContentLoaded', function() {
                 const trendCanvas = document.getElementById('clientTrendChart');
                 if (trendCanvas) {
-                    const trendLabels = @json($clientTrend['labels']);
-                    const trendData = @json($clientTrend['data']);
+                    const trendLabels = <?php echo json_encode($clientTrend['labels'], 15, 512) ?>;
+                    const trendData = <?php echo json_encode($clientTrend['data'], 15, 512) ?>;
 
                     new Chart(trendCanvas, {
                         type: 'line',
@@ -1118,13 +1111,13 @@
                     borderWidth: 1
                 }));
                 if (txCanvas) {
-                    const txLabels = @json($transactionTrend['labels']);
+                    const txLabels = <?php echo json_encode($transactionTrend['labels'], 15, 512) ?>;
 
                     txChart = new Chart(txCanvas, {
                         type: 'bar',
                         data: {
                             labels: txLabels,
-                            datasets: txDatasets(@json($transactionTrend['datasets']))
+                            datasets: txDatasets(<?php echo json_encode($transactionTrend['datasets'], 15, 512) ?>)
                         },
                         options: {
                             responsive: true,
@@ -1235,7 +1228,7 @@
                     const types = txMultiState('tx-type-check').values;
                     const myRequest = ++txTrendRequestId;
                     try {
-                        const url = new URL('{{ route('dashboard.transaction-trend') }}', window
+                        const url = new URL('<?php echo e(route('dashboard.transaction-trend')); ?>', window
                             .location.origin);
                         categories.forEach((v) => url.searchParams.append('tx_category[]', v));
                         types.forEach((v) => url.searchParams.append('tx_type[]', v));
@@ -1275,7 +1268,7 @@
                     const myRequest = ++txTypesRequestId;
                     try {
                         const categories = txMultiState('tx-category-check').values;
-                        const url = new URL('{{ route('dashboard.transaction-trend.types') }}',
+                        const url = new URL('<?php echo e(route('dashboard.transaction-trend.types')); ?>',
                             window.location.origin);
                         categories.forEach((v) => url.searchParams.append('tx_category[]', v));
                         const res = await fetch(url.toString(), {
@@ -1377,8 +1370,8 @@
             document.addEventListener('DOMContentLoaded', function() {
                 const caravanCanvas = document.getElementById('caravanTrendChart');
                 if (caravanCanvas) {
-                    const caravanLabels = @json($caravanTrend['labels']);
-                    const caravanData = @json($caravanTrend['data']);
+                    const caravanLabels = <?php echo json_encode($caravanTrend['labels'], 15, 512) ?>;
+                    const caravanData = <?php echo json_encode($caravanTrend['data'], 15, 512) ?>;
 
                     new Chart(caravanCanvas, {
                         type: 'line',
@@ -1437,9 +1430,9 @@
                 const canvas = document.getElementById('serviceCategoryChart');
                 if (!canvas) return;
 
-                const labels = @json($chartLabels);
-                const data = @json($chartData);
-                const colors = @json($chartColors).slice(0, labels.length);
+                const labels = <?php echo json_encode($chartLabels, 15, 512) ?>;
+                const data = <?php echo json_encode($chartData, 15, 512) ?>;
+                const colors = <?php echo json_encode($chartColors, 15, 512) ?>.slice(0, labels.length);
 
                 const serviceChart = new Chart(canvas, {
                     type: 'doughnut',
@@ -1520,9 +1513,9 @@
                 const clientCanvas = document.getElementById('clientCategoryChart');
                 if (!clientCanvas) return;
 
-                const clientLabels = @json($clientCategoryDistribution['labels']);
-                const clientData = @json($clientCategoryDistribution['data']);
-                const clientPalette = @json($chartColors);
+                const clientLabels = <?php echo json_encode($clientCategoryDistribution['labels'], 15, 512) ?>;
+                const clientData = <?php echo json_encode($clientCategoryDistribution['data'], 15, 512) ?>;
+                const clientPalette = <?php echo json_encode($chartColors, 15, 512) ?>;
                 const clientColors = clientLabels.map((_, i) => clientPalette[i % clientPalette.length]);
 
                 const clientChart = new Chart(clientCanvas, {
@@ -1798,4 +1791,6 @@
                 }
             });
         </script>
-    @endpush
+    <?php $__env->stopPush(); ?>
+
+<?php echo $__env->make('layouts.master', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH C:\xampp\htdocs\E-Reg-System\resources\views/pages/dashboard.blade.php ENDPATH**/ ?>

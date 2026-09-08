@@ -101,7 +101,7 @@
                                         aria-label="Groups per page" title="Groups per page">
                                         @foreach ([10, 15, 25, 50, 100] as $size)
                                             <option value="{{ $size }}"
-                                                {{ ($perPage ?? 25) == $size ? 'selected' : '' }}>
+                                                {{ ($perPage ?? 10) == $size ? 'selected' : '' }}>
                                                 {{ $size }} / page</option>
                                         @endforeach
                                     </select>

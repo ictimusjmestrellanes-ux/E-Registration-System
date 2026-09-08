@@ -25,6 +25,36 @@ class ProfileController extends Controller
 
     public function dashboard(Request $request)
     {
+        $transactionDateOptions = $this->transactionDateOptions();
+        $dateFilters = $request->validate([
+            'transaction_date_types' => ['nullable', 'array'],
+            'transaction_date_types.*' => ['required', 'string', \Illuminate\Validation\Rule::in($this->txTypeOptions())],
+            'transaction_date_categories' => ['nullable', 'array'],
+            'transaction_date_categories.*' => ['required', 'string', \Illuminate\Validation\Rule::in($this->txCategoryOptions())],
+            'transaction_dates' => ['nullable', 'array'],
+            'transaction_dates.*' => ['required', 'date_format:Y-m-d', \Illuminate\Validation\Rule::in($transactionDateOptions)],
+            'transaction_date_from' => ['nullable', 'date_format:Y-m-d', 'before_or_equal:today'],
+            'transaction_date_to' => array_merge(
+                ['nullable', 'date_format:Y-m-d', 'before_or_equal:today'],
+                $request->filled('transaction_date_from') ? ['after_or_equal:transaction_date_from'] : []
+            ),
+        ]);
+        $transactionDateFrom = $dateFilters['transaction_date_from'] ?? null;
+        $transactionDateTo = $dateFilters['transaction_date_to'] ?? null;
+        $transactionDateCategories = array_values(array_unique($dateFilters['transaction_date_categories'] ?? []));
+        $transactionDateTypes = array_values(array_unique($dateFilters['transaction_date_types'] ?? []));
+        $transactionDates = array_values(array_unique($dateFilters['transaction_dates'] ?? []));
+        $cascade = $this->transactionDateCascade($transactionDateCategories, $transactionDateTypes, $transactionDates);
+        $transactionDateTypes = $cascade['types'];
+        $transactionDates = $cascade['dates'];
+        $transactionDateTypeOptions = $cascade['type_options'];
+        $transactionDateVisibleDates = $cascade['date_options'];
+        sort($transactionDates);
+        if ($transactionDates !== []) {
+            $transactionDateFrom = $transactionDates[0];
+            $transactionDateTo = $transactionDates[count($transactionDates) - 1];
+        }
+
         $totalClients = Cache::remember('dashboard.total_clients', 300, function () {
             return Client::count();
         });
@@ -105,6 +135,8 @@ class ProfileController extends Controller
 
         $txTrendSuffix = implode(' · ', array_filter([implode(', ', $txCategories), implode(', ', $txTypes)]));
 
+        $transactionDateTrend = $this->transactionDateTotals($transactionDateFrom, $transactionDateTo, $transactionDates, $transactionDateCategories, $transactionDateTypes);
+
         $recentActivities = $this->recentDashboardActivities();
 
         $caravanTrend = Cache::remember(
@@ -118,7 +150,115 @@ class ProfileController extends Controller
             )
         );
 
-        return view('pages.dashboard', compact('totalClients', 'totalTransactions', 'txCategoryOptions', 'txCategories', 'txTypeOptions', 'txTypes', 'txVisibleTypes', 'txTrendSuffix', 'categoryCounts', 'categories', 'clientTrend', 'transactionTrend', 'caravanTrend', 'recentActivities', 'clientCategoryDistribution'));
+        return view('pages.dashboard', compact('totalClients', 'totalTransactions', 'txCategoryOptions', 'txCategories', 'txTypeOptions', 'txTypes', 'txVisibleTypes', 'txTrendSuffix', 'categoryCounts', 'categories', 'clientTrend', 'transactionTrend', 'transactionDateTrend', 'transactionDateFrom', 'transactionDateTo', 'transactionDates', 'transactionDateOptions', 'transactionDateCategories', 'transactionDateTypes', 'transactionDateTypeOptions', 'transactionDateVisibleDates', 'caravanTrend', 'recentActivities', 'clientCategoryDistribution'));
+    }
+
+    public function transactionDateTrend(Request $request)
+    {
+        $validated = $request->validate([
+            'transaction_date_types' => ['nullable', 'array'],
+            'transaction_date_types.*' => ['required', 'string', \Illuminate\Validation\Rule::in($this->txTypeOptions())],
+            'transaction_date_categories' => ['nullable', 'array'],
+            'transaction_date_categories.*' => ['required', 'string', \Illuminate\Validation\Rule::in($this->txCategoryOptions())],
+            'transaction_dates' => ['nullable', 'array'],
+            'transaction_dates.*' => ['required', 'date_format:Y-m-d', \Illuminate\Validation\Rule::in($this->transactionDateOptions())],
+        ]);
+        $dates = array_values(array_unique($validated['transaction_dates'] ?? []));
+        sort($dates);
+        $categories = array_values(array_unique($validated['transaction_date_categories'] ?? []));
+        $types = array_values(array_unique($validated['transaction_date_types'] ?? []));
+        $cascade = $this->transactionDateCascade($categories, $types, $dates);
+        $types = $cascade['types'];
+        $dates = $cascade['dates'];
+        $trend = $this->transactionDateTotals($dates[0] ?? null, $dates === [] ? null : $dates[count($dates) - 1], $dates, $categories, $types);
+
+        return response()->json($trend + [
+            'dates' => $dates,
+            'categories' => $categories,
+            'types' => $types,
+            'type_options' => $cascade['type_options'],
+            'date_options' => $cascade['date_options'],
+            'total' => array_sum($trend['data']),
+            'description' => $dates === []
+                ? 'Monthly totals from Transaction History through '.now()->format('F Y')
+                : 'Monthly totals for '.count($dates).' selected '.(count($dates) === 1 ? 'date' : 'dates'),
+        ]);
+    }
+
+    private function transactionDateCascade(array $categories, array $types, array $dates): array
+    {
+        $typeOptions = $this->txTypesForCategories($categories);
+        $types = array_values(array_intersect($types, $typeOptions));
+        $dateOptions = $this->transactionDateOptions($categories, $types);
+        $dates = array_values(array_intersect($dates, $dateOptions));
+        sort($dates);
+
+        return ['types' => $types, 'dates' => $dates, 'type_options' => $typeOptions, 'date_options' => $dateOptions];
+    }
+
+    private function transactionDateOptions(array $categories = [], array $types = []): array
+    {
+        return TransactionHistory::query()
+            ->when($categories !== [], fn ($query) => $query->whereIn('category', $categories))
+            ->when($types !== [], fn ($query) => $query->whereIn(DB::raw($this->transactionTypeExpression()), $types))
+            ->whereNotNull('transaction_date')
+            ->selectRaw($this->transactionDayExpression().' as transaction_day')
+            ->distinct()->orderByDesc('transaction_day')
+            ->toBase()->pluck('transaction_day')->all();
+    }
+
+    private function transactionDayExpression(): string
+    {
+        return match (DB::connection()->getDriverName()) {
+            'pgsql', 'sqlsrv' => 'CAST(transaction_date AS DATE)',
+            default => 'DATE(transaction_date)',
+        };
+    }
+
+    private function transactionDateTotals(?string $from, ?string $to, array $dates = [], array $categories = [], array $types = []): array
+    {
+        if ($from === null && $to === null) {
+            $dateGrid = $this->transactionTrendGrid();
+
+            return [
+                'labels' => $dateGrid['labels'],
+                'data' => array_map(
+                    fn ($month) => array_sum(array_map(
+                        fn ($typeCounts) => array_sum($types === [] ? $typeCounts : array_intersect_key($typeCounts, array_flip($types))),
+                        $categories === []
+                        ? ($dateGrid['grid'][$month] ?? [])
+                        : array_intersect_key($dateGrid['grid'][$month] ?? [], array_flip($categories)))),
+                    $dateGrid['months']
+                ),
+            ];
+        }
+
+        // Apply exact day boundaries before grouping; monthly caches cannot
+        // distinguish transactions inside and outside a partial month.
+        $end = $to ? Carbon::createFromFormat('!Y-m-d', $to) : now();
+        $rows = TransactionHistory::query()
+            ->when($types !== [], fn ($query) => $query->whereIn(DB::raw($this->transactionTypeExpression()), $types))
+            ->when($categories !== [], fn ($query) => $query->whereIn('category', $categories))
+            ->when($dates !== [], fn ($query) => $query->whereIn(DB::raw($this->transactionDayExpression()), $dates))
+            ->when($from !== null, fn ($query) => $query->whereDate('transaction_date', '>=', $from))
+            ->whereDate('transaction_date', '<=', $end->toDateString())
+            ->selectRaw($this->monthExpression('transaction_date').' as month, count(*) as total')
+            ->groupBy('month')
+            ->orderBy('month')
+            ->pluck('total', 'month');
+        $firstMonth = $rows->keys()->first();
+        $start = $from
+            ? Carbon::createFromFormat('!Y-m-d', $from)->startOfMonth()
+            : ($firstMonth ? Carbon::createFromFormat('!Y-m', $firstMonth) : $end->copy()->startOfMonth());
+
+        $labels = [];
+        $data = [];
+        for ($cursor = $start->copy(); $cursor->lte($end); $cursor->addMonth()) {
+            $labels[] = $cursor->format('M Y');
+            $data[] = (int) ($rows[$cursor->format('Y-m')] ?? 0);
+        }
+
+        return ['labels' => $labels, 'data' => $data];
     }
 
     /**

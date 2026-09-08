@@ -39,6 +39,7 @@ Route::group(['namespace' => 'App\Http\Controllers'], function () {
         // --------------------- Dashboard ------------------//
         Route::get('dashboard', [ProfileController::class, 'dashboard'])->name('dashboard');
         Route::get('dashboard/transaction-trend', [ProfileController::class, 'transactionTrend'])->name('dashboard.transaction-trend');
+        Route::get('dashboard/transaction-date-trend', [ProfileController::class, 'transactionDateTrend'])->name('dashboard.transaction-date-trend');
         Route::get('dashboard/transaction-trend/types', [ProfileController::class, 'transactionTrendTypes'])->name('dashboard.transaction-trend.types');
 
         // --------------------- Activity Logs ------------------//

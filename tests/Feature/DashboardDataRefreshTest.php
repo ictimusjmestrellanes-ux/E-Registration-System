@@ -33,6 +33,7 @@ class DashboardDataRefreshTest extends TestCase
         $initialDashboard->assertOk();
         $this->assertSame(0, $initialDashboard->viewData('totalClients'));
         $this->assertSame(0, $initialDashboard->viewData('totalTransactions'));
+        $this->assertSame(['labels' => ['Aug 2026', 'Sep 2026'], 'data' => [0, 0]], $initialDashboard->viewData('transactionDateTrend'));
 
         $registeredAt = Carbon::parse('2026-08-15 10:00:00');
         $client = Client::forceCreate([
@@ -72,6 +73,7 @@ class DashboardDataRefreshTest extends TestCase
 
         $this->assertSame(['Aug 2026', 'Sep 2026'], $dashboard->viewData('clientTrend')['labels']);
         $this->assertMonthlyPoint($dashboard->viewData('clientTrend'), 'Aug 2026', 1);
+        $this->assertMonthlyPoint($dashboard->viewData('transactionDateTrend'), 'Aug 2026', 1);
 
         $transactionTrend = $this->getJson(route('dashboard.transaction-trend', [
             'tx_category' => ['CARAVAN'],
@@ -141,6 +143,177 @@ class DashboardDataRefreshTest extends TestCase
         $this->assertTransactionTrendPoint($filtered->json(), 'Nov 2025', 0);
         $this->assertTransactionTrendPoint($filtered->json(), 'Dec 2025', 1);
         $this->assertTransactionTrendPoint($filtered->json(), 'Jan 2026', 1);
+    }
+
+    public function test_monthly_columns_use_transaction_dates_and_combine_all_categories(): void
+    {
+        Carbon::setTestNow('2026-09-08 12:00:00');
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+        Cache::flush();
+        $client = Client::forceCreate([
+            'client_id' => '2600001',
+            'first_name' => 'Monthly',
+            'last_name' => 'Columns',
+        ]);
+
+        foreach ([
+            ['2026-06-01', 'CARAVAN', 'TRANCH 1'],
+            ['2026-06-30', '', ''],
+            ['2026-08-15', 'social_services', 'medical_assistance'],
+            ['2026-10-01', 'CARAVAN', 'TRANCH 1'],
+        ] as $index => [$date, $category, $type]) {
+            TransactionHistory::forceCreate([
+                'client_id' => $client->client_id,
+                'transaction_id' => '2600001-26-000'.($index + 1),
+                'transaction_date' => $date,
+                'category' => $category,
+                'type' => $type,
+                'events_transaction_type' => $index === 0 ? 'EVENT TYPE' : null,
+                'status' => 'Approved',
+                // All rows are imported in September, regardless of transaction month.
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
+        $dashboard = $this->get(route('dashboard', ['tx_category' => ['CARAVAN']]))->assertOk();
+        $dashboard->assertSee('Transactions by Transaction Date');
+        $dashboard->assertSee('id="transactionDateChart"', false);
+        $this->assertSame([
+            'labels' => ['Jun 2026', 'Jul 2026', 'Aug 2026', 'Sep 2026'],
+            'data' => [2, 0, 1, 0],
+        ], $dashboard->viewData('transactionDateTrend'));
+
+        foreach ([
+            ['2026-06-30', '2026-08-14', ['Jun 2026', 'Jul 2026', 'Aug 2026'], [1, 0, 0]],
+            ['2026-06-30', '2026-06-30', ['Jun 2026'], [1]],
+            [null, '2026-06-01', ['Jun 2026'], [1]],
+            ['2026-08-15', null, ['Aug 2026', 'Sep 2026'], [1, 0]],
+            ['2025-11-01', '2025-12-31', ['Nov 2025', 'Dec 2025'], [0, 0]],
+        ] as [$from, $to, $labels, $counts]) {
+            $filtered = $this->get(route('dashboard', [
+                'transaction_date_from' => $from,
+                'transaction_date_to' => $to,
+                'tx_category' => ['CARAVAN'],
+            ]))->assertOk();
+            $this->assertSame(['labels' => $labels, 'data' => $counts], $filtered->viewData('transactionDateTrend'));
+            $this->assertSame(4, $filtered->viewData('totalTransactions'));
+            $this->assertSame($dashboard->viewData('transactionTrend'), $filtered->viewData('transactionTrend'));
+        }
+
+        $reset = $this->get(route('dashboard'))->assertOk();
+        $this->assertSame($dashboard->viewData('transactionDateTrend'), $reset->viewData('transactionDateTrend'));
+
+        $this->assertSame(['2026-10-01', '2026-08-15', '2026-06-30', '2026-06-01'], $reset->viewData('transactionDateOptions'));
+        $reset->assertSee('name="transaction_dates[]"', false)->assertSee('Jun 30, 2026');
+        $selected = $this->get(route('dashboard', [
+            'transaction_dates' => ['2026-08-15', '2026-06-01', '2026-06-01'],
+        ]))->assertOk();
+        $this->assertSame(['2026-06-01', '2026-08-15'], $selected->viewData('transactionDates'));
+        $this->assertSame([
+            'labels' => ['Jun 2026', 'Jul 2026', 'Aug 2026'],
+            'data' => [1, 0, 1],
+        ], $selected->viewData('transactionDateTrend'));
+        $singleDate = $this->get(route('dashboard', ['transaction_dates' => ['2026-06-30']]))->assertOk();
+        $this->assertSame(['labels' => ['Jun 2026'], 'data' => [1]], $singleDate->viewData('transactionDateTrend'));
+
+        $live = $this->getJson(route('dashboard.transaction-date-trend', [
+            'transaction_dates' => ['2026-08-15', '2026-06-01', '2026-06-01'],
+        ]))->assertOk()->assertJsonPath('total', 2);
+        $this->assertSame($selected->viewData('transactionDateTrend')['labels'], $live->json('labels'));
+        $this->assertSame($selected->viewData('transactionDateTrend')['data'], $live->json('data'));
+        $this->assertSame(['2026-06-01', '2026-08-15'], $live->json('dates'));
+        $allDates = $this->getJson(route('dashboard.transaction-date-trend'))->assertOk()->assertJsonPath('dates', []);
+        $this->assertSame($reset->viewData('transactionDateTrend')['data'], $allDates->json('data'));
+        $this->getJson(route('dashboard.transaction-date-trend', ['transaction_dates' => ['2026-07-01']]))
+            ->assertUnprocessable()->assertJsonValidationErrors('transaction_dates.0');
+
+        foreach ([
+            [[], ['CARAVAN'], [1, 0, 0, 0]],
+            [[], ['CARAVAN', 'social_services'], [1, 0, 1, 0]],
+            [['2026-06-01', '2026-08-15'], ['social_services'], [1]],
+            [['2026-06-30'], ['CARAVAN'], [1, 0, 0, 0]],
+        ] as [$dates, $categories, $counts]) {
+            $filters = ['transaction_dates' => $dates, 'transaction_date_categories' => $categories];
+            $filteredLive = $this->getJson(route('dashboard.transaction-date-trend', $filters))
+                ->assertOk()->assertJsonPath('categories', $categories)->assertJsonPath('total', array_sum($counts));
+            $this->assertSame($counts, $filteredLive->json('data'));
+            $filteredDashboard = $this->get(route('dashboard', $filters))->assertOk();
+            $this->assertSame($counts, $filteredDashboard->viewData('transactionDateTrend')['data']);
+            $this->assertSame($categories, $filteredDashboard->viewData('transactionDateCategories'));
+            $this->assertSame(4, $filteredDashboard->viewData('totalTransactions'));
+        }
+        $this->getJson(route('dashboard.transaction-date-trend', ['transaction_date_categories' => ['unknown']]))
+            ->assertUnprocessable()->assertJsonValidationErrors('transaction_date_categories.0');
+
+        foreach ([
+            [[], [], ['EVENT TYPE'], [1, 0, 0, 0]],
+            [[], [], ['TRANCH 1'], [0, 0, 0, 0]],
+            [[], [], ['medical_assistance'], [0, 0, 1, 0]],
+            [['2026-06-01', '2026-08-15'], [], ['EVENT TYPE', 'medical_assistance'], [1, 0, 1]],
+            [['2026-06-01', '2026-08-15'], ['social_services'], ['medical_assistance'], [1]],
+            [['2026-06-01'], ['social_services'], ['medical_assistance'], [0, 0, 1, 0]],
+        ] as [$dates, $categories, $types, $counts]) {
+            $filters = ['transaction_dates' => $dates, 'transaction_date_categories' => $categories, 'transaction_date_types' => $types];
+            $live = $this->getJson(route('dashboard.transaction-date-trend', $filters))
+                ->assertOk()->assertJsonPath('types', $types)->assertJsonPath('total', array_sum($counts));
+            $this->assertSame($counts, $live->json('data'));
+            $page = $this->get(route('dashboard', $filters))->assertOk();
+            $this->assertSame($types, $page->viewData('transactionDateTypes'));
+            $this->assertSame($counts, $page->viewData('transactionDateTrend')['data']);
+        }
+        $this->getJson(route('dashboard.transaction-date-trend', ['transaction_date_types' => ['unknown']]))
+            ->assertUnprocessable()->assertJsonValidationErrors('transaction_date_types.0');
+
+        $this->getJson(route('dashboard.transaction-date-trend', ['transaction_date_categories' => ['CARAVAN']]))
+            ->assertOk()
+            ->assertJsonPath('type_options', ['EVENT TYPE', 'TRANCH 1'])
+            ->assertJsonPath('date_options', ['2026-10-01', '2026-06-01']);
+        $this->getJson(route('dashboard.transaction-date-trend', [
+            'transaction_date_categories' => ['CARAVAN'], 'transaction_date_types' => ['EVENT TYPE'],
+        ]))->assertOk()->assertJsonPath('date_options', ['2026-06-01']);
+
+        // Changing category clears the previous category's selected type/date.
+        $changedFilters = [
+            'transaction_date_categories' => ['social_services'],
+            'transaction_date_types' => ['EVENT TYPE'],
+            'transaction_dates' => ['2026-06-01'],
+        ];
+        $changed = $this->getJson(route('dashboard.transaction-date-trend', $changedFilters))
+            ->assertOk()->assertJsonPath('types', [])->assertJsonPath('dates', [])
+            ->assertJsonPath('type_options', ['medical_assistance'])
+            ->assertJsonPath('date_options', ['2026-08-15'])->assertJsonPath('total', 1);
+        $changedPage = $this->get(route('dashboard', $changedFilters))->assertOk();
+        $this->assertSame([], $changedPage->viewData('transactionDateTypes'));
+        $this->assertSame([], $changedPage->viewData('transactionDates'));
+        $this->assertSame($changed->json('type_options'), $changedPage->viewData('transactionDateTypeOptions'));
+        $this->assertSame($changed->json('date_options'), $changedPage->viewData('transactionDateVisibleDates'));
+        $this->getJson(route('dashboard.transaction-date-trend', [
+            'transaction_date_categories' => ['CARAVAN', 'social_services'],
+            'transaction_date_types' => ['EVENT TYPE', 'medical_assistance'],
+        ]))->assertOk()->assertJsonPath('type_options', ['EVENT TYPE', 'TRANCH 1', 'medical_assistance'])
+            ->assertJsonPath('date_options', ['2026-08-15', '2026-06-01']);
+    }
+
+    public function test_transaction_date_filters_reject_invalid_ranges(): void
+    {
+        Carbon::setTestNow('2026-09-08 12:00:00');
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+
+        foreach ([
+            [['transaction_date_from' => 'invalid'], 'transaction_date_from'],
+            [['transaction_date_to' => '2026-02-30'], 'transaction_date_to'],
+            [['transaction_date_from' => '2026-08-15', 'transaction_date_to' => '2026-08-14'], 'transaction_date_to'],
+            [['transaction_date_from' => '2026-09-09'], 'transaction_date_from'],
+            [['transaction_date_to' => '2026-09-09'], 'transaction_date_to'],
+            [['transaction_dates' => '2026-06-01'], 'transaction_dates'],
+            [['transaction_dates' => ['invalid']], 'transaction_dates.0'],
+            [['transaction_dates' => ['2026-06-01']], 'transaction_dates.0'],
+        ] as [$filters, $error]) {
+            $this->from(route('dashboard'))->get(route('dashboard', $filters))
+                ->assertRedirect(route('dashboard'))
+                ->assertSessionHasErrors($error);
+        }
     }
 
     /**
