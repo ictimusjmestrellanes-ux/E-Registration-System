@@ -40,4 +40,22 @@ class TransactionEvent extends Model
     {
         return $this->belongsTo(TransactionHistory::class, 'transferred_transaction_id');
     }
+
+    protected static function booted(): void
+    {
+        // Event imports, transfers, and undo operations can affect the
+        // dashboard's caravan trend. Share the same request-level cache
+        // invalidation as transaction history writes.
+        static::created(static function (self $event): void {
+            TransactionHistory::flushDashboardCache();
+        });
+
+        static::updated(static function (self $event): void {
+            TransactionHistory::flushDashboardCache();
+        });
+
+        static::deleted(static function (self $event): void {
+            TransactionHistory::flushDashboardCache();
+        });
+    }
 }

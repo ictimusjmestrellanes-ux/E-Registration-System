@@ -92,7 +92,7 @@
                                         </div>
                                         <div>
                                             <p class="text-muted mb-1">Total Registered Clients</p>
-                                            <h3 class="mb-0">{{ $totalClients }}</h3>
+                                            <h3 class="mb-0">{{ number_format($totalClients) }}</h3>
                                         </div>
                                     </div>
                                 </div>
@@ -113,7 +113,7 @@
                                         </div>
                                         <div>
                                             <p class="text-muted mb-1">Total Transactions</p>
-                                            <h3 class="mb-0">{{ $totalCategoryTransactions }}</h3>
+                                            <h3 class="mb-0">{{ number_format($totalCategoryTransactions) }}</h3>
                                         </div>
                                     </div>
                                 </div>
@@ -146,9 +146,15 @@
 
                 <!-- Client Trend Chart -->
                 <div class="card material-shadow mt-4">
-                    <div class="card-header">
-                        <h5 class="mb-0">Total Registered Clients</h5>
-                        <p class="text-muted mb-0">Client registrations per month (January 2026 - present)</p>
+                    <div class="card-header d-flex flex-wrap gap-2 align-items-center justify-content-between">
+                        <div>
+                            <h5 class="mb-0">Total Registered Clients</h5>
+                            <p class="text-muted mb-0">Monthly client registrations through {{ now()->format('F Y') }}</p>
+                        </div>
+                        <div class="text-end">
+                            <span class="text-muted">Total clients</span>
+                            <h3 class="mb-0 text-primary">{{ number_format($totalClients) }}</h3>
+                        </div>
                     </div>
                     <div class="card-body">
                         <div class="w-100" style="height: 230px; position: relative;">
@@ -165,7 +171,7 @@
                                 <div>
                                     <h5 class="mb-0" id="txTrendTitle">Total
                                         Transactions{{ ($txTrendSuffix ?? '') !== '' ? ' — ' . $txTrendSuffix : '' }}</h5>
-                                    <p class="text-muted mb-0">Transactions per month (January 2026 - present)</p>
+                                    <p class="text-muted mb-0">Monthly transactions through {{ now()->format('F Y') }}</p>
                                 </div>
                                 <div class="d-flex flex-wrap gap-2">
                                     <div class="dropdown" id="txCategoryDropdown">
@@ -333,7 +339,7 @@
                                             <i class="fa-solid {{ $icon }} fs-3"
                                                 style="color: {{ $hex }};"></i>
                                         </div>
-                                        <h4 class="mb-1">{{ $count }}</h4>
+                                        <h4 class="mb-1">{{ number_format($count) }}</h4>
                                         <p class="text-muted mb-0">{{ $label }}</p>
                                     </div>
                                 </div>
@@ -502,6 +508,28 @@
 
                     new Chart(trendCanvas, {
                         type: 'line',
+                        plugins: [{
+                            id: 'clientRegistrationCounts',
+                            afterDatasetsDraw(chart) {
+                                const { ctx, chartArea } = chart;
+                                const meta = chart.getDatasetMeta(0);
+                                if (meta.hidden) return;
+
+                                ctx.save();
+                                ctx.font = '600 12px sans-serif';
+                                ctx.fillStyle = '#405189';
+                                ctx.textBaseline = 'bottom';
+                                meta.data.forEach((point, index) => {
+                                    const label = Number(trendData[index]).toLocaleString();
+                                    const halfWidth = ctx.measureText(label).width / 2;
+                                    const x = Math.max(chartArea.left + halfWidth,
+                                        Math.min(point.x, chartArea.right - halfWidth));
+                                    ctx.textAlign = 'center';
+                                    ctx.fillText(label, x, point.y - 8);
+                                });
+                                ctx.restore();
+                            }
+                        }],
                         data: {
                             labels: trendLabels,
                             datasets: [{
@@ -542,6 +570,7 @@
                             scales: {
                                 y: {
                                     beginAtZero: true,
+                                    grace: '15%',
                                     ticks: {
                                         precision: 0
                                     }

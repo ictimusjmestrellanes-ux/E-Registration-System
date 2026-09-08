@@ -12,6 +12,13 @@ class TransactionHistory extends Model
 
     protected $table = 'transaction_history';
 
+    /**
+     * In a web request, one invalidation is enough even when an import creates
+     * thousands of history rows. Console and test runs always invalidate so
+     * independent operations cannot inherit a stale in-memory guard.
+     */
+    private static ?object $dashboardInvalidationRequest = null;
+
     protected $fillable = [
         'client_id',
         'client_category',
@@ -101,9 +108,44 @@ class TransactionHistory extends Model
      */
     public static function flushDashboardCache(): void
     {
+        if (! self::shouldFlushDashboardCache()) {
+            return;
+        }
+
         foreach (['dashboard.total_clients', 'dashboard.total_transactions', 'dashboard.tx_category_options', 'dashboard.tx_type_options', 'dashboard.category_counts', 'dashboard.client_trend', 'dashboard.transaction_trend_stacked', 'dashboard.transaction_trend_grid', 'dashboard.caravan_trend', 'dashboard.client_category_counts'] as $key) {
             Cache::forget($key);
         }
+    }
+
+    protected static function booted(): void
+    {
+        static::created(static function (self $transaction): void {
+            self::flushDashboardCache();
+        });
+
+        static::updated(static function (self $transaction): void {
+            self::flushDashboardCache();
+        });
+
+        static::deleted(static function (self $transaction): void {
+            self::flushDashboardCache();
+        });
+    }
+
+    private static function shouldFlushDashboardCache(): bool
+    {
+        if (app()->runningUnitTests() || app()->runningInConsole() || ! app()->bound('request')) {
+            return true;
+        }
+
+        $request = app('request');
+        if (self::$dashboardInvalidationRequest === $request) {
+            return false;
+        }
+
+        self::$dashboardInvalidationRequest = $request;
+
+        return true;
     }
 
     public static function normalizeCategory(?string $category): ?string

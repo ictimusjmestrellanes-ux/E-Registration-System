@@ -57,7 +57,7 @@
                                             <td>{{ $event->id }}</td>
                                             <td class="fw-semibold">{{ $event->full_name }}</td>
                                             <td>{{ optional($event->birth_date)->format('M d, Y') ?? '-' }}</td>
-                                            <td>{{ str_replace('-', '', $event->contact_no ?? '') ?: '-' }}</td>
+                                            <td>{{ $event->contact_no ?: '-' }}</td>
                                             <td class="small">{{ $event->address ?? '-' }}</td>
                                             <td class="small">{{ $event->client_category ?? '-' }}</td>
                                             <td>{{ optional($event->updated_at)->timezone('Asia/Manila')->format('M d, Y H:i:s') }}

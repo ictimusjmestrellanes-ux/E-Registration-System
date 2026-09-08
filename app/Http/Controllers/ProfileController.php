@@ -9,6 +9,7 @@ use App\Models\TransactionHistory;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 
 class ProfileController extends Controller
 {
@@ -60,32 +61,14 @@ class ProfileController extends Controller
         $clientCategoryDistribution = Cache::remember(
             'dashboard.client_category_counts',
             300,
-            fn () => $this->clientCategoryDistribution()
+            fn () => $this->clientCategoryDistribution(10)
         );
 
-        $clientTrend = Cache::remember('dashboard.client_trend', 300, function () {
-            $start = Carbon::create(2026, 1, 1)->startOfMonth();
-
-            $rows = Client::query()
-                ->selectRaw("DATE_FORMAT(created_at, '%Y-%m') as month, count(*) as total")
-                ->where('created_at', '>=', $start)
-                ->groupBy('month')
-                ->orderBy('month')
-                ->pluck('total', 'month')
-                ->toArray();
-
-            $labels = [];
-            $data = [];
-            $cursor = $start->copy();
-            while ($cursor->lte(now())) {
-                $key = $cursor->format('Y-m');
-                $labels[] = $cursor->format('M Y');
-                $data[] = $rows[$key] ?? 0;
-                $cursor->addMonth();
-            }
-
-            return ['labels' => $labels, 'data' => $data];
-        });
+        $clientTrend = Cache::remember(
+            'dashboard.client_trend',
+            300,
+            fn () => $this->monthlyTrend(Client::query(), 'created_at', true)
+        );
 
         // Optional multi-select category/type filters for the Total
         // Transactions graph (?tx_category[]=…&tx_type[]=…). All combos slice
@@ -124,32 +107,16 @@ class ProfileController extends Controller
 
         $recentActivities = $this->recentDashboardActivities();
 
-        $caravanTrend = Cache::remember('dashboard.caravan_trend', 300, function () {
-            $start = Carbon::create(2026, 1, 1)->startOfMonth();
-
-            $rows = TransactionEvent::query()
-                ->selectRaw("DATE_FORMAT(event_date, '%Y-%m') as month, count(*) as total")
-                ->where('transaction_category', 'CARAVAN')
-                ->whereNotNull('transferred_at')
-                ->whereNotNull('event_date')
-                ->where('event_date', '>=', $start)
-                ->groupBy('month')
-                ->orderBy('month')
-                ->pluck('total', 'month')
-                ->toArray();
-
-            $labels = [];
-            $data = [];
-            $cursor = $start->copy();
-            while ($cursor->lte(now())) {
-                $key = $cursor->format('Y-m');
-                $labels[] = $cursor->format('M Y');
-                $data[] = $rows[$key] ?? 0;
-                $cursor->addMonth();
-            }
-
-            return ['labels' => $labels, 'data' => $data];
-        });
+        $caravanTrend = Cache::remember(
+            'dashboard.caravan_trend',
+            300,
+            fn () => $this->monthlyTrend(
+                TransactionEvent::query()
+                    ->where('transaction_category', 'CARAVAN')
+                    ->whereNotNull('transferred_at'),
+                'event_date'
+            )
+        );
 
         return view('pages.dashboard', compact('totalClients', 'totalTransactions', 'txCategoryOptions', 'txCategories', 'txTypeOptions', 'txTypes', 'txVisibleTypes', 'txTrendSuffix', 'categoryCounts', 'categories', 'clientTrend', 'transactionTrend', 'caravanTrend', 'recentActivities', 'clientCategoryDistribution'));
     }
@@ -263,24 +230,22 @@ class ProfileController extends Controller
     {
         sort($categories);
 
-        return Cache::remember(
-            'dashboard.tx_types_for_categories.'.md5(json_encode($categories)),
-            300,
-            function () use ($categories) {
-                $query = TransactionHistory::query()
-                    ->whereNotNull('events_transaction_type')
-                    ->where('events_transaction_type', '<>', '');
+        // This is intentionally queried live. Its cache key used to be based
+        // on a category hash, which could not be cleared when imports or
+        // transfers introduced a new type.
+        $typeExpression = $this->transactionTypeExpression();
+        $query = TransactionHistory::query()
+            ->selectRaw("{$typeExpression} as transaction_type")
+            ->whereRaw("{$typeExpression} <> ''");
 
-                if ($categories !== []) {
-                    $query->whereIn('category', $categories);
-                }
+        if ($categories !== []) {
+            $query->whereIn('category', $categories);
+        }
 
-                return $query->distinct()
-                    ->orderBy('events_transaction_type')
-                    ->pluck('events_transaction_type')
-                    ->all();
-            }
-        );
+        return $query->distinct()
+            ->orderBy('transaction_type')
+            ->pluck('transaction_type')
+            ->all();
     }
 
     /**
@@ -322,14 +287,85 @@ class ProfileController extends Controller
     private function txTypeOptions(): array
     {
         return Cache::remember('dashboard.tx_type_options', 300, function () {
+            $typeExpression = $this->transactionTypeExpression();
+
             return TransactionHistory::query()
-                ->whereNotNull('events_transaction_type')
-                ->where('events_transaction_type', '<>', '')
+                ->selectRaw("{$typeExpression} as transaction_type")
+                ->whereRaw("{$typeExpression} <> ''")
                 ->distinct()
-                ->orderBy('events_transaction_type')
-                ->pluck('events_transaction_type')
+                ->orderBy('transaction_type')
+                ->pluck('transaction_type')
                 ->all();
         });
+    }
+
+    /**
+     * Prefer the event-specific type when present, while retaining manually
+     * entered transactions that only populated the legacy `type` column.
+     */
+    private function transactionTypeExpression(): string
+    {
+        return "COALESCE(NULLIF(events_transaction_type, ''), COALESCE(type, ''))";
+    }
+
+    /**
+     * Database-specific expression that buckets a date/datetime as YYYY-MM.
+     * The production database is MySQL while feature tests use SQLite.
+     */
+    private function monthExpression(string $column): string
+    {
+        return match (DB::connection()->getDriverName()) {
+            'sqlite' => "strftime('%Y-%m', {$column})",
+            'pgsql' => "to_char({$column}, 'YYYY-MM')",
+            'sqlsrv' => "FORMAT({$column}, 'yyyy-MM')",
+            default => "DATE_FORMAT({$column}, '%Y-%m')",
+        };
+    }
+
+    /**
+     * Build a complete monthly series from the first recorded month through
+     * the current month, including zero-count months in between.
+     *
+     * @return array{labels: array, data: array}
+     */
+    private function monthlyTrend($query, string $dateColumn, bool $includePreviousMonth = false): array
+    {
+        $monthExpression = $this->monthExpression($dateColumn);
+        $rows = $query
+            ->whereNotNull($dateColumn)
+            ->selectRaw("{$monthExpression} as month, count(*) as total")
+            ->groupBy('month')
+            ->orderBy('month')
+            ->pluck('total', 'month')
+            ->map(fn ($total) => (int) $total)
+            ->all();
+
+        $end = now()->startOfMonth();
+        $firstMonth = array_key_first($rows);
+        $start = $firstMonth === null
+            ? $end->copy()
+            : Carbon::createFromFormat('!Y-m', $firstMonth)->startOfMonth();
+
+        // Ignore accidentally future-dated records until their month arrives.
+        if ($start->gt($end)) {
+            $start = $end->copy();
+        }
+
+        if ($includePreviousMonth && $start->gt($end->copy()->subMonth())) {
+            $start = $end->copy()->subMonth();
+        }
+
+        $labels = [];
+        $data = [];
+        $cursor = $start->copy();
+        while ($cursor->lte($end)) {
+            $key = $cursor->format('Y-m');
+            $labels[] = $cursor->format('M Y');
+            $data[] = $rows[$key] ?? 0;
+            $cursor->addMonth();
+        }
+
+        return ['labels' => $labels, 'data' => $data];
     }
 
     /**
@@ -448,17 +484,29 @@ class ProfileController extends Controller
     private function transactionTrendGrid(): array
     {
         return Cache::remember('dashboard.transaction_trend_grid', 300, function () {
-            $start = Carbon::create(2026, 1, 1)->startOfMonth();
+            $monthExpression = $this->monthExpression('transaction_date');
+            $typeExpression = $this->transactionTypeExpression();
 
             $rows = TransactionHistory::query()
-                ->selectRaw("DATE_FORMAT(transaction_date, '%Y-%m') as month, COALESCE(category, '') as category, COALESCE(events_transaction_type, '') as ttype, count(*) as total")
-                ->where('transaction_date', '>=', $start)
+                ->whereNotNull('transaction_date')
+                ->selectRaw("{$monthExpression} as month, COALESCE(category, '') as category, {$typeExpression} as ttype, count(*) as total")
                 ->groupBy('month', 'category', 'ttype')
+                ->orderBy('month')
                 ->get();
+
+            $end = now()->startOfMonth();
+            $start = $end->copy()->subMonth();
+            $firstMonth = $rows->first()?->month;
+            if ($firstMonth !== null) {
+                $firstRecordedMonth = Carbon::createFromFormat('!Y-m', $firstMonth);
+                if ($firstRecordedMonth->lt($start)) {
+                    $start = $firstRecordedMonth;
+                }
+            }
 
             $months = [];
             $cursor = $start->copy();
-            while ($cursor->lte(now())) {
+            while ($cursor->lte($end)) {
                 $months[] = $cursor->format('Y-m');
                 $cursor->addMonth();
             }
@@ -470,7 +518,7 @@ class ProfileController extends Controller
             }
 
             $labels = array_map(
-                fn ($m) => Carbon::createFromFormat('Y-m', $m)->format('M Y'),
+                fn ($m) => Carbon::createFromFormat('!Y-m', $m)->format('M Y'),
                 $months
             );
 

@@ -133,6 +133,7 @@ Route::group(['namespace' => 'App\Http\Controllers'], function () {
         // Static POST routes (must be declared before {event} wildcard routes)
         Route::post('transaction-events/group-not-duplicate', [TransactionEventsController::class, 'markGroupNotDuplicate'])->name('transaction-events.group-not-duplicate');
         Route::post('transaction-events/preview', [TransactionEventsController::class, 'preview'])->name('transaction-events.preview');
+        Route::post('transaction-events/import/diagnose', [TransactionEventsController::class, 'diagnoseImportFile'])->name('transaction-events.import.diagnose');
         Route::post('transaction-events/import/check-duplicates', [TransactionEventsController::class, 'importDuplicatesCheck'])->name('transaction-events.import.check-duplicates');
         Route::post('transaction-events/import/prepare', [TransactionEventsController::class, 'prepareImport'])->name('transaction-events.import.prepare');
         Route::post('transaction-events/import/process', [TransactionEventsController::class, 'processImportChunk'])->name('transaction-events.import.process');

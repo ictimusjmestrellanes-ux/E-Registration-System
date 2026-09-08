@@ -135,5 +135,19 @@ class Client extends Model
         static::deleted(function () {
             Cache::forget('duplicate_clients_v1');
         });
+
+        // Keep the dashboard's live-client total and registration trend in
+        // sync for manual registration, imports, archive, and restore flows.
+        static::created(static function (self $client): void {
+            TransactionHistory::flushDashboardCache();
+        });
+
+        static::updated(static function (self $client): void {
+            TransactionHistory::flushDashboardCache();
+        });
+
+        static::deleted(static function (self $client): void {
+            TransactionHistory::flushDashboardCache();
+        });
     }
 }

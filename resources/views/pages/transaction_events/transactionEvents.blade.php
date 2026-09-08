@@ -491,7 +491,7 @@
                                             <td data-column="age">{{ $event->age ?? '-' }}</td>
                                             <td data-column="birth_date">
                                                 {{ $event->birth_date ? $event->birth_date->format('M d, Y') : '-' }}</td>
-                                            <td data-column="contact_no">{{ str_replace('-', '', $event->contact_no) }}
+                                            <td data-column="contact_no">{{ $event->contact_no }}
                                             </td>
                                             <td data-column="address">{{ $event->address ?? '-' }}</td>
                                             <td data-column="client_category" class="small">
@@ -705,10 +705,16 @@
                             <a href="{{ route('transaction-events.template') }}" class="alert-link mt-1 d-inline-block">
                                 <i class="ri-download-2-line me-1"></i>Download the Excel template
                             </a> and upload it directly (or save as CSV).
+                            <p class="mt-2 mb-0">Format the Contact No. column as <strong>Text</strong> in Excel before
+                                entering numbers to keep leading zeros. Multiple numbers may share one cell, for example
+                                <code>09171234567 / 09281234567</code>.</p>
                         </div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-secondary" id="diagnoseCsvBtn" title="Analyze the file structure before importing">
+                            <i class="ri-search-line me-1"></i> Diagnose
+                        </button>
                         <button type="button" class="btn btn-primary" id="previewCsvBtn">
                             <i class="ri-eye-line me-1"></i> Preview
                         </button>
@@ -737,6 +743,10 @@
                                     <span class="fw-semibold" id="previewTotalRows"></span> rows found
                                     (<span id="previewSkippedRows"></span> skipped)
                                 </div>
+                            </div>
+                            <div id="previewColumns" class="mb-3 p-2 bg-light rounded" style="display: none;">
+                                <small class="text-muted">Detected columns:</small>
+                                <div id="previewColumnsList" class="small mt-1"></div>
                             </div>
                             <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
                                 <table class="table table-bordered table-hover align-middle mb-0">
@@ -2034,6 +2044,7 @@
 
                 return {
                     rows: rows,
+                    header: header,
                     total_rows: rows.length,
                     skipped_rows: skippedRows,
                     preview_rows: rows.slice(0, 100),
@@ -2046,6 +2057,114 @@
                     'The CSV file is empty or has no header row.'
                 );
             };
+
+            // Diagnose button handler
+            document.getElementById('diagnoseCsvBtn')?.addEventListener('click', function() {
+                const file = csvFileVisible.files[0];
+                if (!file) {
+                    csvFileError.textContent = 'Please select a CSV or Excel file.';
+                    csvFileError.classList.remove('d-none');
+                    csvFileVisible.classList.add('is-invalid');
+                    return;
+                }
+
+                csvFileError.classList.add('d-none');
+                csvFileVisible.classList.remove('is-invalid');
+
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                const formData = new FormData();
+                formData.append('csv_file', file);
+
+                // Create diagnostic modal
+                const diagModal = document.createElement('div');
+                diagModal.className = 'modal fade';
+                diagModal.innerHTML = `
+                    <div class="modal-dialog modal-dialog-centered modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">File Analysis</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body text-center py-4">
+                                <div class="spinner-border text-primary mb-2" role="status"></div>
+                                <div>Analyzing file structure...</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(diagModal);
+                const bsModalDiag = new bootstrap.Modal(diagModal);
+                bsModalDiag.show();
+
+                fetch('{{ route('transaction-events.import.diagnose') }}', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': csrfToken,
+                        Accept: 'application/json',
+                    },
+                    body: formData,
+                })
+                .then(res => res.json())
+                .then(data => {
+                    const body = diagModal.querySelector('.modal-body');
+                    
+                    if (!data.success) {
+                        body.innerHTML = `<div class="alert alert-danger">${escapeHtml(data.error || 'Analysis failed')}</div>`;
+                        return;
+                    }
+
+                    let html = `
+                        <div class="text-start">
+                            <h6 class="mb-2"><strong>File:</strong> ${escapeHtml(data.file_name)}</h6>
+                            <h6 class="mb-2"><strong>Total Data Rows:</strong> ${data.total_rows.toLocaleString()}</h6>
+                            
+                            <h6>Raw Header (First Row):</h6>
+                            <div class="bg-light p-2 rounded mb-3 small" style="max-height: 150px; overflow-y: auto;">
+                                ${(data.raw_header || []).map(h => `<code>${escapeHtml(h)}</code>`).join(', ')}
+                            </div>
+                            
+                            <h6>Detected Columns (Normalized):</h6>
+                            <div class="bg-light p-2 rounded mb-3 small" style="max-height: 150px; overflow-y: auto;">
+                                ${(data.normalized_header || []).map(h => `<code>${escapeHtml(h)}</code>`).join(', ')}
+                            </div>
+                    `;
+
+                    if (data.warnings && data.warnings.length > 0) {
+                        html += '<h6 class="text-danger mb-2">Warnings:</h6>';
+                        html += '<div class="alert alert-warning mb-3">';
+                        data.warnings.forEach(w => {
+                            html += '<div>⚠️ ' + escapeHtml(w) + '</div>';
+                        });
+                        html += '</div>';
+                    }
+
+                    if (data.sample_rows && data.sample_rows.length > 0) {
+                        html += '<h6>Sample Data (First Rows):</h6>';
+                        html += '<div class="table-responsive" style="max-height: 300px; overflow-y: auto;">';
+                        html += '<table class="table table-bordered table-sm mb-0">';
+                        html += '<thead class="table-light"><tr>';
+                        (data.normalized_header || []).slice(0, 10).forEach(h => {
+                            html += '<th style="width: auto; min-width: 100px;"><code class="small">' + escapeHtml(h) + '</code></th>';
+                        });
+                        html += '</tr></thead><tbody>';
+                        data.sample_rows.forEach(row => {
+                            html += '<tr>';
+                            (data.normalized_header || []).slice(0, 10).forEach(h => {
+                                html += '<td class="small">' + escapeHtml(row[h] || '') + '</td>';
+                            });
+                            html += '</tr>';
+                        });
+                        html += '</tbody></table></div>';
+                    }
+
+                    html += '</div>';
+                    body.innerHTML = html;
+                })
+                .catch(err => {
+                    const body = diagModal.querySelector('.modal-body');
+                    body.innerHTML = `<div class="alert alert-danger">Error: ${escapeHtml(err.message)}</div>`;
+                });
+            });
 
             previewBtn.addEventListener('click', function() {
                 const file = csvFileVisible.files[0];
@@ -2097,6 +2216,14 @@
                         `${result.total_rows.toLocaleString()} (showing first ${result.preview_rows.length})` :
                         result.total_rows.toLocaleString();
                     previewSkippedRows.textContent = result.skipped_rows.length.toLocaleString();
+
+                    // Show detected columns
+                    const previewColumnsDiv = document.getElementById('previewColumns');
+                    const previewColumnsList = document.getElementById('previewColumnsList');
+                    if (result.header && Array.isArray(result.header) && result.header.length > 0) {
+                        previewColumnsList.innerHTML = result.header.map(h => '<code>' + escapeHtml(h) + '</code>').join(', ');
+                        previewColumnsDiv.style.display = 'block';
+                    }
 
                     if (result.preview_rows.length > 0) {
                         result.preview_rows.forEach(function(row, index) {
@@ -2282,7 +2409,64 @@
                         let msg = prepareData.message || '';
                         if (!msg) {
                             if (prepareData.skipped && prepareData.skipped > 0) {
-                                msg = 'No valid rows found. ' + prepareData.skipped + ' row(s) were skipped due to invalid data.';
+                                // Build detailed error message
+                                let detailMsg = '<strong>No valid rows found.</strong><br>';
+                                detailMsg += '<strong>' + prepareData.skipped + ' row(s) skipped due to invalid data.</strong><br><br>';
+                                
+                                // Show skip reasons
+                                if (prepareData.skipped_examples && prepareData.skipped_examples.length > 0) {
+                                    detailMsg += '<strong>First ' + Math.min(10, prepareData.skipped_examples.length) + ' Skip Reasons:</strong><br>';
+                                    prepareData.skipped_examples.slice(0, 10).forEach(function(ex) {
+                                        detailMsg += '• <strong>Line ' + ex.line + ':</strong> ' + escapeHtml(ex.reason);
+                                        if (ex.data && ex.data.full_name) {
+                                            detailMsg += ' (full_name: <code>' + escapeHtml(ex.data.full_name) + '</code>)';
+                                        }
+                                        detailMsg += '<br>';
+                                    });
+                                }
+                                
+                                // Show detected headers
+                                if (prepareData.headers && prepareData.headers.length > 0) {
+                                    detailMsg += '<br><strong>Detected Columns:</strong><br>';
+                                    detailMsg += prepareData.headers.map(h => '<code>' + escapeHtml(h) + '</code>').join(', ');
+                                }
+                                
+                                // Create error modal instead of alert
+                                const errorModal = document.createElement('div');
+                                errorModal.className = 'modal fade';
+                                errorModal.innerHTML = `
+                                    <div class="modal-dialog modal-dialog-centered modal-lg">
+                                        <div class="modal-content">
+                                            <div class="modal-header bg-danger-subtle">
+                                                <h5 class="modal-title">Import Validation Failed</h5>
+                                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                            </div>
+                                            <div class="modal-body">
+                                                ${detailMsg}
+                                                <div class="alert alert-info mt-3 mb-0">
+                                                    <strong>Troubleshooting:</strong>
+                                                    <ul class="mb-0 mt-2">
+                                                        <li>Ensure your CSV/Excel file has a <code>full_name</code> column with data in every row</li>
+                                                        <li>Check that <code>age</code> values are between 0-120</li>
+                                                        <li>Verify <code>event_date</code> and <code>birth_date</code> are in valid date format (YYYY-MM-DD)</li>
+                                                        <li><a href="{{ route('transaction-events.template') }}" target="_blank">Download the template</a> to see the correct format</li>
+                                                    </ul>
+                                                </div>
+                                            </div>
+                                            <div class="modal-footer">
+                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                `;
+                                document.body.appendChild(errorModal);
+                                const bsModal = new bootstrap.Modal(errorModal);
+                                bsModal.show();
+                                errorModal.addEventListener('hidden.bs.modal', () => {
+                                    errorModal.remove();
+                                });
+                                confirmBtn.disabled = false;
+                                return;
                             } else {
                                 msg = 'The file has no rows to import.';
                             }
@@ -2318,6 +2502,14 @@
                                 'Import failed while processing rows.');
                         }
 
+                        const importedSoFar = typeof chunkData.imported === 'number' ?
+                            ' — ' + chunkData.imported.toLocaleString() + ' imported' : '';
+                        setProgress(
+                            (offset / total) * 100,
+                            'Importing rows ' + (offset + 1) + ' - ' + next + ' of ' + total +
+                            importedSoFar
+                        );
+
                         offset = chunkData.processed;
 
                         if (chunkData.done) {
@@ -2338,7 +2530,19 @@
                     const finishData = await parseApiResponse(finishRes);
 
                     if (!finishRes.ok || !finishData.success) {
-                        throw new Error(finishData.message || 'Import failed to finalize.');
+                        let errorMsg = finishData.message || finishData.error || 'Import failed to finalize.';
+                        
+                        // Show detailed error if available
+                        if (finishData.errors && finishData.errors.length > 0) {
+                            const errorDetails = finishData.errors.slice(0, 5)
+                                .map(e => `Row ${e.row}: ${e.error}`)
+                                .join('\n');
+                            errorMsg += '\n\nFirst errors:\n' + errorDetails;
+                            if (finishData.errors.length > 5) {
+                                errorMsg += '\n\n...and ' + (finishData.errors.length - 5) + ' more';
+                            }
+                        }
+                        throw new Error(errorMsg);
                     }
 
                     setProgress(100, 'Done!');
@@ -2348,8 +2552,34 @@
                 } catch (error) {
                     progressModal.hide();
                     confirmBtn.disabled = false;
-                    new Message('imessage').show(error.message || 'Import failed.', 'fail',
-                        'top-center');
+                    
+                    // Show detailed error modal instead of simple message
+                    const errorModal = document.createElement('div');
+                    errorModal.className = 'modal fade';
+                    errorModal.innerHTML = `
+                        <div class="modal-dialog modal-dialog-centered modal-lg">
+                            <div class="modal-content">
+                                <div class="modal-header bg-danger-subtle">
+                                    <h5 class="modal-title">Import Failed</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <pre class="bg-light p-3 rounded" style="max-height: 300px; overflow-y: auto; white-space: pre-wrap; word-wrap: break-word;">` +
+                                    escapeHtml(error.message) +
+                                    `</pre>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    document.body.appendChild(errorModal);
+                    const bsErrorModal = new bootstrap.Modal(errorModal);
+                    bsErrorModal.show();
+                    errorModal.addEventListener('hidden.bs.modal', () => {
+                        errorModal.remove();
+                    });
                 }
             };
 

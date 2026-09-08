@@ -40,7 +40,6 @@ class TransactionEventsImportTest extends TestCase
         $response->assertRedirect(route('transaction-events.index'));
         $response->assertSessionHas('success', fn (string $message) => str_starts_with($message, 'Successfully imported 1 event(s). Skipped 1 invalid row(s).'));
 
-        $this->assertDatabaseCount('transaction_events', 0);
         $this->assertDatabaseHas('clients', [
             'age' => 30,
             'contact' => '',
@@ -51,6 +50,16 @@ class TransactionEventsImportTest extends TestCase
             'category' => '',
             'type' => '',
         ]);
+
+        // The imported row also lands in Event Records as a linked
+        // transferred event.
+        $this->assertDatabaseCount('transaction_events', 1);
+        $history = TransactionHistory::firstOrFail();
+        $this->assertDatabaseHas('transaction_events', [
+            'full_name' => 'JANE DOE',
+            'transferred_transaction_id' => $history->id,
+        ]);
+        $this->assertNotNull(TransactionEvent::firstOrFail()->transferred_at);
 
         $this->assertDatabaseCount('clients', 1);
         $this->assertSame(30, Client::query()->firstOrFail()->age);
@@ -71,7 +80,12 @@ class TransactionEventsImportTest extends TestCase
         ]);
 
         $response->assertRedirect(route('transaction-events.index'));
-        $this->assertDatabaseCount('transaction_events', 0);
+        $this->assertDatabaseCount('transaction_events', 1);
+        $history = TransactionHistory::where('category', 'social_services')->firstOrFail();
+        $this->assertDatabaseHas('transaction_events', [
+            'full_name' => 'JANE DOE',
+            'transferred_transaction_id' => $history->id,
+        ]);
         $this->assertDatabaseHas('transaction_history', [
             'category' => 'social_services',
             'type' => 'burial_assistance',
@@ -330,7 +344,12 @@ class TransactionEventsImportTest extends TestCase
 
         $this->assertDatabaseCount('clients', 2);
         $this->assertDatabaseCount('transaction_history', 2);
-        $this->assertDatabaseCount('transaction_events', 0);
+        $this->assertDatabaseCount('transaction_events', 2);
+        $this->assertEquals(2, TransactionEvent::whereNotNull('transferred_at')->count());
+        $this->assertEquals(
+            0,
+            TransactionEvent::whereNull('transferred_transaction_id')->count()
+        );
 
         $missingSession = $this->post(route('transaction-events.import.process'), [
             'token' => $token,
@@ -338,6 +357,67 @@ class TransactionEventsImportTest extends TestCase
         ], ['Accept' => 'application/json']);
 
         $missingSession->assertNotFound();
+    }
+
+    public function test_process_chunk_inserts_its_slice_with_running_totals(): void
+    {
+        $this->actingAs(User::factory()->create());
+
+        $csv = implode("\n", [
+            'full_name,contact_no,address,age,transaction_category,transaction_type',
+            'CHUNK ONE,,Address A,25,BIGAY BIGAS SA MASA,TRANCH 1',
+            'CHUNK TWO,,Address B,30,BIGAY BIGAS SA MASA,TRANCH 1',
+        ]);
+
+        $prepare = $this->post(route('transaction-events.import.prepare'), [
+            'csv_file' => $this->csvUpload($csv),
+        ], ['Accept' => 'application/json']);
+
+        $prepare->assertOk();
+        $token = $prepare->json('token');
+        $this->assertNotEmpty($token);
+        $this->assertDatabaseCount('transaction_history', 0);
+
+        // First chunk inserts only its own slice and reports the tally.
+        $first = $this->post(route('transaction-events.import.process'), [
+            'token' => $token,
+            'offset' => 0,
+            'limit' => 1,
+        ], ['Accept' => 'application/json']);
+
+        $first->assertOk()->assertJson([
+            'success' => true,
+            'processed' => 1,
+            'total' => 2,
+            'done' => false,
+            'imported' => 1,
+            'failed' => 0,
+        ]);
+        $this->assertDatabaseCount('transaction_history', 1);
+
+        // Second chunk finishes the rows; finalize only archives + totals.
+        $second = $this->post(route('transaction-events.import.process'), [
+            'token' => $token,
+            'offset' => 1,
+            'limit' => 1,
+        ], ['Accept' => 'application/json']);
+
+        $second->assertOk()->assertJson([
+            'done' => true,
+            'imported' => 2,
+        ]);
+        $this->assertDatabaseCount('transaction_history', 2);
+
+        $finish = $this->post(route('transaction-events.import.finish'), [
+            'token' => $token,
+        ], ['Accept' => 'application/json']);
+
+        $finish->assertOk()->assertJson([
+            'success' => true,
+            'imported' => 2,
+            'skipped' => 0,
+        ]);
+        $this->assertDatabaseCount('transaction_history', 2);
     }
 
     private function csvUpload(string $contents): UploadedFile

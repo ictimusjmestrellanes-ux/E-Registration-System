@@ -570,8 +570,8 @@ class TransactionEventsController extends Controller
         // Group transferred events by normalized full name + event_date + category + type
         $groupsQuery = TransactionEvent::query()
             ->whereNotNull('transferred_at')
-            ->selectRaw('LOWER(TRIM(full_name)) as fullname, event_date, transaction_category, transaction_type, COUNT(*) as total')
-            ->groupBy(DB::raw('LOWER(TRIM(full_name))'), 'event_date', 'transaction_category', 'transaction_type')
+            ->selectRaw('LOWER(TRIM(full_name)) as fullname, event_date, client_category, transaction_category, transaction_type, COUNT(*) as total')
+            ->groupBy(DB::raw('LOWER(TRIM(full_name))'), 'event_date', 'client_category', 'transaction_category', 'transaction_type')
             ->havingRaw('COUNT(*) > 1')
             ->orderByDesc('total');
 
@@ -590,6 +590,12 @@ class TransactionEventsController extends Controller
                 $query->whereNull('event_date')->orWhere('event_date', '');
             }
 
+            if ($g->client_category !== null && $g->client_category !== '') {
+                $query->where('client_category', $g->client_category);
+            } else {
+                $query->whereNull('client_category')->orWhere('client_category', '');
+            }
+
             if ($g->transaction_category !== null && $g->transaction_category !== '') {
                 $query->where('transaction_category', $g->transaction_category);
             } else {
@@ -606,14 +612,66 @@ class TransactionEventsController extends Controller
 
             return ['events' => $events, 'total' => (int) $g->total];
         })->values();
-
         $exactGroups = new LengthAwarePaginator($groups, $totalGroups, $perPage, $page, [
             'path' => url()->current(),
             'query' => $request->query(),
         ]);
 
-        // Provide empty paginators for the other tabs so the view can render safely.
-        $likelyGroups = new LengthAwarePaginator([], 0, $perPage, (int) $request->input('likely_page', 1), [
+        // Build likely-match groups by three patterns
+        $likelyCollection = collect();
+        $seen = [];
+        $patterns = [
+            ['client_category', 'transaction_category'],
+            ['transaction_type', 'event_date'],
+            ['transaction_category', 'transaction_type'],
+        ];
+
+        foreach ($patterns as $pi => $cols) {
+            $sel = 'LOWER(TRIM(full_name)) as fullname, ' . implode(', ', $cols) . ', COUNT(*) as total';
+            $groupRows = TransactionEvent::query()
+                ->whereNotNull('transferred_at')
+                ->selectRaw($sel)
+                ->groupBy(DB::raw('LOWER(TRIM(full_name))'), ...$cols)
+                ->havingRaw('COUNT(*) > 1')
+                ->get();
+
+            foreach ($groupRows as $g) {
+                $keyParts = [$pi, $g->fullname];
+                foreach ($cols as $c) {
+                    $keyParts[] = (string) ($g->$c ?? '');
+                }
+                $key = implode('|', $keyParts);
+                if (isset($seen[$key])) {
+                    continue;
+                }
+                $seen[$key] = true;
+
+                $query = TransactionEvent::query()->whereNotNull('transferred_at')
+                    ->whereRaw('LOWER(TRIM(full_name)) = ?', [$g->fullname]);
+
+                foreach ($cols as $c) {
+                    $val = $g->$c ?? null;
+                    if ($c === 'event_date') {
+                        if ($val !== null && $val !== '') {
+                            $query->whereDate('event_date', $val);
+                        } else {
+                            $query->whereNull('event_date')->orWhere('event_date', '');
+                        }
+                    } else {
+                        if ($val !== null && $val !== '') {
+                            $query->where($c, $val);
+                        } else {
+                            $query->whereNull($c)->orWhere($c, '');
+                        }
+                    }
+                }
+
+                $events = $query->orderByDesc('id')->get();
+                $likelyCollection->push(['events' => $events, 'total' => (int) $g->total]);
+            }
+        }
+
+        $likelyGroups = new LengthAwarePaginator($likelyCollection->values(), $likelyCollection->count(), $perPage, (int) $request->input('likely_page', 1), [
             'path' => url()->current(),
             'query' => $request->query(),
         ]);
@@ -693,8 +751,8 @@ class TransactionEventsController extends Controller
         $base = TransactionEvent::whereNull('transferred_at')->where('not_duplicate', false);
 
         $groupsQuery = (clone $base)
-            ->selectRaw('LOWER(TRIM(full_name)) as fullname, event_date, transaction_category, transaction_type, COUNT(*) as total')
-            ->groupBy(DB::raw('LOWER(TRIM(full_name))'), 'event_date', 'transaction_category', 'transaction_type')
+            ->selectRaw('LOWER(TRIM(full_name)) as fullname, event_date, client_category, transaction_category, transaction_type, COUNT(*) as total')
+            ->groupBy(DB::raw('LOWER(TRIM(full_name))'), 'event_date', 'client_category', 'transaction_category', 'transaction_type')
             ->havingRaw('COUNT(*) > 1')
             ->orderByDesc('total');
 
@@ -711,6 +769,12 @@ class TransactionEventsController extends Controller
                 $query->whereDate('event_date', $g->event_date);
             } else {
                 $query->whereNull('event_date')->orWhere('event_date', '');
+            }
+
+            if ($g->client_category !== null && $g->client_category !== '') {
+                $query->where('client_category', $g->client_category);
+            } else {
+                $query->whereNull('client_category')->orWhere('client_category', '');
             }
 
             if ($g->transaction_category !== null && $g->transaction_category !== '') {
@@ -735,10 +799,62 @@ class TransactionEventsController extends Controller
             'query' => $request->query(),
         ]);
 
-        $likelyGroups = new LengthAwarePaginator([], 0, $perPage, (int) $request->input('likely_page', 1), [
+        // Build likely-match groups (three patterns requested)
+        $likelyCollection = collect();
+        $seen = [];
+        $patterns = [
+            ['client_category', 'transaction_category'],
+            ['transaction_type', 'event_date'],
+            ['transaction_category', 'transaction_type'],
+        ];
+
+        foreach ($patterns as $pi => $cols) {
+            $sel = 'LOWER(TRIM(full_name)) as fullname, ' . implode(', ', $cols) . ', COUNT(*) as total';
+            $groupRows = (clone $base)
+                ->selectRaw($sel)
+                ->groupBy(DB::raw('LOWER(TRIM(full_name))'), ...$cols)
+                ->havingRaw('COUNT(*) > 1')
+                ->get();
+
+            foreach ($groupRows as $g) {
+                $keyParts = [$pi, $g->fullname];
+                foreach ($cols as $c) {
+                    $keyParts[] = (string) ($g->$c ?? '');
+                }
+                $key = implode('|', $keyParts);
+                if (isset($seen[$key])) continue;
+                $seen[$key] = true;
+
+                $query = TransactionEvent::query()->whereNull('transferred_at')->where('not_duplicate', false)
+                    ->whereRaw('LOWER(TRIM(full_name)) = ?', [$g->fullname]);
+
+                foreach ($cols as $c) {
+                    $val = $g->$c ?? null;
+                    if ($c === 'event_date') {
+                        if ($val !== null && $val !== '') {
+                            $query->whereDate('event_date', $val);
+                        } else {
+                            $query->whereNull('event_date')->orWhere('event_date', '');
+                        }
+                    } else {
+                        if ($val !== null && $val !== '') {
+                            $query->where($c, $val);
+                        } else {
+                            $query->whereNull($c)->orWhere($c, '');
+                        }
+                    }
+                }
+
+                $events = $query->orderByDesc('id')->get();
+                $likelyCollection->push(['events' => $events, 'total' => (int) $g->total, 'created_at' => $events->min('created_at')]);
+            }
+        }
+
+        $likelyGroups = new LengthAwarePaginator($likelyCollection->values(), $likelyCollection->count(), $perPage, (int) $request->input('likely_page', 1), [
             'path' => url()->current(),
             'query' => $request->query(),
         ]);
+
         $similarGroups = new LengthAwarePaginator([], 0, $perPage, (int) $request->input('similar_page', 1), [
             'path' => url()->current(),
             'query' => $request->query(),
@@ -826,6 +942,27 @@ class TransactionEventsController extends Controller
     }
 
     /**
+     * Force a raw cell value into valid UTF-8. Files saved outside UTF-8
+     * (e.g. Windows-1252 with ñ, smart quotes, or en-dashes — common in
+     * Excel-origin CSVs) otherwise blow up every JSON response with
+     * "Malformed UTF-8 characters" and store undecodable bytes. Sanitizing
+     * once at parse time protects responses, session payloads, and the DB.
+     */
+    private function sanitizeImportCellValue(mixed $value): string
+    {
+        $value = is_string($value) ? $value : (string) $value;
+        $value = trim($value);
+
+        if ($value === '' || mb_check_encoding($value, 'UTF-8')) {
+            return $value;
+        }
+
+        $converted = mb_convert_encoding($value, 'UTF-8', 'Windows-1252');
+
+        return mb_check_encoding($converted, 'UTF-8') ? $converted : '';
+    }
+
+    /**
      * Parse an uploaded CSV or .xlsx file into a row matrix.
      *
      * @return array<int, array<int, string>>
@@ -852,7 +989,7 @@ class TransactionEventsController extends Controller
         }
 
         while (($row = fgetcsv($handle)) !== false) {
-            $rows[] = array_map(static fn ($cell) => is_string($cell) ? trim($cell) : (string) $cell, $row);
+            $rows[] = array_map(fn ($cell) => $this->sanitizeImportCellValue($cell), $row);
         }
 
         fclose($handle);
@@ -942,7 +1079,7 @@ class TransactionEventsController extends Controller
                 } else {
                     $value = (string) $cell->v;
                 }
-                $values[] = trim((string) $value);
+                $values[] = $this->sanitizeImportCellValue($value);
             }
             if ($values !== []) {
                 $rows[] = $values;
@@ -960,9 +1097,9 @@ class TransactionEventsController extends Controller
                 $sheet = $spreadsheet->getActiveSheet();
                 $psRows = [];
                 foreach ($sheet->toArray(null, true, true, true) as $row) {
-                    // Normalize to zero-based numeric array and trim values
+                    // Normalize to zero-based numeric array and sanitize values
                     $vals = array_values($row);
-                    $psRows[] = array_map(fn($c) => is_string($c) ? trim($c) : (string) $c, $vals);
+                    $psRows[] = array_map(fn ($c) => $this->sanitizeImportCellValue($c), $vals);
                 }
 
                 if ($psRows !== []) {
@@ -985,6 +1122,36 @@ class TransactionEventsController extends Controller
         return $header;
     }
 
+    /**
+     * Convert a raw Excel serial date (days since 1899-12-30, the 1900 date
+     * system) to Y-m-d. Date-formatted .xlsx cells arrive as plain numbers
+     * like "46268" from the native parser; without this every such row is
+     * rejected as "Invalid event_date". Pure integers outside the plausible
+     * modern range are left untouched so real data entry mistakes (e.g. an
+     * age typed into a date column) still fail validation instead of
+     * becoming silent garbage dates.
+     */
+    private function normalizeMaybeExcelSerialDate(string $value): string
+    {
+        $trimmed = trim($value);
+
+        if ($trimmed === '' || ! is_numeric($trimmed)) {
+            return $value;
+        }
+
+        $serial = (int) floor((float) $trimmed);
+
+        if ($serial < 15000 || $serial > 80000) {
+            return $value;
+        }
+
+        try {
+            return \Carbon\Carbon::create(1899, 12, 30)->addDays($serial)->toDateString();
+        } catch (\Throwable) {
+            return $value;
+        }
+    }
+
     private function importRowsToRecords(array $rows): array
     {
         if ($rows === []) {
@@ -992,9 +1159,18 @@ class TransactionEventsController extends Controller
         }
 
         $header = array_map([$this, 'normalizeImportHeader'], $rows[0]);
+        $rawHeader = $rows[0] ?? [];
         $records = [];
         $skipped = 0;
         $skippedExamples = [];
+
+        // Log header information for debugging
+        Log::debug('Import header detected', [
+            'raw_header' => $rawHeader,
+            'normalized_header' => $header,
+            'header_count' => count($header),
+            'has_full_name' => in_array('full_name', $header),
+        ]);
 
         for ($i = 1; $i < count($rows); $i++) {
             $row = $rows[$i];
@@ -1005,6 +1181,14 @@ class TransactionEventsController extends Controller
             $mapped = [];
             foreach ($header as $index => $key) {
                 $mapped[$key] = $row[$index] ?? '';
+            }
+
+            // Excel date cells arrive as serial numbers; normalize them
+            // before validation so correct files are not mass-skipped.
+            foreach (['birth_date', 'birthdate', 'event_date'] as $dateKey) {
+                if (isset($mapped[$dateKey]) && $mapped[$dateKey] !== '') {
+                    $mapped[$dateKey] = $this->normalizeMaybeExcelSerialDate((string) $mapped[$dateKey]);
+                }
             }
 
             if (($mapped['full_name'] ?? '') === '') {
@@ -1021,6 +1205,20 @@ class TransactionEventsController extends Controller
                     $skipped++;
                     if (count($skippedExamples) < 50) {
                         $skippedExamples[] = ['line' => $i + 1, 'reason' => 'Invalid age', 'data' => $mapped];
+                    }
+                    continue;
+                }
+            }
+
+            // Validate birth_date if present
+            if (($mapped['birth_date'] ?? $mapped['birthdate'] ?? '') !== '') {
+                $birthDateStr = $mapped['birth_date'] ?? $mapped['birthdate'];
+                try {
+                    \Carbon\Carbon::parse($birthDateStr);
+                } catch (\Throwable) {
+                    $skipped++;
+                    if (count($skippedExamples) < 50) {
+                        $skippedExamples[] = ['line' => $i + 1, 'reason' => 'Invalid birth_date format', 'data' => $mapped];
                     }
                     continue;
                 }
@@ -1149,6 +1347,9 @@ class TransactionEventsController extends Controller
             'rows' => $parsed['rows'],
             'total' => count($parsed['rows']),
             'skipped' => $parsed['skipped'],
+            'original_filename' => $file->getClientOriginalName(),
+            'file_size' => $file->getSize() ?? 0,
+            'force_new_clients' => $request->boolean('force_direct'),
         ]);
 
         if (($parsed['skipped'] ?? 0) > 0) {
@@ -1175,7 +1376,10 @@ class TransactionEventsController extends Controller
     }
 
     /**
-     * Process a prepared import in chunks.
+     * Process a prepared import in chunks. Each chunk inserts its own row
+     * slice so the progress bar tracks real database work instead of
+     * deferring every insert to the finalize step. Running counters live in
+     * the session payload next to the rows.
      */
     public function processImportChunk(Request $request)
     {
@@ -1197,19 +1401,60 @@ class TransactionEventsController extends Controller
 
         $offset = (int) $request->input('offset');
         $limit = (int) $request->input('limit');
+        $rows = $payload['rows'] ?? [];
         $total = (int) ($payload['total'] ?? 0);
         $processed = min($offset + $limit, $total);
+        $forceNewClients = (bool) ($payload['force_new_clients'] ?? false);
+
+        $imported = (int) ($payload['processed_imported'] ?? 0);
+        $failed = (int) ($payload['processed_failed'] ?? 0);
+        $errorSamples = $payload['processed_errors'] ?? [];
+        if (! is_array($errorSamples)) {
+            $errorSamples = [];
+        }
+
+        foreach (array_slice($rows, $offset, $limit) as $index => $record) {
+            try {
+                $this->createTransactionHistoryFromImportRow($record, $forceNewClients);
+                $imported++;
+            } catch (\Throwable $e) {
+                $failed++;
+                if (count($errorSamples) < 50) {
+                    $errorSamples[] = [
+                        'row' => $offset + $index + 1,
+                        'error' => $e->getMessage(),
+                        'data' => $record['full_name'] ?? 'Unknown',
+                    ];
+                }
+                Log::error('Import row processing failed', [
+                    'row_index' => $offset + $index,
+                    'record' => $record,
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
+                ]);
+            }
+        }
+
+        $payload['processed_imported'] = $imported;
+        $payload['processed_failed'] = $failed;
+        $payload['processed_errors'] = $errorSamples;
+        $payload['processed_upto'] = max((int) ($payload['processed_upto'] ?? 0), $offset + $limit);
+        session()->put($this->importSessionKey($token), $payload);
 
         return response()->json([
             'success' => true,
             'processed' => $processed,
             'total' => $total,
             'done' => $processed >= $total,
+            'imported' => $imported,
+            'failed' => $failed,
         ]);
     }
 
     /**
-     * Finalize a prepared import by inserting the rows into clients/history.
+     * Finalize a prepared import: insert any rows the chunk step did not
+     * cover (normally none — chunks insert their own slices), archive the
+     * file, and report totals accumulated across chunks.
      */
     public function finishImport(Request $request)
     {
@@ -1224,22 +1469,276 @@ class TransactionEventsController extends Controller
         }
 
         $rows = $payload['rows'] ?? [];
-        $imported = 0;
-        $skipped = (int) ($payload['skipped'] ?? 0);
+        $imported = (int) ($payload['processed_imported'] ?? 0);
+        $errors = $payload['processed_errors'] ?? [];
+        if (! is_array($errors)) {
+            $errors = [];
+        }
+        $skipped = (int) ($payload['skipped'] ?? 0) + (int) ($payload['processed_failed'] ?? 0);
 
-        foreach ($rows as $record) {
-            $this->createTransactionHistoryFromImportRow($record);
-            $imported++;
+        try {
+            // Safety net: rows past the chunk high-water mark (e.g. sessions
+            // prepared before chunked inserts existed) still get imported.
+            $processedUpto = (int) ($payload['processed_upto'] ?? 0);
+            $forceNewClients = (bool) ($payload['force_new_clients'] ?? false);
+            foreach (array_slice($rows, $processedUpto) as $index => $record) {
+                try {
+                    $this->createTransactionHistoryFromImportRow($record, $forceNewClients);
+                    $imported++;
+                } catch (\Throwable $e) {
+                    if (count($errors) < 50) {
+                        $errors[] = [
+                            'row' => $processedUpto + $index + 1,
+                            'error' => $e->getMessage(),
+                            'data' => $record['full_name'] ?? 'Unknown',
+                        ];
+                    }
+                    Log::error('Import row processing failed', [
+                        'row_index' => $processedUpto + $index,
+                        'record' => $record,
+                        'error' => $e->getMessage(),
+                        'trace' => $e->getTraceAsString(),
+                    ]);
+                    $skipped++;
+                }
+            }
+
+            session()->forget($this->importSessionKey($token));
+
+            // Archive the normalized rows so chunked (preview-flow) imports
+            // appear in View Archive Files like direct imports do. Archiving
+            // must never fail the import itself.
+            try {
+                $this->storeImportedEventArchive(
+                    $rows,
+                    (string) ($payload['original_filename'] ?? 'transaction-events.csv'),
+                    'manual_import'
+                );
+            } catch (\Throwable $archiveError) {
+                Log::warning('Import archive write failed', [
+                    'token' => $token,
+                    'error' => $archiveError->getMessage(),
+                ]);
+            }
+
+            if (!empty($errors)) {
+                Log::warning('Import finished with errors', [
+                    'total_errors' => count($errors),
+                    'first_error' => $errors[0] ?? null,
+                ]);
+            }
+
+            session()->flash('success', 'Successfully imported ' . $imported . ' event(s).' . ($skipped > 0 ? ' Skipped ' . $skipped . ' invalid row(s).' : ''));
+
+            // MySQL error strings can carry raw non-UTF-8 bytes, so never let
+            // the response encoder itself become the failure (HTTP 500 with
+            // "Malformed UTF-8 characters" and no usable message).
+            return response()->json([
+                'success' => true,
+                'imported' => $imported,
+                'skipped' => $skipped,
+                'errors' => array_slice($errors, 0, 10), // Return first 10 errors
+            ], 200, [], JSON_INVALID_UTF8_SUBSTITUTE);
+        } catch (\Throwable $e) {
+            Log::error('Import finalization failed', [
+                'token' => $token,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Import failed: ' . $e->getMessage(),
+                'error' => $e->getMessage(),
+            ], 500, [], JSON_INVALID_UTF8_SUBSTITUTE);
+        }
+    }
+
+    /**
+     * Diagnostic endpoint to analyze an import file without importing it.
+     */
+    public function diagnoseImportFile(Request $request)
+    {
+        $request->validate([
+            'csv_file' => ['required', 'file', 'mimes:csv,txt,xlsx,xls'],
+        ]);
+
+        try {
+            $file = $request->file('csv_file');
+            $rows = $this->parseImportFile($file, $file->getClientOriginalName());
+            
+            if (empty($rows)) {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'File appears to be empty or could not be parsed.',
+                ]);
+            }
+
+            $header = array_map([$this, 'normalizeImportHeader'], $rows[0] ?? []);
+            $rawHeader = $rows[0] ?? [];
+            
+            // Show first 5 data rows (formatted)
+            $sampleRows = [];
+            for ($i = 1; $i < min(6, count($rows)); $i++) {
+                $row = $rows[$i];
+                $mapped = [];
+                foreach ($header as $index => $key) {
+                    $mapped[$key] = $row[$index] ?? '';
+                }
+                $sampleRows[] = $mapped;
+            }
+
+            return response()->json([
+                'success' => true,
+                'file_name' => $file->getClientOriginalName(),
+                'total_rows' => count($rows) - 1, // exclude header
+                'raw_header' => $rawHeader,
+                'normalized_header' => $header,
+                'sample_rows' => $sampleRows,
+                'has_full_name_column' => in_array('full_name', $header),
+                'warnings' => $this->getImportWarnings($header, $rows),
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage(),
+            ], 400);
+        }
+    }
+
+    private function getImportWarnings(array $header, array $rows): array
+    {
+        $warnings = [];
+
+        if (!in_array('full_name', $header)) {
+            $warnings[] = 'Missing required "full_name" column. Found columns: ' . implode(', ', $header);
         }
 
-        session()->forget($this->importSessionKey($token));
-        session()->flash('success', 'Successfully imported ' . $imported . ' event(s).' . ($skipped > 0 ? ' Skipped ' . $skipped . ' invalid row(s).' : ''));
+        // Check first few rows for data issues
+        $fullNameIndex = array_search('full_name', $header);
+        if ($fullNameIndex !== false) {
+            $emptyCount = 0;
+            for ($i = 1; $i < min(100, count($rows)); $i++) {
+                if (empty(trim($rows[$i][$fullNameIndex] ?? ''))) {
+                    $emptyCount++;
+                }
+            }
+            if ($emptyCount > 0) {
+                $warnings[] = 'Found ' . $emptyCount . ' empty "full_name" values in first ' . min(99, count($rows) - 1) . ' data rows.';
+            }
+        }
 
-        return response()->json([
-            'success' => true,
-            'imported' => $imported,
-            'skipped' => $skipped,
-        ])->setStatusCode(200);
+        return $warnings;
+    }
+
+    /**
+     * Download an Excel template for importing transaction events.
+     */
+    public function downloadTemplate()
+    {
+        $rows = [
+            ['Full Name', 'Contact No.', 'Address', 'Age', 'Birth Date', 'Client Category', 'Transaction Category', 'Transaction Type', 'Event Date'],
+            ['Juan Dela Cruz', '09123456789 / 09198765432', 'Manila, NCR', '35', '1989-05-15', 'Individual', 'Registration', 'New Registration', '2024-01-10'],
+            ['Maria Santos', '09198765432', 'Quezon City, NCR', '28', '1996-08-22', 'Business', 'Renewal', 'License Renewal', '2024-02-14'],
+        ];
+        $sheetXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+            .'<cols><col min="1" max="1" width="28" customWidth="1"/>'
+            .'<col min="2" max="2" width="38" customWidth="1" style="2"/>'
+            .'<col min="3" max="9" width="24" customWidth="1"/></cols><sheetData>';
+        foreach ($rows as $index => $values) {
+            $rowNumber = $index + 1;
+            $sheetXml .= '<row r="'.$rowNumber.'">';
+            foreach ($values as $column => $value) {
+                $style = $index === 0 ? 1 : ($column === 1 ? 2 : 0);
+                $sheetXml .= '<c r="'.$this->xlsxCellReference($column + 1).$rowNumber.'" s="'.$style.'" t="inlineStr"><is><t xml:space="preserve">'
+                    .$this->xlsxXmlEscape($value).'</t></is></c>';
+            }
+            $sheetXml .= '</row>';
+        }
+        $sheetXml .= '</sheetData></worksheet>';
+
+        $tempFile = tempnam(sys_get_temp_dir(), 'contacts_template_');
+        $zip = new \ZipArchive;
+        if ($zip->open($tempFile, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) {
+            @unlink($tempFile);
+            return $this->downloadTemplateAsCSV();
+        }
+        $zip->addFromString('xl/worksheets/sheet1.xml', $sheetXml);
+        $zip->addFromString('[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+            .'<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+            .'<Default Extension="xml" ContentType="application/xml"/>'
+            .'<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+            .'<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+            .'<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'
+            .'</Types>');
+        $zip->addFromString('_rels/.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            .'<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'
+            .'</Relationships>');
+        $zip->addFromString('xl/workbook.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+            .'<sheets><sheet name="Transaction Events" sheetId="1" r:id="rId1"/></sheets>'
+            .'</workbook>');
+        $zip->addFromString('xl/_rels/workbook.xml.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            .'<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'
+            .'<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
+            .'</Relationships>');
+        $zip->addFromString('xl/styles.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+            .'<fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts>'
+            .'<fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>'
+            .'<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>'
+            .'<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
+            .'<cellXfs count="3">'
+            .'<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
+            .'<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/>'
+            .'<xf numFmtId="49" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs>'
+            .'<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>'
+            .'</styleSheet>');
+        $zip->close();
+
+        return response()->download($tempFile, 'Transaction_Events_Template_'.now()->format('YmdHis').'.xlsx', [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ])->deleteFileAfterSend(true);
+    }
+
+    private function downloadTemplateAsCSV()
+    {
+        $filename = 'Transaction_Events_Template_' . now()->format('YmdHis') . '.csv';
+        
+        $headers = [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+        ];
+        
+        $callback = function() {
+            $handle = fopen('php://output', 'w');
+            
+            // Write BOM for Excel UTF-8 detection
+            fprintf($handle, chr(0xEF) . chr(0xBB) . chr(0xBF));
+            
+            // Write headers
+            $headerRow = ['Full Name', 'Contact No.', 'Address', 'Age', 'Birth Date', 'Client Category', 'Transaction Category', 'Transaction Type', 'Event Date'];
+            fputcsv($handle, $headerRow);
+            
+            // Write sample data
+            $sampleData = [
+                ['Juan Dela Cruz', '09123456789', 'Manila, NCR', '35', '1989-05-15', 'Individual', 'Registration', 'New Registration', '2024-01-10'],
+                ['Maria Santos', '09198765432', 'Quezon City, NCR', '28', '1996-08-22', 'Business', 'Renewal', 'License Renewal', '2024-02-14'],
+                ['Antonio Rodriguez', '09165432198', 'Makati, NCR', '42', '1982-03-10', 'Individual', 'Amendment', 'Information Update', '2024-03-20'],
+            ];
+            
+            foreach ($sampleData as $row) {
+                fputcsv($handle, $row);
+            }
+            
+            fclose($handle);
+        };
+        
+        return response()->stream($callback, 200, $headers);
     }
 
     /**
@@ -1254,10 +1753,11 @@ class TransactionEventsController extends Controller
         $file = $request->file('csv_file');
         $rows = $this->parseImportFile($file, $file->getClientOriginalName());
         $parsed = $this->importRowsToRecords($rows);
+        $forceNewClients = $request->boolean('force_direct');
 
         $imported = 0;
         foreach ($parsed['rows'] as $record) {
-            $this->createTransactionHistoryFromImportRow($record);
+            $this->createTransactionHistoryFromImportRow($record, $forceNewClients);
             $imported++;
         }
 
@@ -1269,6 +1769,63 @@ class TransactionEventsController extends Controller
         $this->archiveImportedFile($file, $parsed['rows']);
 
         return redirect()->route('transaction-events.index')->with('success', $message);
+    }
+
+    /**
+     * Persist normalized import rows as a uniquely-named .csv archive and
+     * register it for View Archive Files. Returns the stored filename.
+     * Used by the chunked (preview-flow) import, which no longer holds the
+     * original upload at finalize time.
+     */
+    private function storeImportedEventArchive(array $rows, string $originalFilename, string $source = 'import'): string
+    {
+        $timestamp = now()->format('Ymd_His');
+        $safeName = preg_replace('/[^A-Za-z0-9_.-]+/', '_', $originalFilename) ?: 'transaction-events.csv';
+        if (! str_ends_with(strtolower($safeName), '.csv')) {
+            $safeName = pathinfo($safeName, PATHINFO_FILENAME) . '.csv';
+        }
+        $storedName = 'transaction-events_' . $timestamp . '_' . uniqid() . '_' . $safeName;
+
+        $columns = ['full_name', 'contact_no', 'address', 'age', 'birth_date', 'client_category', 'transaction_category', 'transaction_type', 'event_date'];
+
+        $handle = fopen('php://temp', 'w+b');
+        if ($handle === false) {
+            throw new \RuntimeException('Unable to build the import archive file.');
+        }
+
+        fprintf($handle, chr(0xEF) . chr(0xBB) . chr(0xBF));
+        fputcsv($handle, $columns);
+        foreach ($rows as $record) {
+            $record = is_array($record) ? $record : [];
+            $line = [];
+            foreach ($columns as $column) {
+                $value = $record[$column] ?? '';
+                if ($column === 'birth_date' && $value === '' && isset($record['birthdate'])) {
+                    $value = $record['birthdate'];
+                }
+                $line[] = is_scalar($value) ? (string) $value : '';
+            }
+            fputcsv($handle, $line);
+        }
+        rewind($handle);
+        $contents = stream_get_contents($handle) ?: '';
+        fclose($handle);
+
+        Storage::disk('local')->put('transaction-events-archive/' . $storedName, $contents);
+
+        ImportArchiveFile::create([
+            'filename' => $storedName,
+            'original_filename' => $originalFilename,
+            'rows_count' => count($rows),
+            'file_size' => strlen($contents),
+            'source' => $source,
+            'imported_by_id' => auth()->id(),
+            'imported_by' => auth()->user()?->name ?? '',
+            'role' => auth()->user()?->role_name ?? '',
+            'imported_at' => now(),
+        ]);
+
+        return $storedName;
     }
 
     private function archiveImportedFile(\Illuminate\Http\UploadedFile $file, array $rows = []): void
@@ -1293,26 +1850,72 @@ class TransactionEventsController extends Controller
         ]);
     }
 
-    private function createTransactionHistoryFromImportRow(array $record): void
+    private function createTransactionHistoryFromImportRow(array $record, bool $forceNewClient = false): void
     {
         $fullName = trim((string) ($record['full_name'] ?? ''));
         $birthDate = trim((string) ($record['birth_date'] ?? $record['birthdate'] ?? ''));
-        $client = $this->findOrCreateClientForEvent($fullName, $record, $birthDate);
+        
+        if (empty($fullName)) {
+            throw new \RuntimeException('Full name is required but empty');
+        }
 
-        $transactionHistory = TransactionHistory::create([
-            'client_id' => $client->client_id,
-            'client_category' => trim((string) ($record['client_category'] ?? '')),
-            'transaction_id' => $this->nextTransactionIdForClient($client->client_id),
-            'transaction_date' => ! empty($record['event_date']) ? $record['event_date'] : now()->toDateString(),
-            'category' => trim((string) ($record['transaction_category'] ?? '')),
-            'type' => trim((string) ($record['transaction_type'] ?? '')),
-            'events_transaction_type' => trim((string) ($record['transaction_type'] ?? '')),
-            'status' => 'Approved',
-            'source' => 'import',
-            'description' => 'Imported from event CSV/XLSX file.',
-        ]);
+        try {
+            // Force Create All registers a fresh client per row (strict 1:1)
+            // even when the name already exists; normal imports reuse matches.
+            $client = $forceNewClient
+                ? $this->createClientForImportRow($fullName, $record, $birthDate ?: null)
+                : $this->findOrCreateClientForEvent($fullName, $record, $birthDate ?: null);
+        } catch (\Throwable $e) {
+            throw new \RuntimeException('Failed to find/create client: ' . $e->getMessage(), 0, $e);
+        }
 
-        $transactionHistory->touch();
+        try {
+            // Validate and format transaction date
+            $transactionDate = $record['event_date'] ?? '';
+            if (!empty($transactionDate)) {
+                try {
+                    $parsedDate = \Carbon\Carbon::parse($transactionDate)->toDateString();
+                } catch (\Throwable) {
+                    throw new \RuntimeException('Invalid event_date format: ' . $transactionDate);
+                }
+            } else {
+                $parsedDate = now()->toDateString();
+            }
+
+            $transactionHistory = TransactionHistory::create([
+                'client_id' => $client->client_id,
+                'client_category' => trim((string) ($record['client_category'] ?? '')) ?: null,
+                'transaction_id' => $this->nextTransactionIdForClient($client->client_id),
+                'transaction_date' => $parsedDate,
+                'category' => trim((string) ($record['transaction_category'] ?? '')),
+                'type' => trim((string) ($record['transaction_type'] ?? '')),
+                'events_transaction_type' => trim((string) ($record['transaction_type'] ?? '')) ?: null,
+                'status' => 'Approved',
+                'source' => 'import',
+                'description' => 'Imported from event CSV/XLSX file.',
+            ]);
+
+            $transactionHistory->touch();
+
+            // Mirror manual transaction creation: every imported row lands
+            // in Event Records as a transferred event linked to its history,
+            // so imports are visible exactly like transferred transactions.
+            TransactionEvent::create([
+                'full_name' => $fullName,
+                'contact_no' => trim((string) ($record['contact_no'] ?? '')),
+                'address' => trim((string) ($record['address'] ?? '')),
+                'age' => isset($record['age']) && $record['age'] !== '' ? (int) $record['age'] : null,
+                'birth_date' => $birthDate !== '' ? $birthDate : null,
+                'client_category' => trim((string) ($record['client_category'] ?? '')),
+                'transaction_category' => trim((string) ($record['transaction_category'] ?? '')),
+                'transaction_type' => trim((string) ($record['transaction_type'] ?? '')),
+                'event_date' => $parsedDate,
+                'transferred_at' => now(),
+                'transferred_transaction_id' => $transactionHistory->id,
+            ]);
+        } catch (\Throwable $e) {
+            throw new \RuntimeException('Failed to create transaction history: ' . $e->getMessage(), 0, $e);
+        }
     }
 
     private function findOrCreateClientForEvent(string $fullName, array $record, ?string $birthDate = null): Client
@@ -1322,48 +1925,41 @@ class TransactionEventsController extends Controller
             throw new \RuntimeException('Client full name is required.');
         }
 
-        $parts = preg_split('/\s+/', $trimmed);
-        $firstName = $parts[0] ?? '';
-        $lastName = $parts[count($parts) - 1] ?? '';
-        $middleNames = array_slice($parts, 1, -1);
-        $middleName = implode(' ', $middleNames);
-        $suffix = '';
-        if (preg_match('/^(.*)\s+(JR|SR|II|III|IV|V)$/i', $trimmed, $matches)) {
-            $suffix = strtoupper($matches[2]);
-            $trimmed = trim($matches[1]);
-        }
+        $name = $this->splitImportFullName($trimmed);
+        // Matching is lowercase; creation keeps the original case.
+        $firstName = strtolower($name['first']);
+        $lastName = strtolower($name['last']);
+        $middleName = strtolower($name['middle']);
 
-        $normalizedTrimmed = strtolower(preg_replace('/\s+/', ' ', trim($trimmed)));
-        $candidateNames = array_values(array_unique(array_filter([
-            $normalizedTrimmed,
-            strtolower(trim($firstName . ' ' . $lastName)),
-            strtolower(trim($firstName . ' ' . $middleName . ' ' . $lastName)),
-            strtolower(trim($firstName . ' ' . $middleName)),
-            strtolower(trim($middleName . ' ' . $lastName)),
-        ], fn ($value) => $value !== '')));
+        // Portable name matching (no || or CONCAT, so it behaves the same
+        // on MySQL and SQLite): exact full-name triple, or first + last with
+        // any middle. A first-name-only fallback additionally requires a
+        // birth date — without one it merges distinct people, so those rows
+        // register fresh clients instead.
+        $query = Client::query()->where(function ($sub) use ($firstName, $middleName, $lastName, $birthDate) {
+            $nameMatch = function ($nameQuery) use ($firstName, $middleName, $lastName) {
+                $nameQuery->where(function ($triple) use ($firstName, $middleName, $lastName) {
+                    $triple->whereRaw('LOWER(TRIM(first_name)) = ?', [$firstName])
+                        ->whereRaw("LOWER(TRIM(COALESCE(middle_name, ''))) = ?", [$middleName])
+                        ->whereRaw('LOWER(TRIM(last_name)) = ?', [$lastName]);
+                })->orWhere(function ($firstLast) use ($firstName, $lastName) {
+                    $firstLast->whereRaw('LOWER(TRIM(first_name)) = ?', [$firstName])
+                        ->whereRaw('LOWER(TRIM(last_name)) = ?', [$lastName]);
+                });
+            };
 
-        $query = Client::query()->where(function ($sub) use ($candidateNames, $firstName, $trimmed, $birthDate) {
             if ($birthDate !== null && $birthDate !== '') {
                 $sub->whereDate('birth_date', $birthDate);
-            }
+                $sub->where($nameMatch);
 
-            $sub->where(function ($nameQuery) use ($candidateNames, $trimmed) {
-                foreach ($candidateNames as $candidate) {
-                    $nameQuery->orWhereRaw('LOWER(TRIM(COALESCE(first_name, "") || " " || COALESCE(middle_name, "") || " " || COALESCE(last_name, ""))) = ?', [$candidate]);
-                    $nameQuery->orWhereRaw('LOWER(TRIM(COALESCE(first_name, "") || " " || COALESCE(last_name, ""))) = ?', [$candidate]);
+                if ($firstName !== '') {
+                    $sub->orWhere(function ($firstQuery) use ($firstName, $birthDate) {
+                        $firstQuery->whereRaw('LOWER(TRIM(first_name)) = ?', [$firstName])
+                            ->whereDate('birth_date', $birthDate);
+                    });
                 }
-
-                $nameQuery->orWhereRaw('LOWER(TRIM(COALESCE(first_name, "") || " " || COALESCE(middle_name, "") || " " || COALESCE(last_name, ""))) = ?', [strtolower($trimmed)]);
-                $nameQuery->orWhereRaw('LOWER(TRIM(COALESCE(first_name, "") || " " || COALESCE(last_name, ""))) = ?', [strtolower($trimmed)]);
-            });
-
-            if ($firstName !== '') {
-                $sub->orWhere(function ($firstQuery) use ($firstName, $birthDate) {
-                    $firstQuery->whereRaw('LOWER(TRIM(first_name)) = ?', [strtolower($firstName)]);
-                    if ($birthDate !== null && $birthDate !== '') {
-                        $firstQuery->whereDate('birth_date', $birthDate);
-                    }
-                });
+            } else {
+                $sub->where($nameMatch);
             }
         });
 
@@ -1372,11 +1968,52 @@ class TransactionEventsController extends Controller
             return $existing;
         }
 
+        return $this->createClientForImportRow($trimmed, $record, $birthDate);
+    }
+
+    /**
+     * Split an import full name into original-case parts (suffix-aware).
+     *
+     * @return array{first: string, middle: string, last: string, suffix: string}
+     */
+    private function splitImportFullName(string $fullName): array
+    {
+        $trimmed = trim($fullName);
+
+        $suffix = '';
+        if (preg_match('/^(.*)\s+(JR|SR|II|III|IV|V)$/i', $trimmed, $matches)) {
+            $suffix = strtoupper($matches[2]);
+            $trimmed = trim($matches[1]);
+        }
+
+        $parts = preg_split('/\s+/', $trimmed);
+
+        return [
+            'first' => $parts[0] ?? '',
+            'middle' => implode(' ', array_slice($parts, 1, -1)),
+            'last' => $parts[count($parts) - 1] ?? '',
+            'suffix' => $suffix,
+        ];
+    }
+
+    /**
+     * Always register a fresh client for one import row (strict 1:1), even
+     * when the same name already exists. Used by Force Create All.
+     */
+    private function createClientForImportRow(string $fullName, array $record, ?string $birthDate = null): Client
+    {
+        $trimmed = trim($fullName);
+        if ($trimmed === '') {
+            throw new \RuntimeException('Client full name is required.');
+        }
+
+        $name = $this->splitImportFullName($trimmed);
+
         $clientData = [
-            'first_name' => $firstName,
-            'middle_name' => $middleName !== '' ? $middleName : null,
-            'last_name' => $lastName,
-            'suffix' => $suffix !== '' ? $suffix : null,
+            'first_name' => $name['first'],
+            'middle_name' => $name['middle'] !== '' ? $name['middle'] : null,
+            'last_name' => $name['last'],
+            'suffix' => $name['suffix'] !== '' ? $name['suffix'] : null,
             'birth_date' => $birthDate !== null && $birthDate !== '' ? $birthDate : null,
             'sector' => trim((string) ($record['client_category'] ?? '')),
             'contact' => trim((string) ($record['contact_no'] ?? '')),
@@ -1384,7 +2021,11 @@ class TransactionEventsController extends Controller
             'age' => isset($record['age']) && $record['age'] !== '' ? (int) $record['age'] : null,
         ];
 
-        return Client::createWithGeneratedId($clientData);
+        try {
+            return Client::createWithGeneratedId($clientData);
+        } catch (\Throwable $e) {
+            throw new \RuntimeException('Failed to create client with data: ' . json_encode($clientData) . '. Error: ' . $e->getMessage(), 0, $e);
+        }
     }
 
     private function nextTransactionIdForClient(string $clientId): string

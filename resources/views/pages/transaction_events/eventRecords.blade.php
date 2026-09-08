@@ -435,7 +435,7 @@
                                             <td data-column="birth_date">
                                                 {{ optional($event->birth_date)->format('M d, Y') ?? '-' }}</td>
                                             <td data-column="contact">
-                                                {{ str_replace('-', '', $event->contact_no ?? '') ?: '-' }}</td>
+                                                {{ $event->contact_no ?: '-' }}</td>
                                             <td data-column="address" class="small">{{ $event->address ?? '-' }}</td>
                                             <td data-column="client_category" class="small">
                                                 {{ $event->client_category ?? '-' }}</td>

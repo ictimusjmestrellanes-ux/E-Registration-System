@@ -58,7 +58,7 @@
                                     $out .= '<td class="fw-semibold">' . e($event->full_name) . '</td>';
                                     $out .= '<td>' . e($event->age ?? '-') . '</td>';
                                     $out .= '<td>' . e(optional($event->birth_date)->format('M d, Y') ?? '-') . '</td>';
-                                    $out .= '<td>' . e(str_replace('-', '', $event->contact_no ?? '') ?: '-') . '</td>';
+                                    $out .= '<td>' . e($event->contact_no ?: '-') . '</td>';
                                     $out .= '<td class="small">' . e($event->client_category ?? '-') . '</td>';
                                     $out .= '<td class="small">' . e($event->transaction_category ?? '-') . '</td>';
                                     $out .= '<td class="small">' . e($event->transaction_type ?? '-') . '</td>';

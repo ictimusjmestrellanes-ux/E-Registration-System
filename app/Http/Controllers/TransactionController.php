@@ -175,13 +175,18 @@ class TransactionController extends Controller
         $validated['clerk'] = auth()->user()->name ?? null;
         $validated['amount'] = (float) ($validated['amount'] ?? 0);
 
-        $transaction = TransactionHistory::create($validated);
-
         $client = Client::where('client_id', $validated['client_id'])->first();
 
         if (!$client) {
             return redirect()->route('client.list')->with('error', 'Client not found.');
         }
+
+        // Store the same reporting fields used by imported/event transfers so
+        // manually entered transactions appear in every dashboard chart.
+        $validated['client_category'] = $client->sector ?? '';
+        $validated['events_transaction_type'] = $validated['type'];
+
+        $transaction = TransactionHistory::create($validated);
 
         \App\Models\TransactionEvent::create([
             'full_name'                  => $client->full_name,
@@ -264,6 +269,7 @@ class TransactionController extends Controller
         $validated['amount'] = (float) ($validated['amount'] ?? 0);
         unset($validated['client_id']);
         $validated['category'] = TransactionHistory::normalizeCategory($validated['category']);
+        $validated['events_transaction_type'] = $validated['type'];
 
         $transaction->update($validated);
 
