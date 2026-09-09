@@ -236,7 +236,7 @@
                                             value="{{ request('age_to') }}">
                                     </div> --}}
 
-                                    <div class="col-12 col-md-6 col-xl-3">
+                                    <div class="col-12 col-md-6 col-xl-4">
                                         <label class="form-label fw-semibold text-uppercase small">Client Category</label>
                                         <div class="dropdown w-100">
                                             <button
@@ -284,15 +284,10 @@
                                         <label for="recordCategoryFilter"
                                             class="form-label fw-semibold text-uppercase small">Transaction
                                             Category</label>
-                                        <select class="form-select" id="recordCategoryFilter"
-                                            name="transaction_category">
-                                            <option value="">All categories</option>
-                                            @foreach ($categories as $category)
-                                                <option value="{{ $category }}"
-                                                    {{ request('transaction_category') === $category ? 'selected' : '' }}>
-                                                    {{ $category }}</option>
-                                            @endforeach
-                                        </select>
+                                        @include('pages.transaction_events.partials.categoryFilter', [
+                                            'filterId' => 'recordCategoryFilter',
+                                            'filterCategories' => $categories,
+                                        ])
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
                                         <label class="form-label fw-semibold text-uppercase small">Transaction Type</label>
@@ -361,7 +356,7 @@
                                         <input type="date" class="form-control" id="recordDateTo" name="date_to"
                                             value="{{ request('date_to') }}">
                                     </div>
-                                    <div class="col-12 col-xl-8 d-flex gap-2 justify-content-end">
+                                    <div class="col-12 col-xl-4 d-flex gap-2 justify-content-end">
                                         <button type="submit" class="btn btn-sm btn-primary px-4">
                                             <i class="ri-filter-3-fill me-1"></i> Apply Filters
                                         </button>
@@ -810,8 +805,7 @@
                         exclude_duplicates: 1
                     };
                     ['search', 'contact', 'age_from', 'age_to', 'date_from', 'date_to',
-                        'event_date_from', 'event_date_to',
-                        'transaction_category'
+                        'event_date_from', 'event_date_to'
                     ].forEach((name) => {
                         const value = params.get(name);
                         if (value !== null && value !== '') {
@@ -820,10 +814,10 @@
                     });
 
                     // Handle filters which can have multiple values
-                    ['client_category', 'transaction_type'].forEach((name) => {
-                        const values = params.getAll(name + '[]').length > 0 ?
-                            params.getAll(name + '[]') :
-                            params.getAll(name);
+                    ['client_category', 'transaction_category', 'transaction_type'].forEach((name) => {
+                        const values = Array.from(params.entries())
+                            .filter(([key]) => key === name || key.startsWith(name + '['))
+                            .map(([, value]) => value);
                         const filtered = values.filter(v => v !== '');
                         if (filtered.length > 0) {
                             payload[name] = filtered;

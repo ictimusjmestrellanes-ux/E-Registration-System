@@ -49,27 +49,6 @@
             height: 100%;
         }
 
-        .distribution-layout {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 1rem;
-            align-items: center;
-        }
-
-        .distribution-chart {
-            flex: 1 1 220px;
-            min-width: 0;
-            height: 250px;
-            position: relative;
-        }
-
-        .distribution-legend {
-            flex: 1 1 260px;
-            min-width: 0;
-            max-height: 250px;
-            overflow-y: auto;
-        }
-
         .category-card,
         .stat-card {
             transition: transform .15s ease-in-out, box-shadow .15s ease-in-out;
@@ -197,7 +176,8 @@
                                 <div>
                                     <h5 class="mb-0" id="txTrendTitle">Total
                                         Transactions{{ ($txTrendSuffix ?? '') !== '' ? ' — ' . $txTrendSuffix : '' }}</h5>
-                                    <p class="text-muted mb-0">Monthly totals through {{ now()->format('F Y') }}. Hover or tap a bar for the breakdown.</p>
+                                    <p class="text-muted mb-0">Monthly totals through {{ now()->format('F Y') }}. Hover or
+                                        tap a bar for the breakdown.</p>
                                 </div>
                                 <div class="d-flex flex-wrap gap-2">
                                     <div class="dropdown" id="txCategoryDropdown">
@@ -298,7 +278,7 @@
                                 @endif
                             </p>
                         </div>
-                        <div class="d-flex flex-wrap align-items-center gap-3">
+                        <div class="d-flex flex-wrap align-items-center gap-2">
 
                             <div class="dropdown" id="transactionDateCategoryDropdown">
                                 <button
@@ -346,7 +326,7 @@
                             <div class="dropdown" id="transactionDateTypeDropdown">
                                 <button
                                     class="btn btn-light border form-select form-select-sm text-start d-flex align-items-center justify-content-between"
-                                    style="width: 190px;" type="button" id="transactionDateTypeBtn"
+                                    style="width: 220px;" type="button" id="transactionDateTypeBtn"
                                     data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false"
                                     aria-controls="transactionDateTypeMenu"
                                     aria-label="Filter monthly transactions by transaction type">
@@ -355,7 +335,7 @@
                                 </button>
                                 <div class="dropdown-menu dropdown-menu-end p-3" id="transactionDateTypeMenu"
                                     aria-labelledby="transactionDateTypeBtn"
-                                    style="width: 190px; max-width: calc(100vw - 40px);">
+                                    style="width: 220px; max-width: calc(100vw - 40px);">
                                     <label for="transactionDateTypeSearch" class="visually-hidden">Search transaction
                                         types</label>
                                     <input type="search" id="transactionDateTypeSearch"
@@ -369,7 +349,8 @@
                                     <hr class="my-2">
                                     <div style="max-height: 240px; overflow-y: auto;">
                                         @forelse ($txTypeOptions as $type)
-                                            <div class="form-check transaction-date-type-option {{ in_array($type, $transactionDateTypeOptions, true) ? '' : 'd-none' }}">
+                                            <div
+                                                class="form-check transaction-date-type-option {{ in_array($type, $transactionDateTypeOptions, true) ? '' : 'd-none' }}">
                                                 <input class="form-check-input transaction-date-type-check"
                                                     type="checkbox" name="transaction_date_types[]"
                                                     id="transactionDateTypeOption_{{ $loop->index }}"
@@ -423,7 +404,8 @@
                                             <hr class="my-2">
                                             <div style="max-height: 240px; overflow-y: auto;">
                                                 @forelse ($transactionDateOptions as $date)
-                                                    <div class="form-check transaction-date-option {{ in_array($date, $transactionDateVisibleDates, true) ? '' : 'd-none' }}">
+                                                    <div
+                                                        class="form-check transaction-date-option {{ in_array($date, $transactionDateVisibleDates, true) ? '' : 'd-none' }}">
                                                         <input class="form-check-input transaction-date-check"
                                                             type="checkbox" name="transaction_dates[]"
                                                             id="transactionDateOption_{{ $loop->index }}"
@@ -505,37 +487,20 @@
 
                 <div class="col-12 mt-4">
                     <div class="row g-3">
-                        <!-- Service Category Chart -->
-                        <div class="col-12 col-xl-6">
-                            <div class="card material-shadow distribution-card">
-                                <div class="card-header">
-                                    <h5 class="mb-0">Service Categories Distribution</h5>
-                                    <p class="text-muted mb-0">Share of transactions per service category</p>
-                                </div>
-                                <div class="card-body">
-                                    <div class="distribution-layout">
-                                        <div class="distribution-chart">
-                                            <canvas id="serviceCategoryChart"></canvas>
-                                        </div>
-                                        <div id="serviceCategoryLegend" class="distribution-legend d-flex flex-column gap-2">
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
                         <!-- Client Category Chart -->
-                        <div class="col-12 col-xl-6">
+                        <div class="col-12">
                             <div class="card material-shadow distribution-card">
                                 <div class="card-header">
                                     <h5 class="mb-0">Client Category Distribution</h5>
                                     <p class="text-muted mb-0">Share of transactions per client category</p>
                                 </div>
                                 <div class="card-body">
-                                    <div class="distribution-layout">
-                                        <div class="distribution-chart">
+                                    <div class="overflow-auto">
+                                        <div
+                                            style="position: relative; min-width: 420px; height: {{ max(200, count($clientCategoryDistribution['data']) * 25 + 40) }}px;">
                                             @if (array_sum($clientCategoryDistribution['data']) > 0)
-                                                <canvas id="clientCategoryChart"></canvas>
+                                                <canvas id="clientCategoryChart" role="img"
+                                                    aria-label="Transactions by client category, sorted from highest to lowest"></canvas>
                                             @else
                                                 <div class="d-flex align-items-center justify-content-center h-100 text-center text-muted"
                                                     role="status">
@@ -543,7 +508,30 @@
                                                 </div>
                                             @endif
                                         </div>
-                                        <div id="clientCategoryLegend" class="distribution-legend d-flex flex-column gap-2">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Service Category Chart -->
+                        <div class="col-12">
+                            <div class="card material-shadow distribution-card">
+                                <div class="card-header">
+                                    <h5 class="mb-0">Service Categories Distribution</h5>
+                                    <p class="text-muted mb-0">Share of transactions per service category</p>
+                                </div>
+                                <div class="card-body">
+                                    <div class="overflow-auto">
+                                        <div
+                                            style="position: relative; min-width: 420px; height: {{ max(200, count($chartData) * 25 + 40) }}px;">
+                                            @if (array_sum($chartData) > 0)
+                                                <canvas id="serviceCategoryChart" role="img"
+                                                    aria-label="Transactions by service category, sorted from highest to lowest"></canvas>
+                                            @else
+                                                <div class="d-flex align-items-center justify-content-center h-100 text-center text-muted"
+                                                    role="status">
+                                                    No transactions with a service category are available.
+                                                </div>
+                                            @endif
                                         </div>
                                     </div>
                                 </div>
@@ -565,8 +553,8 @@
                     @foreach ($categories as $key => $label)
                         @php
                             [$icon] = $categoryMeta[$key] ?? ['fa-circle'];
-                            // Same palette position as the Service Categories doughnut
-                            // chart so each card matches its slice/legend color.
+                            // Same palette position as the Service Categories bar
+                            // chart so each card matches its bar color.
                             $hex = $chartColors[$loop->index % count($chartColors)];
                             $count = $categoryCounts[$key] ?? 0;
                         @endphp
@@ -820,6 +808,7 @@
                     refreshDateChart();
                 }));
                 document.getElementById('transactionDateSearch').addEventListener('input', updateOptionVisibility);
+
                 function updateOptionVisibility() {
                     const typeSearch = document.getElementById('transactionDateTypeSearch').value.trim().toLowerCase();
                     const dateSearch = document.getElementById('transactionDateSearch').value.trim().toLowerCase();
@@ -835,7 +824,8 @@
                     dateChecks.forEach(input => {
                         const row = input.closest('.transaction-date-option');
                         const allowed = availableDates.has(input.value);
-                        const visible = allowed && (row.textContent + ' ' + input.value).toLowerCase().includes(dateSearch);
+                        const visible = allowed && (row.textContent + ' ' + input.value).toLowerCase().includes(
+                            dateSearch);
                         input.disabled = loadingOptions || !allowed;
                         row.classList.toggle('d-none', !visible);
                         if (visible) dateMatches++;
@@ -844,8 +834,10 @@
                     allDates.disabled = loadingOptions;
                     document.getElementById('transactionDateTypeBtn').disabled = loadingOptions;
                     document.getElementById('transactionDateBtn').disabled = loadingOptions;
-                    document.getElementById('transactionDateTypeNoMatches').classList.toggle('d-none', typeMatches > 0 || typeChecks.length === 0);
-                    document.getElementById('transactionDateNoMatches').classList.toggle('d-none', dateMatches > 0 || dateChecks.length === 0);
+                    document.getElementById('transactionDateTypeNoMatches').classList.toggle('d-none', typeMatches >
+                        0 || typeChecks.length === 0);
+                    document.getElementById('transactionDateNoMatches').classList.toggle('d-none', dateMatches > 0 ||
+                        dateChecks.length === 0);
                 }
                 updateOptionVisibility();
                 const canvas = document.getElementById('transactionDateChart');
@@ -861,7 +853,7 @@
                         datasets: [{
                             label: 'Transactions',
                             data: counts,
-                            backgroundColor: labels.map(month => month === currentMonth ? '#299cdb' :
+                            backgroundColor: labels.map(month => month === currentMonth ? '#405189' :
                                 '#405189'),
                             borderRadius: 4,
                             maxBarThickness: 48
@@ -946,7 +938,8 @@
                     pendingRequest = new AbortController();
                     const selected = dateChecks.filter(input => input.checked).map(input => input.value);
                     const url = new URL(@json(route('dashboard.transaction-date-trend')), window.location.origin);
-                    typeChecks.filter(input => input.checked).forEach(input => url.searchParams.append('transaction_date_types[]', input.value));
+                    typeChecks.filter(input => input.checked).forEach(input => url.searchParams.append(
+                        'transaction_date_types[]', input.value));
                     selected.forEach(date => url.searchParams.append('transaction_dates[]', date));
                     categoryChecks.filter(input => input.checked).forEach(input => url.searchParams.append(
                         'transaction_date_categories[]', input.value));
@@ -966,7 +959,7 @@
                         dateChart.data.labels = payload.labels;
                         dateChart.data.datasets[0].data = payload.data;
                         dateChart.data.datasets[0].backgroundColor = payload.labels.map(month => month ===
-                            currentMonth ? '#299cdb' : '#405189');
+                            currentMonth ? '#405189' : '#405189');
                         document.getElementById('transactionDatePlot').style.minWidth = Math.max(320, payload.labels
                             .length * 80) + 'px';
                         dateChart.resize();
@@ -1009,7 +1002,9 @@
                             .delete(key));
                         appliedCategories.forEach(category => pageUrl.searchParams.append(
                             'transaction_date_categories[]', category));
-                        [...pageUrl.searchParams.keys()].filter(key => key === 'transaction_date_types' || key.startsWith('transaction_date_types[')).forEach(key => pageUrl.searchParams.delete(key));
+                        [...pageUrl.searchParams.keys()].filter(key => key === 'transaction_date_types' || key
+                            .startsWith('transaction_date_types[')).forEach(key => pageUrl.searchParams.delete(
+                            key));
                         appliedTypes.forEach(type => pageUrl.searchParams.append('transaction_date_types[]', type));
                         window.history.replaceState({}, '', pageUrl);
                         status.textContent = 'Chart updated.';
@@ -1022,7 +1017,7 @@
                         updateCategorySelection();
                         updateTypeSelection();
                         status.textContent =
-                        'Could not update the chart. Please select the filters again to retry.';
+                            'Could not update the chart. Please select the filters again to retry.';
                         status.classList.add('text-danger');
                     } finally {
                         if (version === requestVersion) {
@@ -1152,7 +1147,9 @@
                         plugins: [{
                             id: 'totalTransactionCounts',
                             afterDatasetsDraw(chart) {
-                                const { ctx } = chart;
+                                const {
+                                    ctx
+                                } = chart;
                                 ctx.save();
                                 ctx.font = '600 12px sans-serif';
                                 ctx.fillStyle = '#405189';
@@ -1168,8 +1165,15 @@
                         options: {
                             responsive: true,
                             maintainAspectRatio: false,
-                            layout: { padding: { top: 22 } },
-                            interaction: { mode: 'index', intersect: false },
+                            layout: {
+                                padding: {
+                                    top: 22
+                                }
+                            },
+                            interaction: {
+                                mode: 'index',
+                                intersect: false
+                            },
                             plugins: {
                                 legend: {
                                     display: false
@@ -1178,21 +1182,24 @@
                                     displayColors: false,
                                     callbacks: {
                                         label: function(context) {
-                                            return 'Total: ' + context.parsed.y.toLocaleString() + ' transactions';
+                                            return 'Total: ' + context.parsed.y.toLocaleString() +
+                                                ' transactions';
                                         },
                                         afterBody: function(items) {
                                             if (!items.length) return [];
                                             const index = items[0].dataIndex;
                                             const breakdown = txBreakdown.map(series => ({
-                                                label: series.label,
-                                                count: Number(series.data[index]) || 0
-                                            })).filter(row => row.count > 0)
+                                                    label: series.label,
+                                                    count: Number(series.data[index]) || 0
+                                                })).filter(row => row.count > 0)
                                                 .sort((a, b) => b.count - a.count);
                                             const lines = breakdown.slice(0, 5).map(row =>
                                                 row.label + ': ' + row.count.toLocaleString());
                                             if (breakdown.length > 5) {
-                                                const remaining = breakdown.slice(5).reduce((sum, row) => sum + row.count, 0);
-                                                lines.push('Remaining categories/types: ' + remaining.toLocaleString());
+                                                const remaining = breakdown.slice(5).reduce((sum, row) =>
+                                                    sum + row.count, 0);
+                                                lines.push('Remaining categories/types: ' + remaining
+                                                    .toLocaleString());
                                             }
                                             return lines;
                                         }
@@ -1201,8 +1208,14 @@
                             },
                             scales: {
                                 x: {
-                                    grid: { display: false },
-                                    ticks: { autoSkip: true, maxRotation: 0, maxTicksLimit: 8 }
+                                    grid: {
+                                        display: false
+                                    },
+                                    ticks: {
+                                        autoSkip: true,
+                                        maxRotation: 0,
+                                        maxTicksLimit: 8
+                                    }
                                 },
                                 y: {
                                     beginAtZero: true,
@@ -1461,82 +1474,99 @@
                 const canvas = document.getElementById('serviceCategoryChart');
                 if (!canvas) return;
 
-                const labels = @json($chartLabels);
-                const data = @json($chartData);
-                const colors = @json($chartColors).slice(0, labels.length);
-
-                const serviceChart = new Chart(canvas, {
-                    type: 'doughnut',
+                const sourceLabels = @json($chartLabels);
+                const sourceData = @json($chartData);
+                const servicePalette = @json($chartColors);
+                // Keep each category's original palette color (same as the
+                // Service Categories cards below) so colors stay stable when sorted.
+                const rows = sourceLabels.map((label, i) => ({
+                    label,
+                    count: Number(sourceData[i]) || 0,
+                    color: servicePalette[i % servicePalette.length]
+                })).sort((a, b) => b.count - a.count);
+                const serviceLabels = rows.map(row => row.label);
+                const serviceData = rows.map(row => row.count);
+                const serviceColors = rows.map(row => row.color);
+                const total = serviceData.reduce((sum, count) => sum + count, 0);
+                const valueLabel = count => count.toLocaleString() + ' (' +
+                    (total ? count / total * 100 : 0).toFixed(1) + '%)';
+                const valueLabels = {
+                    id: 'serviceCategoryValues',
+                    afterDatasetsDraw(chart) {
+                        const ctx = chart.ctx;
+                        ctx.save();
+                        ctx.font = '12px sans-serif';
+                        ctx.fillStyle = getComputedStyle(canvas).color;
+                        ctx.textAlign = 'left';
+                        ctx.textBaseline = 'middle';
+                        chart.getDatasetMeta(0).data.forEach((bar, i) => {
+                            ctx.fillText(valueLabel(serviceData[i]), bar.x + 8, bar.y);
+                        });
+                        ctx.restore();
+                    }
+                };
+                // Reserve enough space for the complete count and percentage.
+                const measure = canvas.getContext('2d');
+                measure.font = '12px sans-serif';
+                const labelWidth = Math.max(...serviceData.map(count => measure.measureText(valueLabel(count)).width));
+                new Chart(canvas, {
+                    type: 'bar',
+                    plugins: [valueLabels],
                     data: {
-                        labels: labels,
+                        labels: serviceLabels,
                         datasets: [{
-                            data: data,
-                            backgroundColor: colors,
-                            borderColor: colors,
-                            borderWidth: 2,
-                            hoverOffset: 8
+                            label: 'Transactions',
+                            data: serviceData,
+                            backgroundColor: serviceColors,
+                            borderRadius: 4,
+                            maxBarThickness: 26
                         }]
                     },
                     options: {
+                        indexAxis: 'y',
                         responsive: true,
                         maintainAspectRatio: false,
+                        layout: {
+                            padding: {
+                                right: labelWidth + 16
+                            }
+                        },
+                        scales: {
+                            x: {
+                                beginAtZero: true,
+                                ticks: {
+                                    precision: 0
+                                },
+                                title: {
+                                    display: true,
+                                    text: 'Transactions'
+                                }
+                            },
+                            y: {
+                                grid: {
+                                    display: false
+                                },
+                                ticks: {
+                                    autoSkip: false,
+                                    callback(value) {
+                                        const label = this.getLabelForValue(value);
+                                        return label.match(/.{1,22}(?:\s|$)|.{1,22}/g) || label;
+                                    }
+                                }
+                            }
+                        },
                         plugins: {
                             legend: {
                                 display: false
                             },
                             tooltip: {
                                 callbacks: {
-                                    label: function(context) {
-                                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                                        const pct = total > 0 ? (context.parsed / total * 100).toFixed(1) :
-                                            0;
-                                        return ' ' + context.label + ': ' + context.parsed + ' (' + pct +
-                                            '%)';
-                                    }
+                                    label: context => ' Transactions: ' + valueLabel(context.parsed.x)
                                 }
                             }
-                        },
-                        cutout: '62%'
+                        }
                     }
                 });
-
-                // Custom HTML legend: always lists every category (including
-                // zero-count ones like OTHERS) with count + share. Click toggles
-                // the slice, mirroring the native legend behavior.
-                const legendEl = document.getElementById('serviceCategoryLegend');
-                if (legendEl) {
-                    const legendTotal = data.reduce((a, b) => a + b, 0);
-                    labels.forEach(function(label, i) {
-                        const count = data[i] || 0;
-                        const pct = legendTotal > 0 ? (count / legendTotal * 100).toFixed(1) : '0.0';
-                        const item = document.createElement('button');
-                        item.type = 'button';
-                        item.className =
-                            'btn btn-sm btn-light d-flex align-items-center gap-2 border w-100 text-start';
-                        item.title = 'Toggle ' + label;
-
-                        const dot = document.createElement('span');
-                        dot.style.cssText = 'width:12px;height:12px;border-radius:50%;background:' + colors[i] +
-                            ';flex-shrink:0;';
-
-                        const name = document.createElement('span');
-                        name.textContent = label;
-
-                        const badge = document.createElement('span');
-                        badge.className = 'badge bg-secondary-subtle text-secondary ms-auto';
-                        badge.textContent = count.toLocaleString() + ' (' + pct + '%)';
-
-                        item.appendChild(dot);
-                        item.appendChild(name);
-                        item.appendChild(badge);
-                        item.addEventListener('click', function() {
-                            serviceChart.toggleDataVisibility(i);
-                            serviceChart.update();
-                            item.classList.toggle('opacity-50');
-                        });
-                        legendEl.appendChild(item);
-                    });
-                }
             });
         </script>
         <script>
@@ -1544,82 +1574,97 @@
                 const clientCanvas = document.getElementById('clientCategoryChart');
                 if (!clientCanvas) return;
 
-                const clientLabels = @json($clientCategoryDistribution['labels']);
-                const clientData = @json($clientCategoryDistribution['data']);
+                const sourceLabels = @json($clientCategoryDistribution['labels']);
+                const sourceData = @json($clientCategoryDistribution['data']);
+                const rows = sourceLabels.map((label, i) => ({
+                        label,
+                        count: Number(sourceData[i]) || 0
+                    }))
+                    .sort((a, b) => b.count - a.count);
+                const clientLabels = rows.map(row => row.label);
+                const clientData = rows.map(row => row.count);
                 const clientPalette = @json($chartColors);
-                const clientColors = clientLabels.map((_, i) => clientPalette[i % clientPalette.length]);
-
-                const clientChart = new Chart(clientCanvas, {
-                    type: 'doughnut',
+                const total = clientData.reduce((sum, count) => sum + count, 0);
+                const valueLabel = count => count.toLocaleString() + ' (' +
+                    (total ? count / total * 100 : 0).toFixed(1) + '%)';
+                const valueLabels = {
+                    id: 'clientCategoryValues',
+                    afterDatasetsDraw(chart) {
+                        const ctx = chart.ctx;
+                        ctx.save();
+                        ctx.font = '12px sans-serif';
+                        ctx.fillStyle = getComputedStyle(clientCanvas).color;
+                        ctx.textAlign = 'left';
+                        ctx.textBaseline = 'middle';
+                        chart.getDatasetMeta(0).data.forEach((bar, i) => {
+                            ctx.fillText(valueLabel(clientData[i]), bar.x + 8, bar.y);
+                        });
+                        ctx.restore();
+                    }
+                };
+                // Reserve enough space for the complete count and percentage.
+                const measure = clientCanvas.getContext('2d');
+                measure.font = '12px sans-serif';
+                const labelWidth = Math.max(...clientData.map(count => measure.measureText(valueLabel(count)).width));
+                new Chart(clientCanvas, {
+                    type: 'bar',
+                    plugins: [valueLabels],
                     data: {
                         labels: clientLabels,
                         datasets: [{
+                            label: 'Transactions',
                             data: clientData,
-                            backgroundColor: clientColors,
-                            borderColor: clientColors,
-                            borderWidth: 2,
-                            hoverOffset: 8
+                            backgroundColor: clientLabels.map((_, i) => clientPalette[i % clientPalette
+                                .length]),
+                            borderRadius: 4,
+                            maxBarThickness: 26
                         }]
                     },
                     options: {
+                        indexAxis: 'y',
                         responsive: true,
                         maintainAspectRatio: false,
+                        layout: {
+                            padding: {
+                                right: labelWidth + 16
+                            }
+                        },
+                        scales: {
+                            x: {
+                                beginAtZero: true,
+                                ticks: {
+                                    precision: 0
+                                },
+                                title: {
+                                    display: true,
+                                    text: 'Transactions'
+                                }
+                            },
+                            y: {
+                                grid: {
+                                    display: false
+                                },
+                                ticks: {
+                                    autoSkip: false,
+                                    callback(value) {
+                                        const label = this.getLabelForValue(value);
+                                        return label.match(/.{1,22}(?:\s|$)|.{1,22}/g) || label;
+                                    }
+                                }
+                            }
+                        },
                         plugins: {
                             legend: {
                                 display: false
                             },
                             tooltip: {
                                 callbacks: {
-                                    label: function(context) {
-                                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                                        const pct = total > 0 ? (context.parsed / total * 100).toFixed(1) :
-                                            0;
-                                        return ' ' + context.label + ': ' + context.parsed + ' (' + pct +
-                                            '%)';
-                                    }
+                                    label: context => ' Transactions: ' + valueLabel(context.parsed.x)
                                 }
                             }
-                        },
-                        cutout: '62%'
+                        }
                     }
                 });
-
-                // Custom HTML legend with count + share. Click toggles
-                // the slice, mirroring the native legend behavior.
-                const clientLegendEl = document.getElementById('clientCategoryLegend');
-                if (clientLegendEl) {
-                    const legendTotal = clientData.reduce((a, b) => a + b, 0);
-                    clientLabels.forEach(function(label, i) {
-                        const count = clientData[i] || 0;
-                        const pct = legendTotal > 0 ? (count / legendTotal * 100).toFixed(1) : '0.0';
-                        const item = document.createElement('button');
-                        item.type = 'button';
-                        item.className =
-                            'btn btn-sm btn-light d-flex align-items-center gap-2 border w-100 text-start';
-                        item.title = 'Toggle ' + label;
-
-                        const dot = document.createElement('span');
-                        dot.style.cssText = 'width:12px;height:12px;border-radius:50%;background:' +
-                            clientColors[i] + ';flex-shrink:0;';
-
-                        const name = document.createElement('span');
-                        name.textContent = label;
-
-                        const badge = document.createElement('span');
-                        badge.className = 'badge bg-secondary-subtle text-secondary ms-auto';
-                        badge.textContent = count.toLocaleString() + ' (' + pct + '%)';
-
-                        item.appendChild(dot);
-                        item.appendChild(name);
-                        item.appendChild(badge);
-                        item.addEventListener('click', function() {
-                            clientChart.toggleDataVisibility(i);
-                            clientChart.update();
-                            item.classList.toggle('opacity-50');
-                        });
-                        clientLegendEl.appendChild(item);
-                    });
-                }
             });
         </script>
 

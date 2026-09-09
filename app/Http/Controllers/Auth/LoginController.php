@@ -19,6 +19,8 @@ class LoginController extends Controller
 {
     use AuthenticatesUsers;
 
+    protected $redirectTo = '/dashboard';
+
     public function __construct()
     {
         $this->middleware('guest')->except(['logout', 'locked', 'unlock']);
@@ -50,8 +52,9 @@ class LoginController extends Controller
 
         $request->session()->regenerate();
         $this->finishLogin(Auth::user(), 'login', 'User logged in.');
+        $request->session()->forget('url.intended');
 
-        return redirect()->intended(route('dashboard'))->with('success', 'Login successfully :)');
+        return redirect()->route('dashboard')->with('success', 'Login successfully :)');
     }
 
     public function redirectToAzure(Request $request)
@@ -114,8 +117,9 @@ class LoginController extends Controller
             $request->session()->regenerate();
 
             $this->finishLogin($user, 'login', 'User logged in with ' . ucfirst($provider) . '.');
+            $request->session()->forget('url.intended');
 
-            return redirect()->intended(route('dashboard'))->with('success', 'Login successfully :)');
+            return redirect()->route('dashboard')->with('success', 'Login successfully :)');
         } catch (\Throwable $e) {
             report($e);
 

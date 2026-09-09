@@ -266,7 +266,7 @@
                                             value="{{ request('age_to') }}">
                                     </div> --}}
 
-                                    <div class="col-12 col-md-6 col-xl-3">
+                                    <div class="col-12 col-md-6 col-xl-4">
                                         <label class="form-label fw-semibold text-uppercase small">Client
                                             Category</label>
                                         <div class="dropdown w-100">
@@ -319,15 +319,10 @@
                                         <label for="eventTransactionCategory"
                                             class="form-label fw-semibold text-uppercase small">Transaction
                                             Category</label>
-                                        <select class="form-select" id="eventTransactionCategory"
-                                            name="transaction_category">
-                                            <option value="">All categories</option>
-                                            @foreach ($transactionCategories as $txCategory)
-                                                <option value="{{ $txCategory }}"
-                                                    {{ request('transaction_category') === $txCategory ? 'selected' : '' }}>
-                                                    {{ $txCategory }}</option>
-                                            @endforeach
-                                        </select>
+                                        @include('pages.transaction_events.partials.categoryFilter', [
+                                            'filterId' => 'eventTransactionCategory',
+                                            'filterCategories' => $transactionCategories,
+                                        ])
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
                                         <label class="form-label fw-semibold text-uppercase small">Transaction Type</label>
@@ -402,7 +397,7 @@
                                             value="{{ request('date_to') }}">
                                     </div>
 
-                                    <div class="col-12 col-xl-8 d-flex gap-2 justify-content-end">
+                                    <div class="col-12 col-xl-4 d-flex gap-2 justify-content-end">
                                         <button type="submit" class="btn btn-sm btn-primary px-4">
                                             <i class="ri-filter-3-fill me-1"></i> Apply Filters
                                         </button>
@@ -764,6 +759,7 @@
                                 <small class="text-muted">Detected columns:</small>
                                 <div id="previewColumnsList" class="small mt-1"></div>
                             </div>
+                            <p class="small text-muted">Names are shown as Lastname, Firstname M.I. Hover over a name to see the original. For names without a comma or middle initial, verify the name order in your file before importing.</p>
                             <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
                                 <table class="table table-bordered table-hover align-middle mb-0">
                                     <thead class="table-light" style="position: sticky; top: 0;">
@@ -914,6 +910,7 @@
 @endsection
 
 @push('scripts')
+    <script src="{{ asset('js/import-name.js') }}"></script>
     {{-- SheetJS: parses .xlsx/.xls in the browser so the Excel preview step stays
         client-side (no extra upload). CSV parsing remains dependency-free below. --}}
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -1387,7 +1384,7 @@
                 // targets exactly the rows shown across pages.
                 ['search', 'contact', 'age_from', 'age_to', 'date_from', 'date_to',
                     'event_date_from', 'event_date_to',
-                    'duplicate_names', 'transaction_category'
+                    'duplicate_names'
                 ].forEach((name) => {
                     const value = params.get(name);
                     if (value !== null && value !== '') {
@@ -1397,11 +1394,10 @@
 
                 // Multi-value filters: forward every selected value so
                 // select-all covers the whole filtered population.
-                ['client_category', 'transaction_type'].forEach((name) => {
-                    let values = params.getAll(name + '[]');
-                    if (values.length === 0) {
-                        values = params.getAll(name);
-                    }
+                ['client_category', 'transaction_category', 'transaction_type'].forEach((name) => {
+                    const values = Array.from(params.entries())
+                        .filter(([key]) => key === name || key.startsWith(name + '['))
+                        .map(([, value]) => value);
                     values.filter((v) => v !== '').forEach((value) => {
                         addHidden(name + '[]', value, true);
                     });
@@ -1724,18 +1720,17 @@
                     };
                     ['search', 'contact', 'age_from', 'age_to', 'date_from', 'date_to',
                         'event_date_from', 'event_date_to',
-                        'duplicate_names', 'transaction_category'
+                        'duplicate_names'
                     ].forEach((name) => {
                         const value = params.get(name);
                         if (value !== null && value !== '') {
                             payload[name] = value;
                         }
                     });
-                    ['client_category', 'transaction_type'].forEach((name) => {
-                        let values = params.getAll(name + '[]');
-                        if (values.length === 0) {
-                            values = params.getAll(name);
-                        }
+                    ['client_category', 'transaction_category', 'transaction_type'].forEach((name) => {
+                        let values = Array.from(params.entries())
+                            .filter(([key]) => key === name || key.startsWith(name + '['))
+                            .map(([, value]) => value);
                         values = values.filter((v) => v !== '');
                         if (values.length > 0) {
                             payload[name] = values;
@@ -2293,7 +2288,7 @@
 
                             tr.innerHTML = `
                                 <td>${index + 1}</td>
-                                <td class="fw-semibold">${escapeHtml(row.full_name)}</td>
+                                <td class="fw-semibold" title="${escapeHtml(row.full_name)}">${escapeHtml(ImportName.format(row.full_name))}</td>
                                 <td>${statusBadge}</td>
                                 <td>${escapeHtml(row.age ?? '-')}</td>
                                 <td>${escapeHtml(row.birth_date || '-')}</td>

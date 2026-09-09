@@ -274,8 +274,8 @@ class TransactionEventsController extends Controller
             $query->whereIn('client_category', $clientCategories);
         }
 
-        if ($txCategory = $request->input('transaction_category')) {
-            $query->where('transaction_category', $txCategory);
+        if ($txCategories = $this->multiFilterValues($request, 'transaction_category')) {
+            $query->whereIn('transaction_category', $txCategories);
         }
 
         if ($txTypes = $this->multiFilterValues($request, 'transaction_type')) {
@@ -339,8 +339,8 @@ class TransactionEventsController extends Controller
             $query->whereDate('event_date', '<=', $eventDateTo);
         }
 
-        if ($category = $request->input('transaction_category')) {
-            $query->where('transaction_category', $category);
+        if ($categories = $this->multiFilterValues($request, 'transaction_category')) {
+            $query->whereIn('transaction_category', $categories);
         }
 
         // Handle both single value and multiple values for transaction_type
@@ -2262,22 +2262,7 @@ class TransactionEventsController extends Controller
      */
     private function splitImportFullName(string $fullName): array
     {
-        $trimmed = trim($fullName);
-
-        $suffix = '';
-        if (preg_match('/^(.*)\s+(JR|SR|II|III|IV|V)$/i', $trimmed, $matches)) {
-            $suffix = strtoupper($matches[2]);
-            $trimmed = trim($matches[1]);
-        }
-
-        $parts = preg_split('/\s+/', $trimmed);
-
-        return [
-            'first' => $parts[0] ?? '',
-            'middle' => implode(' ', array_slice($parts, 1, -1)),
-            'last' => $parts[count($parts) - 1] ?? '',
-            'suffix' => $suffix,
-        ];
+        return \App\Support\ImportName::split($fullName);
     }
 
     /**

@@ -15,6 +15,19 @@ class ImportClientReuseTest extends TestCase
 
     private const HEADER = 'full_name,contact_no,address,age,birth_date,client_category,transaction_category,transaction_type,event_date';
 
+    public function test_import_splits_both_name_orders_with_compound_surname(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+
+        $this->importCsv("\"Dela Cruz, Juan Carlos P.\",09170000001,Brgy 1,40,,INDIGENT,BIGAY BIGAS SA MASA,TRANCH 1,2026-09-01\n");
+        $this->assertDatabaseHas('clients', [
+            'first_name' => 'Juan Carlos', 'middle_name' => 'P.', 'last_name' => 'Dela Cruz',
+        ]);
+
+        $this->importCsv("Juan Carlos P. Dela Cruz,09170000001,Brgy 1,40,,INDIGENT,BIGAY BIGAS SA MASA,TRANCH 2,2026-09-02\n");
+        $this->assertDatabaseCount('clients', 1);
+    }
+
     private function importCsv(string $body, array $extra = []): array
     {
         $file = UploadedFile::fake()->createWithContent('reuse.csv', self::HEADER . "\n" . $body);
