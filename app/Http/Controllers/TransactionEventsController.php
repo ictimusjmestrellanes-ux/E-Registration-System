@@ -2463,8 +2463,12 @@ class TransactionEventsController extends Controller
     /**
      * Undo a single transfer.
      */
-    public function undoTransfer(TransactionEvent $event)
+    public function undoTransfer(Request $request, TransactionEvent $event)
     {
+        $redirect = in_array($request->query('duplicate_tab'), ['exact', 'likely', 'full_name'], true)
+            ? redirect()->route('transaction-events.records-duplicates', $request->query())
+            : redirect()->back(302, [], route('transaction-events.records'));
+
         $transaction = null;
         $transactionId = $event->transferred_transaction_id;
 
@@ -2488,11 +2492,11 @@ class TransactionEventsController extends Controller
         }
 
         if ($transaction === null) {
-            return redirect()->route('transaction-events.records')->with('error', 'No transferred transaction was found for this event.');
+            return $redirect->with('error', 'No transferred transaction was found for this event.');
         }
 
         if (TransactionRequirement::query()->where('transaction_id', $transaction->id)->exists()) {
-            return redirect()->route('transaction-events.records')->with('error', 'This transfer cannot be undone because the transaction has uploaded requirements.');
+            return $redirect->with('error', 'This transfer cannot be undone because the transaction has uploaded requirements.');
         }
 
         $linkedTransactionId = $transaction->transaction_id;
@@ -2510,7 +2514,7 @@ class TransactionEventsController extends Controller
             'description' => 'Undid transfer for event and removed linked transaction.',
         ]);
 
-        return redirect()->route('transaction-events.records')->with('success', 'Transfer undone. Transaction ' . $linkedTransactionId . ' was removed and the event is pending again.');
+        return $redirect->with('success', 'Transfer undone. Transaction ' . $linkedTransactionId . ' was removed and the event is pending again.');
     }
 
     /**

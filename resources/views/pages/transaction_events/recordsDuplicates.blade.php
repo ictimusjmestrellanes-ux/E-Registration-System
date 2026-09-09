@@ -35,7 +35,7 @@
                             $totalGroups = ($exactGroupsTotal ?? $exactGroups->count()) + ($likelyGroupsTotal ?? $likelyGroups->count()) + ($similarGroupsTotal ?? $similarGroups->count());
                             $totalDuplicates = $exactCount + $likelyCount + $similarCount;
 
-                            $renderGroup = function ($group) {
+                            $renderGroup = function ($group, $tab) {
                                 $first = $group['events']->first();
                                 $out = '<div class="border rounded-4 p-3 mb-3">';
                                 $out .= '<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">';
@@ -67,7 +67,7 @@
                                     $out .= '<td><span class="badge bg-success-subtle text-success"><i class="ri-check-line me-1"></i>Approved</span></td>';
                                     if (auth()->user()?->role_name !== 'Viewer') {
                                         $out .= '<td class="text-center text-nowrap">';
-                                        $out .= '<form action="' . e(route('transaction-events.undo-transfer', $event)) . '" method="POST" class="d-inline m-0">';
+                                        $out .= '<form action="' . e(route('transaction-events.undo-transfer', array_merge(request()->query(), ['event' => $event, 'duplicate_tab' => $tab]))) . '" method="POST" class="d-inline m-0">';
                                         $out .= csrf_field();
                                         if (feature_allowed('Undo Transfer')) {
                                             $out .= '<button type="submit" class="btn btn-sm btn-soft-warning" onclick="return confirm(\'Undo transfer for event #' . $event->id . ' (' . e($event->full_name) . ')? The created transaction record will be removed and this event will return to pending. The client record will remain.\');" title="Undo transfer"><i class="ri-arrow-go-back-line me-1"></i> Undo Transfer</button>';
@@ -309,7 +309,7 @@
                                     <div class="small">Same <strong>Full Name</strong>, <strong>Birth Date</strong>, <strong>Client Category</strong>, <strong>Transaction Category</strong>, <strong>Transaction Type</strong>, and <strong>Event Date</strong>. High confidence duplicates.</div>
                                 </div>
                                 @forelse ($exactGroups as $group)
-                                    {!! $renderGroup($group) !!}
+                                    {!! $renderGroup($group, 'exact') !!}
                                 @empty
                                     <div class="text-center text-muted py-5">
                                         <i class="ri-check-double-line fs-1 d-block mb-2"></i>
@@ -334,7 +334,7 @@
                                     </div>
                                 </div>
                                 @forelse ($likelyGroups as $group)
-                                    {!! $renderGroup($group) !!}
+                                    {!! $renderGroup($group, 'likely') !!}
                                 @empty
                                     <div class="text-center text-muted py-5">
                                         <i class="ri-check-double-line fs-1 d-block mb-2"></i>
@@ -355,7 +355,7 @@
                                     <div class="small">Same <strong>Full Name</strong> only, ignoring letter case and leading or trailing spaces. Birth dates and transaction details may differ.</div>
                                 </div>
                                 @forelse ($similarGroups as $group)
-                                    {!! $renderGroup($group) !!}
+                                    {!! $renderGroup($group, 'full_name') !!}
                                 @empty
                                     <div class="text-center text-muted py-5">
                                         <i class="ri-check-double-line fs-1 d-block mb-2"></i>
