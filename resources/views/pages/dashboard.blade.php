@@ -493,6 +493,7 @@
                                 <div class="card-header">
                                     <h5 class="mb-0">Client Category Distribution</h5>
                                     <p class="text-muted mb-0">Share of transactions per client category</p>
+                                    @include('pages.partials.clientDistributionFilters')
                                 </div>
                                 <div class="card-body">
                                     <div class="overflow-auto">

@@ -94,6 +94,13 @@ class ProfileController extends Controller
             fn () => $this->clientCategoryDistribution(10)
         );
 
+        $distributionCategories = $this->txMultiFilter($request, 'distribution_category', $this->txCategoryOptions());
+        $distributionTypes = $this->txMultiFilter($request, 'distribution_type', $this->txTypeOptions());
+        if ($distributionCategories !== [] || $distributionTypes !== []) {
+            $clientCategoryDistribution = $this->clientCategoryDistribution(10, $distributionCategories, $distributionTypes);
+        }
+
+
         $clientTrend = Cache::remember(
             'dashboard.client_trend',
             300,
@@ -145,7 +152,7 @@ class ProfileController extends Controller
             )
         );
 
-        return view('pages.dashboard', compact('totalClients', 'totalTransactions', 'txCategoryOptions', 'txCategories', 'txTypeOptions', 'txTypes', 'txVisibleTypes', 'txTrendSuffix', 'categoryCounts', 'categories', 'clientTrend', 'transactionTrend', 'transactionDateTrend', 'transactionDateFrom', 'transactionDateTo', 'transactionDates', 'transactionDateOptions', 'transactionDateCategories', 'transactionDateTypes', 'transactionDateTypeOptions', 'transactionDateVisibleDates', 'caravanTrend', 'recentActivities', 'clientCategoryDistribution'));
+        return view('pages.dashboard', compact('totalClients', 'totalTransactions', 'txCategoryOptions', 'txCategories', 'txTypeOptions', 'txTypes', 'txVisibleTypes', 'txTrendSuffix', 'categoryCounts', 'categories', 'clientTrend', 'transactionTrend', 'transactionDateTrend', 'transactionDateFrom', 'transactionDateTo', 'transactionDates', 'transactionDateOptions', 'transactionDateCategories', 'transactionDateTypes', 'transactionDateTypeOptions', 'transactionDateVisibleDates', 'caravanTrend', 'recentActivities', 'clientCategoryDistribution', 'distributionCategories', 'distributionTypes'));
     }
 
     public function transactionDateTrend(Request $request)
@@ -296,9 +303,11 @@ class ProfileController extends Controller
      *
      * @return array{labels: array, data: array}
      */
-    public function clientCategoryDistribution(int $top = PHP_INT_MAX): array
+    public function clientCategoryDistribution(int $top = PHP_INT_MAX, array $categories = [], array $types = []): array
     {
         $counts = TransactionHistory::query()
+            ->when($categories !== [], fn ($query) => $query->whereIn('category', $categories))
+            ->when($types !== [], fn ($query) => $query->whereIn(DB::raw($this->transactionTypeExpression()), $types))
             ->selectRaw('client_category, count(*) as total')
             ->whereNotNull('client_category')
             ->where('client_category', '<>', '')

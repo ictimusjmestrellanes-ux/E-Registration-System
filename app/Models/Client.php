@@ -129,11 +129,11 @@ class Client extends Model
     protected static function booted()
     {
         static::saved(function () {
-            Cache::forget('duplicate_clients_v1');
+            Cache::forget('duplicate_clients_v2');
         });
 
         static::deleted(function () {
-            Cache::forget('duplicate_clients_v1');
+            Cache::forget('duplicate_clients_v2');
         });
 
         // Keep the dashboard's live-client total and registration trend in

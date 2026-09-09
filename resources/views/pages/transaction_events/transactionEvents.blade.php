@@ -827,7 +827,7 @@
                     </div>
                     <div class="modal-body">
                         <p class="mb-2" id="importDuplicateSummary"></p>
-                        <p class="text-muted small mb-2">Matching rows found in Transaction History or Import Events:</p>
+                        <p class="text-muted small mb-2">Client matches or duplicate rows found in the file or existing records:</p>
                         <div class="table-responsive" style="max-height: 260px; overflow-y: auto;">
                             <table class="table table-sm table-bordered align-middle mb-0">
                                 <thead class="table-light">
@@ -841,16 +841,12 @@
                                 <tbody id="importDuplicateBody"></tbody>
                             </table>
                         </div>
-                        <div class="small text-muted mt-2">“Import Anyway” skips the listed rows and imports the rest.
-                            “Import All Anyway” imports every row as clients + transaction history, even duplicates.</div>
+                        <div class="small text-muted mt-2">“Import Anyway” saves every valid row in this file to Import Events for review, including matching and duplicate rows. No clients or transaction history are created until you transfer the events.</div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal">Cancel</button>
                         <button type="button" class="btn btn-warning px-4" id="importDuplicateContinueBtn">
                             <i class="ri-upload-2-line me-1"></i> Import Anyway
-                        </button>
-                        <button type="button" class="btn btn-danger px-4" id="importForceDirectBtn">
-                            <i class="ri-upload-2-line me-1"></i> Import All Anyway
                         </button>
                     </div>
                 </div>
@@ -1395,9 +1391,10 @@
                 // Multi-value filters: forward every selected value so
                 // select-all covers the whole filtered population.
                 ['client_category', 'transaction_category', 'transaction_type'].forEach((name) => {
-                    const values = Array.from(params.entries())
-                        .filter(([key]) => key === name || key.startsWith(name + '['))
-                        .map(([, value]) => value);
+                    let values = params.getAll(name + '[]');
+                    if (values.length === 0) {
+                        values = params.getAll(name);
+                    }
                     values.filter((v) => v !== '').forEach((value) => {
                         addHidden(name + '[]', value, true);
                     });
@@ -1728,9 +1725,10 @@
                         }
                     });
                     ['client_category', 'transaction_category', 'transaction_type'].forEach((name) => {
-                        let values = Array.from(params.entries())
-                            .filter(([key]) => key === name || key.startsWith(name + '['))
-                            .map(([, value]) => value);
+                        let values = params.getAll(name + '[]');
+                        if (values.length === 0) {
+                            values = params.getAll(name);
+                        }
                         values = values.filter((v) => v !== '');
                         if (values.length > 0) {
                             payload[name] = values;
@@ -2419,6 +2417,14 @@
                 };
 
                 if (!progressModalEl || !progressBar || !progressText || !progressPercent) {
+                    let eventsOnlyInput = importForm.querySelector('input[name="events_only"]');
+                    if (!eventsOnlyInput) {
+                        eventsOnlyInput = document.createElement('input');
+                        eventsOnlyInput.type = 'hidden';
+                        eventsOnlyInput.name = 'events_only';
+                        importForm.appendChild(eventsOnlyInput);
+                    }
+                    eventsOnlyInput.value = eventsOnly ? '1' : '0';
                     if (forceDirect) {
                         let forceInput = importForm.querySelector('input[name="force_direct"]');
                         if (!forceInput) {
@@ -2683,11 +2689,11 @@
                         const suffix = data.duplicates_truncated ?
                             ' (showing first 100 in table below)' : '';
                         document.getElementById('importDuplicateSummary').textContent =
-                            `${Number(data.duplicates_count).toLocaleString()} of ${Number(data.total_rows).toLocaleString()} row(s) in this file already exist in the system (Transaction History or Import Events).${suffix}`;
+                            `${Number(data.duplicates_count).toLocaleString()} of ${Number(data.total_rows).toLocaleString()} row(s) match clients or existing events, or repeat within the file.${suffix}`;
                         bootstrap.Modal.getOrCreateInstance(document.getElementById(
                             'importDuplicateModal')).show();
                         confirmBtn.disabled = false;
-                        return; // wait for user choice; "Import Anyway" skips duplicates, "Import All Anyway" imports everything
+                        return; // Wait for the user to cancel or continue importing.
                     }
 
                     await runImport();
@@ -2701,11 +2707,6 @@
             document.getElementById('importDuplicateContinueBtn')?.addEventListener('click', function() {
                 bootstrap.Modal.getInstance(document.getElementById('importDuplicateModal'))?.hide();
                 runImport(true);
-            });
-
-            document.getElementById('importForceDirectBtn')?.addEventListener('click', function() {
-                bootstrap.Modal.getInstance(document.getElementById('importDuplicateModal'))?.hide();
-                runImport(false, true);
             });
 
             // "Force Create All" in Review Import Data: skip the duplicate

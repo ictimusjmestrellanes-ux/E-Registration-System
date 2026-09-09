@@ -1550,19 +1550,9 @@ class TransactionEventsController extends Controller
         $parsed = $this->importRowsToRecords($rows);
         $records = $parsed['rows'];
 
-        $existing = TransactionHistory::query()
-            ->select(['transaction_date', 'category', 'type', 'events_transaction_type'])
-            ->get()
-            ->map(function ($row) {
-                return [
-                    'date' => $row->transaction_date?->format('Y-m-d') ?? '',
-                    'category' => trim((string) ($row->category ?? '')),
-                    'type' => trim((string) ($row->type ?? '')),
-                    'event_type' => trim((string) ($row->events_transaction_type ?? '')),
-                ];
-            })
-            ->all();
-
+        $nameKey = fn (string $name) => mb_strtolower(implode('|', $this->splitImportFullName($name)));
+        $existingNames = TransactionEvent::query()->pluck('full_name')
+            ->mapWithKeys(fn ($name) => [$nameKey((string) $name) => true])->all();
         $duplicates = [];
         $seen = [];
 
@@ -1571,7 +1561,7 @@ class TransactionEventsController extends Controller
             $eventDate = trim((string) ($record['event_date'] ?? ''));
             $category = trim((string) ($record['transaction_category'] ?? ''));
             $transactionType = trim((string) ($record['transaction_type'] ?? ''));
-            $key = strtolower($fullName) . '|' . $eventDate . '|' . strtolower($category) . '|' . strtolower($transactionType);
+            $key = $nameKey($fullName) . '|' . $eventDate . '|' . strtolower($category) . '|' . strtolower($transactionType);
 
             if (isset($seen[$key])) {
                 $duplicates[] = [
@@ -1585,12 +1575,9 @@ class TransactionEventsController extends Controller
 
             $seen[$key] = true;
 
-            $match = collect($existing)->contains(function ($item) use ($category, $transactionType, $eventDate) {
-                return ($item['category'] === $category || $item['event_type'] === $transactionType)
-                    && ($item['type'] === $transactionType || $item['event_type'] === $transactionType)
-                    && ($item['date'] === $eventDate || $eventDate === '');
-            });
-
+            $birthDate = trim((string) ($record['birth_date'] ?? $record['birthdate'] ?? ''));
+            $match = isset($existingNames[$nameKey($fullName)])
+                || $this->findClientForImport($fullName, $birthDate ?: null) !== null;
             if ($match) {
                 $duplicates[] = [
                     'full_name' => $fullName,
@@ -1601,14 +1588,15 @@ class TransactionEventsController extends Controller
             }
         }
 
+        $duplicateCount = count($duplicates);
         $duplicates = array_slice($duplicates, 0, 100);
 
         return response()->json([
             'success' => true,
             'total_rows' => count($records),
-            'duplicates_count' => count($duplicates),
+            'duplicates_count' => $duplicateCount,
             'duplicates' => $duplicates,
-            'duplicates_truncated' => count($duplicates) >= 100,
+            'duplicates_truncated' => $duplicateCount > 100,
         ]);
     }
 
@@ -1634,6 +1622,7 @@ class TransactionEventsController extends Controller
             'original_filename' => $file->getClientOriginalName(),
             'file_size' => $file->getSize() ?? 0,
             'force_new_clients' => $request->boolean('force_direct'),
+            'events_only' => $request->boolean('events_only'),
         ]);
 
         if (($parsed['skipped'] ?? 0) > 0) {
@@ -1699,7 +1688,7 @@ class TransactionEventsController extends Controller
 
         foreach (array_slice($rows, $offset, $limit) as $index => $record) {
             try {
-                $this->createTransactionHistoryFromImportRow($record, $forceNewClients);
+                $this->storeImportRow($record, (bool) ($payload['events_only'] ?? false), $forceNewClients);
                 $imported++;
             } catch (\Throwable $e) {
                 $failed++;
@@ -1767,7 +1756,7 @@ class TransactionEventsController extends Controller
             $forceNewClients = (bool) ($payload['force_new_clients'] ?? false);
             foreach (array_slice($rows, $processedUpto) as $index => $record) {
                 try {
-                    $this->createTransactionHistoryFromImportRow($record, $forceNewClients);
+                    $this->storeImportRow($record, (bool) ($payload['events_only'] ?? false), $forceNewClients);
                     $imported++;
                 } catch (\Throwable $e) {
                     if (count($errors) < 50) {
@@ -2041,7 +2030,7 @@ class TransactionEventsController extends Controller
 
         $imported = 0;
         foreach ($parsed['rows'] as $record) {
-            $this->createTransactionHistoryFromImportRow($record, $forceNewClients);
+            $this->storeImportRow($record, $request->boolean('events_only'), $forceNewClients);
             $imported++;
         }
 
@@ -2134,6 +2123,29 @@ class TransactionEventsController extends Controller
         ]);
     }
 
+    private function storeImportRow(array $record, bool $eventsOnly, bool $forceNewClient = false): void
+    {
+        if (!$eventsOnly) {
+            $this->createTransactionHistoryFromImportRow($record, $forceNewClient);
+            return;
+        }
+
+        // Stage every valid row, including matches, for later review/transfer.
+        TransactionEvent::create([
+            'full_name' => trim((string) ($record['full_name'] ?? '')),
+            'contact_no' => trim((string) ($record['contact_no'] ?? '')),
+            'address' => trim((string) ($record['address'] ?? '')),
+            'age' => isset($record['age']) && $record['age'] !== '' ? (int) $record['age'] : null,
+            'birth_date' => ($record['birth_date'] ?? $record['birthdate'] ?? '') ?: null,
+            'client_category' => trim((string) ($record['client_category'] ?? '')),
+            'transaction_category' => trim((string) ($record['transaction_category'] ?? '')),
+            'transaction_type' => trim((string) ($record['transaction_type'] ?? '')),
+            'event_date' => ($record['event_date'] ?? '') ?: null,
+            'transferred_at' => null,
+            'transferred_transaction_id' => null,
+        ]);
+    }
+
     private function createTransactionHistoryFromImportRow(array $record, bool $forceNewClient = false): void
     {
         $fullName = trim((string) ($record['full_name'] ?? ''));
@@ -2204,6 +2216,12 @@ class TransactionEventsController extends Controller
 
     private function findOrCreateClientForEvent(string $fullName, array $record, ?string $birthDate = null): Client
     {
+        return $this->findClientForImport($fullName, $birthDate)
+            ?? $this->createClientForImportRow($fullName, $record, $birthDate);
+    }
+
+    private function findClientForImport(string $fullName, ?string $birthDate = null): ?Client
+    {
         $trimmed = trim($fullName);
         if ($trimmed === '') {
             throw new \RuntimeException('Client full name is required.');
@@ -2247,12 +2265,7 @@ class TransactionEventsController extends Controller
             }
         });
 
-        $existing = $query->first();
-        if ($existing) {
-            return $existing;
-        }
-
-        return $this->createClientForImportRow($trimmed, $record, $birthDate);
+        return $query->first();
     }
 
     /**

@@ -36,16 +36,24 @@ class DuplicateReviewController extends Controller
         @ini_set('memory_limit', '512M');
         @set_time_limit(300);
 
-        $cacheKey = 'duplicate_clients_v1';
+        $cacheKey = 'duplicate_clients_v2';
         $cacheTtl = now()->addSeconds(self::DUPLICATE_CLIENTS_CACHE_TTL);
 
         $groups = Cache::remember($cacheKey, $cacheTtl, function () {
-            return [
+            $groups = [
                 'exact' => $this->findExactDuplicates(),
                 'likely' => $this->findLikelyDuplicates(),
                 'similar' => $this->findSimilarSpellingDuplicates(),
             ];
+
+            // Serializing thousands of Eloquent models can exceed the database
+            // cache column (MEDIUMTEXT) and exhaust memory. Cache membership only.
+            return array_map(fn ($category) => $category->map(
+                fn ($group) => $group['clients']->pluck('id')->all()
+            )->all(), $groups);
         });
+
+        $groups = $this->hydrateDuplicateGroups($groups);
 
         $exactGroups = $groups['exact'];
         $likelyGroups = $groups['likely'];
@@ -71,6 +79,31 @@ class DuplicateReviewController extends Controller
                 'perPage' => $perPage,
             ]
         ));
+    }
+
+    /**
+     * Load each cached client once, using bounded queries on large datasets.
+     */
+    private function hydrateDuplicateGroups(array $groups): array
+    {
+        $ids = collect($groups)->flatten()->unique()->values();
+        $clients = collect();
+        foreach ($ids->chunk(1000) as $chunk) {
+            foreach (Client::query()->select([
+                'id', 'client_id', 'first_name', 'middle_name', 'last_name', 'suffix',
+                'age', 'birth_date', 'gender', 'civil_status', 'sector',
+                'email', 'contact', 'contact_2', 'address',
+                'province', 'city', 'barangay', 'photo_path', 'created_at',
+            ])->whereIn('id', $chunk->all())->get() as $client) {
+                $clients->put($client->id, $client);
+            }
+        }
+
+        return array_map(fn ($category) => collect($category)->map(function ($memberIds) use ($clients) {
+            $members = collect($memberIds)->map(fn ($id) => $clients->get($id))->filter()->values();
+
+            return $this->groupPayload($members);
+        })->filter(fn ($group) => $group['total'] > 1)->values(), $groups);
     }
 
     /**
