@@ -1,71 +1,71 @@
-<form id="clientDistributionFilters" action="{{ route('dashboard') }}#clientDistributionFilters" method="GET"
-    class="d-flex flex-wrap align-items-end gap-2 mt-3">
-    @foreach ([
-        ['key' => 'distribution_category', 'label' => 'Transaction categories', 'all' => 'All categories', 'options' => $txCategoryOptions, 'selected' => $distributionCategories],
-        ['key' => 'distribution_type', 'label' => 'Transaction types', 'all' => 'All types', 'options' => $txTypeOptions, 'selected' => $distributionTypes],
-    ] as $filter)
-        <div>
-            <label for="{{ $filter['key'] }}Button" class="form-label small mb-1">{{ $filter['label'] }}</label>
-            <div class="dropdown" data-distribution-filter data-all-label="{{ $filter['all'] }}">
-                <button id="{{ $filter['key'] }}Button" class="btn btn-light border dropdown-toggle" type="button"
-                    data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
-                    <span data-selection-label>{{ count($filter['selected']) ? count($filter['selected']).' selected' : $filter['all'] }}</span>
-                </button>
-                <div class="dropdown-menu p-2" aria-labelledby="{{ $filter['key'] }}Button"
-                    style="min-width: 260px; max-height: 300px; overflow-y: auto;">
-                    <div class="form-check mb-2">
-                        <input type="checkbox" class="form-check-input" id="{{ $filter['key'] }}All" data-all>
-                        <label class="form-check-label fw-semibold" for="{{ $filter['key'] }}All">{{ $filter['all'] }}</label>
-                    </div>
-                    <hr class="my-2">
-                    @forelse ($filter['options'] as $option)
-                        <div class="form-check">
-                            <input type="checkbox" class="form-check-input" id="{{ $filter['key'] }}_{{ $loop->index }}"
-                                name="{{ $filter['key'] }}[]" value="{{ $option }}" data-option
-                                @checked(in_array($option, $filter['selected'], true))>
-                            <label class="form-check-label" for="{{ $filter['key'] }}_{{ $loop->index }}">{{ $option }}</label>
-                        </div>
-                    @empty
-                        <span class="text-muted small">No options available.</span>
-                    @endforelse
-                </div>
+<div class="d-flex flex-wrap gap-2">
+    <div class="dropdown" id="distCategoryDropdown">
+        <button
+            class="btn btn-light border form-select form-select-sm text-start d-flex align-items-center justify-content-between"
+            style="width: 230px; min-width: 200px;" type="button" id="distCategoryBtn" data-bs-toggle="dropdown"
+            data-bs-auto-close="outside" aria-expanded="false"
+            aria-label="Filter client category chart by transaction category"
+            title="Filter by transaction category">
+            <span
+                id="distCategoryLabel">{{ count($distributionCategories ?? []) === 0 || count($distributionCategories ?? []) === count($txCategoryOptions ?? []) ? 'All categories' : (count($distributionCategories) === 1 ? $distributionCategories[0] : count($distributionCategories) . ' selected') }}</span>
+        </button>
+        <div class="dropdown-menu dropdown-menu-end p-2"
+            style="min-width: 230px; max-height: 260px; overflow-y: auto;">
+            <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" id="distCategoryAll"
+                    value="">
+                <label class="form-check-label fw-semibold" for="distCategoryAll">
+                    All categories
+                </label>
             </div>
+            <hr class="my-2">
+            @foreach ($txCategoryOptions ?? [] as $option)
+                <div class="form-check">
+                    <input class="form-check-input dist-category-check" type="checkbox"
+                        id="distCategoryCheck_{{ $loop->index }}"
+                        name="distribution_category[]" value="{{ $option }}"
+                        {{ in_array($option, $distributionCategories ?? []) ? 'checked' : '' }}>
+                    <label class="form-check-label"
+                        for="distCategoryCheck_{{ $loop->index }}">
+                        {{ $option }}
+                    </label>
+                </div>
+            @endforeach
         </div>
-    @endforeach
-    <button class="btn btn-primary" type="submit">Apply Filters</button>
-</form>
-@push('scripts')
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-    const form = document.getElementById('clientDistributionFilters');
-    form.querySelectorAll('[data-distribution-filter]').forEach(dropdown => {
-        const options = Array.from(dropdown.querySelectorAll('[data-option]'));
-        const all = dropdown.querySelector('[data-all]');
-        const label = dropdown.querySelector('[data-selection-label]');
-        function update() {
-            const selected = options.filter(option => option.checked);
-            label.textContent = selected.length === 0 ? dropdown.dataset.allLabel :
-                selected.length === 1 ? selected[0].value : `${selected.length} selected`;
-            all.checked = selected.length === 0 || selected.length === options.length;
-            all.indeterminate = selected.length > 0 && selected.length < options.length;
-        }
-        all.addEventListener('change', () => {
-            options.forEach(option => option.checked = false);
-            update();
-        });
-        options.forEach(option => option.addEventListener('change', update));
-        update();
-    });
-    form.addEventListener('submit', event => {
-        event.preventDefault();
-        const url = new URL(window.location.href);
-        for (const key of Array.from(url.searchParams.keys())) {
-            if (/^distribution_(category|type)(\[.*\])?$/.test(key)) url.searchParams.delete(key);
-        }
-        new FormData(form).forEach((value, key) => url.searchParams.append(key, value));
-        url.hash = 'clientDistributionFilters';
-        window.location.assign(url.toString());
-    });
-});
-</script>
-@endpush
+    </div>
+    <div class="dropdown" id="distTypeDropdown">
+        <button
+            class="btn btn-light border form-select form-select-sm text-start d-flex align-items-center justify-content-between"
+            style="width: 230px" type="button" id="distTypeBtn" data-bs-toggle="dropdown"
+            data-bs-auto-close="outside" aria-expanded="false"
+            aria-label="Filter client category chart by transaction type"
+            title="Filter by transaction type">
+            <span
+                id="distTypeLabel">{{ count($distributionTypes ?? []) === 0 || count($distributionTypes ?? []) === count($txTypeOptions ?? []) ? 'All types' : (count($distributionTypes) === 1 ? $distributionTypes[0] : count($distributionTypes) . ' selected') }}</span>
+        </button>
+        <div class="dropdown-menu dropdown-menu-end p-2"
+            style="min-width: 230px; max-height: 260px; overflow-y: auto;">
+            <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" id="distTypeAll"
+                    value="">
+                <label class="form-check-label fw-semibold" for="distTypeAll">
+                    All types
+                </label>
+            </div>
+            <hr class="my-2">
+            @foreach ($txTypeOptions ?? [] as $option)
+                <div class="form-check"
+                    @if (!in_array($option, $distVisibleTypes ?? ($txTypeOptions ?? []))) style="display: none;" @endif>
+                    <input class="form-check-input dist-type-check" type="checkbox"
+                        id="distTypeCheck_{{ $loop->index }}"
+                        name="distribution_type[]" value="{{ $option }}"
+                        {{ in_array($option, $distributionTypes ?? []) ? 'checked' : '' }}>
+                    <label class="form-check-label"
+                        for="distTypeCheck_{{ $loop->index }}">
+                        {{ $option }}
+                    </label>
+                </div>
+            @endforeach
+        </div>
+    </div>
+</div>

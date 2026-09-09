@@ -283,7 +283,7 @@
                             <div class="dropdown" id="transactionDateCategoryDropdown">
                                 <button
                                     class="btn btn-light border form-select form-select-sm text-start d-flex align-items-center justify-content-between"
-                                    style="width: 190px;" type="button" id="transactionDateCategoryBtn"
+                                    style="width: 220px;" type="button" id="transactionDateCategoryBtn"
                                     data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false"
                                     aria-controls="transactionDateCategoryMenu"
                                     aria-label="Filter monthly transactions by transaction category">
@@ -292,11 +292,7 @@
                                 </button>
                                 <div class="dropdown-menu dropdown-menu-end p-3" id="transactionDateCategoryMenu"
                                     aria-labelledby="transactionDateCategoryBtn"
-                                    style="width: 190px; max-width: calc(100vw - 40px);">
-                                    <label for="transactionDateCategorySearch" class="visually-hidden">Search transaction
-                                        categories</label>
-                                    <input type="search" id="transactionDateCategorySearch"
-                                        class="form-control form-control-sm mb-2" placeholder="Search categories…">
+                                    style="width: 220px; max-width: calc(100vw - 40px);">
                                     <div class="form-check mb-2">
                                         <input class="form-check-input" type="checkbox" id="transactionDateCategoryAll"
                                             {{ $transactionDateCategories === [] ? 'checked' : '' }}>
@@ -319,8 +315,6 @@
                                             <p class="text-muted small mb-0">No transaction categories available.</p>
                                         @endforelse
                                     </div>
-                                    <p class="text-muted small mb-0 d-none" id="transactionDateCategoryNoMatches">No
-                                        matching categories.</p>
                                 </div>
                             </div>
                             <div class="dropdown" id="transactionDateTypeDropdown">
@@ -336,10 +330,6 @@
                                 <div class="dropdown-menu dropdown-menu-end p-3" id="transactionDateTypeMenu"
                                     aria-labelledby="transactionDateTypeBtn"
                                     style="width: 220px; max-width: calc(100vw - 40px);">
-                                    <label for="transactionDateTypeSearch" class="visually-hidden">Search transaction
-                                        types</label>
-                                    <input type="search" id="transactionDateTypeSearch"
-                                        class="form-control form-control-sm mb-2" placeholder="Search types…">
                                     <div class="form-check mb-2">
                                         <input class="form-check-input" type="checkbox" id="transactionDateTypeAll"
                                             {{ $transactionDateTypes === [] ? 'checked' : '' }}>
@@ -364,8 +354,6 @@
                                             <p class="text-muted small mb-0">No transaction types available.</p>
                                         @endforelse
                                     </div>
-                                    <p class="text-muted small mb-0 d-none" id="transactionDateTypeNoMatches">No
-                                        matching types.</p>
                                 </div>
                             </div>
                             <div class="dropdown" id="transactionDateDropdown">
@@ -388,12 +376,6 @@
                                         @foreach ($txTypes as $type)
                                             <input type="hidden" name="tx_type[]" value="{{ $type }}">
                                         @endforeach
-                                        <div class="col-12">
-                                            <label for="transactionDateSearch" class="visually-hidden">Search transaction
-                                                dates</label>
-                                            <input type="search" id="transactionDateSearch"
-                                                class="form-control form-control-sm" placeholder="Search dates…">
-                                        </div>
                                         <div class="col-12">
                                             <div class="form-check mb-2">
                                                 <input class="form-check-input" type="checkbox" id="transactionDateAll"
@@ -421,8 +403,6 @@
                                                     <p class="text-muted small mb-0">No transaction dates available.</p>
                                                 @endforelse
                                             </div>
-                                            <p class="text-muted small mb-0 d-none" id="transactionDateNoMatches">No
-                                                matching dates.</p>
                                         </div>
                                         @if ($errors->has('transaction_dates') || $errors->has('transaction_dates.*'))
                                             <div class="col-12 text-danger small" role="alert">Select valid transaction
@@ -490,24 +470,25 @@
                         <!-- Client Category Chart -->
                         <div class="col-12">
                             <div class="card material-shadow distribution-card">
-                                <div class="card-header">
-                                    <h5 class="mb-0">Client Category Distribution</h5>
-                                    <p class="text-muted mb-0">Share of transactions per client category</p>
+                                <div class="card-header d-flex flex-wrap gap-2 align-items-center justify-content-between">
+                                    <div>
+                                        <h5 class="mb-0">Client Category Distribution</h5>
+                                        <p class="text-muted mb-0">Share of transactions per client category</p>
+                                    </div>
                                     @include('pages.partials.clientDistributionFilters')
                                 </div>
                                 <div class="card-body">
                                     <div class="overflow-auto">
-                                        <div
+                                        <div id="clientCategoryPlot"
                                             style="position: relative; min-width: 420px; height: {{ max(200, count($clientCategoryDistribution['data']) * 25 + 40) }}px;">
-                                            @if (array_sum($clientCategoryDistribution['data']) > 0)
-                                                <canvas id="clientCategoryChart" role="img"
-                                                    aria-label="Transactions by client category, sorted from highest to lowest"></canvas>
-                                            @else
-                                                <div class="d-flex align-items-center justify-content-center h-100 text-center text-muted"
-                                                    role="status">
-                                                    No transactions with a client category are available.
-                                                </div>
-                                            @endif
+                                            <canvas id="clientCategoryChart" role="img"
+                                                aria-label="Transactions by client category, sorted from highest to lowest"
+                                                class="{{ array_sum($clientCategoryDistribution['data']) > 0 ? '' : 'd-none' }}"></canvas>
+                                        </div>
+                                        <div id="clientCategoryEmpty"
+                                            class="{{ array_sum($clientCategoryDistribution['data']) > 0 ? 'd-none' : '' }} d-flex align-items-center justify-content-center text-center text-muted"
+                                            role="status" style="min-height: 200px;">
+                                            No transactions with a client category are available.
                                         </div>
                                     </div>
                                 </div>
@@ -734,7 +715,6 @@
                     const dateFilterButton = document.getElementById('transactionDateBtn');
                     if (dateFilterButton && window.bootstrap?.Dropdown) {
                         bootstrap.Dropdown.getOrCreateInstance(dateFilterButton).show();
-                        document.getElementById('transactionDateSearch')?.focus();
                     }
                 @endif
                 const dateChecks = [...document.querySelectorAll('.transaction-date-check')];
@@ -759,18 +739,6 @@
                     updateCategorySelection();
                     refreshDateChart();
                 }));
-                document.getElementById('transactionDateCategorySearch').addEventListener('input', event => {
-                    const search = event.target.value.trim().toLowerCase();
-                    let matches = 0;
-                    categoryChecks.forEach(input => {
-                        const visible = input.value.toLowerCase().includes(search);
-                        input.closest('.transaction-date-category-option').classList.toggle('d-none', !
-                            visible);
-                        if (visible) matches++;
-                    });
-                    document.getElementById('transactionDateCategoryNoMatches').classList.toggle('d-none',
-                        matches > 0 || categoryChecks.length === 0);
-                });
                 const typeChecks = [...document.querySelectorAll('.transaction-date-type-check')];
                 const allTypes = document.getElementById('transactionDateTypeAll');
                 const typeLabel = document.getElementById('transactionDateTypeLabel');
@@ -789,7 +757,6 @@
                     updateTypeSelection();
                     refreshDateChart();
                 }));
-                document.getElementById('transactionDateTypeSearch').addEventListener('input', updateOptionVisibility);
                 const allDates = document.getElementById('transactionDateAll');
                 const dateLabel = document.getElementById('transactionDateLabel');
                 const updateDateSelection = () => {
@@ -808,37 +775,23 @@
                     updateDateSelection();
                     refreshDateChart();
                 }));
-                document.getElementById('transactionDateSearch').addEventListener('input', updateOptionVisibility);
 
                 function updateOptionVisibility() {
-                    const typeSearch = document.getElementById('transactionDateTypeSearch').value.trim().toLowerCase();
-                    const dateSearch = document.getElementById('transactionDateSearch').value.trim().toLowerCase();
-                    let typeMatches = 0;
-                    let dateMatches = 0;
                     typeChecks.forEach(input => {
                         const allowed = availableTypes.has(input.value);
-                        const visible = allowed && input.value.toLowerCase().includes(typeSearch);
                         input.disabled = loadingOptions || !allowed;
-                        input.closest('.transaction-date-type-option').classList.toggle('d-none', !visible);
-                        if (visible) typeMatches++;
+                        input.closest('.transaction-date-type-option').classList.toggle('d-none', !allowed);
                     });
                     dateChecks.forEach(input => {
                         const row = input.closest('.transaction-date-option');
                         const allowed = availableDates.has(input.value);
-                        const visible = allowed && (row.textContent + ' ' + input.value).toLowerCase().includes(
-                            dateSearch);
                         input.disabled = loadingOptions || !allowed;
-                        row.classList.toggle('d-none', !visible);
-                        if (visible) dateMatches++;
+                        row.classList.toggle('d-none', !allowed);
                     });
                     allTypes.disabled = loadingOptions;
                     allDates.disabled = loadingOptions;
                     document.getElementById('transactionDateTypeBtn').disabled = loadingOptions;
                     document.getElementById('transactionDateBtn').disabled = loadingOptions;
-                    document.getElementById('transactionDateTypeNoMatches').classList.toggle('d-none', typeMatches >
-                        0 || typeChecks.length === 0);
-                    document.getElementById('transactionDateNoMatches').classList.toggle('d-none', dateMatches > 0 ||
-                        dateChecks.length === 0);
                 }
                 updateOptionVisibility();
                 const canvas = document.getElementById('transactionDateChart');
@@ -1573,32 +1526,37 @@
         <script>
             document.addEventListener('DOMContentLoaded', function() {
                 const clientCanvas = document.getElementById('clientCategoryChart');
+                const clientPlot = document.getElementById('clientCategoryPlot');
+                const clientEmpty = document.getElementById('clientCategoryEmpty');
                 if (!clientCanvas) return;
 
-                const sourceLabels = @json($clientCategoryDistribution['labels']);
-                const sourceData = @json($clientCategoryDistribution['data']);
-                const rows = sourceLabels.map((label, i) => ({
+                const clientPalette = @json($chartColors);
+                const buildRows = (labels, data) => (labels || []).map((label, i) => ({
                         label,
-                        count: Number(sourceData[i]) || 0
+                        count: Number((data || [])[i]) || 0
                     }))
                     .sort((a, b) => b.count - a.count);
-                const clientLabels = rows.map(row => row.label);
-                const clientData = rows.map(row => row.count);
-                const clientPalette = @json($chartColors);
-                const total = clientData.reduce((sum, count) => sum + count, 0);
-                const valueLabel = count => count.toLocaleString() + ' (' +
-                    (total ? count / total * 100 : 0).toFixed(1) + '%)';
+                let currentRows = buildRows(@json($clientCategoryDistribution['labels']), @json($clientCategoryDistribution['data']));
+                let clientLabels = currentRows.map(row => row.label);
+                let clientData = currentRows.map(row => row.count);
+                let clientTotal = clientData.reduce((sum, count) => sum + count, 0);
+                const valueLabel = count => Number(count).toLocaleString() + ' (' +
+                    (clientTotal ? Number(count) / clientTotal * 100 : 0).toFixed(1) + '%)';
                 const valueLabels = {
                     id: 'clientCategoryValues',
                     afterDatasetsDraw(chart) {
                         const ctx = chart.ctx;
+                        const liveData = chart.data.datasets[0]?.data || [];
+                        const liveTotal = liveData.reduce((sum, count) => sum + (Number(count) || 0), 0);
                         ctx.save();
                         ctx.font = '12px sans-serif';
                         ctx.fillStyle = getComputedStyle(clientCanvas).color;
                         ctx.textAlign = 'left';
                         ctx.textBaseline = 'middle';
                         chart.getDatasetMeta(0).data.forEach((bar, i) => {
-                            ctx.fillText(valueLabel(clientData[i]), bar.x + 8, bar.y);
+                            const count = Number(liveData[i]) || 0;
+                            ctx.fillText(count.toLocaleString() + ' (' +
+                                (liveTotal ? count / liveTotal * 100 : 0).toFixed(1) + '%)', bar.x + 8, bar.y);
                         });
                         ctx.restore();
                     }
@@ -1606,8 +1564,14 @@
                 // Reserve enough space for the complete count and percentage.
                 const measure = clientCanvas.getContext('2d');
                 measure.font = '12px sans-serif';
-                const labelWidth = Math.max(...clientData.map(count => measure.measureText(valueLabel(count)).width));
-                new Chart(clientCanvas, {
+                const measureWidth = (labels, data) => {
+                    const total = (data || []).reduce((sum, count) => sum + (Number(count) || 0), 0);
+                    const widths = (data || []).map(count => measure.measureText(
+                        Number(count).toLocaleString() + ' (' +
+                        (total ? Number(count) / total * 100 : 0).toFixed(1) + '%)').width);
+                    return widths.length ? Math.max(...widths) : 80;
+                };
+                const distChart = new Chart(clientCanvas, {
                     type: 'bar',
                     plugins: [valueLabels],
                     data: {
@@ -1627,7 +1591,7 @@
                         maintainAspectRatio: false,
                         layout: {
                             padding: {
-                                right: labelWidth + 16
+                                right: measureWidth(clientLabels, clientData) + 16
                             }
                         },
                         scales: {
@@ -1666,6 +1630,189 @@
                         }
                     }
                 });
+
+                const setDistData = (labels, data) => {
+                    currentRows = buildRows(labels, data);
+                    clientLabels = currentRows.map(row => row.label);
+                    clientData = currentRows.map(row => row.count);
+                    clientTotal = clientData.reduce((sum, count) => sum + count, 0);
+                    const hasData = clientTotal > 0;
+                    clientCanvas.classList.toggle('d-none', !hasData);
+                    if (clientEmpty) clientEmpty.classList.toggle('d-none', hasData);
+                    if (clientPlot) {
+                        clientPlot.style.height = Math.max(200, clientData.length * 25 + 40) + 'px';
+                    }
+                    if (!hasData) return;
+                    distChart.data.labels = clientLabels;
+                    distChart.data.datasets[0].data = clientData;
+                    distChart.data.datasets[0].backgroundColor = clientLabels.map((_, i) => clientPalette[i %
+                        clientPalette.length]);
+                    distChart.options.layout.padding.right = measureWidth(clientLabels, clientData) + 16;
+                    distChart.resize();
+                    distChart.update();
+                };
+
+                // Multi-select dropdowns mirror the Total Transactions chart:
+                // an "All" master checkbox plus one box per option. Unticking
+                // everything and ticking everything both mean "no filter".
+                let distUpdatingAll = false; // guard against circular updates
+                const distMultiState = (boxCls) => {
+                    const boxes = [...document.querySelectorAll('.' + boxCls)].filter((box) => {
+                        const row = box.closest('.form-check');
+                        return !row || row.style.display !== 'none';
+                    });
+                    const checked = boxes.filter((b) => b.checked).map((b) => b.value);
+                    return {
+                        boxes,
+                        values: checked.length === boxes.length ? [] : checked
+                    };
+                };
+                const distUpdateMultiLabel = (boxCls, allBoxId, labelId, allText) => {
+                    // Hidden options (filtered out by the other dropdown) don't count.
+                    const boxes = [...document.querySelectorAll('.' + boxCls)].filter((b) => {
+                        const row = b.closest('.form-check');
+                        return !row || row.style.display !== 'none';
+                    });
+                    const labelEl = document.getElementById(labelId);
+                    const allBox = document.getElementById(allBoxId);
+                    const checkedCount = boxes.filter((b) => b.checked).length;
+                    if (labelEl) {
+                        labelEl.textContent = (checkedCount === 0 || checkedCount === boxes
+                                .length) ? allText :
+                            (checkedCount === 1 ? boxes.find((b) => b.checked).value :
+                                checkedCount + ' selected');
+                    }
+                    if (allBox && !distUpdatingAll) {
+                        distUpdatingAll = true;
+                        allBox.checked = checkedCount === 0 || checkedCount === boxes.length;
+                        allBox.indeterminate = checkedCount > 0 && checkedCount < boxes.length;
+                        distUpdatingAll = false;
+                    }
+                };
+                const distSyncMultiLabels = () => {
+                    distUpdateMultiLabel('dist-category-check', 'distCategoryAll', 'distCategoryLabel',
+                        'All categories');
+                    distUpdateMultiLabel('dist-type-check', 'distTypeAll', 'distTypeLabel', 'All types');
+                };
+                const distPageUrl = (categories, types) => {
+                    const pageUrl = new URL(window.location.href);
+                    ['distribution_category', 'distribution_category[]', 'distribution_type', 'distribution_type[]'].forEach((key) =>
+                        pageUrl.searchParams.delete(key));
+                    [...pageUrl.searchParams.keys()].filter(key => key.startsWith('distribution_category[') || key.startsWith('distribution_type['))
+                        .forEach(key => pageUrl.searchParams.delete(key));
+                    categories.forEach((v) => pageUrl.searchParams.append('distribution_category[]', v));
+                    types.forEach((v) => pageUrl.searchParams.append('distribution_type[]', v));
+                    return pageUrl.toString();
+                };
+                // Ignore stale responses when several boxes are ticked quickly.
+                let distRequestId = 0;
+                // Refresh only the graph (no page reload); fall back to a
+                // full reload only if the data request itself fails.
+                const reloadDistChart = async function() {
+                    const categories = distMultiState('dist-category-check').values;
+                    const types = distMultiState('dist-type-check').values;
+                    const myRequest = ++distRequestId;
+                    try {
+                        const url = new URL('{{ route('dashboard.client-distribution') }}', window
+                            .location.origin);
+                        categories.forEach((v) => url.searchParams.append('distribution_category[]', v));
+                        types.forEach((v) => url.searchParams.append('distribution_type[]', v));
+                        const res = await fetch(url.toString(), {
+                            headers: {
+                                'Accept': 'application/json'
+                            }
+                        });
+                        const payload = await res.json();
+                        if (myRequest !== distRequestId) {
+                            return;
+                        }
+                        if (!res.ok || !payload.success) {
+                            throw new Error(payload.message || 'Failed to load graph data.');
+                        }
+                        setDistData(payload.labels, payload.data);
+                        window.history.replaceState(null, '', distPageUrl(categories, types));
+                    } catch (error) {
+                        if (myRequest === distRequestId) {
+                            window.location.href = distPageUrl(categories, types);
+                        }
+                    }
+                };
+                // Cascading menus: the Type list shows only types occurring in
+                // the selected categories. Hidden options are unchecked (they
+                // contribute zero rows under the current categories anyway).
+                let distTypesRequestId = 0;
+                const distApplyTypeVisibility = async () => {
+                    const myRequest = ++distTypesRequestId;
+                    try {
+                        const categories = distMultiState('dist-category-check').values;
+                        const url = new URL('{{ route('dashboard.client-distribution.types') }}',
+                            window.location.origin);
+                        categories.forEach((v) => url.searchParams.append('distribution_category[]', v));
+                        const res = await fetch(url.toString(), {
+                            headers: {
+                                'Accept': 'application/json'
+                            }
+                        });
+                        const payload = await res.json();
+                        if (myRequest !== distTypesRequestId || !res.ok || !payload.success) {
+                            return;
+                        }
+                        const allowed = new Set(payload.types || []);
+                        document.querySelectorAll('.dist-type-check').forEach((box) => {
+                            const row = box.closest('.form-check');
+                            const show = allowed.has(box.value);
+                            if (row) {
+                                row.style.display = show ? '' : 'none';
+                            }
+                            if (!show) {
+                                box.checked = false;
+                            }
+                        });
+                        distSyncMultiLabels();
+                    } catch (error) {
+                        // Menu stays as-is; the chart reload still applies the filter.
+                    }
+                };
+                document.querySelectorAll('.dist-category-check').forEach((box) => {
+                    box.addEventListener('change', async () => {
+                        distSyncMultiLabels();
+                        await distApplyTypeVisibility();
+                        reloadDistChart();
+                    });
+                });
+                document.querySelectorAll('.dist-type-check').forEach((box) => {
+                    box.addEventListener('change', () => {
+                        distSyncMultiLabels();
+                        reloadDistChart();
+                    });
+                });
+                [
+                    ['distCategoryAll', 'dist-category-check', true],
+                    ['distTypeAll', 'dist-type-check', false]
+                ].forEach(([allId, cls, isCategory]) => {
+                    const allBox = document.getElementById(allId);
+                    if (allBox) {
+                        allBox.addEventListener('change', async function() {
+                            if (distUpdatingAll) {
+                                return;
+                            }
+                            // The Type "All" only covers visible options.
+                            document.querySelectorAll('.' + cls).forEach((b) => {
+                                const row = b.closest('.form-check');
+                                if (!row || row.style.display !== 'none') {
+                                    b.checked = this.checked;
+                                }
+                            });
+                            distSyncMultiLabels();
+                            if (isCategory) {
+                                await distApplyTypeVisibility();
+                            }
+                            reloadDistChart();
+                        });
+                    }
+                });
+                // Initialize labels/master state on page load.
+                distSyncMultiLabels();
             });
         </script>
 

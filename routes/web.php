@@ -41,6 +41,8 @@ Route::group(['namespace' => 'App\Http\Controllers'], function () {
         Route::get('dashboard/transaction-trend', [ProfileController::class, 'transactionTrend'])->name('dashboard.transaction-trend');
         Route::get('dashboard/transaction-date-trend', [ProfileController::class, 'transactionDateTrend'])->name('dashboard.transaction-date-trend');
         Route::get('dashboard/transaction-trend/types', [ProfileController::class, 'transactionTrendTypes'])->name('dashboard.transaction-trend.types');
+        Route::get('dashboard/client-distribution', [ProfileController::class, 'clientDistributionData'])->name('dashboard.client-distribution');
+        Route::get('dashboard/client-distribution/types', [ProfileController::class, 'clientDistributionTypes'])->name('dashboard.client-distribution.types');
 
         // --------------------- Activity Logs ------------------//
         Route::get('activity-logs', [ActivityLogsController::class, 'index'])->name('activity.logs');

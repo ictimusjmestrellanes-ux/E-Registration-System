@@ -88,15 +88,27 @@ class ProfileController extends Controller
 
         $categories = TransactionHistory::CATEGORIES;
 
-        $clientCategoryDistribution = Cache::remember(
-            'dashboard.client_category_counts',
-            300,
-            fn () => $this->clientCategoryDistribution(10)
-        );
+        $txCategoryOptions = $this->txCategoryOptions();
+        $txTypeOptions = $this->txTypeOptions();
 
-        $distributionCategories = $this->txMultiFilter($request, 'distribution_category', $this->txCategoryOptions());
-        $distributionTypes = $this->txMultiFilter($request, 'distribution_type', $this->txTypeOptions());
-        if ($distributionCategories !== [] || $distributionTypes !== []) {
+        $distributionCategories = $this->txMultiFilter($request, 'distribution_category', $txCategoryOptions);
+        $distributionTypes = $this->txMultiFilter($request, 'distribution_type', $txTypeOptions);
+        // Cascading dropdowns (same flow as Total Transactions chart):
+        // the Type menu lists only types that occur in the selected
+        // categories (all types when nothing is picked).
+        $distVisibleTypes = $distributionCategories === []
+            ? $txTypeOptions
+            : $this->txTypesForCategories($distributionCategories);
+        // Drop pre-selected types that the current categories hide so the
+        // menu, chart, and URL always agree.
+        $distributionTypes = array_values(array_intersect($distributionTypes, $distVisibleTypes));
+        if ($distributionCategories === [] && $distributionTypes === []) {
+            $clientCategoryDistribution = Cache::remember(
+                'dashboard.client_category_counts',
+                300,
+                fn () => $this->clientCategoryDistribution(10)
+            );
+        } else {
             $clientCategoryDistribution = $this->clientCategoryDistribution(10, $distributionCategories, $distributionTypes);
         }
 
@@ -110,9 +122,6 @@ class ProfileController extends Controller
         // Optional multi-select category/type filters for the Total
         // Transactions graph (?tx_category[]=…&tx_type[]=…). All combos slice
         // one cached month x category x type grid so every option stays instant.
-        $txCategoryOptions = $this->txCategoryOptions();
-        $txTypeOptions = $this->txTypeOptions();
-
         $txCategories = $this->txMultiFilter($request, 'tx_category', $txCategoryOptions);
         $txTypes = $this->txMultiFilter($request, 'tx_type', $txTypeOptions);
 
@@ -152,7 +161,7 @@ class ProfileController extends Controller
             )
         );
 
-        return view('pages.dashboard', compact('totalClients', 'totalTransactions', 'txCategoryOptions', 'txCategories', 'txTypeOptions', 'txTypes', 'txVisibleTypes', 'txTrendSuffix', 'categoryCounts', 'categories', 'clientTrend', 'transactionTrend', 'transactionDateTrend', 'transactionDateFrom', 'transactionDateTo', 'transactionDates', 'transactionDateOptions', 'transactionDateCategories', 'transactionDateTypes', 'transactionDateTypeOptions', 'transactionDateVisibleDates', 'caravanTrend', 'recentActivities', 'clientCategoryDistribution', 'distributionCategories', 'distributionTypes'));
+        return view('pages.dashboard', compact('totalClients', 'totalTransactions', 'txCategoryOptions', 'txCategories', 'txTypeOptions', 'txTypes', 'txVisibleTypes', 'txTrendSuffix', 'categoryCounts', 'categories', 'clientTrend', 'transactionTrend', 'transactionDateTrend', 'transactionDateFrom', 'transactionDateTo', 'transactionDates', 'transactionDateOptions', 'transactionDateCategories', 'transactionDateTypes', 'transactionDateTypeOptions', 'transactionDateVisibleDates', 'caravanTrend', 'recentActivities', 'clientCategoryDistribution', 'distributionCategories', 'distributionTypes', 'distVisibleTypes'));
     }
 
     public function transactionDateTrend(Request $request)
@@ -366,6 +375,48 @@ class ProfileController extends Controller
             'success' => true,
             'categories' => $txCategories,
             'types' => $txCategories === [] ? $this->txTypeOptions() : $this->txTypesForCategories($txCategories),
+        ]);
+    }
+
+    /**
+     * JSON feed for the Client Category Distribution chart so its
+     * category/type filters refresh only the chart (no page reload),
+     * mirroring the Total Transactions chart flow.
+     */
+    public function clientDistributionData(Request $request)
+    {
+        $categories = $this->txMultiFilter($request, 'distribution_category', $this->txCategoryOptions());
+        $types = $this->txMultiFilter($request, 'distribution_type', $this->txTypeOptions());
+
+        if ($categories !== []) {
+            $types = array_values(array_intersect($types, $this->txTypesForCategories($categories)));
+        }
+
+        $distribution = $this->clientCategoryDistribution(10, $categories, $types);
+
+        return response()->json([
+            'success' => true,
+            'categories' => $categories,
+            'types' => $types,
+            'labels' => $distribution['labels'],
+            'data' => $distribution['data'],
+            'total' => array_sum($distribution['data']),
+        ]);
+    }
+
+    /**
+     * Distinct transaction types occurring in the given distribution
+     * categories (all types when empty). Backs the cascading Type menu
+     * of the Client Category Distribution chart.
+     */
+    public function clientDistributionTypes(Request $request)
+    {
+        $categories = $this->txMultiFilter($request, 'distribution_category', $this->txCategoryOptions());
+
+        return response()->json([
+            'success' => true,
+            'categories' => $categories,
+            'types' => $categories === [] ? $this->txTypeOptions() : $this->txTypesForCategories($categories),
         ]);
     }
 

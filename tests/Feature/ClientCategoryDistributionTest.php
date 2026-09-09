@@ -61,8 +61,21 @@ class ClientCategoryDistributionTest extends TestCase
             ->assertViewHas('txCategories', []);
 
         $this->get(route('dashboard', ['distribution_category' => ['Education'], 'distribution_type' => ['Consultation']]))
-            ->assertOk()->assertViewHas('clientCategoryDistribution', ['labels' => [], 'data' => []])
-            ->assertSee('No transactions with a client category are available.');
+            // Consultation does not occur in Education, so the cascading Type
+            // menu (same flow as the Total Transactions chart) drops it and
+            // the URL self-heals to the Education-only slice.
+            ->assertOk()->assertViewHas('distributionTypes', [])
+            ->assertViewHas('distVisibleTypes', ['Rice'])
+            ->assertViewHas('clientCategoryDistribution', ['labels' => ['LUPON'], 'data' => [1]]);
+
+        $this->getJson(route('dashboard.client-distribution', ['distribution_category' => ['Education'], 'distribution_type' => ['Consultation']]))
+            ->assertOk()->assertJsonPath('success', true)
+            ->assertJsonPath('types', [])
+            ->assertJsonPath('labels', ['LUPON'])
+            ->assertJsonPath('data', [1]);
+
+        $this->getJson(route('dashboard.client-distribution.types', ['distribution_category' => ['Education']]))
+            ->assertOk()->assertJsonPath('types', ['Rice']);
 
         $this->get(route('dashboard'))->assertOk()->assertViewHas('clientCategoryDistribution',
             fn ($distribution) => array_sum($distribution['data']) === 4);

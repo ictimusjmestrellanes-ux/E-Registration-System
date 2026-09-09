@@ -16,12 +16,9 @@
             $out = '<div class="border rounded-4 p-3 mb-3">';
             $out .= '<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">';
             $out .= '<div>';
-            $out .= '<h6 class="mb-0">' . e($first->full_name);
+            $out .= '<h6 class="mb-0">' . e($first->full_name) . ' (' . e($first->transferredTransaction?->transaction_id ?? '-') . ')';
             $out .=
                 ' <span class="badge bg-danger-subtle text-danger ms-1">' . $group['total'] . ' records</span></h6>';
-            $out .=
-                '<p class="text-muted small mb-0">Birth date: ' .
-                e(optional($first->birth_date)->format('M d, Y') ?? '-');
             $out .= ' &middot; Earliest record: ' . e(optional($group['created_at'])->format('M d, Y')) . '</p>';
             $out .= '</div>';
             if (auth()->user()?->role_name !== 'Viewer') {

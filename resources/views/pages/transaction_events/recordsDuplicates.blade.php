@@ -38,9 +38,7 @@
                                 $out = '<div class="border rounded-4 p-3 mb-3">';
                                 $out .= '<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">';
                                 $out .= '<div>';
-                                $out .= '<h6 class="mb-0">' . e($first->full_name);
-                                $out .= ' <span class="badge bg-danger-subtle text-danger ms-1">' . $group['total'] . ' records</span></h6>';
-                                $out .= '<p class="text-muted small mb-0">Birth date: ' . e(optional($first->birth_date)->format('M d, Y') ?? '-') . '</p>';
+                                $out .= '<h6 class="mb-0">' . e($first->full_name) . ' (' . e($first->transferredTransaction?->transaction_id ?? '-') . ')' . ' <span class="badge bg-danger-subtle text-danger ms-1">' . (int) $group['total'] . ' records</span></h6>';
                                 $out .= '</div>';
                                 $out .= '</div>';
                                 $out .= '<div class="table-responsive">';
@@ -306,7 +304,7 @@
                             <div class="tab-pane fade {{ $showLikely ? '' : 'show active' }}" id="rexact-tab" role="tabpanel">
                                 <div class="alert alert-danger-subtle d-flex align-items-center mb-3 py-2" role="alert">
                                     <i class="ri-error-warning-line fs-4 me-2"></i>
-                                    <div class="small">Same <strong>Full Name</strong>, <strong>Client Category</strong>, <strong>Transaction Category</strong>, <strong>Transaction Type</strong>, and <strong>Event Date</strong>. High confidence duplicates.</div>
+                                    <div class="small">Same <strong>Full Name</strong>, <strong>Birth Date</strong>, <strong>Client Category</strong>, <strong>Transaction Category</strong>, <strong>Transaction Type</strong>, and <strong>Event Date</strong>. High confidence duplicates.</div>
                                 </div>
                                 @forelse ($exactGroups as $group)
                                     {!! $renderGroup($group) !!}
@@ -328,7 +326,7 @@
                                 <div class="alert alert-warning-subtle d-flex align-items-center mb-3 py-2" role="alert">
                                     <i class="ri-alert-line fs-4 me-2"></i>
                                     <div class="small">
-                                        Same <strong>Full Name</strong> plus at least one of:
+                                        Same <strong>Full Name</strong>, <strong>Birth Date</strong> plus at least one of:
                                         Event Date + Transaction Category, Event Date + Transaction Type, Transaction Category + Transaction Type, Event Date only, Transaction Type only, or Transaction Category only.
                                         Review before acting.
                                     </div>

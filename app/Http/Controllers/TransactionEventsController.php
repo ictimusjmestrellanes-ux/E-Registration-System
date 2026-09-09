@@ -684,7 +684,7 @@ class TransactionEventsController extends Controller
      * Paginate group descriptors in SQL, then fetch the visible groups in one
      * joined query. Query count is independent of the number of duplicates.
      *
-     * Exact match is: Same Full Name + Client Category +
+     * Exact match is: Same Full Name + Birth Date + Client Category +
      * Transaction Category + Transaction Type + Event Date (normalized:
      * case-insensitive, trimmed, date-only so "PWD" = "pwd" and datetimes
      * on the same day still match).
@@ -697,8 +697,27 @@ class TransactionEventsController extends Controller
             'transaction_category' => "LOWER(TRIM(COALESCE(transaction_category,'')))",
             'transaction_type' => "LOWER(TRIM(COALESCE(transaction_type,'')))",
             'event_date' => "COALESCE(DATE(event_date),'')",
+            'birth_date' => "COALESCE(DATE(birth_date),'')",
             default => $column,
         };
+    }
+
+    /**
+     * Null-safe equality mirroring the duplicate tabs: missing values
+     * (null or '') are equal, and dates compare by day only.
+     */
+    private function sameDuplicateValue($a, $b): bool
+    {
+        if ($a instanceof \DateTimeInterface) {
+            $a = $a->format('Y-m-d');
+        }
+        if ($b instanceof \DateTimeInterface) {
+            $b = $b->format('Y-m-d');
+        }
+        $a = $a ?? '';
+        $b = $b ?? '';
+
+        return (string) $a === (string) $b;
     }
 
     /**
@@ -739,35 +758,92 @@ class TransactionEventsController extends Controller
         }
     }
 
-    private function paginatedRecordDuplicateGroups(array $patterns, Request $request, int $perPage, string $pageName): array
+    /**
+     * One shared aggregation for every duplicate tab: transferred (and
+     * pre-filtered) rows grouped by the full normalized duplicate key.
+     * Both tabs regroup these rows in PHP, so the table is scanned once
+     * instead of once per pattern plus once per totals query.
+     *
+     * @return \Illuminate\Support\Collection<int, object>
+     */
+    private function recordDuplicateKeyRows(Request $request): Collection
     {
-        $columns = ['event_date', 'client_category', 'transaction_category', 'transaction_type'];
-        $union = null;
+        $columns = ['event_date', 'birth_date', 'client_category', 'transaction_category', 'transaction_type'];
+        $query = DB::table('transaction_events')->whereNotNull('transferred_at');
+        $this->applyRecordDuplicatePrefilters($query, $request);
+        $query->selectRaw($this->recordDuplicateNormalizedExpression('full_name').' as fullname');
+        foreach ($columns as $column) {
+            $query->selectRaw($this->recordDuplicateNormalizedExpression($column).' as '.$column);
+        }
+        $query->selectRaw('COUNT(*) as total, MIN(id) as group_id')
+            ->groupBy(
+                DB::raw($this->recordDuplicateNormalizedExpression('full_name')),
+                ...array_map(fn ($c) => DB::raw($this->recordDuplicateNormalizedExpression($c)), $columns)
+            );
+
+        return $query->get();
+    }
+
+    /**
+     * Regroup full-key rows into tab descriptors. Exact keeps full-key rows
+     * with more than one record; likely regroups by each pattern and keeps
+     * groups with more than one record that vary outside the pattern (so an
+     * exact match never repeats as likely).
+     *
+     * @return \Illuminate\Support\Collection<int, object>
+     */
+    private function buildRecordDuplicateDescriptors(Collection $keyRows, array $patterns, bool $excludeExact): Collection
+    {
+        $columns = ['event_date', 'birth_date', 'client_category', 'transaction_category', 'transaction_type'];
+        $descriptors = collect();
         foreach ($patterns as $pattern => $groupColumns) {
-            $nameExpr = $this->recordDuplicateNormalizedExpression('full_name');
-            $query = DB::table('transaction_events')->whereNotNull('transferred_at');
-            $this->applyRecordDuplicatePrefilters($query, $request);
-            $query->selectRaw($nameExpr.' as fullname, COUNT(*) as total, MIN(id) as group_id')
-                ->selectRaw('? as pattern', [$pattern])
-                ->groupBy(DB::raw($nameExpr), ...array_map(fn ($c) => DB::raw($this->recordDuplicateNormalizedExpression($c)), $groupColumns))
-                ->havingRaw('COUNT(*) > 1');
-            foreach ($columns as $column) {
-                $query->selectRaw(in_array($column, $groupColumns, true) ? $this->recordDuplicateNormalizedExpression($column).' as '.$column : 'NULL as '.$column);
+            $grouped = $keyRows->groupBy(fn ($row) => $row->fullname."\0".implode("\0", array_map(fn ($c) => (string) $row->$c, $groupColumns)));
+            foreach ($grouped as $members) {
+                $total = $members->sum('total');
+                if ($total <= 1) {
+                    continue;
+                }
+                if ($excludeExact && $members->count() <= 1) {
+                    continue;
+                }
+                $first = $members->first();
+                $descriptor = new \stdClass;
+                $descriptor->pattern = $pattern;
+                $descriptor->fullname = $first->fullname;
+                $descriptor->group_id = $members->min('group_id');
+                $descriptor->total = $total;
+                foreach ($columns as $column) {
+                    $descriptor->$column = in_array($column, $groupColumns, true) ? $first->$column : null;
+                }
+                $descriptors->push($descriptor);
             }
-            $union = $union === null ? $query : $union->unionAll($query);
         }
 
-        $groupQuery = DB::query()->fromSub($union, 'duplicate_candidates');
-        $totals = (clone $groupQuery)->selectRaw('COUNT(*) as groups_total, COALESCE(SUM(total), 0) as records_total')->first();
+        return $descriptors->sort(function ($a, $b) {
+            if ($a->total !== $b->total) {
+                return $b->total <=> $a->total;
+            }
+            if ($a->pattern !== $b->pattern) {
+                return $a->pattern <=> $b->pattern;
+            }
+
+            return $a->group_id <=> $b->group_id;
+        })->values();
+    }
+
+    private function paginatedRecordDuplicateGroups(Collection $keyRows, array $patterns, Request $request, int $perPage, string $pageName, bool $excludeExact = false): array
+    {
+        $columns = ['event_date', 'birth_date', 'client_category', 'transaction_category', 'transaction_type'];
+        $descriptors = $this->buildRecordDuplicateDescriptors($keyRows, $patterns, $excludeExact);
+        $recordsTotal = (int) $descriptors->sum('total');
         $page = max(1, (int) $request->input($pageName, $pageName === 'exact_page' ? $request->input('page', 1) : 1));
-        $descriptors = $groupQuery->orderByDesc('total')->orderBy('pattern')->orderBy('group_id')
-            ->forPage($page, $perPage)->get();
+        $pageDescriptors = $descriptors->forPage($page, $perPage)->values();
         $groups = collect();
-        if ($descriptors->isNotEmpty()) {
-            // A small bound-value table avoids re-running the aggregate query
-            // when loading the events for this page.
+        if ($pageDescriptors->isNotEmpty()) {
+            // A small bound-value table loads only the visible groups'
+            // events in a single query.
             $pageTable = null;
-            foreach ($descriptors as $descriptor) {
+            foreach ($pageDescriptors as $descriptor) {
                 $fields = ['fullname', 'group_id', 'pattern', ...$columns];
                 $row = DB::query()->selectRaw(
                     implode(', ', array_map(fn ($field) => '? as '.$field, $fields)),
@@ -797,17 +873,17 @@ class TransactionEventsController extends Controller
                 ->with('transferredTransaction:id,transaction_id')
                 ->orderByDesc('transaction_events.id')->get()
                 ->groupBy(fn ($event) => $event->duplicate_pattern.':'.$event->duplicate_group_id);
-            $groups = $descriptors->map(fn ($descriptor) => [
+            $groups = $pageDescriptors->map(fn ($descriptor) => [
                 'events' => $events->get($descriptor->pattern.':'.$descriptor->group_id, collect()),
                 'total' => (int) $descriptor->total,
             ]);
         }
 
-        return [new LengthAwarePaginator($groups, (int) $totals->groups_total, $perPage, $page, [
+        return [new LengthAwarePaginator($groups, $descriptors->count(), $perPage, $page, [
             'path' => url()->current(),
             'query' => array_merge($request->query(), ['duplicate_tab' => $pageName === 'likely_page' ? 'likely' : 'exact']),
             'pageName' => $pageName,
-        ]), (int) $totals->records_total];
+        ]), $recordsTotal];
     }
 
     public function recordsDuplicates(Request $request)
@@ -820,19 +896,22 @@ class TransactionEventsController extends Controller
             $perPage = 10;
         }
 
-        // Exact match is: Same Full Name + Client Category +
+        // Exact match is: Same Full Name + Birth Date + Client Category +
         // Transaction Category + Transaction Type + Event Date.
-        [$exactGroups, $exactRecordsTotal] = $this->paginatedRecordDuplicateGroups([
-            'exact' => ['event_date', 'client_category', 'transaction_category', 'transaction_type'],
+        // One shared full-key aggregation feeds both tabs, so the table is
+        // scanned once no matter how many patterns or pages are involved.
+        $duplicateKeyRows = $this->recordDuplicateKeyRows($request);
+        [$exactGroups, $exactRecordsTotal] = $this->paginatedRecordDuplicateGroups($duplicateKeyRows, [
+            'exact' => ['event_date', 'birth_date', 'client_category', 'transaction_category', 'transaction_type'],
         ], $request, $perPage, 'exact_page');
-        [$likelyGroups, $likelyRecordsTotal] = $this->paginatedRecordDuplicateGroups([
-            'event_date+transaction_category' => ['event_date', 'transaction_category'],
-            'event_date+transaction_type' => ['event_date', 'transaction_type'],
-            'transaction_category+transaction_type' => ['transaction_category', 'transaction_type'],
-            'event_date' => ['event_date'],
-            'transaction_type' => ['transaction_type'],
-            'transaction_category' => ['transaction_category'],
-        ], $request, $perPage, 'likely_page');
+        [$likelyGroups, $likelyRecordsTotal] = $this->paginatedRecordDuplicateGroups($duplicateKeyRows, [
+            'event_date+transaction_category' => ['birth_date', 'event_date', 'transaction_category'],
+            'event_date+transaction_type' => ['birth_date', 'event_date', 'transaction_type'],
+            'transaction_category+transaction_type' => ['birth_date', 'transaction_category', 'transaction_type'],
+            'event_date' => ['birth_date', 'event_date'],
+            'transaction_type' => ['birth_date', 'transaction_type'],
+            'transaction_category' => ['birth_date', 'transaction_category'],
+        ], $request, $perPage, 'likely_page', true);
         $similarGroups = new LengthAwarePaginator([], 0, $perPage, 1, [
             'path' => url()->current(), 'query' => $request->query(), 'pageName' => 'similar_page',
         ]);
@@ -1012,6 +1091,19 @@ class TransactionEventsController extends Controller
                 }
 
                 $events = $query->orderByDesc('id')->get();
+                // Exact matches already live in the Exact tab; don't repeat
+                // the identical group here. A likely group whose rows all
+                // share the full exact key is the exact match, not a
+                // likely one (genuine likely groups vary somewhere outside
+                // the pattern and still pass through).
+                $firstLikely = $events->first();
+                if ($firstLikely !== null && $events->every(fn ($event) =>
+                    $this->sameDuplicateValue($event->event_date, $firstLikely->event_date) &&
+                    $this->sameDuplicateValue($event->client_category, $firstLikely->client_category) &&
+                    $this->sameDuplicateValue($event->transaction_category, $firstLikely->transaction_category) &&
+                    $this->sameDuplicateValue($event->transaction_type, $firstLikely->transaction_type))) {
+                    continue;
+                }
                 $likelyCollection->push(['events' => $events, 'total' => (int) $g->total, 'created_at' => $events->min('created_at')]);
             }
         }
