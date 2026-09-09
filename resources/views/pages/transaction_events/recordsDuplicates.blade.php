@@ -26,7 +26,9 @@
                 <div class="card">
                     <div class="card-body">
                         @php
-                            $showLikely = request('duplicate_tab', request()->has('likely_page') ? 'likely' : 'exact') === 'likely';
+                            $activeTab = request('duplicate_tab', request()->has('similar_page') ? 'full_name' : (request()->has('likely_page') ? 'likely' : 'exact'));
+                            $showLikely = $activeTab === 'likely';
+                            $showFullName = $activeTab === 'full_name';
                             $exactCount = $exactRecordsTotal ?? $exactGroups->sum('total');
                             $likelyCount = $likelyRecordsTotal ?? $likelyGroups->sum('total');
                             $similarCount = $similarRecordsTotal ?? $similarGroups->sum('total');
@@ -276,7 +278,7 @@
 
                         <ul class="nav nav-tabs mb-4" role="tablist">
                             <li class="nav-item">
-                                <a class="nav-link {{ $showLikely ? '' : 'active' }}" data-bs-toggle="tab" href="#rexact-tab" role="tab">
+                                <a class="nav-link {{ $showLikely || $showFullName ? '' : 'active' }}" data-bs-toggle="tab" href="#rexact-tab" role="tab">
                                     Exact Match
                                     <span class="badge bg-danger-subtle text-danger ms-1">{{ $exactGroupsTotal ?? $exactGroups->count() }}</span>
                                 </a>
@@ -288,8 +290,8 @@
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link" data-bs-toggle="tab" href="#rsimilar-tab" role="tab">
-                                    Similar Spelling
+                                <a class="nav-link {{ $showFullName ? 'active' : '' }}" data-bs-toggle="tab" href="#rsimilar-tab" role="tab">
+                                    Match Full Name
                                     <span class="badge bg-info-subtle text-info ms-1">{{ $similarGroupsTotal ?? $similarGroups->count() }}</span>
                                 </a>
                             </li>
@@ -301,7 +303,7 @@
                         </div>
 
                         <div class="tab-content">
-                            <div class="tab-pane fade {{ $showLikely ? '' : 'show active' }}" id="rexact-tab" role="tabpanel">
+                            <div class="tab-pane fade {{ $showLikely || $showFullName ? '' : 'show active' }}" id="rexact-tab" role="tabpanel">
                                 <div class="alert alert-danger-subtle d-flex align-items-center mb-3 py-2" role="alert">
                                     <i class="ri-error-warning-line fs-4 me-2"></i>
                                     <div class="small">Same <strong>Full Name</strong>, <strong>Birth Date</strong>, <strong>Client Category</strong>, <strong>Transaction Category</strong>, <strong>Transaction Type</strong>, and <strong>Event Date</strong>. High confidence duplicates.</div>
@@ -347,17 +349,17 @@
                                 @endif
                             </div>
 
-                            <div class="tab-pane fade" id="rsimilar-tab" role="tabpanel">
+                            <div class="tab-pane fade {{ $showFullName ? 'show active' : '' }}" id="rsimilar-tab" role="tabpanel">
                                 <div class="alert alert-info-subtle d-flex align-items-center mb-3 py-2" role="alert">
                                     <i class="ri-information-line fs-4 me-2"></i>
-                                    <div class="small">Phonetically similar names (e.g., Iscober/Escobar). Verify before acting.</div>
+                                    <div class="small">Same <strong>Full Name</strong> only, ignoring letter case and leading or trailing spaces. Birth dates and transaction details may differ.</div>
                                 </div>
                                 @forelse ($similarGroups as $group)
                                     {!! $renderGroup($group) !!}
                                 @empty
                                     <div class="text-center text-muted py-5">
                                         <i class="ri-check-double-line fs-1 d-block mb-2"></i>
-                                        No similar-spelling records found.
+                                        No records with matching full names found.
                                     </div>
                                 @endforelse
                                 @if ($similarGroups->total() > 0)

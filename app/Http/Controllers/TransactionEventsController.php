@@ -761,7 +761,7 @@ class TransactionEventsController extends Controller
     /**
      * One shared aggregation for every duplicate tab: transferred (and
      * pre-filtered) rows grouped by the full normalized duplicate key.
-     * Both tabs regroup these rows in PHP, so the table is scanned once
+     * All tabs regroup these rows in PHP, so the table is scanned once
      * instead of once per pattern plus once per totals query.
      *
      * @return \Illuminate\Support\Collection<int, object>
@@ -881,7 +881,11 @@ class TransactionEventsController extends Controller
 
         return [new LengthAwarePaginator($groups, $descriptors->count(), $perPage, $page, [
             'path' => url()->current(),
-            'query' => array_merge($request->query(), ['duplicate_tab' => $pageName === 'likely_page' ? 'likely' : 'exact']),
+            'query' => array_merge($request->query(), ['duplicate_tab' => match ($pageName) {
+                'likely_page' => 'likely',
+                'similar_page' => 'full_name',
+                default => 'exact',
+            }]),
             'pageName' => $pageName,
         ]), $recordsTotal];
     }
@@ -898,7 +902,7 @@ class TransactionEventsController extends Controller
 
         // Exact match is: Same Full Name + Birth Date + Client Category +
         // Transaction Category + Transaction Type + Event Date.
-        // One shared full-key aggregation feeds both tabs, so the table is
+        // One shared full-key aggregation feeds all tabs, so the table is
         // scanned once no matter how many patterns or pages are involved.
         $duplicateKeyRows = $this->recordDuplicateKeyRows($request);
         [$exactGroups, $exactRecordsTotal] = $this->paginatedRecordDuplicateGroups($duplicateKeyRows, [
@@ -912,12 +916,12 @@ class TransactionEventsController extends Controller
             'transaction_type' => ['birth_date', 'transaction_type'],
             'transaction_category' => ['birth_date', 'transaction_category'],
         ], $request, $perPage, 'likely_page', true);
-        $similarGroups = new LengthAwarePaginator([], 0, $perPage, 1, [
-            'path' => url()->current(), 'query' => $request->query(), 'pageName' => 'similar_page',
-        ]);
+        [$similarGroups, $similarRecordsTotal] = $this->paginatedRecordDuplicateGroups($duplicateKeyRows, [
+            'full_name' => [],
+        ], $request, $perPage, 'similar_page');
         $exactGroupsTotal = $exactGroups->total();
         $likelyGroupsTotal = $likelyGroups->total();
-        $similarGroupsTotal = $similarRecordsTotal = 0;
+        $similarGroupsTotal = $similarGroups->total();
 
         $filterClientCategories = TransactionEvent::whereNotNull('transferred_at')
             ->select('client_category')->distinct()->pluck('client_category')->filter()->sort()->values();
@@ -2429,14 +2433,11 @@ class TransactionEventsController extends Controller
             return redirect()->route('transaction-events.records')->with('error', 'This record has already been transferred.');
         }
 
-        $client = $this->findOrCreateClientForEvent($event->full_name, [
-            'full_name' => $event->full_name,
-            'client_category' => $event->client_category,
-            'contact_no' => $event->contact_no,
-            'address' => $event->address,
-            'age' => $event->age,
-            'birth_date' => $event->birth_date?->format('Y-m-d'),
-        ], $event->birth_date?->format('Y-m-d'));
+        $client = $this->findClientForImport($event->full_name, $event->birth_date?->format('Y-m-d'));
+        if ($client === null) {
+            return redirect()->route('transaction-events.index')->with('error',
+                'No matching client found in the Client List. This record remains in Import Events.');
+        }
 
         $history = TransactionHistory::create([
             'client_id' => $client->client_id,
@@ -2530,16 +2531,11 @@ class TransactionEventsController extends Controller
             return response()->json(['success' => false, 'message' => 'This event has already been transferred.'], 422);
         }
 
-        $client = $this->findOrCreateClientForEvent($event->full_name, [
-            'full_name' => $event->full_name,
-            'client_category' => $event->client_category,
-            'contact_no' => $event->contact_no,
-            'address' => $event->address,
-            'age' => $event->age,
-            'birth_date' => $event->birth_date?->format('Y-m-d'),
-        ], $event->birth_date?->format('Y-m-d'));
-
-        $isNewClient = $client->wasRecentlyCreated;
+        $client = $this->findClientForImport($event->full_name, $event->birth_date?->format('Y-m-d'));
+        if ($client === null) {
+            return response()->json(['success' => false, 'created_client' => false,
+                'message' => 'No matching client found in the Client List. This record remains in Import Events.'], 422);
+        }
 
         $history = TransactionHistory::create([
             'client_id' => $client->client_id,
@@ -2561,7 +2557,7 @@ class TransactionEventsController extends Controller
 
         return response()->json([
             'success' => true,
-            'created_client' => $isNewClient,
+            'created_client' => false,
             'transaction_id' => $history->transaction_id,
         ]);
     }
@@ -2572,18 +2568,20 @@ class TransactionEventsController extends Controller
     public function transferSelected(Request $request)
     {
         $request->validate([
-            'event_ids' => ['required', 'array'],
+            'event_ids' => ['required_without:select_all', 'array'],
             'event_ids.*' => ['integer', 'exists:transaction_events,id'],
+            'select_all' => ['sometimes', 'accepted'],
         ]);
 
-        foreach ($request->input('event_ids') as $id) {
-            $event = TransactionEvent::find($id);
-            if ($event && $event->transferred_at === null) {
-                $this->transfer($event);
-            }
+        $transferred = 0;
+        $skipped = 0;
+        foreach ($this->resolveBulkTransferEvents($request) as $event) {
+            $result = $this->transferSinglePendingEvent($event);
+            $result['success'] ? $transferred++ : $skipped++;
         }
 
-        return redirect()->back()->with('success', 'Selected events transferred successfully.');
+        return redirect()->back()->with($transferred > 0 ? 'success' : 'error',
+            "Transferred {$transferred} event(s). Skipped {$skipped} event(s) without a matching client; they remain in Import Events.");
     }
 
     /**
@@ -2908,16 +2906,10 @@ class TransactionEventsController extends Controller
             return ['success' => false, 'created_client' => false];
         }
 
-        $client = $this->findOrCreateClientForEvent($event->full_name, [
-            'full_name' => $event->full_name,
-            'client_category' => $event->client_category,
-            'contact_no' => $event->contact_no,
-            'address' => $event->address,
-            'age' => $event->age,
-            'birth_date' => $event->birth_date?->format('Y-m-d'),
-        ], $event->birth_date?->format('Y-m-d'));
-
-        $isNewClient = $client->wasRecentlyCreated;
+        $client = $this->findClientForImport($event->full_name, $event->birth_date?->format('Y-m-d'));
+        if ($client === null) {
+            return ['success' => false, 'created_client' => false];
+        }
 
         $history = TransactionHistory::create([
             'client_id' => $client->client_id,
@@ -2937,7 +2929,7 @@ class TransactionEventsController extends Controller
             'transferred_transaction_id' => $history->id,
         ]);
 
-        return ['success' => true, 'created_client' => $isNewClient];
+        return ['success' => true, 'created_client' => false];
     }
 
     private function saveTransferSession(string $token, array $data): void
@@ -3114,8 +3106,10 @@ class TransactionEventsController extends Controller
             $message .= " Auto-created {$createdClients} new client(s).";
         }
         if ($skippedCount > 0) {
-            $message .= " Skipped {$skippedCount} event(s).";
+            $message .= " Skipped {$skippedCount} event(s). Records without a matching client remain in Import Events.";
         }
+
+        $request->session()->flash($successCount > 0 ? 'success' : 'error', $message);
 
         return response()->json([
             'success' => true,

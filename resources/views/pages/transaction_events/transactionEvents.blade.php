@@ -598,6 +598,7 @@
                             Create a transaction from this event for
                             <span class="fw-semibold" id="transferConfirmName">this client</span>?
                         </p>
+                        <p class="text-muted small mt-2 mb-0">Only matching clients in the Client List will receive a transaction. Unmatched records stay in Import Events; no new clients are registered.</p>
                     </div>
                     <div class="modal-footer border-0 justify-content-center gap-3 pt-0">
                         <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal">Cancel</button>
@@ -623,6 +624,7 @@
                             Create transactions from <span class="fw-semibold" id="bulkTransferCount">0</span>
                             selected event(s)?
                         </p>
+                        <p class="text-muted small mt-2 mb-0">Only matching clients in the Client List will receive transactions. Unmatched records stay in Import Events; no new clients are registered.</p>
                     </div>
                     <div class="modal-footer border-0 justify-content-center gap-3 pt-0">
                         <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal">Cancel</button>
@@ -1802,8 +1804,6 @@
                     setProgress(0, 'Transferring 1 of ' + ids.length + '...');
 
                     let done = 0;
-                    let created = 0;
-                    let reused = 0;
                     const failed = [];
 
                     try {
@@ -1839,16 +1839,11 @@
                                 continue;
                             }
                             done++;
-                            if (data.created_client) {
-                                created++;
-                            } else {
-                                reused++;
-                            }
                         }
 
                         setProgress(100, 'Done!');
                         const summary =
-                            `Transferred ${done} of ${ids.length} (${created} new client(s), ${reused} reused)` +
+                            `Transferred ${done} of ${ids.length} to existing clients. Unmatched records remain in Import Events` +
                             (failed.length > 0 ?
                                 `. Skipped ${failed.length}: ${failed.slice(0, 5).join('; ')}${failed.length > 5 ? '...' : ''}` :
                                 '');

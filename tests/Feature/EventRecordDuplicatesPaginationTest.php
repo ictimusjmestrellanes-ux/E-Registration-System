@@ -11,6 +11,64 @@ class EventRecordDuplicatesPaginationTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_match_full_name_uses_only_name_and_excludes_similar_spellings_and_pending_rows(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+        DB::table('transaction_events')->insert([
+            [
+                'full_name' => 'Juan Escobar', 'birth_date' => '1990-01-01', 'event_date' => '2026-09-01',
+                'client_category' => 'PWD', 'transaction_category' => 'EVENTS', 'transaction_type' => 'TYPE-A',
+                'transferred_at' => '2026-09-01 12:00:00',
+            ],
+            [
+                'full_name' => '  JUAN ESCOBAR  ', 'birth_date' => '2000-02-02', 'event_date' => '2026-09-02',
+                'client_category' => 'SENIOR', 'transaction_category' => 'OTHER', 'transaction_type' => 'TYPE-B',
+                'transferred_at' => '2026-09-02 12:00:00',
+            ],
+        ]);
+        DB::table('transaction_events')->insert([
+            ['full_name' => 'Juan Iscober', 'transferred_at' => '2026-09-01 12:00:00'],
+            ['full_name' => 'Juan Escobar', 'transferred_at' => null],
+        ]);
+
+        $response = $this->get(route('transaction-events.records-duplicates', ['duplicate_tab' => 'full_name']))
+            ->assertOk()->assertSee('Match Full Name')->assertDontSee('Similar Spelling');
+        $this->assertSame(0, $response->viewData('exactGroups')->total());
+        $this->assertSame(0, $response->viewData('likelyGroups')->total());
+        $groups = $response->viewData('similarGroups');
+        $this->assertSame(1, $groups->total());
+        $this->assertSame(2, $response->viewData('similarRecordsTotal'));
+        $this->assertCount(2, $groups->first()['events']);
+        foreach ($groups->first()['events'] as $event) {
+            $this->assertSame('juan escobar', strtolower(trim($event->full_name)));
+            $this->assertNotNull($event->transferred_at);
+        }
+
+        $filtered = $this->get(route('transaction-events.records-duplicates', ['client_category' => ['PWD']]))
+            ->assertOk();
+        $this->assertSame(0, $filtered->viewData('similarGroups')->total());
+    }
+
+    public function test_match_full_name_pagination_keeps_tab_active(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+        for ($group = 0; $group < 12; $group++) {
+            foreach ([0, 1] as $copy) {
+                DB::table('transaction_events')->insert([
+                    'full_name' => 'Person '.$group,
+                    'transferred_at' => '2026-09-01 12:00:00',
+                ]);
+            }
+        }
+        $response = $this->get(route('transaction-events.records-duplicates', ['similar_page' => 2]))
+            ->assertOk()->assertSee('tab-pane fade show active" id="rsimilar-tab', false);
+        $groups = $response->viewData('similarGroups');
+        $this->assertSame(12, $groups->total());
+        $this->assertCount(2, $groups);
+        $this->assertSame(24, $response->viewData('similarRecordsTotal'));
+        $this->assertStringContainsString('duplicate_tab=full_name', $groups->url(1));
+    }
+
     public function test_duplicate_pages_load_only_visible_groups_with_bounded_queries(): void
     {
         $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
