@@ -466,29 +466,31 @@
                                                 </span>
                                             </td>
                                             @if (auth()->user()?->role_name !== 'Viewer')
-                                                <td class="text-center" style="min-width: 200px">
-                                                    <button type="button" data-bs-toggle="modal" data-bs-target="#editRecordModal"
-                                                        data-update-url="{{ route('transaction-events.records.update', array_merge(request()->query(), ['event' => $event->id])) }}"
-                                                        data-record="{{ json_encode(array_merge($event->only(['id', 'full_name', 'age', 'contact_no', 'address', 'client_category', 'transaction_category', 'transaction_type']), ['birth_date' => $event->birth_date?->format('Y-m-d'), 'event_date' => $event->event_date?->format('Y-m-d')])) }}"
-                                                        class="btn btn-sm btn-soft-primary mb-2">
-                                                        <i class="ri-pencil-line me-1"></i> Edit
-                                                    </button>
-                                                    <form action="{{ route('transaction-events.undo-transfer', $event) }}"
-                                                        method="POST" class="m-0">
-                                                        @csrf
-                                                        @if (feature_allowed('Undo Transfer'))
-                                                            <button type="submit" class="btn btn-sm btn-soft-warning"
-                                                                onclick="return confirm('Undo this transfer? The created transaction record will be removed and this event will return to pending. The client record will remain.');">
-                                                                <i class="ri-arrow-go-back-line me-1"></i> Undo Transfer
-                                                            </button>
-                                                        @else
-                                                            <button type="button" class="btn btn-sm btn-soft-warning"
-                                                                disabled title="Feature not allowed">
-                                                                <i class="ri-arrow-go-back-line me-1"></i>Not Allowed to
-                                                                Undo Transfer
-                                                            </button>
-                                                        @endif
-                                                    </form>
+                                                <td class="text-center" style="min-width: 160px">
+                                                    <div class="d-flex flex-nowrap align-items-center justify-content-center gap-2">
+                                                        <button type="button" data-bs-toggle="modal" data-bs-target="#editRecordModal"
+                                                            data-update-url="{{ route('transaction-events.records.update', array_merge(request()->query(), ['event' => $event->id])) }}"
+                                                            data-record="{{ json_encode(array_merge($event->only(['id', 'full_name', 'age', 'contact_no', 'address', 'client_category', 'transaction_category', 'transaction_type']), ['birth_date' => $event->birth_date?->format('Y-m-d'), 'event_date' => $event->event_date?->format('Y-m-d')])) }}"
+                                                            class="btn btn-sm btn-soft-primary d-inline-flex align-items-center justify-content-center gap-1 text-nowrap">
+                                                            <i class="ri-pencil-line" aria-hidden="true"></i> Edit
+                                                        </button>
+                                                        <form action="{{ route('transaction-events.undo-transfer', $event) }}"
+                                                            method="POST" class="m-0 flex-shrink-0">
+                                                            @csrf
+                                                            @if (feature_allowed('Undo Transfer'))
+                                                                <button type="submit" class="btn btn-sm btn-soft-warning d-inline-flex align-items-center justify-content-center gap-1 text-nowrap w-100"
+                                                                    onclick="return confirm('Undo this transfer? The created transaction record will be removed and this event will return to pending. The client record will remain.');">
+                                                                    <i class="ri-arrow-go-back-line" aria-hidden="true"></i> Undo Transfer
+                                                                </button>
+                                                            @else
+                                                                <button type="button" class="btn btn-sm btn-soft-warning d-inline-flex align-items-center justify-content-center gap-1 text-nowrap w-100"
+                                                                    disabled title="You do not have permission to undo transfers."
+                                                                    aria-label="Undo Transfer (not allowed)">
+                                                                    <i class="ri-lock-line" aria-hidden="true"></i> Undo Transfer
+                                                                </button>
+                                                            @endif
+                                                        </form>
+                                                    </div>
                                                 </td>
                                             @endif
                                         </tr>
