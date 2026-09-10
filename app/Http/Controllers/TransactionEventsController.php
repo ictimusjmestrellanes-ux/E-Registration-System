@@ -463,6 +463,29 @@ class TransactionEventsController extends Controller
         return $rows->pluck('id')->map(fn ($id) => (int) $id)->all();
     }
 
+    public function updateRecord(Request $request, TransactionEvent $event)
+    {
+        abort_if(auth()->user()->role_name === 'Viewer', 403, 'Viewer role is read-only.');
+        abort_if($event->transferred_at === null, 404);
+
+        $validated = $request->validate([
+            'full_name' => 'required|string|max:150',
+            'contact_no' => 'nullable|string|max:30',
+            'address' => 'nullable|string|max:255',
+            'age' => 'nullable|integer|min:0|max:150',
+            'birth_date' => 'nullable|date',
+            'client_category' => 'nullable|string|max:100',
+            'transaction_category' => 'nullable|string|max:100',
+            'transaction_type' => 'nullable|string|max:100',
+            'event_date' => 'nullable|date',
+        ]);
+
+        $event->update($validated);
+
+        return redirect()->route('transaction-events.records', $request->query())
+            ->with('success', 'Event record updated successfully.');
+    }
+
     public function records(Request $request)
     {
         if (!feature_allowed('Event Records')) {

@@ -466,7 +466,13 @@
                                                 </span>
                                             </td>
                                             @if (auth()->user()?->role_name !== 'Viewer')
-                                                <td class="text-center" style="width: 50px">
+                                                <td class="text-center" style="min-width: 200px">
+                                                    <button type="button" data-bs-toggle="modal" data-bs-target="#editRecordModal"
+                                                        data-update-url="{{ route('transaction-events.records.update', array_merge(request()->query(), ['event' => $event->id])) }}"
+                                                        data-record="{{ json_encode(array_merge($event->only(['id', 'full_name', 'age', 'contact_no', 'address', 'client_category', 'transaction_category', 'transaction_type']), ['birth_date' => $event->birth_date?->format('Y-m-d'), 'event_date' => $event->event_date?->format('Y-m-d')])) }}"
+                                                        class="btn btn-sm btn-soft-primary mb-2">
+                                                        <i class="ri-pencil-line me-1"></i> Edit
+                                                    </button>
                                                     <form action="{{ route('transaction-events.undo-transfer', $event) }}"
                                                         method="POST" class="m-0">
                                                         @csrf
@@ -508,6 +514,10 @@
         </div>
     </div>
 
+    @if (auth()->user()?->role_name !== 'Viewer')
+        @include('pages.transaction_events.editRecord')
+    @endif
+
     <!-- Bulk Undo Transfer Confirmation Modal -->
     <div class="modal fade" id="undoTransferConfirmModal" tabindex="-1" aria-labelledby="undoTransferConfirmModalLabel"
         aria-hidden="true">
@@ -538,6 +548,27 @@
 @push('scripts')
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            const editModal = document.getElementById('editRecordModal');
+            const editForm = document.getElementById('editRecordForm');
+            if (editModal && editForm) {
+                editModal.addEventListener('show.bs.modal', function(event) {
+                    if (!event.relatedTarget) return;
+                    const button = event.relatedTarget;
+                    const record = JSON.parse(button.dataset.record);
+                    editForm.action = button.dataset.updateUrl;
+                    editForm.reset();
+                    editForm.querySelectorAll('.is-invalid').forEach(input => input.classList.remove('is-invalid'));
+                    editForm.querySelectorAll('.invalid-feedback').forEach(message => message.remove());
+                    for (const [field, value] of Object.entries(record)) {
+                        const input = editForm.elements.namedItem(field === 'id' ? 'edit_record_id' : field);
+                        if (input) input.value = value ?? '';
+                    }
+                });
+                @if ($errors->any() && old('edit_record_id'))
+                    bootstrap.Modal.getOrCreateInstance(editModal).show();
+                @endif
+            }
+
             // ----- Filter Records card toggle (Client List style) -----
             const filtersToggleBtn = document.getElementById('recordFiltersToggleBtn');
             const filtersForm = document.getElementById('recordFiltersForm');
