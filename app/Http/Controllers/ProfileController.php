@@ -392,7 +392,7 @@ class ProfileController extends Controller
             $types = array_values(array_intersect($types, $this->txTypesForCategories($categories)));
         }
 
-        $distribution = $this->clientCategoryDistribution(10, $categories, $types);
+        $distribution = $this->clientCategoryDistribution($request->boolean('export') ? PHP_INT_MAX : 10, $categories, $types);
 
         return response()->json([
             'success' => true,

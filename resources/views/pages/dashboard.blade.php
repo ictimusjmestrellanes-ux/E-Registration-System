@@ -482,6 +482,7 @@
                                         <div id="clientCategoryPlot"
                                             style="position: relative; min-width: 420px; height: {{ max(200, count($clientCategoryDistribution['data']) * 25 + 40) }}px;">
                                             <canvas id="clientCategoryChart" role="img"
+                                                data-export-url="{{ route('dashboard.client-distribution') }}"
                                                 aria-label="Transactions by client category, sorted from highest to lowest"
                                                 class="{{ array_sum($clientCategoryDistribution['data']) > 0 ? '' : 'd-none' }}"></canvas>
                                         </div>
@@ -496,7 +497,7 @@
                         </div>
                         <!-- Service Category Chart -->
                         <div class="col-12">
-                            <div class="card material-shadow distribution-card">
+                            <div class="card material-shadow distribution-card" id="serviceCategoryCard">
                                 <div class="card-header">
                                     <h5 class="mb-0">Service Categories Distribution</h5>
                                     <p class="text-muted mb-0">Share of transactions per service category</p>
@@ -709,6 +710,7 @@
 
     @push('scripts')
         <script src="{{ asset('assets/libs/chart.js/chart.umd.min.js') }}"></script>
+        <script src="{{ asset('assets/js/dashboard-chart-export.js') }}"></script>
         <script>
             document.addEventListener('DOMContentLoaded', function() {
                 @if ($errors->has('transaction_dates') || $errors->has('transaction_dates.*'))

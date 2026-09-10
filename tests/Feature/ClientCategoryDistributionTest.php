@@ -112,6 +112,28 @@ class ClientCategoryDistributionTest extends TestCase
         $this->assertSame([], $dist['data']);
     }
 
+    public function test_export_includes_every_client_category_and_preserves_filters(): void
+    {
+        $this->actingAs(\App\Models\User::factory()->create(['role_name' => 'Admin']));
+        $labels = [];
+        for ($index = 1; $index <= 14; $index++) {
+            $labels[] = $label = sprintf('Category %02d', $index);
+            $this->seedHistory($label, 'Food', 'Legacy', 'Rice');
+        }
+        $this->seedHistory('Excluded service', 'Medical', 'Legacy', 'Rice');
+        $this->seedHistory('Excluded type', 'Food', 'Legacy', 'Other');
+        $filters = ['distribution_category' => ['Food'], 'distribution_type' => ['Rice']];
+
+        $this->getJson(route('dashboard.client-distribution', $filters))
+            ->assertOk()->assertJsonCount(11, 'labels')->assertJsonPath('labels.10', 'Others');
+
+        $this->getJson(route('dashboard.client-distribution', $filters + ['export' => 1]))
+            ->assertOk()->assertJsonPath('success', true)
+            ->assertJsonPath('labels', $labels)
+            ->assertJsonPath('data', array_fill(0, 14, 1))
+            ->assertJsonPath('total', 14);
+    }
+
     public function test_distribution_folds_long_tail_into_others(): void
     {
         foreach (['AAA', 'BBB', 'CCC', 'DDD'] as $category) {
