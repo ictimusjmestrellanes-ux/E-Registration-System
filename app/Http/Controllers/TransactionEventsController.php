@@ -568,8 +568,79 @@ class TransactionEventsController extends Controller
     }
 
     /**
-     * Export the currently filtered Event Records to .xlsx (same filters as
-     * the listing; all matching rows across pages, not just the current one).
+     * Export every matching Event Record to a printable alphabetical roster.
+     */
+    public function exportRecordsPdf(Request $request)
+    {
+        abort_unless(feature_allowed('Event Records'), 404);
+
+        $details = $request->validate([
+            'prepared_by' => 'nullable|string|max:100',
+            'reviewed_by' => 'nullable|string|max:100',
+            'approved_by' => 'nullable|string|max:100',
+            'report_date' => 'nullable|string|max:100',
+            'numbered_tranches' => 'sometimes|array|max:4',
+            'numbered_tranches.*' => 'required|integer|in:1,2,3,4|distinct',
+        ]);
+
+        @ini_set('memory_limit', '512M');
+        @set_time_limit(300);
+
+        $query = TransactionEvent::whereNotNull('transferred_at');
+        $this->applyRecordFilters($query, $request);
+        $events = $query->orderByRaw('LOWER(TRIM(full_name))')->orderBy('id')->get();
+
+        // Sex is available only through the linked client; never infer it from a name.
+        $histories = TransactionHistory::whereIn('id', $events->pluck('transferred_transaction_id')->filter()->unique())
+            ->pluck('client_id', 'id');
+        $clients = Client::whereIn('client_id', $histories->values()->unique())
+            ->get(['client_id', 'gender'])->keyBy('client_id');
+        foreach ($events as $event) {
+            $event->setAttribute('export_sex', $clients->get($histories->get($event->transferred_transaction_id))?->gender ?? '');
+        }
+
+        $categories = $events->pluck('transaction_category')->map(fn ($value) => mb_strtoupper(trim((string) $value)))->unique();
+        $selectedCategories = collect($this->multiFilterValues($request, 'transaction_category'))
+            ->map(fn ($value) => mb_strtoupper(trim($value)));
+        $isRice = ($categories->isNotEmpty() ? $categories : $selectedCategories)->all() === ['BIGAY BIGAS SA MASA'];
+        $dates = $events->pluck('event_date')->filter()->map(fn ($date) => $date->format('Y-m-d'))->unique()->sort()->values();
+        $dateLabel = $dates->count() === 1 ? $dates->first() : ($dates->count() > 1 ? $dates->first().' to '.$dates->last() : '');
+        $dateLabel = $details['report_date'] ?? $dateLabel;
+
+        if ($request->isMethod('post')) {
+            return response()->json(app(\App\Services\EventRecordsPdfProcess::class)
+                ->start($events, $isRice, $dateLabel, (int) $request->user()->id, $details));
+        }
+
+        $content = app(\App\Services\EventRecordsPdfExporter::class)->render($events, $isRice, $dateLabel, $details);
+
+        return response($content, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="event_records_'.now()->format('Ymd_His').'.pdf"',
+            'Cache-Control' => 'private, no-store',
+        ]);
+    }
+
+    public function advanceRecordsPdf(Request $request, string $token)
+    {
+        abort_unless(feature_allowed('Event Records'), 404);
+        @ini_set('memory_limit', '512M');
+
+        return response()->json(app(\App\Services\EventRecordsPdfProcess::class)->step($token, (int) $request->user()->id));
+    }
+
+    public function downloadRecordsPdf(Request $request, string $token)
+    {
+        abort_unless(feature_allowed('Event Records'), 404);
+        $path = app(\App\Services\EventRecordsPdfProcess::class)->downloadPath($token, (int) $request->user()->id);
+
+        return response()->download($path, 'event_records_'.now()->format('Ymd_His').'.pdf', [
+            'Content-Type' => 'application/pdf', 'Cache-Control' => 'private, no-store',
+        ]);
+    }
+
+    /**
+     * Export the filtered Event Records to XLSX across all listing pages.
      */
     public function exportRecords(Request $request)
     {
@@ -2608,7 +2679,7 @@ class TransactionEventsController extends Controller
         }
 
         return redirect()->back()->with($transferred > 0 ? 'success' : 'error',
-            "Transferred {$transferred} event(s). Skipped {$skipped} event(s) without a matching client; they remain in Import Events.");
+            "Created {$transferred} new transaction(s). Skipped {$skipped} event(s) already transferred or no longer available.");
     }
 
     /**
@@ -2929,34 +3000,40 @@ class TransactionEventsController extends Controller
      */
     private function transferSinglePendingEvent(TransactionEvent $event): array
     {
-        if ($event->transferred_at !== null) {
-            return ['success' => false, 'created_client' => false];
-        }
+        return DB::transaction(function () use ($event) {
+            $event = TransactionEvent::whereKey($event->id)->lockForUpdate()->first();
+            if ($event === null || $event->transferred_at !== null) {
+                return ['success' => false, 'created_client' => false];
+            }
 
-        $client = $this->findClientForImport($event->full_name, $event->birth_date?->format('Y-m-d'));
-        if ($client === null) {
-            return ['success' => false, 'created_client' => false];
-        }
+            $birthDate = $event->birth_date?->format('Y-m-d');
+            $client = $this->findClientForImport($event->full_name, $birthDate);
+            $createdClient = $client === null;
+            if ($createdClient) {
+                $client = $this->createClientForImportRow($event->full_name, $event->getAttributes(), $birthDate);
+            }
 
-        $history = TransactionHistory::create([
-            'client_id' => $client->client_id,
-            'client_category' => $event->client_category ?? '',
-            'transaction_id' => $this->nextTransactionIdForClient($client->client_id),
-            'transaction_date' => $event->event_date?->format('Y-m-d') ?? now()->toDateString(),
-            'category' => $event->transaction_category ?? '',
-            'type' => $event->transaction_type ?? '',
-            'events_transaction_type' => $event->transaction_type ?? '',
-            'status' => 'Approved',
-            'source' => 'transfer',
-            'description' => 'Transferred from event record.',
-        ]);
+            // Every selected event gets a new history entry, even for an existing client.
+            $history = TransactionHistory::create([
+                'client_id' => $client->client_id,
+                'client_category' => $event->client_category ?? '',
+                'transaction_id' => $this->nextTransactionIdForClient($client->client_id),
+                'transaction_date' => $event->event_date?->format('Y-m-d') ?? now()->toDateString(),
+                'category' => $event->transaction_category ?? '',
+                'type' => $event->transaction_type ?? '',
+                'events_transaction_type' => $event->transaction_type ?? '',
+                'status' => 'Approved',
+                'source' => 'transfer',
+                'description' => 'Transferred from event record.',
+            ]);
 
-        $event->update([
-            'transferred_at' => now(),
-            'transferred_transaction_id' => $history->id,
-        ]);
+            $event->update([
+                'transferred_at' => now(),
+                'transferred_transaction_id' => $history->id,
+            ]);
 
-        return ['success' => true, 'created_client' => false];
+            return ['success' => true, 'created_client' => $createdClient];
+        });
     }
 
     private function saveTransferSession(string $token, array $data): void
@@ -3133,7 +3210,7 @@ class TransactionEventsController extends Controller
             $message .= " Auto-created {$createdClients} new client(s).";
         }
         if ($skippedCount > 0) {
-            $message .= " Skipped {$skippedCount} event(s). Records without a matching client remain in Import Events.";
+            $message .= " Skipped {$skippedCount} event(s) already transferred or no longer available.";
         }
 
         $request->session()->flash($successCount > 0 ? 'success' : 'error', $message);

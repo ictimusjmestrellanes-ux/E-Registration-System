@@ -624,7 +624,7 @@
                             Create transactions from <span class="fw-semibold" id="bulkTransferCount">0</span>
                             selected event(s)?
                         </p>
-                        <p class="text-muted small mt-2 mb-0">Only matching clients in the Client List will receive transactions. Unmatched records stay in Import Events; no new clients are registered.</p>
+                        <p class="text-muted small mt-2 mb-0">Each selected event creates a new approved transaction in Transaction History. Existing clients are reused; a new client is registered when no match is found.</p>
                     </div>
                     <div class="modal-footer border-0 justify-content-center gap-3 pt-0">
                         <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal">Cancel</button>

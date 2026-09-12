@@ -126,6 +126,10 @@ Route::group(['namespace' => 'App\Http\Controllers'], function () {
         Route::get('transaction-events/export', [TransactionEventsController::class, 'exportEvents'])->name('transaction-events.export');
         Route::get('transaction-events/records', [TransactionEventsController::class, 'records'])->name('transaction-events.records');
         Route::get('transaction-events/records/export', [TransactionEventsController::class, 'exportRecords'])->name('transaction-events.records.export');
+        Route::get('transaction-events/records/export-pdf', [TransactionEventsController::class, 'exportRecordsPdf'])->name('transaction-events.records.export-pdf');
+        Route::post('transaction-events/records/export-pdf', [TransactionEventsController::class, 'exportRecordsPdf']);
+        Route::post('transaction-events/records/export-pdf/{token}/step', [TransactionEventsController::class, 'advanceRecordsPdf'])->name('transaction-events.records.pdf-step');
+        Route::get('transaction-events/records/export-pdf/{token}/download', [TransactionEventsController::class, 'downloadRecordsPdf'])->name('transaction-events.records.pdf-download');
         Route::get('transaction-events/records/duplicates', [TransactionEventsController::class, 'recordsDuplicates'])->name('transaction-events.records-duplicates');
         Route::get('transaction-events/duplicate-review', [TransactionEventsController::class, 'duplicateReview'])->name('transaction-events.duplicate-review');
         Route::get('transaction-events/removed-duplicates', [TransactionEventsController::class, 'removedDuplicates'])->name('transaction-events.removed-duplicates');

@@ -151,6 +151,12 @@
                                         title="Export the currently filtered records to Excel">
                                         <i class="ri-download-line me-1"></i> Export XLSX
                                     </a>
+                                    <a href="{{ route('transaction-events.records.export-pdf', request()->query()) }}"
+                                        id="recordExportPdfBtn"
+                                        class="btn btn-sm btn-soft-danger text-nowrap"
+                                        title="Export all filtered records to PDF in alphabetical order">
+                                        <i class="ri-file-pdf-line me-1"></i> Export PDF
+                                    </a>
 
                                     <select class="form-select form-select-sm w-auto" id="recordPerPageSelect"
                                         aria-label="Records per page" title="Records per page">
@@ -545,9 +551,75 @@
             </div>
         </div>
     </div>
+    <div class="modal fade" id="recordPdfDetailsModal" tabindex="-1" aria-labelledby="recordPdfDetailsTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <form class="modal-content" id="recordPdfDetailsForm">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="recordPdfDetailsTitle">PDF report details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small">Leave fields empty to use the report defaults. Rice reports use the names shown below; other reports use blank signature lines. The date defaults to the matching records' dates.</p>
+                    <div class="mb-3">
+                        <label for="recordPdfDate" class="form-label">Date</label>
+                        <input type="text" class="form-control" id="recordPdfDate" name="report_date" maxlength="100" placeholder="Automatic date or date range">
+                    </div>
+                    <div class="mb-3">
+                        <label for="recordPdfPrepared" class="form-label">Prepared by</label>
+                        <input type="text" class="form-control" id="recordPdfPrepared" name="prepared_by" maxlength="100" placeholder="LONIZA B. ESGUERRA">
+                    </div>
+                    <div class="mb-3">
+                        <label for="recordPdfReviewed" class="form-label">Reviewed by</label>
+                        <input type="text" class="form-control" id="recordPdfReviewed" name="reviewed_by" maxlength="100" placeholder="JOSEPHINE G. VILLANUEVA">
+                    </div>
+                    <div>
+                        <label for="recordPdfApproved" class="form-label">Approved by</label>
+                        <input type="text" class="form-control" id="recordPdfApproved" name="approved_by" maxlength="100" placeholder="ALEX L. ADVINCULA">
+                    </div>
+                    <fieldset class="mt-3">
+                        <legend class="fs-6">Number signature columns</legend>
+                        <p class="text-muted small">Select the tranches that should display each beneficiary's row number. Unselected columns stay blank.</p>
+                        @foreach ([1 => '1st', 2 => '2nd', 3 => '3rd', 4 => '4th'] as $tranche => $label)
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="recordPdfTranche{{ $tranche }}" name="numbered_tranches" value="{{ $tranche }}">
+                                <label class="form-check-label" for="recordPdfTranche{{ $tranche }}">{{ $label }} tranche</label>
+                            </div>
+                        @endforeach
+                    </fieldset>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Generate PDF</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <div class="modal fade" id="recordPdfProgressModal" tabindex="-1"
+        aria-labelledby="recordPdfProgressTitle" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="recordPdfProgressTitle">Export PDF</h5>
+                </div>
+                <div class="modal-body">
+                    <p id="recordPdfProgressStatus" role="status" aria-live="polite">Preparing your PDF…</p>
+                    <div class="progress mb-3" id="recordPdfProgressBar" role="progressbar" aria-label="Preparing PDF">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated w-100"></div>
+                    </div>
+                    <p class="text-muted small mb-1" id="recordPdfProgressHelp">Large exports may take a few minutes. Keep this page open.</p>
+                    <p class="text-muted small mb-0" id="recordPdfProgressElapsed">Elapsed: 0:00</p>
+                </div>
+                <div class="modal-footer">
+                    <a class="btn btn-primary d-none" id="recordPdfDownload">Download PDF</a>
+                    <button type="button" class="btn btn-light" id="recordPdfProgressClose" data-bs-dismiss="modal" disabled>Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
 @endsection
 
 @push('scripts')
+    <script src="{{ asset('assets/js/event-records-pdf-export.js') }}?v={{ filemtime(public_path('assets/js/event-records-pdf-export.js')) }}"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const editModal = document.getElementById('editRecordModal');
@@ -1116,11 +1188,6 @@
                 });
             }
 
-            // Initialize labels on page load
-            updateRecordTypeLabel();
-            updateRecordClientCategoryLabel();
-            syncRecordClientCategoryVisibility();
-
             // Filter client-category dropdown based on checked transaction types
             const recordTypeClientCategoryMap = @json($typeClientCategories ?? []);
 
@@ -1156,7 +1223,8 @@
                 updateRecordClientCategoryLabel();
             }
 
-            // Initial visibility sync
+            // Initialize only after the type/category map is available.
+            updateRecordTypeLabel();
             syncRecordClientCategoryVisibility();
 
             // Sync visibility on transaction type change
