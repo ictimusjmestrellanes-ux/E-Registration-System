@@ -39,10 +39,14 @@ namespace FingerprintBridge
 
         public async Task<object> CaptureAsync(CancellationToken cancellationToken)
         {
-            await _captureLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+            if (!await _captureLock.WaitAsync(0, cancellationToken).ConfigureAwait(false))
+            {
+                throw new InvalidOperationException("A fingerprint scan is already in progress. Wait for it to finish, then try again.");
+            }
 
             try
             {
+                LogCaptureStage("Capture requested.");
                 var readers = await InvokeOnUiThreadAsync(() => ReaderCollection.GetReaders()).ConfigureAwait(false);
                 if (readers.Count == 0)
                 {
@@ -51,6 +55,7 @@ namespace FingerprintBridge
 
                 var reader = readers[0];
                 var captureResult = await CaptureSingleFingerprintAsync(reader, cancellationToken).ConfigureAwait(false);
+                LogCaptureStage("Capture received; extracting image and template.");
                 var bitmap = CreateBitmapFromCapture(captureResult);
                 var fingerprintTemplateXml = CreateFingerprintTemplateXml(captureResult);
 
@@ -78,6 +83,7 @@ namespace FingerprintBridge
             }
             finally
             {
+                LogCaptureStage("Capture request finished.");
                 _captureLock.Release();
             }
         }
@@ -87,12 +93,13 @@ namespace FingerprintBridge
             var tcs = new TaskCompletionSource<CaptureResult>(TaskCreationOptions.RunContinuationsAsynchronously);
             Reader.CaptureCallback? callback = null;
 
-            cancellationToken.Register(() => tcs.TrySetCanceled(cancellationToken));
+            var cancellationRegistration = cancellationToken.Register(() => tcs.TrySetCanceled(cancellationToken));
 
             try
             {
                 callback = captureResult =>
                 {
+                    LogCaptureStage("Capture callback: " + captureResult.ResultCode + ", quality=" + captureResult.Quality);
                     try
                     {
                         if (!CheckCaptureResult(captureResult))
@@ -112,18 +119,20 @@ namespace FingerprintBridge
             }
             catch
             {
+                cancellationRegistration.Dispose();
                 SafeDisposeReaderOnUiThread(reader, callback);
                 throw;
             }
 
-            return WaitForCaptureAsync(reader, callback, tcs, cancellationToken);
+            return WaitForCaptureAsync(reader, callback, tcs, cancellationToken, cancellationRegistration);
         }
 
         private async Task<CaptureResult> WaitForCaptureAsync(
             Reader reader,
             Reader.CaptureCallback? callback,
             TaskCompletionSource<CaptureResult> tcs,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+            CancellationTokenRegistration cancellationRegistration)
         {
             try
             {
@@ -132,7 +141,8 @@ namespace FingerprintBridge
 
                 if (completed != tcs.Task)
                 {
-                    TryCancelCapture(reader);
+                    cancellationToken.ThrowIfCancellationRequested();
+                    LogCaptureStage("Capture timed out.");
                     throw new TimeoutException("Fingerprint capture timed out. Place your finger flat on the reader and try again.");
                 }
 
@@ -140,7 +150,9 @@ namespace FingerprintBridge
             }
             finally
             {
-                TryCancelCapture(reader);
+                cancellationRegistration.Dispose();
+                // The SDK sample closes the reader with Dispose, which also stops acquisition.
+                // Calling CancelCapture from a worker thread first can stall cleanup.
                 SafeDisposeReaderOnUiThread(reader, callback);
             }
         }
@@ -260,16 +272,19 @@ namespace FingerprintBridge
 
             InvokeOnUiThread(() =>
             {
+                LogCaptureStage("Opening reader.");
                 activeReader = OpenReaderWithRecovery(reader);
 
                 activeReader.On_Captured += callback;
 
                 EnsureReady(activeReader);
+                LogCaptureStage("Reader ready; starting acquisition.");
 
                 var captureStatus = activeReader.CaptureAsync(
                     Constants.Formats.Fid.ANSI,
                     Constants.CaptureProcessing.DP_IMG_PROC_DEFAULT,
                     activeReader.Capabilities.Resolutions[0]);
+                LogCaptureStage("Acquisition start result: " + captureStatus);
 
                 if (captureStatus != Constants.ResultCode.DP_SUCCESS)
                 {
@@ -408,17 +423,33 @@ namespace FingerprintBridge
             {
                 InvokeOnUiThread(() =>
                 {
+                    LogCaptureStage("Closing reader.");
                     if (callback != null)
                     {
                         reader.On_Captured -= callback;
                     }
 
                     reader.Dispose();
+                    LogCaptureStage("Reader closed.");
                 });
             }
             catch
             {
                 // Ignore cleanup errors.
+            }
+        }
+
+        private static void LogCaptureStage(string message)
+        {
+            try
+            {
+                // Operational diagnostics only: never log fingerprint images or templates.
+                File.AppendAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "capture-diagnostic.log"),
+                    DateTime.UtcNow.ToString("o") + " " + message + Environment.NewLine);
+            }
+            catch
+            {
+                // Diagnostics must not interrupt capture.
             }
         }
 

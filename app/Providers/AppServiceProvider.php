@@ -20,6 +20,20 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        foreach ([
+            \App\Models\Client::class,
+            \App\Models\ArchivedClient::class,
+            \App\Models\TransactionEvent::class,
+            \App\Models\TransactionHistory::class,
+            \App\Models\TransactionRequirement::class,
+            \App\Models\ImportArchiveFile::class,
+            \App\Models\User::class,
+            \App\Models\Role::class,
+            \App\Models\Permission::class,
+        ] as $model) {
+            $model::observe(\App\Observers\ActivityObserver::class);
+        }
+
         Event::listen(function (SocialiteWasCalled $event): void {
             $event->extendSocialite('azure', \SocialiteProviders\Azure\Provider::class);
         });

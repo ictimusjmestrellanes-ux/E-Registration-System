@@ -287,7 +287,7 @@
                                             <th data-column="clerk">Clerk</th>
                                             <th data-column="client_category">Client Category</th>
                                             <th data-column="transaction_type">Transaction Type</th>
-                                            <th data-column="events_transaction_type">Events Transaction Type</th>
+                                            {{-- <th data-column="events_transaction_type">Events Transaction Type</th> --}}
                                             <th data-column="status">Status</th>
                                             <th data-column="actions_taken">Actions Taken</th>
                                             <th data-column="remarks">Remarks</th>
@@ -298,12 +298,12 @@
                                         @forelse ($transactions as $transaction)
                                             @php
                                                 $txStatus = $transaction->status ?? 'Completed';
-                                                $txIsApproved = strtolower($txStatus) === 'approved';
+                                                $txIsDisabled = in_array(strtolower(trim($txStatus)), ['approved', 'claimed'], true);
                                                 $transactionEditUrl = route('transactions.edit', $transaction->id);
                                             @endphp
-                                            <tr class="transaction-row {{ $txIsApproved ? 'transaction-row-disabled' : '' }}" data-transaction-url="{{ auth()->user()?->role_name === 'Viewer' ? '' : ($txIsApproved ? '' : $transactionEditUrl) }}">
+                                            <tr class="transaction-row {{ $txIsDisabled ? 'transaction-row-disabled' : '' }}" data-transaction-url="{{ auth()->user()?->role_name === 'Viewer' ? '' : ($txIsDisabled ? '' : $transactionEditUrl) }}">
                                                 <td data-column="transaction_id">
-                                                    @if ($txIsApproved || auth()->user()?->role_name === 'Viewer')
+                                                    @if ($txIsDisabled || auth()->user()?->role_name === 'Viewer')
                                                         <span class="fw-semibold">{{ $transaction->transaction_id }}</span>
                                                     @else
                                                         <a href="{{ $transactionEditUrl }}"
@@ -318,7 +318,7 @@
                                                 <td data-column="clerk" class="text-uppercase">{{ $transaction->clerk ?? auth()->user()->name ?? 'System' }}</td>
                                                 <td data-column="client_category" class="text-uppercase">{{ filled($transaction->client_category) ? $transaction->client_category : ($client->sector ?? 'N/A') }}</td>
                                                 <td data-column="transaction_type" class="text-uppercase">{{ $transaction->type_label ?? 'N/A' }}</td>
-                                                <td data-column="events_transaction_type" class="text-uppercase">{{ $transaction->events_transaction_type ?: 'N/A' }}</td>
+                                                {{-- <td data-column="events_transaction_type" class="text-uppercase">{{ $transaction->events_transaction_type ?: 'N/A' }}</td> --}}
                                                 <td data-column="status">
                                                     @if (strtolower($txStatus) === 'pending')
                                                         <span class="badge bg-warning-subtle text-warning">{{ $txStatus }}</span>

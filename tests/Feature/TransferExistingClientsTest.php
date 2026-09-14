@@ -153,7 +153,7 @@ class TransferExistingClientsTest extends TestCase
         $this->assertSame($original, $firstHistory->fresh()->getAttributes());
         $this->assertNotSame($firstHistory->transaction_id, $secondHistory->transaction_id);
         $this->assertSame('2600001', $secondHistory->client_id);
-        $this->assertSame('Approved', $secondHistory->status);
+        $this->assertSame('Pending', $secondHistory->status);
         $this->assertSame('transfer', $secondHistory->source);
         $this->assertSame('social_services', $secondHistory->category);
         $this->assertSame('burial_assistance', $secondHistory->type);

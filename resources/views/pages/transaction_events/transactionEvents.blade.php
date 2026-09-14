@@ -377,10 +377,10 @@
                                     </div>
 
                                     <div class="col-12 col-md-6 col-xl-2">
-                                        <label for="eventDateTo"
-                                            class="form-label fw-semibold text-uppercase small">Event Date To</label>
-                                        <input type="date" class="form-control" id="eventDateTo"
-                                            name="event_date_to" value="{{ request('event_date_to') }}">
+                                        <label for="eventDateTo" class="form-label fw-semibold text-uppercase small">Event
+                                            Date To</label>
+                                        <input type="date" class="form-control" id="eventDateTo" name="event_date_to"
+                                            value="{{ request('event_date_to') }}">
                                     </div>
 
                                     <div class="col-12 col-md-6 col-xl-2">
@@ -417,42 +417,49 @@
                         @endif
 
                         <div id="selectAllPagesBar"
-                            class="alert alert-primary py-2 px-3 mb-3 d-none align-items-center justify-content-between flex-wrap gap-2"
-                            role="alert">
-                            <span id="selectAllPagesText"></span>
-                            <div class="d-flex align-items-center justify-content-end flex-wrap gap-2">
-                                @unless (auth()->user()?->role_name === 'Viewer')
-                                    @if (feature_allowed('Transfer Selected'))
-                                        <button type="button" class="btn btn-success btn-sm" id="bulkTransferBtn" disabled>
-                                            <i class="ri-exchange-box-line me-1"></i> Transfer Selected
-                                        </button>
-                                        <button type="button" class="btn btn-info btn-sm" id="transferOneByOneBtn" disabled
-                                            title="Transfer the checked events one at a time. When Select All is active, covers every matching event across pages. Reuses the existing client when matched, otherwise creates one.">
-                                            <i class="ri-exchange-line me-1"></i> Transfer 1 by 1
+                            class="alert alert-primary border-0 shadow-sm d-none align-items-center justify-content-between gap-3 mb-3 px-3 py-2"
+                            role="alert"> {{-- Left: Selection Info --}}
+                            <div class="d-flex align-items-center gap-2 flex-grow-1">
+                                <div class="bulk-action-icon flex-shrink-0"> <i
+                                        class="ri-checkbox-multiple-line text-primary"></i>
+                                </div>
+                                <div class="lh-sm">
+                                    <div class="fw-semibold text-dark" id="selectAllPagesText"></div> <small
+                                        class="text-muted"> Apply an action to the selected transaction events. </small>
+                                </div>
+                            </div> {{-- Right: Bulk Actions --}}
+                            <div class="bulk-action-buttons d-flex align-items-center justify-content-end flex-wrap gap-2 ms-auto">
+                                @unless (auth()->user()?->role_name === 'Viewer') {{-- Transfer Actions --}} @if (feature_allowed('Transfer Selected'))
+                                    <button type="button"
+                                        class="btn btn-success btn-sm d-inline-flex align-items-center justify-content-center gap-1 px-3"
+                                        id="bulkTransferBtn" disabled title="Transfer all selected events"> <i
+                                            class="ri-exchange-box-line"></i> <span>Transfer Selected</span> </button>
+                                    <button type="button"
+                                        class="btn btn-info btn-sm d-inline-flex align-items-center justify-content-center gap-1 px-3"
+                                        id="transferOneByOneBtn" disabled
+                                        title="Transfer checked events individually. If Select All is active, all matching events across pages will be included.">
+                                        <i class="ri-exchange-line"></i> <span>Transfer 1 by 1</span> </button>
+                                @else
+                                    <button type="button"
+                                        class="btn btn-light border btn-sm text-muted d-inline-flex align-items-center justify-content-center gap-1 px-3"
+                                        disabled title="You do not have permission to transfer selected events."> <i
+                                            class="ri-lock-line"></i> <span>Transfer Not Allowed</span> </button>
+                                    @endif {{-- Delete Action --}} @if (feature_allowed('Delete Event'))
+                                        <button type="button"
+                                            class="btn btn-danger btn-sm d-inline-flex align-items-center justify-content-center gap-1 px-3"
+                                            id="bulkDeleteBtn" disabled
+                                            title="Delete selected events. This action cannot be undone."> <i
+                                                class="ri-delete-bin-line"></i> <span>Delete Selected</span>
                                         </button>
                                     @else
-                                        <button type="button" class="btn btn-secondary btn-sm" disabled
-                                            title="You do not have permission to transfer selected events.">
-                                            <i class="ri-lock-line me-1"></i> Not Allowed to Transfer
-                                        </button>
-                                    @endif
-
-                                    @if (feature_allowed('Delete Event'))
-                                        <button type="button" class="btn btn-danger btn-sm" id="bulkDeleteBtn" disabled
-                                            title="Delete the checked events (or every matching event when Select All is active). Cannot be undone.">
-                                            <i class="ri-delete-bin-line me-1"></i> Delete Selected
-                                        </button>
-                                    @else
-                                        <button type="button" class="btn btn-secondary btn-sm" disabled
-                                            title="You do not have permission to delete events.">
-                                            <i class="ri-lock-line me-1"></i> Not Allowed to Delete
-                                        </button>
-                                    @endif
-                                @endunless
-
-                                <button type="button" id="clearSelectionBtn" class="btn btn-sm btn-light d-none">
-                                    Clear selection
-                                </button>
+                                        <button type="button"
+                                            class="btn btn-light border btn-sm text-muted d-inline-flex align-items-center justify-content-center gap-1 px-3"
+                                            disabled title="You do not have permission to delete events."> <i
+                                                class="ri-lock-line"></i> <span>Delete Not Allowed</span> </button>
+                                    @endif @endunless {{-- Clear Selection --}} <button type="button"
+                                        id="clearSelectionBtn"
+                                        class="btn btn-outline-secondary btn-sm d-none align-items-center justify-content-center gap-1 px-3">
+                                        <i class="ri-close-circle-line"></i> <span>Clear</span> </button>
                             </div>
                         </div>
                         <div class="table-responsive">
@@ -598,7 +605,8 @@
                             Create a transaction from this event for
                             <span class="fw-semibold" id="transferConfirmName">this client</span>?
                         </p>
-                        <p class="text-muted small mt-2 mb-0">Only matching clients in the Client List will receive a transaction. Unmatched records stay in Import Events; no new clients are registered.</p>
+                        <p class="text-muted small mt-2 mb-0">Only matching clients in the Client List will receive a
+                            transaction. Unmatched records stay in Import Events; no new clients are registered.</p>
                     </div>
                     <div class="modal-footer border-0 justify-content-center gap-3 pt-0">
                         <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal">Cancel</button>
@@ -624,7 +632,9 @@
                             Create transactions from <span class="fw-semibold" id="bulkTransferCount">0</span>
                             selected event(s)?
                         </p>
-                        <p class="text-muted small mt-2 mb-0">Each selected event creates a new approved transaction in Transaction History. Existing clients are reused; a new client is registered when no match is found.</p>
+                        <p class="text-muted small mt-2 mb-0">Each selected event creates a new approved transaction in
+                            Transaction History. Existing clients are reused; a new client is registered when no match is
+                            found.</p>
                     </div>
                     <div class="modal-footer border-0 justify-content-center gap-3 pt-0">
                         <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal">Cancel</button>
@@ -720,12 +730,14 @@
                             </a> and upload it directly (or save as CSV).
                             <p class="mt-2 mb-0">Format the Contact No. column as <strong>Text</strong> in Excel before
                                 entering numbers to keep leading zeros. Multiple numbers may share one cell, for example
-                                <code>09171234567 / 09281234567</code>.</p>
+                                <code>09171234567 / 09281234567</code>.
+                            </p>
                         </div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-                        <button type="button" class="btn btn-secondary" id="diagnoseCsvBtn" title="Analyze the file structure before importing">
+                        <button type="button" class="btn btn-secondary" id="diagnoseCsvBtn"
+                            title="Analyze the file structure before importing">
                             <i class="ri-search-line me-1"></i> Diagnose
                         </button>
                         <button type="button" class="btn btn-primary" id="previewCsvBtn">
@@ -761,7 +773,9 @@
                                 <small class="text-muted">Detected columns:</small>
                                 <div id="previewColumnsList" class="small mt-1"></div>
                             </div>
-                            <p class="small text-muted">Names are shown as Lastname, Firstname M.I. Hover over a name to see the original. For names without a comma or middle initial, verify the name order in your file before importing.</p>
+                            <p class="small text-muted">Names are shown as Lastname, Firstname M.I. Hover over a name to
+                                see the original. For names without a comma or middle initial, verify the name order in your
+                                file before importing.</p>
                             <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
                                 <table class="table table-bordered table-hover align-middle mb-0">
                                     <thead class="table-light" style="position: sticky; top: 0;">
@@ -819,7 +833,7 @@
         <!-- Already-imported warning modal -->
         <div class="modal fade" id="importDuplicateModal" tabindex="-1" aria-labelledby="importDuplicateModalLabel"
             aria-hidden="true">
-            <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-dialog modal-dialog-centered modal-xl">
                 <div class="modal-content">
                     <div class="modal-header bg-warning-subtle">
                         <h5 class="modal-title" id="importDuplicateModalLabel">
@@ -829,7 +843,8 @@
                     </div>
                     <div class="modal-body">
                         <p class="mb-2" id="importDuplicateSummary"></p>
-                        <p class="text-muted small mb-2">Client matches or duplicate rows found in the file or existing records:</p>
+                        <p class="text-muted small mb-2">Client matches or duplicate rows found in the file or existing
+                            records:</p>
                         <div class="table-responsive" style="max-height: 260px; overflow-y: auto;">
                             <table class="table table-sm table-bordered align-middle mb-0">
                                 <thead class="table-light">
@@ -843,10 +858,21 @@
                                 <tbody id="importDuplicateBody"></tbody>
                             </table>
                         </div>
-                        <div class="small text-muted mt-2">“Import Anyway” saves every valid row in this file to Import Events for review, including matching and duplicate rows. No clients or transaction history are created until you transfer the events.</div>
+                        <div class="small mt-2"><strong>Update Matching Records (recommended):</strong> Match by full name,
+                            address, birth date, event date, client category, and transaction category (ignoring case and surrounding spaces).
+                            Set the status to Claimed, including linked transaction history. Keep the saved transaction type.
+                            Records already marked Claimed stay unchanged;
+                            new rows go to Import Events for review with Pending status. Multiple matches and missing event dates
+                            are skipped for review. Repeated matching rows are marked Claimed only once.</div>
+                        <div class="small text-muted mt-2">“Import Anyway” saves every valid row in this file to Import
+                            Events for review, including matching and duplicate rows. No clients or transaction history are
+                            created until you transfer the events.</div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-primary px-4" id="importDuplicateUpdateBtn">
+                            Update Matching Records
+                        </button>
                         <button type="button" class="btn btn-warning px-4" id="importDuplicateContinueBtn">
                             <i class="ri-upload-2-line me-1"></i> Import Anyway
                         </button>
@@ -1249,7 +1275,8 @@
                         clearBtn.classList.remove('d-none');
                     }
                     barText.innerHTML = '<i class="ri-check-double-line me-1"></i><strong>All ' +
-                        selectableTotal + '</strong> matching events are selected (across all pages). Duplicate names are excluded.';
+                        selectableTotal +
+                        '</strong> matching events are selected (across all pages). Duplicate names are excluded.';
                 };
 
                 const clearAllSelection = () => {
@@ -2082,6 +2109,7 @@
                         age: item.row.age,
                         birth_date: item.row.birth_date || item.row.birthdate || '',
                         client_category: item.row.client_category || '',
+                        sector: item.row.sector || '',
                         transaction_category: item.row.transaction_category || '',
                         transaction_type: item.row.transaction_type || '',
                         event_date: item.row.event_date || item.row.eventdate || '',
@@ -2118,7 +2146,8 @@
                 csvFileError.classList.add('d-none');
                 csvFileVisible.classList.remove('is-invalid');
 
-                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute(
+                    'content') || '';
                 const formData = new FormData();
                 formData.append('csv_file', file);
 
@@ -2144,23 +2173,24 @@
                 bsModalDiag.show();
 
                 fetch('{{ route('transaction-events.import.diagnose') }}', {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRF-TOKEN': csrfToken,
-                        Accept: 'application/json',
-                    },
-                    body: formData,
-                })
-                .then(res => res.json())
-                .then(data => {
-                    const body = diagModal.querySelector('.modal-body');
-                    
-                    if (!data.success) {
-                        body.innerHTML = `<div class="alert alert-danger">${escapeHtml(data.error || 'Analysis failed')}</div>`;
-                        return;
-                    }
+                        method: 'POST',
+                        headers: {
+                            'X-CSRF-TOKEN': csrfToken,
+                            Accept: 'application/json',
+                        },
+                        body: formData,
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        const body = diagModal.querySelector('.modal-body');
 
-                    let html = `
+                        if (!data.success) {
+                            body.innerHTML =
+                                `<div class="alert alert-danger">${escapeHtml(data.error || 'Analysis failed')}</div>`;
+                            return;
+                        }
+
+                        let html = `
                         <div class="text-start">
                             <h6 class="mb-2"><strong>File:</strong> ${escapeHtml(data.file_name)}</h6>
                             <h6 class="mb-2"><strong>Total Data Rows:</strong> ${data.total_rows.toLocaleString()}</h6>
@@ -2176,41 +2206,46 @@
                             </div>
                     `;
 
-                    if (data.warnings && data.warnings.length > 0) {
-                        html += '<h6 class="text-danger mb-2">Warnings:</h6>';
-                        html += '<div class="alert alert-warning mb-3">';
-                        data.warnings.forEach(w => {
-                            html += '<div>⚠️ ' + escapeHtml(w) + '</div>';
-                        });
-                        html += '</div>';
-                    }
-
-                    if (data.sample_rows && data.sample_rows.length > 0) {
-                        html += '<h6>Sample Data (First Rows):</h6>';
-                        html += '<div class="table-responsive" style="max-height: 300px; overflow-y: auto;">';
-                        html += '<table class="table table-bordered table-sm mb-0">';
-                        html += '<thead class="table-light"><tr>';
-                        (data.normalized_header || []).slice(0, 10).forEach(h => {
-                            html += '<th style="width: auto; min-width: 100px;"><code class="small">' + escapeHtml(h) + '</code></th>';
-                        });
-                        html += '</tr></thead><tbody>';
-                        data.sample_rows.forEach(row => {
-                            html += '<tr>';
-                            (data.normalized_header || []).slice(0, 10).forEach(h => {
-                                html += '<td class="small">' + escapeHtml(row[h] || '') + '</td>';
+                        if (data.warnings && data.warnings.length > 0) {
+                            html += '<h6 class="text-danger mb-2">Warnings:</h6>';
+                            html += '<div class="alert alert-warning mb-3">';
+                            data.warnings.forEach(w => {
+                                html += '<div>⚠️ ' + escapeHtml(w) + '</div>';
                             });
-                            html += '</tr>';
-                        });
-                        html += '</tbody></table></div>';
-                    }
+                            html += '</div>';
+                        }
 
-                    html += '</div>';
-                    body.innerHTML = html;
-                })
-                .catch(err => {
-                    const body = diagModal.querySelector('.modal-body');
-                    body.innerHTML = `<div class="alert alert-danger">Error: ${escapeHtml(err.message)}</div>`;
-                });
+                        if (data.sample_rows && data.sample_rows.length > 0) {
+                            html += '<h6>Sample Data (First Rows):</h6>';
+                            html +=
+                                '<div class="table-responsive" style="max-height: 300px; overflow-y: auto;">';
+                            html += '<table class="table table-bordered table-sm mb-0">';
+                            html += '<thead class="table-light"><tr>';
+                            (data.normalized_header || []).slice(0, 10).forEach(h => {
+                                html +=
+                                    '<th style="width: auto; min-width: 100px;"><code class="small">' +
+                                    escapeHtml(h) + '</code></th>';
+                            });
+                            html += '</tr></thead><tbody>';
+                            data.sample_rows.forEach(row => {
+                                html += '<tr>';
+                                (data.normalized_header || []).slice(0, 10).forEach(h => {
+                                    html += '<td class="small">' + escapeHtml(row[h] ||
+                                        '') + '</td>';
+                                });
+                                html += '</tr>';
+                            });
+                            html += '</tbody></table></div>';
+                        }
+
+                        html += '</div>';
+                        body.innerHTML = html;
+                    })
+                    .catch(err => {
+                        const body = diagModal.querySelector('.modal-body');
+                        body.innerHTML =
+                            `<div class="alert alert-danger">Error: ${escapeHtml(err.message)}</div>`;
+                    });
             });
 
             previewBtn.addEventListener('click', function() {
@@ -2268,7 +2303,8 @@
                     const previewColumnsDiv = document.getElementById('previewColumns');
                     const previewColumnsList = document.getElementById('previewColumnsList');
                     if (result.header && Array.isArray(result.header) && result.header.length > 0) {
-                        previewColumnsList.innerHTML = result.header.map(h => '<code>' + escapeHtml(h) + '</code>').join(', ');
+                        previewColumnsList.innerHTML = result.header.filter(h => String(h).trim().toLowerCase() !== 'sector').map(h => '<code>' + escapeHtml(h) +
+                            '</code>').join(', ');
                         previewColumnsDiv.style.display = 'block';
                     }
 
@@ -2384,7 +2420,7 @@
                 reader.readAsText(file);
             });
 
-            const runImport = async function(eventsOnly = false, forceDirect = false) {
+            const runImport = async function(eventsOnly = false, forceDirect = false, updateExisting = false) {
                 if (csvFileHidden.files.length === 0) {
                     return;
                 }
@@ -2420,6 +2456,14 @@
                         importForm.appendChild(eventsOnlyInput);
                     }
                     eventsOnlyInput.value = eventsOnly ? '1' : '0';
+                    let updateInput = importForm.querySelector('input[name="update_existing"]');
+                    if (!updateInput) {
+                        updateInput = document.createElement('input');
+                        updateInput.type = 'hidden';
+                        updateInput.name = 'update_existing';
+                        importForm.appendChild(updateInput);
+                    }
+                    updateInput.value = updateExisting ? '1' : '0';
                     if (forceDirect) {
                         let forceInput = importForm.querySelector('input[name="force_direct"]');
                         if (!forceInput) {
@@ -2446,6 +2490,7 @@
                     prepareForm.append('csv_file', file);
                     prepareForm.append('events_only', eventsOnly ? '1' : '0');
                     prepareForm.append('force_direct', forceDirect ? '1' : '0');
+                    prepareForm.append('update_existing', updateExisting ? '1' : '0');
 
                     const prepareRes = await fetch(
                         '{{ route('transaction-events.import.prepare') }}', {
@@ -2466,26 +2511,32 @@
                             if (prepareData.skipped && prepareData.skipped > 0) {
                                 // Build detailed error message
                                 let detailMsg = '<strong>No valid rows found.</strong><br>';
-                                detailMsg += '<strong>' + prepareData.skipped + ' row(s) skipped due to invalid data.</strong><br><br>';
-                                
+                                detailMsg += '<strong>' + prepareData.skipped +
+                                    ' row(s) skipped due to invalid data.</strong><br><br>';
+
                                 // Show skip reasons
-                                if (prepareData.skipped_examples && prepareData.skipped_examples.length > 0) {
-                                    detailMsg += '<strong>First ' + Math.min(10, prepareData.skipped_examples.length) + ' Skip Reasons:</strong><br>';
+                                if (prepareData.skipped_examples && prepareData.skipped_examples.length >
+                                    0) {
+                                    detailMsg += '<strong>First ' + Math.min(10, prepareData
+                                        .skipped_examples.length) + ' Skip Reasons:</strong><br>';
                                     prepareData.skipped_examples.slice(0, 10).forEach(function(ex) {
-                                        detailMsg += '• <strong>Line ' + ex.line + ':</strong> ' + escapeHtml(ex.reason);
+                                        detailMsg += '• <strong>Line ' + ex.line + ':</strong> ' +
+                                            escapeHtml(ex.reason);
                                         if (ex.data && ex.data.full_name) {
-                                            detailMsg += ' (full_name: <code>' + escapeHtml(ex.data.full_name) + '</code>)';
+                                            detailMsg += ' (full_name: <code>' + escapeHtml(ex.data
+                                                .full_name) + '</code>)';
                                         }
                                         detailMsg += '<br>';
                                     });
                                 }
-                                
+
                                 // Show detected headers
                                 if (prepareData.headers && prepareData.headers.length > 0) {
                                     detailMsg += '<br><strong>Detected Columns:</strong><br>';
-                                    detailMsg += prepareData.headers.map(h => '<code>' + escapeHtml(h) + '</code>').join(', ');
+                                    detailMsg += prepareData.headers.map(h => '<code>' + escapeHtml(h) +
+                                        '</code>').join(', ');
                                 }
-                                
+
                                 // Create error modal instead of alert
                                 const errorModal = document.createElement('div');
                                 errorModal.className = 'modal fade';
@@ -2585,8 +2636,9 @@
                     const finishData = await parseApiResponse(finishRes);
 
                     if (!finishRes.ok || !finishData.success) {
-                        let errorMsg = finishData.message || finishData.error || 'Import failed to finalize.';
-                        
+                        let errorMsg = finishData.message || finishData.error ||
+                            'Import failed to finalize.';
+
                         // Show detailed error if available
                         if (finishData.errors && finishData.errors.length > 0) {
                             const errorDetails = finishData.errors.slice(0, 5)
@@ -2600,6 +2652,12 @@
                         throw new Error(errorMsg);
                     }
 
+                    if (updateExisting && finishData.errors?.length) {
+                        progressModal.hide();
+                        confirmBtn.disabled = false;
+                        const details = finishData.errors.map(e => `Row ${e.row} (${e.data}): ${e.error}`).join('\n');
+                        alert(`Import complete: ${finishData.created} created, ${finishData.updated} updated, ${finishData.unchanged} unchanged, ${finishData.skipped} skipped.\n\nRows requiring review (first 10):\n${details}`);
+                    }
                     setProgress(100, 'Done!');
                     setTimeout(function() {
                         window.location.href = '{{ route('transaction-events.index') }}';
@@ -2607,11 +2665,12 @@
                 } catch (error) {
                     progressModal.hide();
                     confirmBtn.disabled = false;
-                    
+
                     // Show detailed error modal instead of simple message
                     const errorModal = document.createElement('div');
                     errorModal.className = 'modal fade';
-                    errorModal.innerHTML = `
+                    errorModal.innerHTML =
+                        `
                         <div class="modal-dialog modal-dialog-centered modal-lg">
                             <div class="modal-content">
                                 <div class="modal-header bg-danger-subtle">
@@ -2620,8 +2679,8 @@
                                 </div>
                                 <div class="modal-body">
                                     <pre class="bg-light p-3 rounded" style="max-height: 300px; overflow-y: auto; white-space: pre-wrap; word-wrap: break-word;">` +
-                                    escapeHtml(error.message) +
-                                    `</pre>
+                        escapeHtml(error.message) +
+                        `</pre>
                                 </div>
                                 <div class="modal-footer">
                                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
@@ -2702,6 +2761,11 @@
             document.getElementById('importDuplicateContinueBtn')?.addEventListener('click', function() {
                 bootstrap.Modal.getInstance(document.getElementById('importDuplicateModal'))?.hide();
                 runImport(true);
+            });
+
+            document.getElementById('importDuplicateUpdateBtn')?.addEventListener('click', function() {
+                bootstrap.Modal.getInstance(document.getElementById('importDuplicateModal'))?.hide();
+                runImport(true, false, true);
             });
 
             // "Force Create All" in Review Import Data: skip the duplicate

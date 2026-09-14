@@ -19,6 +19,8 @@ class TransactionEvent extends Model
         'age',
         'birth_date',
         'client_category',
+        'sector',
+        'status',
         'transaction_category',
         'transaction_type',
         'event_date',
@@ -35,6 +37,12 @@ class TransactionEvent extends Model
         'age' => 'integer',
         'not_duplicate' => 'boolean',
     ];
+
+    protected $attributes = [
+        'status' => 'Pending',
+    ];
+
+    public const STATUSES = ['Pending', 'Claimed', 'Unclaimed'];
 
     public function transferredTransaction(): BelongsTo
     {

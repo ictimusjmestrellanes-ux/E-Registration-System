@@ -18,7 +18,7 @@ class ActivityLogsController extends Controller
         $manilaNow = now($timezone);
         $viewOwnOnly = !in_array(auth()->user()->role_name, ['Admin', 'Super Admin']);
 
-        $baseQuery = ActivityLog::with('user')->latest();
+        $baseQuery = ActivityLog::with('user')->latest()->orderByDesc('id');
         if ($viewOwnOnly) {
             $baseQuery->where('user_id', auth()->id());
         }
@@ -41,7 +41,7 @@ class ActivityLogsController extends Controller
                     ->between($manilaNow->copy()->startOfWeek(), $manilaNow->copy()->endOfWeek());
         })->values();
 
-        $activitiesQuery = ActivityLog::with('user')->latest();
+        $activitiesQuery = ActivityLog::with('user')->latest()->orderByDesc('id');
         if ($viewOwnOnly) {
             $activitiesQuery->where('user_id', auth()->id());
         }

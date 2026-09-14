@@ -11,6 +11,38 @@ class EventRecordDuplicatesPaginationTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_exact_match_uses_first_last_names_and_all_event_fields(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+        $base = [
+            'full_name' => 'Juan A. Dela Cruz', 'birth_date' => '1990-01-01',
+            'client_category' => 'PWD', 'sector' => 'Education',
+            'transaction_category' => 'EVENTS', 'transaction_type' => 'TYPE',
+            'event_date' => '2026-09-01', 'transferred_at' => '2026-09-01 12:00:00',
+        ];
+        $expected = [DB::table('transaction_events')->insertGetId($base)];
+        $expected[] = DB::table('transaction_events')->insertGetId(array_replace($base, [
+            'full_name' => '  DELA CRUZ, JUAN B. JR.  ', 'sector' => ' education ',
+            'client_category' => 'pwd', 'transaction_category' => 'events', 'transaction_type' => 'type',
+        ]));
+        foreach ([
+            'full_name' => 'Pedro A. Dela Cruz', 'birth_date' => '1991-01-01',
+            'client_category' => 'SENIOR', 'sector' => 'Health',
+            'transaction_category' => 'OTHER', 'transaction_type' => 'OTHER',
+            'event_date' => '2026-09-02', 'transferred_at' => null,
+        ] as $field => $value) {
+            DB::table('transaction_events')->insert(array_replace($base, [$field => $value]));
+        }
+        DB::table('transaction_events')->insert(array_replace($base, ['full_name' => 'Juan A. Santos']));
+
+        $response = $this->get(route('transaction-events.records-duplicates'))->assertOk()
+            ->assertSee('Lastname and Firstname')->assertSee('<strong>Sector</strong>', false);
+        $groups = $response->viewData('exactGroups');
+        $this->assertSame(1, $groups->total());
+        $this->assertSame(2, $response->viewData('exactRecordsTotal'));
+        $this->assertSame($expected, $groups->first()['events']->pluck('id')->sort()->values()->all());
+    }
+
     public function test_match_full_name_uses_only_name_and_excludes_similar_spellings_and_pending_rows(): void
     {
         $this->actingAs(User::factory()->create(['role_name' => 'Admin']));

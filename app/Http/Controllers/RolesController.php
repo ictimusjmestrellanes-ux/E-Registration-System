@@ -84,7 +84,7 @@ class RolesController extends Controller
         ]);
 
         $role->delete();
-        Permission::where('role_name', $roleName)->delete();
+        Permission::where('role_name', $roleName)->get()->each->delete();
 
         return redirect()->route('roles.index')->with('success', "Role \"{$roleName}\" deleted successfully.");
     }

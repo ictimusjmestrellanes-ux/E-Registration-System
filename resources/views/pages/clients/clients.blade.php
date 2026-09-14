@@ -547,7 +547,8 @@
                                 alt="Fingerprint Scanner Preview" class="rounded-3 border object-fit-cover bg-white"
                                 style="width: 100%; max-width: 420px; height: 280px;">
                         </div>
-                        <div id="fingerprintModalError" class="text-danger small mt-3 d-none"></div>
+                        <div id="fingerprintModalStatus" class="text-muted small mt-3" role="status" aria-live="polite"></div>
+                        <div id="fingerprintModalError" class="text-danger small mt-3 d-none" role="alert"></div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -617,6 +618,7 @@
             const fingerprintModalEl = document.getElementById('fingerprintModal');
             const fingerprintModalPreview = document.getElementById('fingerprintModalPreview');
             const fingerprintModalError = document.getElementById('fingerprintModalError');
+            const fingerprintModalStatus = document.getElementById('fingerprintModalStatus');
             const retryFingerprintCaptureBtn = document.getElementById('retryFingerprintCaptureBtn');
             const saveFingerprintBtn = document.getElementById('saveFingerprintBtn');
             const clearFingerprintCaptureBtn = document.getElementById('clearFingerprintCaptureBtn');
@@ -675,7 +677,13 @@
             let fingerprintDataUrl = clientFingerprintData.value || '';
             let fingerprintTemplateXml = clientFingerprintTemplate.value || '';
             const existingFingerprint = originalFingerprintPreview !== fingerprintPlaceholder;
-            const fingerprintBridgeBase = 'http://127.0.0.1:38654';
+            const fingerprintBridgeBase = @json(config('fingerprint.local_bridge_url'));
+            let fingerprintCaptureInProgress = false;
+
+            const setFingerprintStatus = (message) => {
+                fingerprintStatus.textContent = message;
+                fingerprintModalStatus.textContent = message;
+            };
 
             const calculateAgeFromBirthDate = (birthDateValue) => {
                 if (!birthDateValue) {
@@ -950,8 +958,9 @@
 
                 openFingerprintBtn.disabled = skip;
                 clearFingerprintBtn.disabled = skip || !fingerprintDataUrl;
-                retryFingerprintCaptureBtn.disabled = skip;
-                saveFingerprintBtn.disabled = skip;
+                retryFingerprintCaptureBtn.disabled = skip || fingerprintCaptureInProgress;
+                saveFingerprintBtn.disabled = skip || fingerprintCaptureInProgress;
+                clearFingerprintCaptureBtn.disabled = fingerprintCaptureInProgress;
 
                 if (skip) {
                     fingerprintStatus.textContent = 'Fingerprint capture skipped.';
@@ -970,6 +979,7 @@
             };
 
             const showFingerprintModalError = (message) => {
+                fingerprintModalStatus.textContent = '';
                 fingerprintModalError.textContent = message;
                 fingerprintModalError.classList.remove('d-none');
             };
@@ -1001,32 +1011,45 @@
             };
 
             const scanFingerprintAgain = async () => {
+                if (fingerprintCaptureInProgress) {
+                    return;
+                }
+
+                fingerprintCaptureInProgress = true;
+                updateFingerprintMode();
                 clearFingerprintModalError();
                 retryFingerprintCaptureBtn.classList.add('d-none');
 
-                let bridgeOnline = await isFingerprintBridgeOnline();
-
-                if (!bridgeOnline) {
-                    fingerprintStatus.textContent = 'Starting fingerprint scanner...';
-
-                    await autoStartBridge();
-
-                    bridgeOnline = await waitForBridgeOnline(12, 1500);
+                try {
+                    setFingerprintStatus('Checking fingerprint scanner...');
+                    let bridgeOnline = await isFingerprintBridgeOnline();
 
                     if (!bridgeOnline) {
-                        throw new Error(
-                            'Unable to connect to the fingerprint scanner. Ensure the scanner is connected via USB.'
-                        );
+                        setFingerprintStatus('Starting fingerprint scanner...');
+
+                        await autoStartBridge();
+
+                        bridgeOnline = await waitForBridgeOnline(12, 1500);
+
+                        if (!bridgeOnline) {
+                            throw new Error(
+                                'Unable to connect to the fingerprint scanner. Ensure the scanner is connected via USB.'
+                            );
+                        }
                     }
+
+                    setFingerprintStatus('Place your finger flat on the scanner and hold it still...');
+
+                    const captureResult = await captureFingerprintFromBridge();
+                    fingerprintModalPreview.src = captureResult.imageDataUrl;
+                    setFingerprintPreview(captureResult.imageDataUrl,
+                        'Fingerprint captured from device. Click Use Fingerprint to save it.', captureResult
+                        .fingerprintTemplateXml || '');
+                    setFingerprintStatus('Fingerprint captured. Click Use Fingerprint to save it.');
+                } finally {
+                    fingerprintCaptureInProgress = false;
+                    updateFingerprintMode();
                 }
-
-                fingerprintStatus.textContent = 'Place your finger on the scanner...';
-
-                const captureResult = await captureFingerprintFromBridge();
-                fingerprintModalPreview.src = captureResult.imageDataUrl;
-                setFingerprintPreview(captureResult.imageDataUrl,
-                    'Fingerprint captured from device. Click Use Fingerprint to save it.', captureResult
-                    .fingerprintTemplateXml || '');
             };
 
             const checkDuplicateFingerprint = async () => {
@@ -1093,22 +1116,40 @@
                     }
 
                     return payload;
+                } catch (error) {
+                    if (error.name === 'AbortError') {
+                        throw new Error('Fingerprint capture timed out. Place your finger flat on the reader, then click Scan Again.');
+                    }
+                    throw error;
                 } finally {
                     clearTimeout(timeoutId);
                 }
             };
 
             const isFingerprintBridgeOnline = async () => {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 5000);
+                let payload;
                 try {
                     const response = await fetch(`${fingerprintBridgeBase}/api/health`, {
                         method: 'GET',
-                        cache: 'no-store'
+                        cache: 'no-store',
+                        signal: controller.signal
                     });
 
-                    return response.ok;
+                    if (!response.ok) return false;
+                    payload = await response.json();
                 } catch (error) {
                     return false;
+                } finally {
+                    clearTimeout(timeoutId);
                 }
+
+                if (!payload.success) return false;
+                if (!Array.isArray(payload.readers) || payload.readers.length === 0) {
+                    throw new Error('The scanner service is running, but no DigitalPersona reader is connected. Reconnect the USB scanner, then click Scan Again.');
+                }
+                return true;
             };
 
             const showCameraError = (reason) => {
@@ -1164,7 +1205,6 @@
             openFingerprintBtn.addEventListener('click', function() {
                 fingerprintModalPreview.src = fingerprintPreview.src;
                 retryFingerprintCaptureBtn.classList.add('d-none');
-                fingerprintModal.show();
             });
 
             fingerprintModalEl.addEventListener('shown.bs.modal', function() {

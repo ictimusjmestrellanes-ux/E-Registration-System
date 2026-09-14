@@ -37,7 +37,6 @@
                 $subjectLabel = $activity->subject_type
                     ? class_basename($activity->subject_type) . ($activity->subject_id ? ' #' . $activity->subject_id : '')
                     : 'System';
-                $propertiesCount = is_array($activity->properties) ? count($activity->properties) : 0;
                 $timeLabel = $activity->created_at?->setTimezone('Asia/Manila')->format('M d, Y h:i A') ?? '-';
                 $userName = $activity->user?->name ?? 'System';
 
@@ -57,7 +56,7 @@
                                 <span><i class="ri-government-line me-1"></i>' . e($subjectLabel) . '</span>
                                 <span><i class="ri-global-line me-1"></i>' . e($activity->ip_address ?? 'Unknown IP') . '</span>
                             </div>
-                            ' . ($propertiesCount > 0 ? '<div class="activity-note mt-2">Has ' . e($propertiesCount) . ' detail field(s).</div>' : '') . '
+                            ' . view('pages.activity_logs.details', ['activity' => $activity])->render() . '
                         </div>
                     </div>
                 ';
@@ -206,10 +205,10 @@
             <div class="d-flex flex-column flex-md-row align-items-md-end justify-content-between gap-3 mt-4">
                 <ul class="nav nav-pills activity-hero-tabs gap-2" role="tablist">
                     <li class="nav-item">
-                        <a class="nav-link {{ !request()->hasAny(['period', 'action', 'search']) ? 'active' : '' }}" data-bs-toggle="tab" href="#overview-tab" role="tab">Overview</a>
+                        <a class="nav-link {{ !request()->hasAny(['period', 'action', 'search', 'page']) ? 'active' : '' }}" data-bs-toggle="tab" href="#overview-tab" role="tab">Overview</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {{ request()->hasAny(['period', 'action', 'search']) ? 'active' : '' }}" data-bs-toggle="tab" href="#activities-tab" role="tab">Activities</a>
+                        <a class="nav-link {{ request()->hasAny(['period', 'action', 'search', 'page']) ? 'active' : '' }}" data-bs-toggle="tab" href="#activities-tab" role="tab">Activities</a>
                     </li>
                 </ul>
                 <div class="d-flex flex-wrap gap-2">
@@ -220,7 +219,7 @@
         </div>
 
         <div class="tab-content">
-            <div class="tab-pane fade {{ !request()->hasAny(['period', 'action', 'search']) ? 'show active' : '' }}" id="overview-tab" role="tabpanel">
+            <div class="tab-pane fade {{ !request()->hasAny(['period', 'action', 'search', 'page']) ? 'show active' : '' }}" id="overview-tab" role="tabpanel">
                 <div class="row g-4">
                     <div class="col-xxl-3">
                         <div class="card activity-summary-card shadow-sm h-100">
@@ -298,7 +297,7 @@
                 </div>
             </div>
 
-            <div class="tab-pane fade {{ request()->hasAny(['period', 'action', 'search']) ? 'show active' : '' }}" id="activities-tab" role="tabpanel">
+            <div class="tab-pane fade {{ request()->hasAny(['period', 'action', 'search', 'page']) ? 'show active' : '' }}" id="activities-tab" role="tabpanel">
                 <div class="card shadow-sm">
                     <div class="card-body">
                         <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
@@ -391,7 +390,10 @@
                                             <td>
                                                 <span class="badge rounded-pill {{ $badgeClass }} px-3 py-2">{{ $label }}</span>
                                             </td>
-                                            <td>{{ $activity->description }}</td>
+                                            <td>
+                                                {{ $activity->description }}
+                                                @include('pages.activity_logs.details', ['activity' => $activity])
+                                            </td>
                                             <td>{{ $subjectLabel }}</td>
                                             <td>{{ $activity->ip_address ?? '-' }}</td>
                                         </tr>

@@ -58,6 +58,7 @@
     </style>
     @php
         $activeRecordFilters = request()->hasAny([
+            'status',
             'search',
             'contact',
             'age_from',
@@ -105,7 +106,7 @@
                                 <div>
                                     <div class="fw-bold fs-5">Filter Records</div>
                                     <div class="text-muted small">Narrow transferred records by keyword, contact, age,
-                                        categories, event date, and transferred date range.</div>
+                                        categories, status, event date, and transferred date range.</div>
 
                                 </div>
                                 <div class="d-flex flex-wrap gap-2 align-items-center">
@@ -129,31 +130,13 @@
                                         </button>
                                     @endif
 
-                                    <div class="d-flex flex-wrap align-items-center gap-2">
-                                        {{-- <span class="small text-muted" id="undoSelectedCount">0 selected</span> --}}
-                                        @if (feature_allowed('Undo Transfer'))
-                                            <button type="button" class="btn btn-sm btn-soft-warning"
-                                                id="undoTransferSelectedBtn" disabled
-                                                title="Undo transfer for the selected records">
-                                                <i class="ri-arrow-go-back-line me-1"></i> Undo Transfer Selected
-                                            </button>
-                                        @else
-                                            <button type="button" class="btn btn-sm btn-soft-warning" disabled
-                                                title="Feature not allowed">
-                                                <i class="ri-arrow-go-back-line me-1"></i>Not Allowed to Undo Transfer
-                                                Selected
-                                            </button>
-                                        @endif
-                                    </div>
-
                                     <a href="{{ route('transaction-events.records.export', request()->query()) }}"
                                         class="btn btn-sm btn-soft-success text-nowrap"
                                         title="Export the currently filtered records to Excel">
                                         <i class="ri-download-line me-1"></i> Export XLSX
                                     </a>
                                     <a href="{{ route('transaction-events.records.export-pdf', request()->query()) }}"
-                                        id="recordExportPdfBtn"
-                                        class="btn btn-sm btn-soft-danger text-nowrap"
+                                        id="recordExportPdfBtn" class="btn btn-sm btn-soft-danger text-nowrap"
                                         title="Export all filtered records to PDF in alphabetical order">
                                         <i class="ri-file-pdf-line me-1"></i> Export PDF
                                     </a>
@@ -269,11 +252,14 @@
                                                             $selectedClientCategories = collect(
                                                                 (array) request('client_category', []),
                                                             )->filter();
-                                                            $isClientCategoryChecked = $selectedClientCategories->contains($clientCategory);
+                                                            $isClientCategoryChecked = $selectedClientCategories->contains(
+                                                                $clientCategory,
+                                                            );
                                                         @endphp
                                                         <div class="form-check">
                                                             <input class="form-check-input record-client-category-checkbox"
-                                                                type="checkbox" id="recordClientCategory_{{ $loop->index }}"
+                                                                type="checkbox"
+                                                                id="recordClientCategory_{{ $loop->index }}"
                                                                 value="{{ $clientCategory }}"
                                                                 {{ $isClientCategoryChecked ? 'checked' : '' }}>
                                                             <label class="form-check-label"
@@ -338,17 +324,18 @@
                                             </div>
                                         </div>
                                     </div>
+                                    
                                     <div class="col-12 col-md-6 col-xl-2">
                                         <label for="recordEventDateFrom"
                                             class="form-label fw-semibold text-uppercase small">Event Date From</label>
-                                        <input type="date" class="form-control" id="recordEventDateFrom" name="event_date_from"
-                                            value="{{ request('event_date_from') }}">
+                                        <input type="date" class="form-control" id="recordEventDateFrom"
+                                            name="event_date_from" value="{{ request('event_date_from') }}">
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
                                         <label for="recordEventDateTo"
                                             class="form-label fw-semibold text-uppercase small">Event Date To</label>
-                                        <input type="date" class="form-control" id="recordEventDateTo" name="event_date_to"
-                                            value="{{ request('event_date_to') }}">
+                                        <input type="date" class="form-control" id="recordEventDateTo"
+                                            name="event_date_to" value="{{ request('event_date_to') }}">
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
                                         <label for="recordDateFrom"
@@ -362,7 +349,17 @@
                                         <input type="date" class="form-control" id="recordDateTo" name="date_to"
                                             value="{{ request('date_to') }}">
                                     </div>
-                                    <div class="col-12 col-xl-4 d-flex gap-2 justify-content-end">
+                                    <div class="col-12 col-md-6 col-xl-2">
+                                        <label for="recordStatusFilter"
+                                            class="form-label fw-semibold text-uppercase small">Status</label>
+                                        <select class="form-select" id="recordStatusFilter" name="status">
+                                            <option value="">All statuses</option>
+                                            @foreach (\App\Models\TransactionEvent::STATUSES as $status)
+                                                <option value="{{ $status }}" @selected(request('status') === $status)>{{ $status }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                    <div class="col-6 col-xl-2 d-flex gap-2 justify-content-end">
                                         <button type="submit" class="btn btn-sm btn-primary px-4">
                                             <i class="ri-filter-3-fill me-1"></i> Apply Filters
                                         </button>
@@ -384,10 +381,32 @@
 
                         @if (auth()->user()?->role_name !== 'Viewer')
                             <div id="selectAllUndoBar"
-                                class="alert alert-info d-none align-items-center justify-content-between flex-wrap gap-2 mb-2">
-                                <span id="selectAllUndoText"></span>
-                                <button type="button" class="btn btn-sm btn-outline-secondary d-none"
-                                    id="clearUndoSelectionBtn">Clear selection</button>
+                                class="alert alert-info border-0 shadow-sm d-none align-items-center justify-content-between gap-3 mb-3 px-3 py-2"
+                                role="alert"> {{-- Left side: Info --}}
+                                <div class="d-flex align-items-center gap-2 flex-grow-1">
+                                    <div class="lh-sm">
+                                        <div class="fw-semibold text-dark" id="selectAllUndoText"></div> <small
+                                            class="text-muted"> Select the records you want to restore to their previous
+                                            transfer. </small>
+                                    </div>
+                                </div> {{-- Right side: Actions --}} <div
+                                    class="d-flex align-items-center flex-wrap gap-2 ms-auto">
+                                    @if (feature_allowed('Undo Transfer'))
+                                        <button type="button"
+                                            class="btn btn-sm btn-warning d-inline-flex align-items-center gap-1 px-3"
+                                            id="undoTransferSelectedBtn" disabled
+                                            title="Undo transfer for the selected records"> <i
+                                                class="ri-arrow-go-back-line"></i> <span>Undo Transfer</span> </button>
+                                    @else
+                                        <button type="button"
+                                            class="btn btn-sm btn-light border text-muted d-inline-flex align-items-center gap-1 px-3"
+                                            disabled title="You do not have permission to undo transfers"> <i
+                                                class="ri-lock-line"></i> <span>Undo Not Allowed</span> </button>
+                                    @endif <button type="button"
+                                        class="btn btn-sm btn-outline-secondary d-none align-items-center gap-1"
+                                        id="clearUndoSelectionBtn"> <i class="ri-close-line"></i> <span>Clear</span>
+                                    </button>
+                                </div>
                             </div>
                         @endif
 
@@ -405,27 +424,52 @@
                                             $currentSort = request('sort_by');
                                             $currentDir = request('sort_dir', 'desc') === 'asc' ? 'asc' : 'desc';
                                             $sortUrl = function ($col) use ($currentSort, $currentDir) {
-                                                $next = ($currentSort === $col && $currentDir === 'desc') ? 'asc' : 'desc';
-                                                return route('transaction-events.records', array_merge(request()->query(), ['sort_by' => $col, 'sort_dir' => $next]));
+                                                $next =
+                                                    $currentSort === $col && $currentDir === 'desc' ? 'asc' : 'desc';
+                                                return route(
+                                                    'transaction-events.records',
+                                                    array_merge(request()->query(), [
+                                                        'sort_by' => $col,
+                                                        'sort_dir' => $next,
+                                                    ]),
+                                                );
                                             };
                                             $sortIcon = function ($col) use ($currentSort, $currentDir) {
-                                                if ($currentSort !== $col) return '';
-                                                return $currentDir === 'asc' ? '<i class="ri-arrow-up-s-line ms-1"></i>' : '<i class="ri-arrow-down-s-line ms-1"></i>';
+                                                if ($currentSort !== $col) {
+                                                    return '';
+                                                }
+                                                return $currentDir === 'asc'
+                                                    ? '<i class="ri-arrow-up-s-line ms-1"></i>'
+                                                    : '<i class="ri-arrow-down-s-line ms-1"></i>';
                                             };
                                         @endphp
 
-                                        <th data-column="id"><a href="{{ $sortUrl('id') }}" class="text-reset">ID {!! $sortIcon('id') !!}</a></th>
-                                        <th data-column="transaction_id"><a href="{{ $sortUrl('transaction_id') }}" class="text-reset">Transaction ID {!! $sortIcon('transaction_id') !!}</a></th>
-                                        <th data-column="full_name"><a href="{{ $sortUrl('full_name') }}" class="text-reset">Full Name {!! $sortIcon('full_name') !!}</a></th>
-                                        <th data-column="age"><a href="{{ $sortUrl('age') }}" class="text-reset">Age {!! $sortIcon('age') !!}</a></th>
-                                        <th data-column="birth_date"><a href="{{ $sortUrl('birth_date') }}" class="text-reset">Birth Date {!! $sortIcon('birth_date') !!}</a></th>
-                                        <th data-column="contact"><a href="{{ $sortUrl('contact') }}" class="text-reset">Contact No. {!! $sortIcon('contact') !!}</a></th>
-                                        <th data-column="address"><a href="{{ $sortUrl('address') }}" class="text-reset">Address {!! $sortIcon('address') !!}</a></th>
-                                        <th data-column="client_category"><a href="{{ $sortUrl('client_category') }}" class="text-reset">Client Category {!! $sortIcon('client_category') !!}</a></th>
-                                        <th data-column="transaction_category"><a href="{{ $sortUrl('transaction_category') }}" class="text-reset">Transaction Category {!! $sortIcon('transaction_category') !!}</a></th>
-                                        <th data-column="transaction_type"><a href="{{ $sortUrl('transaction_type') }}" class="text-reset">Transaction Type {!! $sortIcon('transaction_type') !!}</a></th>
-                                        <th data-column="event_date"><a href="{{ $sortUrl('event_date') }}" class="text-reset">Event Date {!! $sortIcon('event_date') !!}</a></th>
-                                        <th style="width: 160px;" data-column="transferred_at"><a href="{{ $sortUrl('transferred_at') }}" class="text-reset">Transferred At {!! $sortIcon('transferred_at') !!}</a></th>
+                                        <th data-column="id"><a href="{{ $sortUrl('id') }}" class="text-reset">ID
+                                                {!! $sortIcon('id') !!}</a></th>
+                                        <th data-column="transaction_id"><a href="{{ $sortUrl('transaction_id') }}"
+                                                class="text-reset">Transaction ID {!! $sortIcon('transaction_id') !!}</a></th>
+                                        <th data-column="full_name"><a href="{{ $sortUrl('full_name') }}"
+                                                class="text-reset">Full Name {!! $sortIcon('full_name') !!}</a></th>
+                                        <th data-column="age"><a href="{{ $sortUrl('age') }}" class="text-reset">Age
+                                                {!! $sortIcon('age') !!}</a></th>
+                                        <th data-column="birth_date"><a href="{{ $sortUrl('birth_date') }}"
+                                                class="text-reset">Birth Date {!! $sortIcon('birth_date') !!}</a></th>
+                                        <th data-column="contact"><a href="{{ $sortUrl('contact') }}"
+                                                class="text-reset">Contact No. {!! $sortIcon('contact') !!}</a></th>
+                                        <th data-column="address"><a href="{{ $sortUrl('address') }}"
+                                                class="text-reset">Address {!! $sortIcon('address') !!}</a></th>
+                                        <th data-column="client_category"><a href="{{ $sortUrl('client_category') }}"
+                                                class="text-reset">Client Category {!! $sortIcon('client_category') !!}</a></th>
+                                        <th data-column="transaction_category"><a
+                                                href="{{ $sortUrl('transaction_category') }}"
+                                                class="text-reset">Transaction Category {!! $sortIcon('transaction_category') !!}</a></th>
+                                        <th data-column="transaction_type"><a href="{{ $sortUrl('transaction_type') }}"
+                                                class="text-reset">Transaction Type {!! $sortIcon('transaction_type') !!}</a></th>
+                                        <th data-column="event_date"><a href="{{ $sortUrl('event_date') }}"
+                                                class="text-reset">Event Date {!! $sortIcon('event_date') !!}</a></th>
+                                        <th style="width: 160px;" data-column="transferred_at"><a
+                                                href="{{ $sortUrl('transferred_at') }}" class="text-reset">Transferred At
+                                                {!! $sortIcon('transferred_at') !!}</a></th>
                                         <th style="width: 120px;" class="text-center" data-column="status">Status</th>
                                         @if (auth()->user()?->role_name !== 'Viewer')
                                             <th style="width: 140px;" class="text-center">Action</th>
@@ -467,32 +511,69 @@
                                                 {{ optional($event->transferred_at)->timezone('Asia/Manila')->format('M d, Y H:i:s') }}
                                             </td>
                                             <td data-column="status" class="text-center">
-                                                <span class="badge bg-success-subtle text-success px-3 py-2">
-                                                    <i class="ri-check-line me-1"></i>Approved
-                                                </span>
+                                                @php
+                                                    $statusColor = match ($event->status) {
+                                                        'Claimed' => 'success',
+                                                        'Unclaimed' => 'danger',
+                                                        default => 'warning',
+                                                    };
+                                                @endphp
+                                                <span class="badge bg-{{ $statusColor }}-subtle text-{{ $statusColor }} px-3 py-2">{{ $event->status }}</span>
                                             </td>
                                             @if (auth()->user()?->role_name !== 'Viewer')
                                                 <td class="text-center" style="min-width: 160px">
                                                     <div class="d-flex flex-nowrap align-items-center justify-content-center gap-2">
-                                                        <button type="button" data-bs-toggle="modal" data-bs-target="#editRecordModal"
+                                                        @if (feature_allowed('Edit Transaction Event Record'))
+                                                        <button type="button" data-bs-toggle="modal"
+                                                            data-bs-target="#editRecordModal"
                                                             data-update-url="{{ route('transaction-events.records.update', array_merge(request()->query(), ['event' => $event->id])) }}"
                                                             data-record="{{ json_encode(array_merge($event->only(['id', 'full_name', 'age', 'contact_no', 'address', 'client_category', 'transaction_category', 'transaction_type']), ['birth_date' => $event->birth_date?->format('Y-m-d'), 'event_date' => $event->event_date?->format('Y-m-d')])) }}"
                                                             class="btn btn-sm btn-soft-primary d-inline-flex align-items-center justify-content-center gap-1 text-nowrap">
                                                             <i class="ri-pencil-line" aria-hidden="true"></i> Edit
                                                         </button>
-                                                        <form action="{{ route('transaction-events.undo-transfer', $event) }}"
+                                                        @endif
+                                                        @if (feature_allowed('Tag Transaction Event Record Status'))
+                                                        <div class="dropdown">
+                                                            <button type="button" class="btn btn-sm btn-soft-info dropdown-toggle text-nowrap"
+                                                                data-bs-toggle="dropdown" aria-expanded="false"
+                                                                aria-label="Tag status for event #{{ $event->id }}">
+                                                                <i class="ri-price-tag-3-line me-1" aria-hidden="true"></i>Tag as
+                                                            </button>
+                                                            <ul class="dropdown-menu dropdown-menu-end">
+                                                                @foreach (\App\Models\TransactionEvent::STATUSES as $status)
+                                                                    <li>
+                                                                        <form action="{{ route('transaction-events.records.status', array_merge(request()->query(), ['event' => $event->id])) }}" method="POST">
+                                                                            @csrf
+                                                                            @method('PATCH')
+                                                                            <button type="submit" name="status" value="{{ $status }}"
+                                                                                class="dropdown-item {{ $event->status === $status ? 'active' : '' }}">
+                                                                                Tag as {{ $status }}
+                                                                            </button>
+                                                                        </form>
+                                                                    </li>
+                                                                @endforeach
+                                                            </ul>
+                                                        </div>
+                                                        @endif
+                                                        <form
+                                                            action="{{ route('transaction-events.undo-transfer', $event) }}"
                                                             method="POST" class="m-0 flex-shrink-0">
                                                             @csrf
                                                             @if (feature_allowed('Undo Transfer'))
-                                                                <button type="submit" class="btn btn-sm btn-soft-warning d-inline-flex align-items-center justify-content-center gap-1 text-nowrap w-100"
+                                                                <button type="submit"
+                                                                    class="btn btn-sm btn-soft-warning d-inline-flex align-items-center justify-content-center gap-1 text-nowrap w-100"
                                                                     onclick="return confirm('Undo this transfer? The created transaction record will be removed and this event will return to pending. The client record will remain.');">
-                                                                    <i class="ri-arrow-go-back-line" aria-hidden="true"></i> Undo Transfer
+                                                                    <i class="ri-arrow-go-back-line"
+                                                                        aria-hidden="true"></i> Undo Transfer
                                                                 </button>
                                                             @else
-                                                                <button type="button" class="btn btn-sm btn-soft-warning d-inline-flex align-items-center justify-content-center gap-1 text-nowrap w-100"
-                                                                    disabled title="You do not have permission to undo transfers."
+                                                                <button type="button"
+                                                                    class="btn btn-sm btn-soft-warning d-inline-flex align-items-center justify-content-center gap-1 text-nowrap w-100"
+                                                                    disabled
+                                                                    title="You do not have permission to undo transfers."
                                                                     aria-label="Undo Transfer (not allowed)">
-                                                                    <i class="ri-lock-line" aria-hidden="true"></i> Undo Transfer
+                                                                    <i class="ri-lock-line" aria-hidden="true"></i> Undo
+                                                                    Transfer
                                                                 </button>
                                                             @endif
                                                         </form>
@@ -551,7 +632,8 @@
             </div>
         </div>
     </div>
-    <div class="modal fade" id="recordPdfDetailsModal" tabindex="-1" aria-labelledby="recordPdfDetailsTitle" aria-hidden="true">
+    <div class="modal fade" id="recordPdfDetailsModal" tabindex="-1" aria-labelledby="recordPdfDetailsTitle"
+        aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <form class="modal-content" id="recordPdfDetailsForm">
                 <div class="modal-header">
@@ -559,30 +641,39 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <p class="text-muted small">Leave fields empty to use the report defaults. Rice reports use the names shown below; other reports use blank signature lines. The date defaults to the matching records' dates.</p>
+                    <p class="text-muted small">Leave fields empty to use the report defaults. Rice reports use the names
+                        shown below; other reports use blank signature lines. The date defaults to the matching records'
+                        dates.</p>
                     <div class="mb-3">
                         <label for="recordPdfDate" class="form-label">Date</label>
-                        <input type="text" class="form-control" id="recordPdfDate" name="report_date" maxlength="100" placeholder="Automatic date or date range">
+                        <input type="text" class="form-control" id="recordPdfDate" name="report_date"
+                            maxlength="100" placeholder="Automatic date or date range">
                     </div>
                     <div class="mb-3">
                         <label for="recordPdfPrepared" class="form-label">Prepared by</label>
-                        <input type="text" class="form-control" id="recordPdfPrepared" name="prepared_by" maxlength="100" placeholder="LONIZA B. ESGUERRA">
+                        <input type="text" class="form-control" id="recordPdfPrepared" name="prepared_by"
+                            maxlength="100" placeholder="LONIZA B. ESGUERRA">
                     </div>
                     <div class="mb-3">
                         <label for="recordPdfReviewed" class="form-label">Reviewed by</label>
-                        <input type="text" class="form-control" id="recordPdfReviewed" name="reviewed_by" maxlength="100" placeholder="JOSEPHINE G. VILLANUEVA">
+                        <input type="text" class="form-control" id="recordPdfReviewed" name="reviewed_by"
+                            maxlength="100" placeholder="JOSEPHINE G. VILLANUEVA">
                     </div>
                     <div>
                         <label for="recordPdfApproved" class="form-label">Approved by</label>
-                        <input type="text" class="form-control" id="recordPdfApproved" name="approved_by" maxlength="100" placeholder="ALEX L. ADVINCULA">
+                        <input type="text" class="form-control" id="recordPdfApproved" name="approved_by"
+                            maxlength="100" placeholder="ALEX L. ADVINCULA">
                     </div>
                     <fieldset class="mt-3">
                         <legend class="fs-6">Number signature columns</legend>
-                        <p class="text-muted small">Select the tranches that should display each beneficiary's row number. Unselected columns stay blank.</p>
+                        <p class="text-muted small">Select the tranches that should display each beneficiary's row number.
+                            Unselected columns stay blank.</p>
                         @foreach ([1 => '1st', 2 => '2nd', 3 => '3rd', 4 => '4th'] as $tranche => $label)
                             <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="checkbox" id="recordPdfTranche{{ $tranche }}" name="numbered_tranches" value="{{ $tranche }}">
-                                <label class="form-check-label" for="recordPdfTranche{{ $tranche }}">{{ $label }} tranche</label>
+                                <input class="form-check-input" type="checkbox" id="recordPdfTranche{{ $tranche }}"
+                                    name="numbered_tranches" value="{{ $tranche }}">
+                                <label class="form-check-label"
+                                    for="recordPdfTranche{{ $tranche }}">{{ $label }} tranche</label>
                             </div>
                         @endforeach
                     </fieldset>
@@ -594,8 +685,8 @@
             </form>
         </div>
     </div>
-    <div class="modal fade" id="recordPdfProgressModal" tabindex="-1"
-        aria-labelledby="recordPdfProgressTitle" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal fade" id="recordPdfProgressModal" tabindex="-1" aria-labelledby="recordPdfProgressTitle"
+        aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
@@ -606,12 +697,14 @@
                     <div class="progress mb-3" id="recordPdfProgressBar" role="progressbar" aria-label="Preparing PDF">
                         <div class="progress-bar progress-bar-striped progress-bar-animated w-100"></div>
                     </div>
-                    <p class="text-muted small mb-1" id="recordPdfProgressHelp">Large exports may take a few minutes. Keep this page open.</p>
+                    <p class="text-muted small mb-1" id="recordPdfProgressHelp">Large exports may take a few minutes. Keep
+                        this page open.</p>
                     <p class="text-muted small mb-0" id="recordPdfProgressElapsed">Elapsed: 0:00</p>
                 </div>
                 <div class="modal-footer">
                     <a class="btn btn-primary d-none" id="recordPdfDownload">Download PDF</a>
-                    <button type="button" class="btn btn-light" id="recordPdfProgressClose" data-bs-dismiss="modal" disabled>Close</button>
+                    <button type="button" class="btn btn-light" id="recordPdfProgressClose" data-bs-dismiss="modal"
+                        disabled>Close</button>
                 </div>
             </div>
         </div>
@@ -619,7 +712,9 @@
 @endsection
 
 @push('scripts')
-    <script src="{{ asset('assets/js/event-records-pdf-export.js') }}?v={{ filemtime(public_path('assets/js/event-records-pdf-export.js')) }}"></script>
+    <script
+        src="{{ asset('assets/js/event-records-pdf-export.js') }}?v={{ filemtime(public_path('assets/js/event-records-pdf-export.js')) }}">
+    </script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const editModal = document.getElementById('editRecordModal');
@@ -631,10 +726,12 @@
                     const record = JSON.parse(button.dataset.record);
                     editForm.action = button.dataset.updateUrl;
                     editForm.reset();
-                    editForm.querySelectorAll('.is-invalid').forEach(input => input.classList.remove('is-invalid'));
+                    editForm.querySelectorAll('.is-invalid').forEach(input => input.classList.remove(
+                        'is-invalid'));
                     editForm.querySelectorAll('.invalid-feedback').forEach(message => message.remove());
                     for (const [field, value] of Object.entries(record)) {
-                        const input = editForm.elements.namedItem(field === 'id' ? 'edit_record_id' : field);
+                        const input = editForm.elements.namedItem(field === 'id' ? 'edit_record_id' :
+                            field);
                         if (input) input.value = value ?? '';
                     }
                 });
@@ -910,7 +1007,7 @@
                         exclude_duplicates: 1
                     };
                     ['search', 'contact', 'age_from', 'age_to', 'date_from', 'date_to',
-                        'event_date_from', 'event_date_to'
+                        'event_date_from', 'event_date_to', 'status'
                     ].forEach((name) => {
                         const value = params.get(name);
                         if (value !== null && value !== '') {
@@ -1174,7 +1271,8 @@
 
                     const totalClientCategories = recordClientCategoryCheckboxes.length;
 
-                    if (checkedClientCategories.length > 0 && checkedClientCategories.length < totalClientCategories) {
+                    if (checkedClientCategories.length > 0 && checkedClientCategories.length <
+                        totalClientCategories) {
                         checkedClientCategories.forEach(category => {
                             const hiddenInput = document.createElement('input');
                             hiddenInput.type = 'hidden';
@@ -1197,7 +1295,8 @@
                     .map(cb => cb.value)
                     .filter(Boolean);
 
-                const allTypesSelected = checkedTypes.length === 0 || checkedTypes.length === recordTypeCheckboxes.length;
+                const allTypesSelected = checkedTypes.length === 0 || checkedTypes.length === recordTypeCheckboxes
+                    .length;
                 const allowedCategories = new Set();
 
                 if (!allTypesSelected) {
@@ -1228,8 +1327,10 @@
             syncRecordClientCategoryVisibility();
 
             // Sync visibility on transaction type change
-            document.getElementById('recordTypeFilterBtn')?.addEventListener('click', syncRecordClientCategoryVisibility);
-            document.getElementById('recordClientCategoryBtn')?.addEventListener('click', syncRecordClientCategoryVisibility);
+            document.getElementById('recordTypeFilterBtn')?.addEventListener('click',
+                syncRecordClientCategoryVisibility);
+            document.getElementById('recordClientCategoryBtn')?.addEventListener('click',
+                syncRecordClientCategoryVisibility);
         });
     </script>
 @endpush

@@ -306,7 +306,7 @@
                             <div class="tab-pane fade {{ $showLikely || $showFullName ? '' : 'show active' }}" id="rexact-tab" role="tabpanel">
                                 <div class="alert alert-danger-subtle d-flex align-items-center mb-3 py-2" role="alert">
                                     <i class="ri-error-warning-line fs-4 me-2"></i>
-                                    <div class="small">Same <strong>Full Name</strong>, <strong>Birth Date</strong>, <strong>Client Category</strong>, <strong>Transaction Category</strong>, <strong>Transaction Type</strong>, and <strong>Event Date</strong>. High confidence duplicates.</div>
+                                    <div class="small">Same <strong>Lastname and Firstname</strong>, <strong>Birth Date</strong>, <strong>Client Category</strong>, <strong>Sector</strong>, <strong>Transaction Category</strong>, <strong>Transaction Type</strong>, and <strong>Event Date</strong>. High confidence duplicates.</div>
                                 </div>
                                 @forelse ($exactGroups as $group)
                                     {!! $renderGroup($group, 'exact') !!}

@@ -49,6 +49,8 @@ class PermissionsController extends Controller
         ['feature' => 'Roles', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
         ['feature' => 'Permissions', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
         ['feature' => 'Duplicate Clients Review', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
+        ['feature' => 'Edit Transaction Event Record', 'DSWD' => true, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
+        ['feature' => 'Tag Transaction Event Record Status', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
     ];
 
     /**
@@ -169,7 +171,7 @@ class PermissionsController extends Controller
             'feature' => ['required', 'string', 'max:100'],
         ]);
 
-        Permission::where('feature', $validated['feature'])->delete();
+        Permission::where('feature', $validated['feature'])->get()->each->delete();
 
         ActivityLog::create([
             'user_id' => auth()->id(),
