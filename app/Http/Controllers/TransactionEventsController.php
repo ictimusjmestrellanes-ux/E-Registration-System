@@ -2473,7 +2473,10 @@ class TransactionEventsController extends Controller
             return collect();
         }
         $key = $this->importMatchKey($record);
-        $query = TransactionEvent::whereDate('event_date', $record['event_date'])
+        // Use the same canonical date as the match key; uploaded text dates
+        // such as 07/03/2026 otherwise miss the SQL date comparison.
+        $eventDate = \Carbon\Carbon::parse($record['event_date'])->toDateString();
+        $query = TransactionEvent::whereDate('event_date', $eventDate)
             ->whereRaw('LOWER(TRIM(full_name)) = ?', [mb_strtolower(trim((string) $record['full_name']))]);
         if ($lock) {
             $query->lockForUpdate();

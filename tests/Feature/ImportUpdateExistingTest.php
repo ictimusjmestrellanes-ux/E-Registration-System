@@ -112,6 +112,37 @@ class ImportUpdateExistingTest extends TestCase
         $this->assertDatabaseCount('transaction_history', 0);
     }
 
+    public function test_formatted_event_dates_match_existing_records_with_a_sector(): void
+    {
+        $this->post(route('transaction-events.import'), ['csv_file' => $this->upload(['sector' => 'SOLO PARENT'])])->assertRedirect();
+        $event = TransactionEvent::firstOrFail();
+        $changes = ['event_date' => '07/03/2026', 'sector' => 'PWD'];
+        $this->postJson(route('transaction-events.import.check-duplicates'), [
+            'csv_file' => $this->upload($changes),
+        ])->assertOk()->assertJsonPath('duplicates.0.matching_records_count', 1);
+        $this->updateImport($changes, true, true)
+            ->assertJsonPath('updated', 1)->assertJsonPath('created', 0)->assertJsonPath('skipped', 0);
+        $this->updateImport(['event_date' => 'July 3, 2026'], false)
+            ->assertJsonPath('unchanged', 1)->assertJsonPath('created', 0);
+        $this->assertDatabaseCount('transaction_events', 1);
+        $this->assertSame('Claimed', $event->fresh()->status);
+        $this->assertSame('Claimed', $event->fresh()->transferredTransaction->status);
+        $this->assertSame('SOLO PARENT', $event->fresh()->sector);
+    }
+
+    public function test_import_and_duplicate_views_display_the_saved_claimed_status(): void
+    {
+        $this->post(route('transaction-events.import'), ['csv_file' => $this->upload(), 'events_only' => 1])->assertRedirect();
+        $this->updateImport()->assertJsonPath('updated', 1);
+        $event = TransactionEvent::firstOrFail();
+        $html = $this->get(route('transaction-events.index'))->assertOk()->getContent();
+        $this->assertStringContainsString('data-event-status="'.$event->id.'">Claimed</span>', $html);
+
+        $event->replicate()->save();
+        $html = $this->get(route('transaction-events.duplicate-review'))->assertOk()->getContent();
+        $this->assertMatchesRegularExpression('/<span class="badge bg-success-subtle text-success">Claimed<\/span>/', $html);
+    }
+
     public function test_ambiguous_matches_are_reported_without_modifying_them(): void
     {
         for ($i = 0; $i < 2; $i++) {

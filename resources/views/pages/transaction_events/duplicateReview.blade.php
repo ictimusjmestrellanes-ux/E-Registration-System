@@ -52,12 +52,15 @@
                 $out .= '<td class="small">' . e($event->transaction_type ?? '-') . '</td>';
                 $out .= '<td>' . e(optional($event->event_date)->format('M d, Y') ?? '-') . '</td>';
                 $out .= '<td>';
+                $statusColor = match ($event->status) {
+                    'Claimed' => 'success',
+                    'Unclaimed' => 'warning',
+                    default => 'secondary',
+                };
+                $out .= '<span class="badge bg-' . $statusColor . '-subtle text-' . $statusColor . '">'
+                    . e($event->status) . '</span>';
                 if ($transferred) {
-                    $out .=
-                        '<span class="badge bg-success-subtle text-success"><i class="ri-check-line me-1"></i>Approved</span>';
-                } else {
-                    $out .=
-                        '<span class="badge bg-secondary-subtle text-secondary"><i class="ri-time-line me-1"></i>Pending</span>';
+                    $out .= '<div class="small text-muted">Transferred</div>';
                 }
                 $out .= '</td>';
                 if (auth()->user()?->role_name !== 'Viewer') {

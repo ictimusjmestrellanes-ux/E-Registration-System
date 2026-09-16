@@ -523,15 +523,18 @@
                                             <td data-column="created_at" class="small">
                                                 {{ optional($event->created_at)->format('M d, Y') }}</td>
                                             <td class="text-center">
+                                                @php
+                                                    $statusColor = match ($event->status) {
+                                                        'Claimed' => 'success',
+                                                        'Unclaimed' => 'warning',
+                                                        default => 'secondary',
+                                                    };
+                                                @endphp
+                                                <span class="badge bg-{{ $statusColor }}-subtle text-{{ $statusColor }} px-3 py-2 mb-1"
+                                                    data-event-status="{{ $event->id }}">{{ $event->status }}</span>
                                                 @if ($isTransferred)
-                                                    <span class="badge bg-success-subtle text-success px-3 py-2">
-                                                        <i class="ri-check-line me-1"></i>Approved
-                                                    </span>
-                                                @elseif (auth()->user()?->role_name === 'Viewer')
-                                                    <span class="badge bg-secondary-subtle text-secondary px-3 py-2">
-                                                        <i class="ri-time-line me-1"></i>Pending
-                                                    </span>
-                                                @else
+                                                    <div class="small text-muted">Transferred</div>
+                                                @elseif (auth()->user()?->role_name !== 'Viewer')
                                                     <div class="d-flex align-items-center justify-content-center gap-1">
                                                         <form action="{{ route('transaction-events.transfer', $event) }}"
                                                             method="POST" class="transaction-transfer-form"
