@@ -11,6 +11,36 @@ class EventRecordsFilterTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_address_type_options_use_all_records_in_each_pages_scope(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+
+        foreach ([false, true] as $transferred) {
+            foreach (['Type A' => 'North', 'Type B' => 'South'] as $type => $address) {
+                TransactionEvent::create([
+                    'full_name' => ($transferred ? 'Record' : 'Pending').' '.$type,
+                    'transaction_type' => $type,
+                    'address' => ' '.$address.($transferred ? ' Records' : ' Imports').' ',
+                    'transferred_at' => $transferred ? now() : null,
+                ]);
+            }
+        }
+        TransactionEvent::create([
+            'full_name' => 'Excluded pending event', 'not_duplicate' => true,
+            'transaction_type' => 'Type A', 'address' => 'Excluded',
+        ]);
+
+        foreach ([false, true] as $transferred) {
+            $suffix = $transferred ? ' Records' : ' Imports';
+            $route = $transferred ? 'transaction-events.records' : 'transaction-events.index';
+            $this->get(route($route, ['transaction_type' => ['Type A']]))->assertOk()
+                ->assertViewHas('addressTypes', fn ($options) => $options->all() === [
+                    ['address' => 'North'.$suffix, 'type' => 'Type A'],
+                    ['address' => 'South'.$suffix, 'type' => 'Type B'],
+                ]);
+        }
+    }
+
     public function test_event_date_range_filters_records_export_and_select_all_ids(): void
     {
         $this->actingAs(User::factory()->create(['role_name' => 'Admin']));

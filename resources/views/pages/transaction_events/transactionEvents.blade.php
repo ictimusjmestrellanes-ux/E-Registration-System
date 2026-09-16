@@ -976,6 +976,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            @include('pages.transaction_events.partials.addressTypeFilter', ['addressId' => 'eventAddressFilter', 'typeSelector' => '.event-type-checkbox', 'allTypesId' => 'eventTypeFilterAll'])
             // Parse an API response, throwing a clear, actionable error when the
             // server returns HTML (e.g. Azure "419 Page Expired" / proxy error)
             // instead of JSON, so the user sees a real message rather than

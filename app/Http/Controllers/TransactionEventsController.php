@@ -83,6 +83,7 @@ class TransactionEventsController extends Controller
             ->pluck('transaction_type')->filter()->sort()->values();
         $addresses = (clone $pendingBase)->select('address')->distinct()
             ->pluck('address')->map(fn ($address) => trim((string) $address))->filter()->unique()->sort()->values();
+        $addressTypes = $this->addressTypeOptions(clone $pendingBase);
 
         // Scope to the pending list so the duplicate-names filter count
         // matches what the filtered Event List can actually show.
@@ -97,7 +98,18 @@ class TransactionEventsController extends Controller
             ->count();
 
         return view('pages.transaction_events.transactionEvents',
-            compact('events', 'totalDuplicateGroups', 'duplicateFullNames', 'clientCategories', 'transactionCategories', 'transactionTypes', 'addresses', 'selectableTotal'));
+            compact('events', 'totalDuplicateGroups', 'duplicateFullNames', 'clientCategories', 'transactionCategories', 'transactionTypes', 'addresses', 'addressTypes', 'selectableTotal'));
+    }
+
+    private function addressTypeOptions($query): Collection
+    {
+        return $query->select('address', 'transaction_type')->distinct()->get()
+            ->map(fn ($event) => [
+                'address' => trim((string) $event->address),
+                'type' => (string) $event->transaction_type,
+            ])
+            ->filter(fn ($option) => $option['address'] !== '')
+            ->values();
     }
 
     /**
@@ -590,6 +602,7 @@ class TransactionEventsController extends Controller
         $addresses = TransactionEvent::whereNotNull('transferred_at')
             ->select('address')->distinct()
             ->pluck('address')->map(fn ($address) => trim((string) $address))->filter()->unique()->sort()->values();
+        $addressTypes = $this->addressTypeOptions(TransactionEvent::whereNotNull('transferred_at'));
 
         $typeClientCategories = TransactionEvent::whereNotNull('transferred_at')
             ->select('transaction_type', 'client_category')
@@ -613,7 +626,7 @@ class TransactionEventsController extends Controller
             ->values()
             ->all();
 
-        return view('pages.transaction_events.eventRecords', compact('events', 'categories', 'types', 'clientCategories', 'addresses', 'typeClientCategories', 'duplicateRecordIds'));
+        return view('pages.transaction_events.eventRecords', compact('events', 'categories', 'types', 'clientCategories', 'addresses', 'addressTypes', 'typeClientCategories', 'duplicateRecordIds'));
     }
 
     /**

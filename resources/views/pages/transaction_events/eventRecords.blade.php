@@ -721,6 +721,7 @@
     </script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            @include('pages.transaction_events.partials.addressTypeFilter', ['addressId' => 'recordAddressFilter', 'typeSelector' => '.record-type-checkbox', 'allTypesId' => 'recordTypeFilterAll'])
             const editModal = document.getElementById('editRecordModal');
             const editForm = document.getElementById('editRecordForm');
             if (editModal && editForm) {
