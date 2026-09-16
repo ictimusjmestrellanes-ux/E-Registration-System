@@ -109,4 +109,46 @@ class EventRecordsFilterTest extends TestCase
         $response->assertJsonPath('total', 1);
         $this->assertEquals([$a->id], $response->json('ids'));
     }
+
+    public function test_address_dropdown_filters_lists_exports_and_select_all_for_both_pages(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+
+        foreach ([false, true] as $transferred) {
+            $matching = TransactionEvent::create([
+                'full_name' => ($transferred ? 'Transferred' : 'Pending').' Address Match',
+                'address' => 'Pasong Buaya II',
+                'transferred_at' => $transferred ? now() : null,
+            ]);
+            $other = TransactionEvent::create([
+                'full_name' => ($transferred ? 'Transferred' : 'Pending').' Other Address',
+                'address' => 'Buhay Na Tubig',
+                'transferred_at' => $transferred ? now() : null,
+            ]);
+
+            $listRoute = $transferred ? 'transaction-events.records' : 'transaction-events.index';
+            $exportRoute = $transferred ? 'transaction-events.records.export' : 'transaction-events.export';
+            $idsRoute = $transferred ? 'transaction-events.undo-transfer-selected.ids' : 'transaction-events.transfer-selected.ids';
+            $filters = ['address' => 'Pasong Buaya II'];
+
+            $this->get(route($listRoute, $filters))->assertOk()
+                ->assertSee('name="address"', false)
+                ->assertSee('All addresses')
+                ->assertSee('Pasong Buaya II')
+                ->assertSee($matching->full_name)
+                ->assertDontSee($other->full_name)
+                ->assertViewHas('events', fn ($events) => $events->total() === 1 && $events->first()->is($matching));
+
+            $this->postJson(route($idsRoute), $filters + ['select_all' => 1])
+                ->assertOk()->assertJsonPath('total', 1)->assertJsonPath('ids.0', $matching->id);
+
+            $export = $this->get(route($exportRoute, $filters))->assertOk();
+            $zip = new \ZipArchive();
+            $this->assertTrue($zip->open($export->getFile()->getPathname()));
+            $sheet = $zip->getFromName('xl/worksheets/sheet1.xml');
+            $zip->close();
+            $this->assertStringContainsString($matching->full_name, $sheet);
+            $this->assertStringNotContainsString($other->full_name, $sheet);
+        }
+    }
 }

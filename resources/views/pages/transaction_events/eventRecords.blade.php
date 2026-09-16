@@ -60,6 +60,7 @@
         $activeRecordFilters = request()->hasAny([
             'status',
             'search',
+            'address',
             'contact',
             'age_from',
             'age_to',
@@ -225,7 +226,7 @@
                                             value="{{ request('age_to') }}">
                                     </div> --}}
 
-                                    <div class="col-12 col-md-6 col-xl-4">
+                                    <div class="col-12 col-md-6 col-xl-2">
                                         <label class="form-label fw-semibold text-uppercase small">Client Category</label>
                                         <div class="dropdown w-100">
                                             <button
@@ -271,6 +272,18 @@
                                                 </div>
                                             </div>
                                         </div>
+                                    </div>
+                                    <div class="col-12 col-md-6 col-xl-2">
+                                        <label for="recordAddressFilter"
+                                            class="form-label fw-semibold text-uppercase small">Address</label>
+                                        <select class="form-select" id="recordAddressFilter" name="address">
+                                            <option value="">All addresses</option>
+                                            @foreach ($addresses as $address)
+                                                <option value="{{ $address }}" @selected(request('address') === $address)>
+                                                    {{ $address }}
+                                                </option>
+                                            @endforeach
+                                        </select>
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
                                         <label for="recordCategoryFilter"
@@ -997,7 +1010,7 @@
                         select_all: 1,
                         exclude_duplicates: 1
                     };
-                    ['search', 'contact', 'age_from', 'age_to', 'date_from', 'date_to',
+                    ['search', 'address', 'contact', 'age_from', 'age_to', 'date_from', 'date_to',
                         'event_date_from', 'event_date_to', 'status'
                     ].forEach((name) => {
                         const value = params.get(name);

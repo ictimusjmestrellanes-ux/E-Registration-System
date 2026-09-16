@@ -197,6 +197,9 @@ class ImportUpdateExistingTest extends TestCase
         $file = UploadedFile::fake()->createWithContent('many.csv', $lines[0]."\n".str_repeat($lines[1]."\n", 125));
         $response = $this->postJson(route('transaction-events.import.check-duplicates'), ['csv_file' => $file])
             ->assertOk()->assertJsonPath('duplicates_count', 125)->assertJsonCount(125, 'duplicates')
+            ->assertJsonCount(125, 'review_rows')
+            ->assertJsonPath('detected_count', 125)
+            ->assertJsonPath('not_detected_count', 0)
             ->assertJsonPath('duplicates_truncated', false);
         foreach ([0, 124] as $index) {
             $response->assertJsonPath("duplicates.$index.full_name", 'DE QUIROZ, GEMMA S.')
@@ -206,6 +209,43 @@ class ImportUpdateExistingTest extends TestCase
                 ->assertJsonPath("duplicates.$index.event_date", '2026-07-03')
                 ->assertJsonPath("duplicates.$index.matching_records_count", 1);
         }
+    }
+
+    public function test_duplicate_review_includes_rows_not_detected_by_the_five_match_fields(): void
+    {
+        $this->post(route('transaction-events.import'), ['csv_file' => $this->upload()])->assertRedirect();
+        $matched = explode("\n", trim($this->upload()->get()));
+        $unmatched = explode("\n", trim($this->upload(['event_date' => '2026-07-04'])->get()))[1];
+        $file = UploadedFile::fake()->createWithContent('review.csv', $matched[0]."\n".$matched[1]."\n".$unmatched."\n");
+
+        $this->postJson(route('transaction-events.import.check-duplicates'), ['csv_file' => $file])
+            ->assertOk()
+            ->assertJsonPath('duplicates_count', 1)
+            ->assertJsonPath('detected_count', 1)
+            ->assertJsonPath('not_detected_count', 1)
+            ->assertJsonCount(2, 'review_rows')
+            ->assertJsonPath('review_rows.0.row', 2)
+            ->assertJsonPath('review_rows.0.match_status', 'detected')
+            ->assertJsonPath('review_rows.1.row', 3)
+            ->assertJsonPath('review_rows.1.match_status', 'not_detected');
+    }
+
+    public function test_update_result_returns_every_skipped_row_with_spreadsheet_row_number(): void
+    {
+        $this->post(route('transaction-events.import'), ['csv_file' => $this->upload(), 'events_only' => 1])->assertRedirect();
+        $header = explode("\n", trim($this->upload()->get()))[0];
+        $rows = [];
+        for ($i = 0; $i < 12; $i++) {
+            $rows[] = explode("\n", trim($this->upload(['full_name' => 'NOT FOUND '.$i])->get()))[1];
+        }
+        $token = $this->postJson(route('transaction-events.import.prepare'), [
+            'csv_file' => UploadedFile::fake()->createWithContent('skipped.csv', $header."\n".implode("\n", $rows)."\n"),
+            'update_existing' => 1,
+        ])->assertOk()->json('token');
+        $response = $this->postJson(route('transaction-events.import.finish'), ['token' => $token])
+            ->assertOk()->assertJsonPath('skipped', 12)->assertJsonCount(12, 'errors');
+        $response->assertJsonPath('errors.0.row', 2)->assertJsonPath('errors.11.row', 13)
+            ->assertJsonPath('errors.11.data', 'NOT FOUND 11');
     }
 
     public function test_pending_export_round_trip_preserves_event_name_when_profile_name_differs(): void
@@ -307,6 +347,8 @@ class ImportUpdateExistingTest extends TestCase
         $this->assertDatabaseHas('transaction_events', ['full_name' => 'DE QUIROZ, GEMMA S.', 'transaction_type' => 'TRANCH 1', 'status' => 'Claimed']);
         $this->assertDatabaseMissing('transaction_events', ['full_name' => 'NEW CLIENT']);
         $this->assertDatabaseCount('transaction_history', 0);
-        $this->get(route('transaction-events.index'))->assertOk()->assertSee('Update Matching Records');
+        $this->get(route('transaction-events.index'))->assertOk()
+            ->assertSee('Update Matching Records')
+            ->assertSee('const CHUNK_SIZE = updateExisting ? 100 : 500;', false);
     }
 }

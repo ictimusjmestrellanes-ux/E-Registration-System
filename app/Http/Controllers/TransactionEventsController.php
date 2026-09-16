@@ -81,6 +81,8 @@ class TransactionEventsController extends Controller
             ->pluck('transaction_category')->filter()->sort()->values();
         $transactionTypes = (clone $pendingBase)->select('transaction_type')->distinct()
             ->pluck('transaction_type')->filter()->sort()->values();
+        $addresses = (clone $pendingBase)->select('address')->distinct()
+            ->pluck('address')->map(fn ($address) => trim((string) $address))->filter()->unique()->sort()->values();
 
         // Scope to the pending list so the duplicate-names filter count
         // matches what the filtered Event List can actually show.
@@ -95,7 +97,7 @@ class TransactionEventsController extends Controller
             ->count();
 
         return view('pages.transaction_events.transactionEvents',
-            compact('events', 'totalDuplicateGroups', 'duplicateFullNames', 'clientCategories', 'transactionCategories', 'transactionTypes', 'selectableTotal'));
+            compact('events', 'totalDuplicateGroups', 'duplicateFullNames', 'clientCategories', 'transactionCategories', 'transactionTypes', 'addresses', 'selectableTotal'));
     }
 
     /**
@@ -246,6 +248,10 @@ class TransactionEventsController extends Controller
             $query->where('contact_no', 'like', "%{$contact}%");
         }
 
+        if ($address = trim((string) $request->input('address', ''))) {
+            $query->whereRaw('LOWER(TRIM(address)) = ?', [mb_strtolower($address)]);
+        }
+
         if ($ageFrom = $request->input('age_from')) {
             $query->where('age', '>=', (int) $ageFrom);
         }
@@ -316,6 +322,10 @@ class TransactionEventsController extends Controller
 
         if ($contact = $request->input('contact')) {
             $query->where('contact_no', 'like', "%{$contact}%");
+        }
+
+        if ($address = trim((string) $request->input('address', ''))) {
+            $query->whereRaw('LOWER(TRIM(address)) = ?', [mb_strtolower($address)]);
         }
 
         if ($ageFrom = $request->input('age_from')) {
@@ -577,6 +587,9 @@ class TransactionEventsController extends Controller
         $clientCategories = TransactionEvent::whereNotNull('transferred_at')
             ->select('client_category')->distinct()
             ->pluck('client_category')->filter()->sort()->values();
+        $addresses = TransactionEvent::whereNotNull('transferred_at')
+            ->select('address')->distinct()
+            ->pluck('address')->map(fn ($address) => trim((string) $address))->filter()->unique()->sort()->values();
 
         $typeClientCategories = TransactionEvent::whereNotNull('transferred_at')
             ->select('transaction_type', 'client_category')
@@ -600,7 +613,7 @@ class TransactionEventsController extends Controller
             ->values()
             ->all();
 
-        return view('pages.transaction_events.eventRecords', compact('events', 'categories', 'types', 'clientCategories', 'typeClientCategories', 'duplicateRecordIds'));
+        return view('pages.transaction_events.eventRecords', compact('events', 'categories', 'types', 'clientCategories', 'addresses', 'typeClientCategories', 'duplicateRecordIds'));
     }
 
     /**

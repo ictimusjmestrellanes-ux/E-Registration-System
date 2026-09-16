@@ -234,7 +234,7 @@
                             </div>
 
                             <form method="GET" id="eventFiltersForm"
-                                class="{{ request()->hasAny(['search', 'contact', 'age_from', 'age_to', 'date_from', 'date_to', 'event_date_from', 'event_date_to', 'client_category', 'transaction_category', 'transaction_type']) ? '' : 'd-none' }}">
+                                class="{{ request()->hasAny(['search', 'address', 'contact', 'age_from', 'age_to', 'date_from', 'date_to', 'event_date_from', 'event_date_to', 'client_category', 'transaction_category', 'transaction_type']) ? '' : 'd-none' }}">
                                 <div class="row g-3 mt-1 align-items-end">
                                     <div class="col-12 col-xl-4">
                                         <label for="eventKeywordInput"
@@ -244,6 +244,18 @@
                                             <input type="text" class="form-control" id="eventKeywordInput"
                                                 name="search" placeholder="Full name" value="{{ request('search') }}">
                                         </div>
+                                    </div>
+                                    <div class="col-12 col-md-6 col-xl-4">
+                                        <label for="eventAddressFilter"
+                                            class="form-label fw-semibold text-uppercase small">Address</label>
+                                        <select class="form-select" id="eventAddressFilter" name="address">
+                                            <option value="">All addresses</option>
+                                            @foreach ($addresses as $address)
+                                                <option value="{{ $address }}" @selected(request('address') === $address)>
+                                                    {{ $address }}
+                                                </option>
+                                            @endforeach
+                                        </select>
                                     </div>
                                     {{-- <div class="col-12 col-md-6 col-xl-2">
                                         <label for="eventContactFilter"
@@ -405,7 +417,7 @@
                                 </div>
 
                                 <div class="small mt-3" id="eventSearchSummary">
-                                    {{ request()->hasAny(['search', 'contact', 'age_from', 'age_to', 'date_from', 'date_to', 'event_date_from', 'event_date_to', 'client_category', 'transaction_category', 'transaction_type']) ? 'Filtered events are shown below.' : 'Showing all pending events.' }}
+                                    {{ request()->hasAny(['search', 'address', 'contact', 'age_from', 'age_to', 'date_from', 'date_to', 'event_date_from', 'event_date_to', 'client_category', 'transaction_category', 'transaction_type']) ? 'Filtered events are shown below.' : 'Showing all pending events.' }}
                                 </div>
                             </form>
                         </div>
@@ -1431,7 +1443,7 @@
 
                 // Carry over the active list filters so the backend
                 // targets exactly the rows shown across pages.
-                ['search', 'contact', 'age_from', 'age_to', 'date_from', 'date_to',
+                ['search', 'address', 'contact', 'age_from', 'age_to', 'date_from', 'date_to',
                     'event_date_from', 'event_date_to',
                     'duplicate_names'
                 ].forEach((name) => {
@@ -1768,7 +1780,7 @@
                         select_all: 1,
                         exclude_duplicates: 1
                     };
-                    ['search', 'contact', 'age_from', 'age_to', 'date_from', 'date_to',
+                    ['search', 'address', 'contact', 'age_from', 'age_to', 'date_from', 'date_to',
                         'event_date_from', 'event_date_to',
                         'duplicate_names'
                     ].forEach((name) => {
@@ -2603,7 +2615,9 @@
                         throw new Error(msg);
                     }
 
-                    const CHUNK_SIZE = 500;
+                    // Status updates lock matching event/history rows, so keep
+                    // Update Matching Records requests small and predictable.
+                    const CHUNK_SIZE = updateExisting ? 100 : 500;
                     let offset = 0;
 
                     while (offset < total) {
