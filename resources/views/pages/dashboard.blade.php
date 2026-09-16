@@ -473,7 +473,7 @@
                                 <div class="card-header d-flex flex-wrap gap-2 align-items-center justify-content-between">
                                     <div>
                                         <h5 class="mb-0">Client Category Distribution</h5>
-                                        <p class="text-muted mb-0">Share of transactions per client category</p>
+                                        <p class="text-muted mb-0">Share of Event Records per client category</p>
                                     </div>
                                     @include('pages.partials.clientDistributionFilters')
                                 </div>
@@ -483,13 +483,13 @@
                                             style="position: relative; min-width: 420px; height: {{ max(200, count($clientCategoryDistribution['data']) * 25 + 40) }}px;">
                                             <canvas id="clientCategoryChart" role="img"
                                                 data-export-url="{{ route('dashboard.client-distribution') }}"
-                                                aria-label="Transactions by client category, sorted from highest to lowest"
+                                                aria-label="Event Records by client category, sorted from highest to lowest"
                                                 class="{{ array_sum($clientCategoryDistribution['data']) > 0 ? '' : 'd-none' }}"></canvas>
                                         </div>
                                         <div id="clientCategoryEmpty"
                                             class="{{ array_sum($clientCategoryDistribution['data']) > 0 ? 'd-none' : '' }} d-flex align-items-center justify-content-center text-center text-muted"
                                             role="status" style="min-height: 200px;">
-                                            No transactions with a client category are available.
+                                            No Event Records with a client category are available.
                                         </div>
                                     </div>
                                 </div>
@@ -1579,7 +1579,7 @@
                     data: {
                         labels: clientLabels,
                         datasets: [{
-                            label: 'Transactions',
+                            label: 'Event Records',
                             data: clientData,
                             backgroundColor: clientLabels.map((_, i) => clientPalette[i % clientPalette
                                 .length]),
@@ -1604,7 +1604,7 @@
                                 },
                                 title: {
                                     display: true,
-                                    text: 'Transactions'
+                                    text: 'Event Records'
                                 }
                             },
                             y: {
@@ -1626,7 +1626,7 @@
                             },
                             tooltip: {
                                 callbacks: {
-                                    label: context => ' Transactions: ' + valueLabel(context.parsed.x)
+                                    label: context => ' Event Records: ' + valueLabel(context.parsed.x)
                                 }
                             }
                         }

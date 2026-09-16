@@ -3,6 +3,14 @@
 
 @section('content')
     <div class="container-fluid">
+        @foreach (['success' => 'success', 'error' => 'danger'] as $message => $color)
+            @if (session($message))
+                <div class="alert alert-{{ $color }} alert-dismissible fade show" role="alert">
+                    {{ session($message) }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            @endif
+        @endforeach
         <div class="row">
             <div class="col-12">
                 <div class="card mb-4">
@@ -10,7 +18,7 @@
                         <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
                             <div>
                                 <h4 class="mb-1">Duplicate Events Records</h4>
-                                <p class="text-muted mb-0">Review transferred records that may be duplicates.</p>
+                                <p class="text-muted mb-0">Review duplicate records grouped by client. Each client appears once per tab, with each matching record listed once.</p>
                             </div>
                             <a href="{{ route('transaction-events.records') }}" class="btn btn-outline-secondary btn-sm">
                                 <i class="ri-arrow-left-line me-1"></i> Back to Event Records
@@ -32,15 +40,13 @@
                             $exactCount = $exactRecordsTotal ?? $exactGroups->sum('total');
                             $likelyCount = $likelyRecordsTotal ?? $likelyGroups->sum('total');
                             $similarCount = $similarRecordsTotal ?? $similarGroups->sum('total');
-                            $totalGroups = ($exactGroupsTotal ?? $exactGroups->count()) + ($likelyGroupsTotal ?? $likelyGroups->count()) + ($similarGroupsTotal ?? $similarGroups->count());
-                            $totalDuplicates = $exactCount + $likelyCount + $similarCount;
 
                             $renderGroup = function ($group, $tab) {
                                 $first = $group['events']->first();
                                 $out = '<div class="border rounded-4 p-3 mb-3">';
                                 $out .= '<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">';
                                 $out .= '<div>';
-                                $out .= '<h6 class="mb-0">' . e($first->full_name) . ' (' . e($first->transferredTransaction?->transaction_id ?? '-') . ')' . ' <span class="badge bg-danger-subtle text-danger ms-1">' . (int) $group['total'] . ' records</span></h6>';
+                                $out .= '<h6 class="mb-0">' . e($first->full_name) . ' <span class="badge bg-danger-subtle text-danger ms-1">' . (int) $group['total'] . ' records</span></h6>';
                                 $out .= '</div>';
                                 $out .= '</div>';
                                 $out .= '<div class="table-responsive">';
@@ -64,15 +70,19 @@
                                     $out .= '<td class="small">' . e($event->transaction_category ?? '-') . '</td>';
                                     $out .= '<td class="small">' . e($event->transaction_type ?? '-') . '</td>';
                                     $out .= '<td>' . e(optional($event->event_date)->format('M d, Y') ?? '-') . '</td>';
-                                    $out .= '<td><span class="badge bg-success-subtle text-success"><i class="ri-check-line me-1"></i>Approved</span></td>';
+                                    $statusColor = match ($event->status) {
+                                        'Claimed' => 'success',
+                                        'Unclaimed' => 'danger',
+                                        default => 'warning',
+                                    };
+                                    $out .= '<td><span class="badge bg-' . $statusColor . '-subtle text-' . $statusColor . '">' . e($event->status) . '</span></td>';
                                     if (auth()->user()?->role_name !== 'Viewer') {
                                         $out .= '<td class="text-center text-nowrap">';
+                                        $out .= view('pages.transaction_events.partials.duplicateStatusAction', ['event' => $event, 'tab' => $tab])->render();
                                         $out .= '<form action="' . e(route('transaction-events.undo-transfer', array_merge(request()->query(), ['event' => $event, 'duplicate_tab' => $tab]))) . '" method="POST" class="d-inline m-0">';
                                         $out .= csrf_field();
                                         if (feature_allowed('Undo Transfer')) {
                                             $out .= '<button type="submit" class="btn btn-sm btn-soft-warning" onclick="return confirm(\'Undo transfer for event #' . $event->id . ' (' . e($event->full_name) . ')? The created transaction record will be removed and this event will return to pending. The client record will remain.\');" title="Undo transfer"><i class="ri-arrow-go-back-line me-1"></i> Undo Transfer</button>';
-                                        } else {
-                                            $out .= '<button type="button" class="btn btn-sm btn-soft-warning" disabled title="Feature not allowed"><i class="ri-arrow-go-back-line me-1"></i>Not Allowed to Undo Transfer</button>';
                                         }
                                         $out .= '</form>';
                                         $out .= '</td>';
@@ -110,7 +120,7 @@
                             </div>
 
                             <form method="GET" id="dupFiltersForm"
-                                class="mt-3 {{ request()->anyFilled(['search', 'client_category', 'transaction_category', 'transaction_type', 'date_from', 'date_to']) ? '' : 'd-none' }}">
+                                class="mt-3 {{ request()->anyFilled(['search', 'client_category', 'transaction_category', 'transaction_type', 'status', 'date_from', 'date_to']) ? '' : 'd-none' }}">
                                 <div class="row g-3">
                                     <div class="col-12 col-xl-4">
                                         <label for="dupKeywordInput"
@@ -249,6 +259,15 @@
                                         </div>
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
+                                        <label for="dupStatusFilter" class="form-label fw-semibold text-uppercase small">Status</label>
+                                        <select class="form-select" id="dupStatusFilter" name="status">
+                                            <option value="">All statuses</option>
+                                            @foreach (\App\Models\TransactionEvent::STATUSES as $status)
+                                                <option value="{{ $status }}" @selected(request('status') === $status)>{{ $status }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                    <div class="col-12 col-md-6 col-xl-2">
                                         <label for="dupDateFrom"
                                             class="form-label fw-semibold text-uppercase small">Date From</label>
                                         <input type="date" class="form-control" id="dupDateFrom" name="date_from"
@@ -271,26 +290,26 @@
                                 </div>
 
                                 <div class="small mt-3">
-                                    {{ request()->anyFilled(['search', 'client_category', 'transaction_category', 'transaction_type', 'date_from', 'date_to']) ? 'Filtered groups are shown below.' : 'Showing all duplicate groups.' }}
+                                    {{ request()->anyFilled(['search', 'client_category', 'transaction_category', 'transaction_type', 'status', 'date_from', 'date_to']) ? 'Filtered groups are shown below.' : 'Showing all duplicate groups.' }}
                                 </div>
                             </form>
                         </div>
 
                         <ul class="nav nav-tabs mb-4" role="tablist">
                             <li class="nav-item">
-                                <a class="nav-link {{ $showLikely || $showFullName ? '' : 'active' }}" data-bs-toggle="tab" href="#rexact-tab" role="tab">
+                                <a class="nav-link {{ $showLikely || $showFullName ? '' : 'active' }}" data-bs-toggle="tab" href="#rexact-tab" role="tab" data-client-count="{{ $exactGroups->total() }}" data-record-count="{{ $exactCount }}">
                                     Exact Match
                                     <span class="badge bg-danger-subtle text-danger ms-1">{{ $exactGroupsTotal ?? $exactGroups->count() }}</span>
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link {{ $showLikely ? 'active' : '' }}" data-bs-toggle="tab" href="#rlikely-tab" role="tab">
+                                <a class="nav-link {{ $showLikely ? 'active' : '' }}" data-bs-toggle="tab" href="#rlikely-tab" role="tab" data-client-count="{{ $likelyGroups->total() }}" data-record-count="{{ $likelyCount }}">
                                     Likely Match
                                     <span class="badge bg-warning-subtle text-warning ms-1">{{ $likelyGroupsTotal ?? $likelyGroups->count() }}</span>
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link {{ $showFullName ? 'active' : '' }}" data-bs-toggle="tab" href="#rsimilar-tab" role="tab">
+                                <a class="nav-link {{ $showFullName ? 'active' : '' }}" data-bs-toggle="tab" href="#rsimilar-tab" role="tab" data-client-count="{{ $similarGroups->total() }}" data-record-count="{{ $similarCount }}">
                                     Match Full Name
                                     <span class="badge bg-info-subtle text-info ms-1">{{ $similarGroupsTotal ?? $similarGroups->count() }}</span>
                                 </a>
@@ -298,8 +317,8 @@
                         </ul>
 
                         <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
-                            <span class="badge bg-primary-subtle text-primary fs-13">{{ $totalGroups }} group(s)</span>
-                            <span class="badge bg-danger-subtle text-danger fs-13">{{ $totalDuplicates }} record(s)</span>
+                            <span id="duplicateClientCount" class="badge bg-primary-subtle text-primary fs-13">{{ $showLikely ? $likelyGroups->total() : ($showFullName ? $similarGroups->total() : $exactGroups->total()) }} client group(s) in this tab</span>
+                            <span id="duplicateRecordCount" class="badge bg-danger-subtle text-danger fs-13">{{ $showLikely ? $likelyCount : ($showFullName ? $similarCount : $exactCount) }} record(s) in this tab</span>
                         </div>
 
                         <div class="tab-content">
@@ -318,7 +337,7 @@
                                 @endforelse
                                 @if ($exactGroups->total() > 0)
                                     <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between mt-3">
-                                        <div class="small text-muted">Showing {{ $exactGroups->firstItem() }}–{{ $exactGroups->lastItem() }} of {{ $exactGroups->total() }} groups</div>
+                                        <div class="small text-muted">Showing {{ $exactGroups->firstItem() }}–{{ $exactGroups->lastItem() }} of {{ $exactGroups->total() }} client groups</div>
                                         {{ $exactGroups->links('pagination::bootstrap-5') }}
                                     </div>
                                 @endif
@@ -343,7 +362,7 @@
                                 @endforelse
                                 @if ($likelyGroups->total() > 0)
                                     <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between mt-3">
-                                        <div class="small text-muted">Showing {{ $likelyGroups->firstItem() }}–{{ $likelyGroups->lastItem() }} of {{ $likelyGroups->total() }} groups</div>
+                                        <div class="small text-muted">Showing {{ $likelyGroups->firstItem() }}–{{ $likelyGroups->lastItem() }} of {{ $likelyGroups->total() }} client groups</div>
                                         {{ $likelyGroups->links('pagination::bootstrap-5') }}
                                     </div>
                                 @endif
@@ -364,7 +383,7 @@
                                 @endforelse
                                 @if ($similarGroups->total() > 0)
                                     <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between mt-3">
-                                        <div class="small text-muted">Showing {{ $similarGroups->firstItem() }}–{{ $similarGroups->lastItem() }} of {{ $similarGroups->total() }} groups</div>
+                                        <div class="small text-muted">Showing {{ $similarGroups->firstItem() }}–{{ $similarGroups->lastItem() }} of {{ $similarGroups->total() }} client groups</div>
                                         {{ $similarGroups->links('pagination::bootstrap-5') }}
                                     </div>
                                 @endif
@@ -380,6 +399,12 @@
 @push('scripts')
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('[data-client-count]').forEach(tab => {
+                tab.addEventListener('shown.bs.tab', () => {
+                    document.getElementById('duplicateClientCount').textContent = `${tab.dataset.clientCount} client group(s) in this tab`;
+                    document.getElementById('duplicateRecordCount').textContent = `${tab.dataset.recordCount} record(s) in this tab`;
+                });
+            });
             const toggleBtn = document.getElementById('dupFiltersToggleBtn');
             const formEl = document.getElementById('dupFiltersForm');
             if (!toggleBtn || !formEl) {

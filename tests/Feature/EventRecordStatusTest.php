@@ -58,6 +58,36 @@ class EventRecordStatusTest extends TestCase
         $this->assertSame('Pending', $event->transferredTransaction->status);
     }
 
+    public function test_duplicate_tabs_can_tag_one_record_and_keep_the_current_page_and_filters(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+        $event = $this->record();
+        $otherHistory = $event->transferredTransaction->replicate();
+        $otherHistory->transaction_id = 'STATUS-2';
+        $otherHistory->save();
+        $other = $event->replicate();
+        $other->transferred_transaction_id = $otherHistory->id;
+        $other->save();
+
+        foreach (['exact' => 'Claimed', 'likely' => 'Unclaimed', 'full_name' => 'Pending'] as $tab => $status) {
+            $other->update(['transaction_type' => $tab === 'likely' ? 'TRANCH 2' : 'TRANCH 1']);
+            $query = ['duplicate_tab' => $tab, 'search' => 'Juan', 'per_page' => 10];
+            $this->get(route('transaction-events.records-duplicates', $query))->assertOk()
+                ->assertSee('Tag as Pending')->assertSee('Tag as Claimed')->assertSee('Tag as Unclaimed');
+            $pageQuery = $query + ['exact_page' => 2, 'likely_page' => 3, 'similar_page' => 4];
+            $this->patch(route('transaction-events.records.status', ['event' => $event] + $pageQuery), ['status' => $status])
+                ->assertRedirect(route('transaction-events.records-duplicates', $pageQuery))->assertSessionHas('success');
+            $this->assertSame($status, $event->fresh()->status);
+            $this->assertSame($status, $event->fresh()->transferredTransaction->status);
+            $this->assertSame('Pending', $other->fresh()->status);
+            $this->assertSame('Pending', $otherHistory->fresh()->status);
+            $this->get(route('transaction-events.records-duplicates', $query))->assertOk()
+                ->assertSee('>'.$status.'</span>', false);
+        }
+        $this->assertSame(3, \App\Models\ActivityLog::where('action', 'transaction_event_updated')
+            ->where('subject_id', $event->id)->count());
+    }
+
     public function test_status_filter_combines_with_search_and_preserves_pagination(): void
     {
         $this->actingAs(User::factory()->create(['role_name' => 'Admin']));

@@ -14,6 +14,11 @@ class ClientCategoryDistributionTest extends TestCase
 
     private function seedHistory(string $clientCategory, string $category = 'BIGAY BIGAS SA MASA', string $type = 'TRANCH 1', ?string $eventType = 'TRANCH 1'): void
     {
+        DB::table('transaction_events')->insert([
+            'full_name' => 'Test Client', 'client_category' => $clientCategory,
+            'transaction_category' => $category, 'transaction_type' => $eventType ?? $type,
+            'event_date' => '2026-04-01', 'transferred_at' => now(),
+        ]);
         DB::table('transaction_history')->insert([
             'transaction_id' => 'TX-' . uniqid(),
             'client_id' => 'C1',
@@ -110,6 +115,30 @@ class ClientCategoryDistributionTest extends TestCase
 
         $this->assertSame([], $dist['labels']);
         $this->assertSame([], $dist['data']);
+    }
+
+    public function test_distribution_uses_event_records_and_refreshes_after_record_changes(): void
+    {
+        $this->actingAs(\App\Models\User::factory()->create(['role_name' => 'Admin']));
+        $this->seedHistory('EVENT CATEGORY', 'Event program', 'Legacy', 'Event type');
+        DB::table('transaction_history')->update(['client_category' => 'HISTORY CATEGORY', 'category' => 'History program', 'events_transaction_type' => 'History type']);
+        $event = \App\Models\TransactionEvent::firstOrFail();
+        \App\Models\TransactionEvent::create([
+            'full_name' => 'Staged Client', 'client_category' => 'STAGED CATEGORY',
+            'transaction_category' => 'Staged program', 'transaction_type' => 'Staged type',
+        ]);
+        $this->get(route('dashboard'))->assertOk()
+            ->assertViewHas('clientCategoryDistribution', ['labels' => ['EVENT CATEGORY'], 'data' => [1]])
+            ->assertViewHas('distributionCategoryOptions', ['Event program'])
+            ->assertViewHas('distributionTypeOptions', ['Event type']);
+        $this->getJson(route('dashboard.client-distribution'))->assertOk()->assertJsonPath('labels', ['EVENT CATEGORY']);
+        $this->getJson(route('dashboard.client-distribution.types'))->assertOk()->assertJsonPath('types', ['Event type']);
+        $event->update(['client_category' => 'UPDATED CATEGORY']);
+        $this->get(route('dashboard'))->assertOk()
+            ->assertViewHas('clientCategoryDistribution', ['labels' => ['UPDATED CATEGORY'], 'data' => [1]]);
+        $event->update(['transferred_at' => null]);
+        $this->get(route('dashboard'))->assertOk()
+            ->assertViewHas('clientCategoryDistribution', ['labels' => [], 'data' => []]);
     }
 
     public function test_export_includes_every_client_category_and_preserves_filters(): void

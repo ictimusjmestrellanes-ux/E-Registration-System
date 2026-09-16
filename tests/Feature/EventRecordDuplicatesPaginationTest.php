@@ -11,6 +11,70 @@ class EventRecordDuplicatesPaginationTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_client_duplicate_sets_stay_together_and_records_are_not_repeated(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+        for ($client = 0; $client < 12; $client++) {
+            foreach (['2026-09-01', '2026-09-02'] as $date) {
+                for ($copy = 0; $copy < 2; $copy++) {
+                    DB::table('transaction_events')->insert([
+                        'full_name' => 'Client '.$client, 'birth_date' => '1990-01-01',
+                        'event_date' => $date, 'transaction_category' => 'EVENTS', 'transaction_type' => 'TYPE',
+                        'transferred_at' => '2026-09-03 12:00:00',
+                    ]);
+                }
+            }
+        }
+        $response = $this->get(route('transaction-events.records-duplicates', [
+            'exact_page' => 2, 'likely_page' => 2, 'similar_page' => 2, 'per_page' => 10,
+        ]))->assertOk()->assertSee('Each client appears once per tab');
+        foreach (['exactGroups' => 'exactRecordsTotal', 'likelyGroups' => 'likelyRecordsTotal', 'similarGroups' => 'similarRecordsTotal'] as $key => $total) {
+            $groups = $response->viewData($key);
+            $this->assertSame(12, $groups->total());
+            $this->assertCount(2, $groups);
+            $this->assertSame(48, $response->viewData($total));
+            foreach ($groups as $group) {
+                $this->assertSame(4, $group['total']);
+                $this->assertCount(4, $group['events']);
+                $this->assertCount(4, $group['events']->pluck('id')->unique());
+                $this->assertCount(1, $group['events']->pluck('full_name')->unique());
+            }
+        }
+    }
+
+    public function test_status_filter_applies_to_counts_and_members_in_every_duplicate_tab(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+        foreach (['Pending', 'Claimed', 'Unclaimed'] as $status) {
+            foreach (['TYPE-A', 'TYPE-A', 'TYPE-B'] as $type) {
+                DB::table('transaction_events')->insert([
+                    'full_name' => 'Juan Santos', 'status' => $status,
+                    'transaction_type' => $type, 'transferred_at' => '2026-09-01 12:00:00',
+                ]);
+            }
+            DB::table('transaction_events')->insert(['full_name' => 'Juan Santos', 'status' => $status, 'transaction_type' => 'TYPE-A']);
+        }
+        foreach (['Pending', 'Claimed', 'Unclaimed'] as $status) {
+            $response = $this->get(route('transaction-events.records-duplicates', ['status' => $status, 'search' => 'Juan']))
+                ->assertOk()->assertSee('All statuses')->assertSee('Filtered groups are shown below.');
+            $this->assertSame(1, $response->viewData('exactGroups')->total());
+            $this->assertSame(2, $response->viewData('exactRecordsTotal'));
+            $this->assertSame(3, $response->viewData('similarRecordsTotal'));
+            foreach (['exactGroups', 'likelyGroups', 'similarGroups'] as $key) {
+                $groups = $response->viewData($key);
+                $this->assertGreaterThan(0, $groups->total());
+                $this->assertStringContainsString('status='.$status, $groups->url(2));
+                foreach ($groups as $group) {
+                    $this->assertCount($group['total'], $group['events']);
+                    $this->assertSame([$status], $group['events']->pluck('status')->unique()->values()->all());
+                    $this->assertTrue($group['events']->every(fn ($event) => $event->transferred_at !== null));
+                }
+            }
+        }
+        $response = $this->get(route('transaction-events.records-duplicates', ['status' => '']))->assertOk();
+        $this->assertSame(9, $response->viewData('exactRecordsTotal'));
+    }
+
     public function test_exact_match_uses_first_last_names_and_all_event_fields(): void
     {
         $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
@@ -150,15 +214,15 @@ class EventRecordDuplicatesPaginationTest extends TestCase
         $exact = $response->viewData('exactGroups');
         $likely = $response->viewData('likelyGroups');
         $this->assertSame(35, $exact->total());
-        $this->assertSame(9, $likely->total());
+        $this->assertSame(3, $likely->total());
         $this->assertCount(10, $exact);
-        $this->assertCount(9, $likely);
+        $this->assertCount(3, $likely);
         $this->assertSame(2, $exact->currentPage());
         $this->assertSame(1, $likely->currentPage());
         $this->assertStringContainsString('exact_page=3', $exact->nextPageUrl());
         $this->assertNull($likely->nextPageUrl());
         $this->assertSame(70, $response->viewData('exactRecordsTotal'));
-        $this->assertSame(18, $response->viewData('likelyRecordsTotal'));
+        $this->assertSame(6, $response->viewData('likelyRecordsTotal'));
         foreach ([$exact, $likely] as $paginator) {
             foreach ($paginator as $group) {
                 $this->assertCount(2, $group['events']);
@@ -268,7 +332,7 @@ class EventRecordDuplicatesPaginationTest extends TestCase
         // and type: not exact, but likely via date+category, date-only,
         // and category-only.
         $this->assertSame(0, $response->viewData('exactGroups')->total());
-        $this->assertSame(3, $response->viewData('likelyGroups')->total());
+        $this->assertSame(1, $response->viewData('likelyGroups')->total());
         foreach ($response->viewData('likelyGroups') as $group) {
             $this->assertCount(2, $group['events']);
         }

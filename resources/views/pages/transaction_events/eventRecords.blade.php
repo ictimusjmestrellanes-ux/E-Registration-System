@@ -324,7 +324,7 @@
                                             </div>
                                         </div>
                                     </div>
-                                    
+
                                     <div class="col-12 col-md-6 col-xl-2">
                                         <label for="recordEventDateFrom"
                                             class="form-label fw-semibold text-uppercase small">Event Date From</label>
@@ -355,7 +355,8 @@
                                         <select class="form-select" id="recordStatusFilter" name="status">
                                             <option value="">All statuses</option>
                                             @foreach (\App\Models\TransactionEvent::STATUSES as $status)
-                                                <option value="{{ $status }}" @selected(request('status') === $status)>{{ $status }}</option>
+                                                <option value="{{ $status }}" @selected(request('status') === $status)>
+                                                    {{ $status }}</option>
                                             @endforeach
                                         </select>
                                     </div>
@@ -397,12 +398,8 @@
                                             id="undoTransferSelectedBtn" disabled
                                             title="Undo transfer for the selected records"> <i
                                                 class="ri-arrow-go-back-line"></i> <span>Undo Transfer</span> </button>
-                                    @else
-                                        <button type="button"
-                                            class="btn btn-sm btn-light border text-muted d-inline-flex align-items-center gap-1 px-3"
-                                            disabled title="You do not have permission to undo transfers"> <i
-                                                class="ri-lock-line"></i> <span>Undo Not Allowed</span> </button>
-                                    @endif <button type="button"
+                                    @endif
+                                    <button type="button"
                                         class="btn btn-sm btn-outline-secondary d-none align-items-center gap-1"
                                         id="clearUndoSelectionBtn"> <i class="ri-close-line"></i> <span>Clear</span>
                                     </button>
@@ -518,42 +515,49 @@
                                                         default => 'warning',
                                                     };
                                                 @endphp
-                                                <span class="badge bg-{{ $statusColor }}-subtle text-{{ $statusColor }} px-3 py-2">{{ $event->status }}</span>
+                                                <span
+                                                    class="badge bg-{{ $statusColor }}-subtle text-{{ $statusColor }} px-3 py-2">{{ $event->status }}</span>
                                             </td>
                                             @if (auth()->user()?->role_name !== 'Viewer')
                                                 <td class="text-center" style="min-width: 160px">
-                                                    <div class="d-flex flex-nowrap align-items-center justify-content-center gap-2">
+                                                    <div
+                                                        class="d-flex flex-nowrap align-items-center justify-content-center gap-2">
                                                         @if (feature_allowed('Edit Transaction Event Record'))
-                                                        <button type="button" data-bs-toggle="modal"
-                                                            data-bs-target="#editRecordModal"
-                                                            data-update-url="{{ route('transaction-events.records.update', array_merge(request()->query(), ['event' => $event->id])) }}"
-                                                            data-record="{{ json_encode(array_merge($event->only(['id', 'full_name', 'age', 'contact_no', 'address', 'client_category', 'transaction_category', 'transaction_type']), ['birth_date' => $event->birth_date?->format('Y-m-d'), 'event_date' => $event->event_date?->format('Y-m-d')])) }}"
-                                                            class="btn btn-sm btn-soft-primary d-inline-flex align-items-center justify-content-center gap-1 text-nowrap">
-                                                            <i class="ri-pencil-line" aria-hidden="true"></i> Edit
-                                                        </button>
+                                                            <button type="button" data-bs-toggle="modal"
+                                                                data-bs-target="#editRecordModal"
+                                                                data-update-url="{{ route('transaction-events.records.update', array_merge(request()->query(), ['event' => $event->id])) }}"
+                                                                data-record="{{ json_encode(array_merge($event->only(['id', 'full_name', 'age', 'contact_no', 'address', 'client_category', 'transaction_category', 'transaction_type']), ['birth_date' => $event->birth_date?->format('Y-m-d'), 'event_date' => $event->event_date?->format('Y-m-d')])) }}"
+                                                                class="btn btn-sm btn-soft-primary d-inline-flex align-items-center justify-content-center gap-1 text-nowrap">
+                                                                <i class="ri-pencil-line" aria-hidden="true"></i> Edit
+                                                            </button>
                                                         @endif
                                                         @if (feature_allowed('Tag Transaction Event Record Status'))
-                                                        <div class="dropdown">
-                                                            <button type="button" class="btn btn-sm btn-soft-info dropdown-toggle text-nowrap"
-                                                                data-bs-toggle="dropdown" aria-expanded="false"
-                                                                aria-label="Tag status for event #{{ $event->id }}">
-                                                                <i class="ri-price-tag-3-line me-1" aria-hidden="true"></i>Tag as
-                                                            </button>
-                                                            <ul class="dropdown-menu dropdown-menu-end">
-                                                                @foreach (\App\Models\TransactionEvent::STATUSES as $status)
-                                                                    <li>
-                                                                        <form action="{{ route('transaction-events.records.status', array_merge(request()->query(), ['event' => $event->id])) }}" method="POST">
-                                                                            @csrf
-                                                                            @method('PATCH')
-                                                                            <button type="submit" name="status" value="{{ $status }}"
-                                                                                class="dropdown-item {{ $event->status === $status ? 'active' : '' }}">
-                                                                                Tag as {{ $status }}
-                                                                            </button>
-                                                                        </form>
-                                                                    </li>
-                                                                @endforeach
-                                                            </ul>
-                                                        </div>
+                                                            <div class="dropdown">
+                                                                <button type="button"
+                                                                    class="btn btn-sm btn-soft-info dropdown-toggle text-nowrap"
+                                                                    data-bs-toggle="dropdown" aria-expanded="false"
+                                                                    aria-label="Tag status for event #{{ $event->id }}">
+                                                                    <i class="ri-price-tag-3-line me-1"
+                                                                        aria-hidden="true"></i>Tag as
+                                                                </button>
+                                                                <ul class="dropdown-menu dropdown-menu-end">
+                                                                    @foreach (\App\Models\TransactionEvent::STATUSES as $status)
+                                                                        <li>
+                                                                            <form
+                                                                                action="{{ route('transaction-events.records.status', array_merge(request()->query(), ['event' => $event->id])) }}"
+                                                                                method="POST">
+                                                                                @csrf
+                                                                                @method('PATCH')
+                                                                                <button type="submit" name="status"
+                                                                                    value="{{ $status }}"
+                                                                                    class="dropdown-item {{ $event->status === $status ? 'active' : '' }}">
+                                                                                    Tag as {{ $status }}
+                                                                                </button>
+                                                                            </form>
+                                                                        </li>
+                                                                    @endforeach
+                                                                </ul>
+                                                            </div>
                                                         @endif
                                                         <form
                                                             action="{{ route('transaction-events.undo-transfer', $event) }}"
@@ -565,15 +569,6 @@
                                                                     onclick="return confirm('Undo this transfer? The created transaction record will be removed and this event will return to pending. The client record will remain.');">
                                                                     <i class="ri-arrow-go-back-line"
                                                                         aria-hidden="true"></i> Undo Transfer
-                                                                </button>
-                                                            @else
-                                                                <button type="button"
-                                                                    class="btn btn-sm btn-soft-warning d-inline-flex align-items-center justify-content-center gap-1 text-nowrap w-100"
-                                                                    disabled
-                                                                    title="You do not have permission to undo transfers."
-                                                                    aria-label="Undo Transfer (not allowed)">
-                                                                    <i class="ri-lock-line" aria-hidden="true"></i> Undo
-                                                                    Transfer
                                                                 </button>
                                                             @endif
                                                         </form>

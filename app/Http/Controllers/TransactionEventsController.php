@@ -492,6 +492,9 @@ class TransactionEventsController extends Controller
 
     public function updateRecordStatus(Request $request, TransactionEvent $event)
     {
+        $returnRoute = in_array($request->query('duplicate_tab'), ['exact', 'likely', 'full_name'], true)
+            ? 'transaction-events.records-duplicates'
+            : 'transaction-events.records';
         abort_unless(feature_allowed('Event Records'), 404);
         abort_if(auth()->user()->role_name === 'Viewer', 403, 'Viewer role is read-only.');
         $validated = $request->validate([
@@ -509,11 +512,11 @@ class TransactionEventsController extends Controller
             if ($exception instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface) {
                 throw $exception;
             }
-            return redirect()->route('transaction-events.records', $request->query())
+            return redirect()->route($returnRoute, $request->query())
                 ->with('error', $exception->getMessage());
         }
 
-        return redirect()->route('transaction-events.records', $request->query())
+        return redirect()->route($returnRoute, $request->query())
             ->with('success', 'Event status updated to '.$validated['status'].'.');
     }
 
@@ -855,6 +858,10 @@ class TransactionEventsController extends Controller
      */
     private function applyRecordDuplicatePrefilters($query, Request $request): void
     {
+        if ($request->filled('status')) {
+            $query->where('status', $request->input('status'));
+        }
+
         if ($search = trim((string) $request->input('search', ''))) {
             $query->where(function ($matches) use ($search) {
                 $matches->where('full_name', 'like', "%{$search}%")
@@ -946,6 +953,7 @@ class TransactionEventsController extends Controller
                 $descriptor->pattern = $pattern;
                 $descriptor->fullname = $first->fullname;
                 $descriptor->fullnames = $members->pluck('fullname')->unique()->values()->all();
+                $descriptor->member_ids = $members->pluck('group_id')->all();
                 $descriptor->group_id = $members->min('group_id');
                 $descriptor->total = $total;
                 foreach ($columns as $column) {
@@ -970,50 +978,62 @@ class TransactionEventsController extends Controller
     private function paginatedRecordDuplicateGroups(Collection $keyRows, array $patterns, Request $request, int $perPage, string $pageName, bool $excludeExact = false): array
     {
         $columns = ['event_date', 'birth_date', 'client_category', 'sector', 'transaction_category', 'transaction_type'];
-        $descriptors = $this->buildRecordDuplicateDescriptors($keyRows, $patterns, $excludeExact);
+        $keyRowsById = $keyRows->keyBy('group_id');
+        // Match rules identify records first; display and paginate once per client.
+        // Use birth date to separate namesakes in Exact/Likely, while the Full
+        // Name tab continues to compare names regardless of birth date.
+        $descriptors = $this->buildRecordDuplicateDescriptors($keyRows, $patterns, $excludeExact)
+            ->groupBy(function ($descriptor) use ($pageName) {
+                if ($pageName === 'similar_page') {
+                    return $descriptor->fullname;
+                }
+                $name = $this->splitImportFullName($descriptor->fullname);
+                return json_encode([$name['last'], $name['first'], $descriptor->birth_date]);
+            })
+            ->map(function ($matches) use ($keyRowsById) {
+                $memberIds = $matches->flatMap(fn ($match) => $match->member_ids)->unique()->values();
+                return (object) [
+                    'group_id' => $memberIds->min(),
+                    'member_ids' => $memberIds->all(),
+                    'total' => (int) $keyRowsById->only($memberIds->all())->sum('total'),
+                ];
+            })
+            ->sort(fn ($a, $b) => ($b->total <=> $a->total) ?: ($a->group_id <=> $b->group_id))
+            ->values();
         $recordsTotal = (int) $descriptors->sum('total');
         $page = max(1, (int) $request->input($pageName, $pageName === 'exact_page' ? $request->input('page', 1) : 1));
         $pageDescriptors = $descriptors->forPage($page, $perPage)->values();
         $groups = collect();
         if ($pageDescriptors->isNotEmpty()) {
-            // A small bound-value table loads only the visible groups'
-            // events in a single query.
-            $pageTable = null;
+            // Fetch visible clients once, then retain only qualifying duplicate
+            // keys. This avoids a SQL UNION for every event pattern per client.
+            $memberGroups = [];
+            $fullnames = [];
+            $fields = ['fullname', ...$columns];
             foreach ($pageDescriptors as $descriptor) {
-                $fields = ['fullname', 'group_id', 'pattern', ...$columns];
-                // Exact groups can contain different middle names or suffixes.
-                foreach ($descriptor->fullnames as $fullname) {
-                    $row = DB::query()->selectRaw(
-                        implode(', ', array_map(fn ($field) => '? as '.$field, $fields)),
-                        array_map(fn ($field) => $field === 'fullname' ? $fullname : $descriptor->$field, $fields)
-                    );
-                    $pageTable = $pageTable === null ? $row : $pageTable->unionAll($row);
+                foreach ($descriptor->member_ids as $memberId) {
+                    $member = $keyRowsById->get($memberId);
+                    $memberKey = json_encode(array_map(fn ($field) => (string) $member->$field, $fields));
+                    $memberGroups[$memberKey] = $descriptor->group_id;
+                    $fullnames[] = $member->fullname;
                 }
             }
-            $events = TransactionEvent::query()->whereNotNull('transaction_events.transferred_at')
-                ->joinSub($pageTable, 'visible_groups', function ($join) use ($patterns) {
-                    $join->on(DB::raw(str_replace('full_name', 'transaction_events.full_name', $this->recordDuplicateNormalizedExpression('full_name'))), '=', 'visible_groups.fullname');
-                    $join->where(function ($matches) use ($patterns) {
-                        foreach ($patterns as $pattern => $groupColumns) {
-                            $matches->orWhere(function ($match) use ($pattern, $groupColumns) {
-                                $match->where('visible_groups.pattern', $pattern);
-                                foreach ($groupColumns as $column) {
-                                    // Normalized values are never NULL (COALESCE to ''),
-                                    // so plain equality is null-safe. Never let an OR
-                                    // escape the name/transferred constraints.
-                                    $expr = str_replace($column, 'transaction_events.'.$column, $this->recordDuplicateNormalizedExpression($column));
-                                    $match->whereRaw('('.$expr.' = visible_groups.'.$column.')');
-                                }
-                            });
-                        }
-                    });
-                })
-                ->select('transaction_events.*', 'visible_groups.group_id as duplicate_group_id', 'visible_groups.pattern as duplicate_pattern')
-                ->with('transferredTransaction:id,transaction_id')
+            $query = TransactionEvent::query()->whereNotNull('transferred_at')
+                ->whereIn(DB::raw($this->recordDuplicateNormalizedExpression('full_name')), array_unique($fullnames))
+                ->select('transaction_events.*');
+            $this->applyRecordDuplicatePrefilters($query, $request);
+            foreach ($fields as $field) {
+                $column = $field === 'fullname' ? 'full_name' : $field;
+                $query->selectRaw($this->recordDuplicateNormalizedExpression($column).' as duplicate_'.$field);
+            }
+            $events = $query->with('transferredTransaction:id,transaction_id')
                 ->orderByDesc('transaction_events.id')->get()
-                ->groupBy(fn ($event) => $event->duplicate_pattern.':'.$event->duplicate_group_id);
+                ->groupBy(function ($event) use ($fields, $memberGroups) {
+                    $key = json_encode(array_map(fn ($field) => (string) $event->getAttribute('duplicate_'.$field), $fields));
+                    return $memberGroups[$key] ?? 'unmatched';
+                });
             $groups = $pageDescriptors->map(fn ($descriptor) => [
-                'events' => $events->get($descriptor->pattern.':'.$descriptor->group_id, collect()),
+                'events' => $events->get($descriptor->group_id, collect())->unique('id')->values(),
                 'total' => (int) $descriptor->total,
             ]);
         }

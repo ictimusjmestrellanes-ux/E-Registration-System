@@ -91,20 +91,22 @@ class ProfileController extends Controller
         $txCategoryOptions = $this->txCategoryOptions();
         $txTypeOptions = $this->txTypeOptions();
 
-        $distributionCategories = $this->txMultiFilter($request, 'distribution_category', $txCategoryOptions);
-        $distributionTypes = $this->txMultiFilter($request, 'distribution_type', $txTypeOptions);
+        $distributionCategoryOptions = $this->eventDistributionOptions('transaction_category');
+        $distributionTypeOptions = $this->eventDistributionOptions('transaction_type');
+        $distributionCategories = $this->txMultiFilter($request, 'distribution_category', $distributionCategoryOptions);
+        $distributionTypes = $this->txMultiFilter($request, 'distribution_type', $distributionTypeOptions);
         // Cascading dropdowns (same flow as Total Transactions chart):
         // the Type menu lists only types that occur in the selected
         // categories (all types when nothing is picked).
         $distVisibleTypes = $distributionCategories === []
-            ? $txTypeOptions
-            : $this->txTypesForCategories($distributionCategories);
+            ? $distributionTypeOptions
+            : $this->eventDistributionOptions('transaction_type', $distributionCategories);
         // Drop pre-selected types that the current categories hide so the
         // menu, chart, and URL always agree.
         $distributionTypes = array_values(array_intersect($distributionTypes, $distVisibleTypes));
         if ($distributionCategories === [] && $distributionTypes === []) {
             $clientCategoryDistribution = Cache::remember(
-                'dashboard.client_category_counts',
+                'dashboard.event_client_category_counts',
                 300,
                 fn () => $this->clientCategoryDistribution(10)
             );
@@ -161,7 +163,7 @@ class ProfileController extends Controller
             )
         );
 
-        return view('pages.dashboard', compact('totalClients', 'totalTransactions', 'txCategoryOptions', 'txCategories', 'txTypeOptions', 'txTypes', 'txVisibleTypes', 'txTrendSuffix', 'categoryCounts', 'categories', 'clientTrend', 'transactionTrend', 'transactionDateTrend', 'transactionDateFrom', 'transactionDateTo', 'transactionDates', 'transactionDateOptions', 'transactionDateCategories', 'transactionDateTypes', 'transactionDateTypeOptions', 'transactionDateVisibleDates', 'caravanTrend', 'recentActivities', 'clientCategoryDistribution', 'distributionCategories', 'distributionTypes', 'distVisibleTypes'));
+        return view('pages.dashboard', compact('totalClients', 'totalTransactions', 'txCategoryOptions', 'txCategories', 'txTypeOptions', 'txTypes', 'txVisibleTypes', 'txTrendSuffix', 'categoryCounts', 'categories', 'clientTrend', 'transactionTrend', 'transactionDateTrend', 'transactionDateFrom', 'transactionDateTo', 'transactionDates', 'transactionDateOptions', 'transactionDateCategories', 'transactionDateTypes', 'transactionDateTypeOptions', 'transactionDateVisibleDates', 'caravanTrend', 'recentActivities', 'clientCategoryDistribution', 'distributionCategories', 'distributionTypes', 'distVisibleTypes', 'distributionCategoryOptions', 'distributionTypeOptions'));
     }
 
     public function transactionDateTrend(Request $request)
@@ -305,7 +307,7 @@ class ProfileController extends Controller
     }
 
     /**
-     * Transaction share per client category for the dashboard doughnut.
+     * Transferred event record counts per client category for the dashboard.
      * Largest slices first, capped at $top entries with the long tail
      * folded into an "Others" slice. Plain group-by so it stays
      * SQLite-safe.
@@ -314,9 +316,9 @@ class ProfileController extends Controller
      */
     public function clientCategoryDistribution(int $top = PHP_INT_MAX, array $categories = [], array $types = []): array
     {
-        $counts = TransactionHistory::query()
-            ->when($categories !== [], fn ($query) => $query->whereIn('category', $categories))
-            ->when($types !== [], fn ($query) => $query->whereIn(DB::raw($this->transactionTypeExpression()), $types))
+        $counts = TransactionEvent::query()->whereNotNull('transferred_at')
+            ->when($categories !== [], fn ($query) => $query->whereIn('transaction_category', $categories))
+            ->when($types !== [], fn ($query) => $query->whereIn('transaction_type', $types))
             ->selectRaw('client_category, count(*) as total')
             ->whereNotNull('client_category')
             ->where('client_category', '<>', '')
@@ -385,11 +387,11 @@ class ProfileController extends Controller
      */
     public function clientDistributionData(Request $request)
     {
-        $categories = $this->txMultiFilter($request, 'distribution_category', $this->txCategoryOptions());
-        $types = $this->txMultiFilter($request, 'distribution_type', $this->txTypeOptions());
+        $categories = $this->txMultiFilter($request, 'distribution_category', $this->eventDistributionOptions('transaction_category'));
+        $types = $this->txMultiFilter($request, 'distribution_type', $this->eventDistributionOptions('transaction_type'));
 
         if ($categories !== []) {
-            $types = array_values(array_intersect($types, $this->txTypesForCategories($categories)));
+            $types = array_values(array_intersect($types, $this->eventDistributionOptions('transaction_type', $categories)));
         }
 
         $distribution = $this->clientCategoryDistribution($request->boolean('export') ? PHP_INT_MAX : 10, $categories, $types);
@@ -411,13 +413,21 @@ class ProfileController extends Controller
      */
     public function clientDistributionTypes(Request $request)
     {
-        $categories = $this->txMultiFilter($request, 'distribution_category', $this->txCategoryOptions());
+        $categories = $this->txMultiFilter($request, 'distribution_category', $this->eventDistributionOptions('transaction_category'));
 
         return response()->json([
             'success' => true,
             'categories' => $categories,
-            'types' => $categories === [] ? $this->txTypeOptions() : $this->txTypesForCategories($categories),
+            'types' => $this->eventDistributionOptions('transaction_type', $categories),
         ]);
+    }
+
+    private function eventDistributionOptions(string $column, array $categories = []): array
+    {
+        return TransactionEvent::query()->whereNotNull('transferred_at')
+            ->when($categories !== [], fn ($query) => $query->whereIn('transaction_category', $categories))
+            ->whereNotNull($column)->where($column, '<>', '')
+            ->distinct()->orderBy($column)->pluck($column)->all();
     }
 
     private function txTypesForCategories(array $categories): array

@@ -7,7 +7,7 @@
             aria-label="Filter client category chart by transaction category"
             title="Filter by transaction category">
             <span
-                id="distCategoryLabel">{{ count($distributionCategories ?? []) === 0 || count($distributionCategories ?? []) === count($txCategoryOptions ?? []) ? 'All categories' : (count($distributionCategories) === 1 ? $distributionCategories[0] : count($distributionCategories) . ' selected') }}</span>
+                id="distCategoryLabel">{{ count($distributionCategories ?? []) === 0 || count($distributionCategories ?? []) === count($distributionCategoryOptions ?? []) ? 'All categories' : (count($distributionCategories) === 1 ? $distributionCategories[0] : count($distributionCategories) . ' selected') }}</span>
         </button>
         <div class="dropdown-menu dropdown-menu-end p-2"
             style="min-width: 230px; max-height: 260px; overflow-y: auto;">
@@ -19,7 +19,7 @@
                 </label>
             </div>
             <hr class="my-2">
-            @foreach ($txCategoryOptions ?? [] as $option)
+            @foreach ($distributionCategoryOptions ?? [] as $option)
                 <div class="form-check">
                     <input class="form-check-input dist-category-check" type="checkbox"
                         id="distCategoryCheck_{{ $loop->index }}"
@@ -41,7 +41,7 @@
             aria-label="Filter client category chart by transaction type"
             title="Filter by transaction type">
             <span
-                id="distTypeLabel">{{ count($distributionTypes ?? []) === 0 || count($distributionTypes ?? []) === count($txTypeOptions ?? []) ? 'All types' : (count($distributionTypes) === 1 ? $distributionTypes[0] : count($distributionTypes) . ' selected') }}</span>
+                id="distTypeLabel">{{ count($distributionTypes ?? []) === 0 || count($distributionTypes ?? []) === count($distributionTypeOptions ?? []) ? 'All types' : (count($distributionTypes) === 1 ? $distributionTypes[0] : count($distributionTypes) . ' selected') }}</span>
         </button>
         <div class="dropdown-menu dropdown-menu-end p-2"
             style="min-width: 230px; max-height: 260px; overflow-y: auto;">
@@ -53,9 +53,9 @@
                 </label>
             </div>
             <hr class="my-2">
-            @foreach ($txTypeOptions ?? [] as $option)
+            @foreach ($distributionTypeOptions ?? [] as $option)
                 <div class="form-check"
-                    @if (!in_array($option, $distVisibleTypes ?? ($txTypeOptions ?? []))) style="display: none;" @endif>
+                    @if (!in_array($option, $distVisibleTypes ?? ($distributionTypeOptions ?? []))) style="display: none;" @endif>
                     <input class="form-check-input dist-type-check" type="checkbox"
                         id="distTypeCheck_{{ $loop->index }}"
                         name="distribution_type[]" value="{{ $option }}"
