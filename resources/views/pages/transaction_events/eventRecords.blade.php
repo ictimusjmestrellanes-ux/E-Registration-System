@@ -418,8 +418,8 @@
                                             </th>
                                         @endif
                                         @php
-                                            $currentSort = request('sort_by');
-                                            $currentDir = request('sort_dir', 'desc') === 'asc' ? 'asc' : 'desc';
+                                            $currentSort = request('sort_by', 'full_name');
+                                            $currentDir = request('sort_dir', 'asc') === 'asc' ? 'asc' : 'desc';
                                             $sortUrl = function ($col) use ($currentSort, $currentDir) {
                                                 $next =
                                                     $currentSort === $col && $currentDir === 'desc' ? 'asc' : 'desc';
@@ -440,9 +440,6 @@
                                                     : '<i class="ri-arrow-down-s-line ms-1"></i>';
                                             };
                                         @endphp
-
-                                        <th data-column="id"><a href="{{ $sortUrl('id') }}" class="text-reset">ID
-                                                {!! $sortIcon('id') !!}</a></th>
                                         <th data-column="transaction_id"><a href="{{ $sortUrl('transaction_id') }}"
                                                 class="text-reset">Transaction ID {!! $sortIcon('transaction_id') !!}</a></th>
                                         <th data-column="full_name"><a href="{{ $sortUrl('full_name') }}"
@@ -486,7 +483,6 @@
                                                             title="Select event #{{ $event->id }}" @endif>
                                                 </td>
                                             @endif
-                                            <td data-column="id">{{ $event->id }}</td>
                                             <td data-column="transaction_id" class="fw-semibold" style="width: 150px">
                                                 {{ $event->transferredTransaction?->transaction_id ?? '-' }}</td>
                                             <td data-column="full_name" class="fw-semibold">{{ $event->full_name }}</td>

@@ -853,20 +853,41 @@
                                 <thead class="table-light">
                                     <tr>
                                         <th>Full Name</th>
-                                        <th>Event Date</th>
+                                        <th>Client Category</th>
                                         <th>Transaction Category</th>
                                         <th>Transaction Type</th>
+                                        <th>Event Date</th>
                                     </tr>
                                 </thead>
                                 <tbody id="importDuplicateBody"></tbody>
                             </table>
                         </div>
+                        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mt-2">
+                            <div class="d-flex align-items-center gap-2">
+                                <label for="importDuplicatePageSize" class="small mb-0">Rows per page</label>
+                                <select id="importDuplicatePageSize" class="form-select form-select-sm w-auto">
+                                    <option value="10">10</option>
+                                    <option value="25" selected>25</option>
+                                    <option value="50">50</option>
+                                    <option value="100">100</option>
+                                </select>
+                            </div>
+                            <span id="importDuplicatePageInfo" class="small text-muted" aria-live="polite"></span>
+                            <nav aria-label="Imported data pages" class="d-flex align-items-center gap-1">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="importDuplicateFirst">First</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="importDuplicatePrevious">Previous</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="importDuplicateNext">Next</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="importDuplicateLast">Last</button>
+                            </nav>
+                        </div>
                         <div class="small mt-2"><strong>Update Matching Records (recommended):</strong> Match by full name,
-                            address, birth date, event date, client category, and transaction category (ignoring case and surrounding spaces).
+                            client category, transaction category, transaction type, and event date (ignoring case and surrounding spaces; dates must be the same calendar day).
                             Set the status to Claimed, including linked transaction history. Keep the saved transaction type.
                             Records already marked Claimed stay unchanged;
-                            new rows go to Import Events for review with Pending status. Multiple matches and missing event dates
-                            are skipped for review. Repeated matching rows are marked Claimed only once.</div>
+                            unmatched rows, multiple matches, and rows missing any matching field are skipped for review.
+                            This option never creates clients, Import Events, or transaction history.
+                            Address and birth date do not affect matching.
+                            Repeated matching rows are marked Claimed only once.</div>
                         <div class="small text-muted mt-2">“Import Anyway” saves every valid row in this file to Import
                             Events for review, including matching and duplicate rows. No clients or transaction history are
                             created until you transfer the events.</div>
@@ -2112,7 +2133,6 @@
                         age: item.row.age,
                         birth_date: item.row.birth_date || item.row.birthdate || '',
                         client_category: item.row.client_category || '',
-                        sector: item.row.sector || '',
                         transaction_category: item.row.transaction_category || '',
                         transaction_type: item.row.transaction_type || '',
                         event_date: item.row.event_date || item.row.eventdate || '',
@@ -2701,6 +2721,45 @@
             };
 
             // ----- Confirm Import: warn if data already exists in history -----
+            let duplicateRows = [];
+            let duplicatePage = 1;
+            const duplicatePageSize = document.getElementById('importDuplicatePageSize');
+            const renderDuplicatePage = function() {
+                const pageSize = Number(duplicatePageSize.value);
+                const totalPages = Math.max(1, Math.ceil(duplicateRows.length / pageSize));
+                duplicatePage = Math.max(1, Math.min(duplicatePage, totalPages));
+                const start = (duplicatePage - 1) * pageSize;
+                document.getElementById('importDuplicateBody').innerHTML = duplicateRows
+                    .slice(start, start + pageSize).map(row => `
+                        <tr>
+                            <td class="fw-semibold">${escapeHtml(row.full_name)}</td>
+                            <td>${escapeHtml(row.client_category || '-')}</td>
+                            <td>${escapeHtml(row.transaction_category || '-')}</td>
+                            <td>${escapeHtml(row.transaction_type || '-')}</td>
+                            <td>${escapeHtml(row.event_date || '-')}</td>
+                        </tr>`).join('');
+                document.getElementById('importDuplicatePageInfo').textContent =
+                    `Showing ${duplicateRows.length ? start + 1 : 0}–${Math.min(start + pageSize, duplicateRows.length)} of ${duplicateRows.length.toLocaleString()} · Page ${duplicatePage} of ${totalPages}`;
+                document.getElementById('importDuplicateFirst').disabled = duplicatePage === 1;
+                document.getElementById('importDuplicatePrevious').disabled = duplicatePage === 1;
+                document.getElementById('importDuplicateNext').disabled = duplicatePage === totalPages;
+                document.getElementById('importDuplicateLast').disabled = duplicatePage === totalPages;
+            };
+            duplicatePageSize.addEventListener('change', function() {
+                duplicatePage = 1;
+                renderDuplicatePage();
+            });
+            for (const [id, page] of [
+                ['importDuplicateFirst', () => 1],
+                ['importDuplicatePrevious', () => duplicatePage - 1],
+                ['importDuplicateNext', () => duplicatePage + 1],
+                ['importDuplicateLast', () => Math.ceil(duplicateRows.length / Number(duplicatePageSize.value))],
+            ]) {
+                document.getElementById(id).addEventListener('click', function() {
+                    duplicatePage = page();
+                    renderDuplicatePage();
+                });
+            }
             confirmBtn.addEventListener('click', async function() {
                 if (csvFileHidden.files.length === 0) {
                     return;
@@ -2731,22 +2790,11 @@
                     }
 
                     if ((data.duplicates_count ?? 0) > 0) {
-                        const body = document.getElementById('importDuplicateBody');
-                        body.innerHTML = '';
-                        (data.duplicates || []).forEach(function(row) {
-                            const tr = document.createElement('tr');
-                            tr.innerHTML = `
-                                <td class="fw-semibold">${escapeHtml(row.full_name)}</td>
-                                <td>${escapeHtml(row.event_date || '-')}</td>
-                                <td>${escapeHtml(row.transaction_category || '-')}</td>
-                                <td>${escapeHtml(row.transaction_type || '-')}</td>
-                            `;
-                            body.appendChild(tr);
-                        });
-                        const suffix = data.duplicates_truncated ?
-                            ' (showing first 100 in table below)' : '';
+                        duplicateRows = data.duplicates || [];
+                        duplicatePage = 1;
+                        renderDuplicatePage();
                         document.getElementById('importDuplicateSummary').textContent =
-                            `${Number(data.duplicates_count).toLocaleString()} of ${Number(data.total_rows).toLocaleString()} row(s) match clients or existing events, or repeat within the file.${suffix}`;
+                            `${Number(data.duplicates_count).toLocaleString()} of ${Number(data.total_rows).toLocaleString()} row(s) match clients or existing events, or repeat within the file.`;
                         bootstrap.Modal.getOrCreateInstance(document.getElementById(
                             'importDuplicateModal')).show();
                         confirmBtn.disabled = false;

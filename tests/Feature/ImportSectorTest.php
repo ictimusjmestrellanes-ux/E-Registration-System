@@ -22,35 +22,44 @@ class ImportSectorTest extends TestCase
         $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
     }
 
-    private function upload(?string $sector = 'SOLO PARENT', string $type = 'CLAIMED'): UploadedFile
+    private function upload(): UploadedFile
     {
-        $header = 'full_name,client_category,event_date,transaction_category,transaction_type';
-        $row = 'Gemma De Quiroz,Individual,2026-07-03,BIGAY BIGAS SA MASA,'.$type;
-        if ($sector !== null) {
-            $header .= ',sector';
-            $row .= ','.$sector;
-        }
-        return UploadedFile::fake()->createWithContent('sector.csv', $header."\n".$row."\n");
+        return UploadedFile::fake()->createWithContent('legacy.csv',
+            "full_name,client_category,event_date,transaction_category,transaction_type,sector\n"
+            ."Gemma De Quiroz,Individual,2026-07-03,BIGAY BIGAS SA MASA,TRANCH 1,".str_repeat('X', 501)."\n");
     }
 
-    public function test_csv_sector_survives_preview_staging_archive_and_transfer(): void
+    public function test_legacy_sector_is_ignored_in_preview_staging_and_archive(): void
     {
-        $token = $this->postJson(route('transaction-events.import.prepare'), [
+        $response = $this->postJson(route('transaction-events.import.prepare'), [
             'csv_file' => $this->upload(), 'events_only' => 1,
-        ])->assertOk()->assertJsonPath('preview_rows.0.sector', 'SOLO PARENT')->json('token');
-        $this->postJson(route('transaction-events.import.process'), ['token' => $token, 'offset' => 0, 'limit' => 1])->assertOk();
-        $this->postJson(route('transaction-events.import.finish'), ['token' => $token])->assertOk()->assertJsonPath('imported', 1);
-        $event = TransactionEvent::firstOrFail();
-        $this->assertSame('SOLO PARENT', $event->sector);
+        ])->assertOk()->assertJsonPath('skipped', 0);
+        $this->assertArrayNotHasKey('sector', $response->json('preview_rows.0'));
+        $this->assertNotContains('sector', $response->json('headers'));
+        $this->postJson(route('transaction-events.import.finish'), ['token' => $response->json('token')])
+            ->assertOk()->assertJsonPath('created', 1);
+        $this->assertNull(TransactionEvent::firstOrFail()->sector);
         $archive = Storage::disk('local')->files('transaction-events-archive')[0];
-        $this->assertStringContainsString('sector', Storage::disk('local')->get($archive));
-        $this->assertStringContainsString('SOLO PARENT', Storage::disk('local')->get($archive));
-        $this->post(route('transaction-events.transfer-selected'), ['event_ids' => [$event->id]])->assertRedirect();
-        $this->assertSame('SOLO PARENT', Client::firstOrFail()->sector);
-        $this->assertDatabaseHas('transaction_history', ['client_category' => 'Individual']);
+        $this->assertStringNotContainsString('sector', Storage::disk('local')->get($archive));
     }
 
-    public function test_downloaded_xlsx_template_contains_sector_and_imports_it(): void
+    public function test_matching_updates_status_without_changing_saved_sectors(): void
+    {
+        $this->post(route('transaction-events.import'), ['csv_file' => $this->upload()])->assertRedirect();
+        $event = TransactionEvent::firstOrFail();
+        $event->update(['sector' => 'SAVED EVENT SECTOR']);
+        Client::firstOrFail()->update(['sector' => 'SAVED CLIENT SECTOR']);
+        $this->postJson(route('transaction-events.import.check-duplicates'), ['csv_file' => $this->upload()])
+            ->assertOk()->assertJsonMissingPath('duplicates.0.sector')->assertJsonMissingPath('duplicates.0.existing_sector');
+        $this->post(route('transaction-events.import'), ['csv_file' => $this->upload(), 'update_existing' => 1])
+            ->assertRedirect()->assertSessionHas('success', 'Import complete: 0 created, 1 updated, 0 unchanged, 0 skipped.');
+        $this->assertSame('Claimed', $event->fresh()->status);
+        $this->assertSame('Claimed', $event->fresh()->transferredTransaction->status);
+        $this->assertSame('SAVED EVENT SECTOR', $event->fresh()->sector);
+        $this->assertSame('SAVED CLIENT SECTOR', Client::firstOrFail()->sector);
+    }
+
+    public function test_excel_and_csv_templates_have_nine_columns_without_sector(): void
     {
         $response = $this->get(route('transaction-events.template'))->assertOk();
         $path = $response->baseResponse->getFile()->getPathname();
@@ -58,120 +67,33 @@ class ImportSectorTest extends TestCase
             $zip = new \ZipArchive;
             $this->assertTrue($zip->open($path));
             $xml = $zip->getFromName('xl/worksheets/sheet1.xml');
-            $this->assertStringContainsString('Sector', $xml);
-            $this->assertStringContainsString('r="J1"', $xml);
+            $this->assertStringNotContainsString('Sector', $xml);
+            $this->assertStringNotContainsString('r="J1"', $xml);
+            $this->assertStringContainsString('r="I1"', $xml);
             $zip->close();
-            $this->post(route('transaction-events.import'), [
-                'csv_file' => UploadedFile::fake()->createWithContent('template.xlsx', file_get_contents($path)),
-            ])->assertRedirect();
-            $this->assertDatabaseHas('clients', ['first_name' => 'Maria', 'sector' => 'SOLO PARENT']);
-            $this->assertDatabaseHas('transaction_events', ['full_name' => 'Maria Santos', 'sector' => 'SOLO PARENT']);
         } finally {
-            if (file_exists($path)) {
-                unlink($path);
-            }
+            unlink($path);
         }
-    }
-
-    public function test_csv_template_fallback_includes_sector(): void
-    {
         $method = new \ReflectionMethod(TransactionEventsController::class, 'downloadTemplateAsCSV');
-        $response = $method->invoke(new TransactionEventsController);
         ob_start();
-        $response->sendContent();
+        $method->invoke(new TransactionEventsController)->sendContent();
         $csv = ob_get_clean();
         $rows = array_map('str_getcsv', explode("\n", trim($csv)));
-        $this->assertSame('Sector', $rows[0][9]);
-        $this->assertSame('SOLO PARENT', $rows[2][9]);
+        foreach ($rows as $row) {
+            $this->assertCount(9, $row);
+        }
+        $this->assertStringNotContainsString('Sector', $csv);
     }
 
-    public function test_explicit_sector_updates_existing_profile_and_blank_values_preserve_it(): void
+    public function test_transfer_preserves_existing_client_sector(): void
     {
-        $this->post(route('transaction-events.import'), ['csv_file' => $this->upload(null)])->assertRedirect();
-        $this->assertSame('Individual', Client::firstOrFail()->sector);
         $this->post(route('transaction-events.import'), ['csv_file' => $this->upload()])->assertRedirect();
-        $this->assertDatabaseCount('clients', 1);
-        $this->assertSame('SOLO PARENT', Client::firstOrFail()->sector);
-        $this->assertSame('SOLO PARENT', TransactionEvent::latest('id')->firstOrFail()->sector);
-        foreach (['', null] as $sector) {
-            $this->post(route('transaction-events.import'), ['csv_file' => $this->upload($sector)])->assertRedirect();
-            $this->assertSame('SOLO PARENT', Client::firstOrFail()->sector);
-        }
-        $html = $this->get(route('clients.show', Client::firstOrFail()))->assertOk()->getContent();
-        $this->assertMatchesRegularExpression('/Sector\s*<\/div>\s*<div class="fw-semibold">SOLO PARENT<\/div>/', $html);
-    }
-
-    public function test_matching_reimport_claims_record_and_preserves_type_and_sector(): void
-    {
-        $this->post(route('transaction-events.import'), ['csv_file' => $this->upload('SOLO PARENT', 'TRANCH 1')])->assertRedirect();
-        Client::firstOrFail()->update(['sector' => 'COMMON CITIZEN']);
-        $this->postJson(route('transaction-events.import.check-duplicates'), ['csv_file' => $this->upload('PWD')])
-            ->assertOk()->assertJsonPath('duplicates.0.sector', 'PWD')
-            ->assertJsonPath('duplicates.0.existing_sector', 'SOLO PARENT')->assertJsonPath('duplicates.0.matching_records_count', 1);
-        $token = $this->postJson(route('transaction-events.import.prepare'), [
-            'csv_file' => $this->upload('PWD'), 'update_existing' => 1, 'events_only' => 1,
-        ])->assertOk()->json('token');
-        $this->postJson(route('transaction-events.import.finish'), ['token' => $token])
-            ->assertOk()->assertJsonPath('updated', 1);
-        $this->assertSame('COMMON CITIZEN', Client::firstOrFail()->sector);
-        $this->assertSame('SOLO PARENT', TransactionEvent::firstOrFail()->sector);
-        $this->assertSame('TRANCH 1', TransactionEvent::firstOrFail()->transaction_type);
-        $this->assertSame('Claimed', TransactionEvent::firstOrFail()->status);
-        $this->assertDatabaseHas('transaction_history', ['type' => 'TRANCH 1', 'events_transaction_type' => 'TRANCH 1', 'status' => 'Claimed']);
-        $this->assertDatabaseCount('clients', 1);
-        $this->assertDatabaseCount('transaction_history', 1);
-        $this->assertDatabaseCount('transaction_events', 1);
-        $this->postJson(route('transaction-events.import.check-duplicates'), ['csv_file' => $this->upload('PWD')])
-            ->assertOk()->assertJsonPath('duplicates.0.existing_sector', 'SOLO PARENT')
-            ->assertJsonPath('duplicates.0.sector', 'PWD')->assertJsonPath('duplicates.0.matching_records_count', 1);
-        $this->assertSame('COMMON CITIZEN', Client::firstOrFail()->sector);
-        foreach (['PWD', '', null] as $sector) {
-            $this->post(route('transaction-events.import'), ['csv_file' => $this->upload($sector), 'update_existing' => 1])
-                ->assertRedirect()->assertSessionHas('success', 'Import complete: 0 created, 0 updated, 1 unchanged, 0 skipped.');
-            $this->assertSame('SOLO PARENT', TransactionEvent::firstOrFail()->sector);
-            $this->assertSame('COMMON CITIZEN', Client::firstOrFail()->sector);
-        }
-    }
-
-    public function test_pending_matching_updates_preserve_sector(): void
-    {
-        $this->post(route('transaction-events.import'), ['csv_file' => $this->upload('SOLO PARENT', 'TRANCH 1'), 'events_only' => 1])->assertRedirect();
-        $token = $this->postJson(route('transaction-events.import.prepare'), [
-            'csv_file' => $this->upload('PWD'), 'events_only' => 1, 'update_existing' => 1,
-        ])->assertOk()->json('token');
-        $this->postJson(route('transaction-events.import.process'), ['token' => $token, 'offset' => 0, 'limit' => 1])->assertOk();
-        $this->postJson(route('transaction-events.import.finish'), ['token' => $token])->assertOk()->assertJsonPath('updated', 1);
-        $this->assertSame('SOLO PARENT', TransactionEvent::firstOrFail()->sector);
-        $this->assertSame('TRANCH 1', TransactionEvent::firstOrFail()->transaction_type);
-        $this->assertSame('Claimed', TransactionEvent::firstOrFail()->status);
-        $this->assertDatabaseCount('transaction_events', 1);
-        $this->assertDatabaseCount('clients', 0);
-        $this->assertDatabaseCount('transaction_history', 0);
-    }
-
-    public function test_all_transfer_routes_update_existing_client_sector(): void
-    {
-        $this->post(route('transaction-events.import'), ['csv_file' => $this->upload(null)])->assertRedirect();
-        foreach (['transaction-events.transfer', 'transaction-events.transfer-one', 'transaction-events.transfer-selected'] as $route) {
-            Client::firstOrFail()->update(['sector' => 'OLD SECTOR']);
-            $this->post(route('transaction-events.import'), ['csv_file' => $this->upload(), 'events_only' => 1])->assertRedirect();
-            $event = TransactionEvent::latest('id')->firstOrFail();
-            $this->assertSame('OLD SECTOR', Client::firstOrFail()->sector);
-            if ($route === 'transaction-events.transfer') {
-                $this->post(route($route, $event))->assertRedirect();
-            } elseif ($route === 'transaction-events.transfer-one') {
-                $this->postJson(route($route), ['event_id' => $event->id])->assertOk();
-            } else {
-                $this->post(route($route), ['event_ids' => [$event->id]])->assertRedirect();
-            }
-            $this->assertSame('SOLO PARENT', Client::firstOrFail()->sector);
-        }
-    }
-
-    public function test_overlong_sector_is_reported_before_import(): void
-    {
-        $this->postJson(route('transaction-events.import.prepare'), ['csv_file' => $this->upload(str_repeat('A', 501))])
-            ->assertOk()->assertJsonPath('total', 0)->assertJsonPath('skipped', 1)
-            ->assertJsonPath('skipped_examples.0.reason', 'Sector must not exceed 500 characters');
+        $client = Client::firstOrFail();
+        $client->update(['sector' => 'SAVED SECTOR']);
+        $this->post(route('transaction-events.import'), ['csv_file' => $this->upload(), 'events_only' => 1])->assertRedirect();
+        $event = TransactionEvent::latest('id')->firstOrFail();
+        $event->update(['sector' => 'LEGACY SECTOR']);
+        $this->post(route('transaction-events.transfer-selected'), ['event_ids' => [$event->id]])->assertRedirect();
+        $this->assertSame('SAVED SECTOR', $client->fresh()->sector);
     }
 }

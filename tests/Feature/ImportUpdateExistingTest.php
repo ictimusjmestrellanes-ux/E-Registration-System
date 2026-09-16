@@ -73,11 +73,11 @@ class ImportUpdateExistingTest extends TestCase
         $this->post(route('transaction-events.import'), ['csv_file' => $this->upload()])->assertRedirect();
         $original = TransactionEvent::firstOrFail();
         $this->postJson(route('transaction-events.import.check-duplicates'), [
-            'csv_file' => $this->upload(['transaction_type' => 'CLAIMED']),
+            'csv_file' => $this->upload(),
         ])->assertOk()->assertJsonPath('duplicates_count', 1);
-        $this->updateImport(['transaction_type' => 'CLAIMED'], true, true)
+        $this->updateImport([], true, true)
             ->assertJsonPath('updated', 1)->assertJsonPath('created', 0);
-        $this->updateImport(['transaction_type' => 'CLAIMED'], false)
+        $this->updateImport([], false)
             ->assertJsonPath('unchanged', 1)->assertJsonPath('updated', 0);
         $this->assertDatabaseCount('transaction_events', 1);
         $this->assertDatabaseCount('transaction_history', 1);
@@ -98,16 +98,20 @@ class ImportUpdateExistingTest extends TestCase
         $this->assertSame('Claimed', $statusLog->properties['after']['status']);
     }
 
-    public function test_pending_record_updates_and_distinct_events_are_created(): void
+    public function test_matching_uses_all_five_requested_fields_and_never_creates_records(): void
     {
         $this->post(route('transaction-events.import'), ['csv_file' => $this->upload(), 'events_only' => 1])->assertRedirect();
-        $this->updateImport(['transaction_type' => 'CLAIMED', 'full_name' => ' de quiroz, gemma s. '], false)
+        $this->updateImport(['transaction_type' => ' tranch 1 ', 'full_name' => ' de quiroz, gemma s. ',
+            'client_category' => ' solo parent ', 'transaction_category' => ' bigay bigas sa masa '], false)
             ->assertJsonPath('updated', 1);
-        foreach (['event_date' => '2026-07-04', 'address' => 'OTHER ADDRESS', 'birth_date' => '1980-01-01',
-            'client_category' => 'SENIOR', 'transaction_category' => 'OTHER PROGRAM'] as $field => $value) {
-            $this->updateImport([$field => $value])->assertJsonPath('created', 1)->assertJsonPath('updated', 0);
+        foreach (['address' => 'OTHER ADDRESS', 'birth_date' => '1980-01-01', 'sector' => 'PWD'] as $field => $value) {
+            $this->updateImport([$field => $value])->assertJsonPath('unchanged', 1)->assertJsonPath('created', 0);
         }
-        $this->assertDatabaseCount('transaction_events', 6);
+        foreach (['event_date' => '2026-07-04', 'full_name' => 'OTHER PERSON', 'client_category' => 'SENIOR',
+            'transaction_category' => 'OTHER PROGRAM', 'transaction_type' => 'TRANCH 2'] as $field => $value) {
+            $this->updateImport([$field => $value])->assertJsonPath('created', 0)->assertJsonPath('updated', 0)->assertJsonPath('skipped', 1);
+        }
+        $this->assertDatabaseCount('transaction_events', 1);
         $this->assertDatabaseCount('clients', 0);
         $this->assertDatabaseCount('transaction_history', 0);
     }
@@ -116,6 +120,7 @@ class ImportUpdateExistingTest extends TestCase
     {
         $this->post(route('transaction-events.import'), ['csv_file' => $this->upload(['sector' => 'SOLO PARENT'])])->assertRedirect();
         $event = TransactionEvent::firstOrFail();
+        $event->update(['sector' => 'SOLO PARENT']);
         $changes = ['event_date' => '07/03/2026', 'sector' => 'PWD'];
         $this->postJson(route('transaction-events.import.check-duplicates'), [
             'csv_file' => $this->upload($changes),
@@ -128,6 +133,27 @@ class ImportUpdateExistingTest extends TestCase
         $this->assertSame('Claimed', $event->fresh()->status);
         $this->assertSame('Claimed', $event->fresh()->transferredTransaction->status);
         $this->assertSame('SOLO PARENT', $event->fresh()->sector);
+    }
+
+    public function test_only_the_matching_transaction_type_and_linked_history_are_claimed(): void
+    {
+        foreach (['TRANCH 1', 'TRANCH 2'] as $type) {
+            $this->post(route('transaction-events.import'), [
+                'csv_file' => $this->upload(['transaction_type' => $type]),
+            ])->assertRedirect();
+        }
+        $this->updateImport(['transaction_type' => 'CLAIMED'])->assertJsonPath('skipped', 1)->assertJsonPath('created', 0);
+        $this->assertSame(0, TransactionEvent::where('status', 'Claimed')->count());
+        $this->updateImport(['transaction_type' => 'TRANCH 2', 'address' => '', 'sector' => 'PWD'])
+            ->assertJsonPath('updated', 1)->assertJsonPath('created', 0);
+        foreach (TransactionEvent::all() as $event) {
+            $expected = $event->transaction_type === 'TRANCH 2' ? 'Claimed' : 'Pending';
+            $this->assertSame($expected, $event->status);
+            $this->assertSame($expected, $event->transferredTransaction->status);
+        }
+        $this->assertDatabaseCount('transaction_events', 2);
+        $this->assertDatabaseCount('transaction_history', 2);
+        $this->assertDatabaseCount('clients', 1);
     }
 
     public function test_import_and_duplicate_views_display_the_saved_claimed_status(): void
@@ -143,12 +169,78 @@ class ImportUpdateExistingTest extends TestCase
         $this->assertMatchesRegularExpression('/<span class="badge bg-success-subtle text-success">Claimed<\/span>/', $html);
     }
 
+    public function test_event_date_selects_the_correct_event_and_linked_history(): void
+    {
+        foreach (['2026-07-03', '2026-07-04'] as $date) {
+            $this->post(route('transaction-events.import'), [
+                'csv_file' => $this->upload(['event_date' => $date]),
+            ])->assertRedirect();
+        }
+        $this->postJson(route('transaction-events.import.check-duplicates'), [
+            'csv_file' => $this->upload(['event_date' => '07/04/2026']),
+        ])->assertOk()->assertJsonPath('duplicates.0.matching_records_count', 1);
+        $this->updateImport(['event_date' => '07/04/2026'])
+            ->assertJsonPath('updated', 1)->assertJsonPath('created', 0)->assertJsonPath('skipped', 0);
+        foreach (TransactionEvent::all() as $event) {
+            $status = $event->event_date->toDateString() === '2026-07-04' ? 'Claimed' : 'Pending';
+            $this->assertSame($status, $event->status);
+            $this->assertSame($status, $event->transferredTransaction->status);
+        }
+        $this->assertDatabaseCount('transaction_events', 2);
+        $this->assertDatabaseCount('transaction_history', 2);
+    }
+
+    public function test_duplicate_review_returns_every_row_and_all_five_columns(): void
+    {
+        $this->post(route('transaction-events.import'), ['csv_file' => $this->upload()])->assertRedirect();
+        $lines = explode("\n", trim($this->upload()->get()));
+        $file = UploadedFile::fake()->createWithContent('many.csv', $lines[0]."\n".str_repeat($lines[1]."\n", 125));
+        $response = $this->postJson(route('transaction-events.import.check-duplicates'), ['csv_file' => $file])
+            ->assertOk()->assertJsonPath('duplicates_count', 125)->assertJsonCount(125, 'duplicates')
+            ->assertJsonPath('duplicates_truncated', false);
+        foreach ([0, 124] as $index) {
+            $response->assertJsonPath("duplicates.$index.full_name", 'DE QUIROZ, GEMMA S.')
+                ->assertJsonPath("duplicates.$index.client_category", 'SOLO PARENT')
+                ->assertJsonPath("duplicates.$index.transaction_category", 'BIGAY BIGAS SA MASA')
+                ->assertJsonPath("duplicates.$index.transaction_type", 'TRANCH 1')
+                ->assertJsonPath("duplicates.$index.event_date", '2026-07-03')
+                ->assertJsonPath("duplicates.$index.matching_records_count", 1);
+        }
+    }
+
+    public function test_pending_export_round_trip_preserves_event_name_when_profile_name_differs(): void
+    {
+        $this->post(route('transaction-events.import'), ['csv_file' => $this->upload()])->assertRedirect();
+        $event = TransactionEvent::firstOrFail();
+        // A profile correction must not change the name used to match its event.
+        \App\Models\Client::firstOrFail()->update(['first_name' => 'DIFFERENT PROFILE NAME']);
+        $export = $this->get(route('transaction-events.records.export', ['status' => 'Pending']))->assertOk();
+        $path = $export->baseResponse->getFile()->getPathname();
+        try {
+            $file = UploadedFile::fake()->createWithContent('pending.xlsx', file_get_contents($path));
+            $this->postJson(route('transaction-events.import.check-duplicates'), ['csv_file' => $file])
+                ->assertOk()->assertJsonPath('total_rows', 1)->assertJsonPath('duplicates_count', 1)
+                ->assertJsonPath('duplicates.0.full_name', $event->full_name)
+                ->assertJsonPath('duplicates.0.matching_records_count', 1);
+            $token = $this->postJson(route('transaction-events.import.prepare'), [
+                'csv_file' => $file, 'update_existing' => 1,
+            ])->assertOk()->json('token');
+            $this->postJson(route('transaction-events.import.finish'), ['token' => $token])
+                ->assertOk()->assertJsonPath('updated', 1)->assertJsonPath('created', 0)->assertJsonPath('skipped', 0);
+            $this->assertSame('Claimed', $event->fresh()->status);
+            $this->assertSame('Claimed', $event->fresh()->transferredTransaction->status);
+            $this->assertDatabaseCount('transaction_events', 1);
+        } finally {
+            unlink($path);
+        }
+    }
+
     public function test_ambiguous_matches_are_reported_without_modifying_them(): void
     {
         for ($i = 0; $i < 2; $i++) {
             $this->post(route('transaction-events.import'), ['csv_file' => $this->upload(), 'events_only' => 1])->assertRedirect();
         }
-        $this->updateImport(['transaction_type' => 'CLAIMED'])
+        $this->updateImport()
             ->assertJsonPath('skipped', 1)->assertJsonPath('updated', 0)
             ->assertJsonPath('errors.0.error', 'Multiple existing records match this row. Resolve the duplicates before updating.');
         $this->assertSame(2, TransactionEvent::where('transaction_type', 'TRANCH 1')->count());
@@ -159,10 +251,11 @@ class ImportUpdateExistingTest extends TestCase
         $this->post(route('transaction-events.import'), ['csv_file' => $this->upload()])->assertRedirect();
         foreach (['transaction-events.transfer', 'transaction-events.transfer-one', 'transaction-events.transfer-selected'] as $route) {
             $date = '2026-07-'.(10 + TransactionEvent::count());
+            $type = 'TRANCH '.TransactionEvent::count();
             $this->post(route('transaction-events.import'), [
-                'csv_file' => $this->upload(['event_date' => $date]), 'events_only' => 1,
+                'csv_file' => $this->upload(['event_date' => $date, 'transaction_type' => $type.' NEXT']), 'events_only' => 1,
             ])->assertRedirect();
-            $this->updateImport(['event_date' => $date, 'transaction_type' => ''])
+            $this->updateImport(['event_date' => $date, 'transaction_type' => $type.' NEXT'])
                 ->assertJsonPath('updated', 1)->assertJsonPath('skipped', 0);
             $event = TransactionEvent::latest('id')->firstOrFail();
             if ($route === 'transaction-events.transfer') {
@@ -175,28 +268,33 @@ class ImportUpdateExistingTest extends TestCase
             $event->refresh();
             $this->assertSame('Claimed', $event->status);
             $this->assertSame('Claimed', $event->transferredTransaction->status);
-            $this->assertSame('TRANCH 1', $event->transferredTransaction->type);
+            $this->assertSame($type.' NEXT', $event->transferredTransaction->type);
         }
     }
 
-    public function test_direct_update_claims_record_even_with_blank_import_type(): void
+    public function test_direct_update_requires_all_matching_fields_including_event_date(): void
     {
         $this->post(route('transaction-events.import'), ['csv_file' => $this->upload(), 'events_only' => 1])->assertRedirect();
         $this->post(route('transaction-events.import'), [
-            'csv_file' => $this->upload(['transaction_type' => 'CLAIMED']), 'update_existing' => 1,
+            'csv_file' => $this->upload(), 'update_existing' => 1,
         ])->assertRedirect()->assertSessionHas('success', 'Import complete: 0 created, 1 updated, 0 unchanged, 0 skipped.');
-        $this->updateImport(['transaction_type' => ''])->assertJsonPath('unchanged', 1)->assertJsonPath('skipped', 0);
-        $this->updateImport(['event_date' => ''])->assertJsonPath('skipped', 1);
+        $this->updateImport(['transaction_type' => ''])->assertJsonPath('unchanged', 0)->assertJsonPath('skipped', 1);
+        $this->updateImport(['event_date' => ''])->assertJsonPath('unchanged', 0)->assertJsonPath('skipped', 1);
+        $this->post(route('transaction-events.import'), [
+            'csv_file' => $this->upload(['full_name' => 'NEW PERSON']), 'update_existing' => 1, 'force_direct' => 1,
+        ])->assertRedirect()->assertSessionHas('success', fn ($message) => str_contains($message, '0 created, 0 updated, 0 unchanged, 1 skipped.'));
+        $this->assertDatabaseCount('clients', 0);
+        $this->assertDatabaseCount('transaction_history', 0);
         $this->assertDatabaseCount('transaction_events', 1);
         $this->assertSame('TRANCH 1', TransactionEvent::firstOrFail()->transaction_type);
         $this->assertSame('Claimed', TransactionEvent::firstOrFail()->status);
     }
 
-    public function test_repeated_rows_across_chunks_claim_once_and_new_rows_are_staged(): void
+    public function test_repeated_rows_across_chunks_claim_once_and_unmatched_rows_are_skipped(): void
     {
         $this->post(route('transaction-events.import'), ['csv_file' => $this->upload(), 'events_only' => 1])->assertRedirect();
-        $first = $this->upload(['transaction_type' => 'CLAIMED'])->get();
-        $second = explode("\n", trim($this->upload(['transaction_type' => 'RELEASED'])->get()))[1];
+        $first = $this->upload()->get();
+        $second = explode("\n", trim($this->upload()->get()))[1];
         $third = explode("\n", trim($this->upload(['full_name' => 'NEW CLIENT'])->get()))[1];
         $token = $this->postJson(route('transaction-events.import.prepare'), [
             'csv_file' => UploadedFile::fake()->createWithContent('mixed.csv', $first.$second."\n".$third."\n"),
@@ -204,10 +302,10 @@ class ImportUpdateExistingTest extends TestCase
         ])->assertOk()->json('token');
         $this->postJson(route('transaction-events.import.process'), ['token' => $token, 'offset' => 0, 'limit' => 1])->assertOk();
         $this->postJson(route('transaction-events.import.finish'), ['token' => $token])->assertOk()
-            ->assertJsonPath('updated', 1)->assertJsonPath('unchanged', 1)->assertJsonPath('created', 1)->assertJsonPath('skipped', 0);
-        $this->assertDatabaseCount('transaction_events', 2);
+            ->assertJsonPath('updated', 1)->assertJsonPath('unchanged', 1)->assertJsonPath('created', 0)->assertJsonPath('skipped', 1);
+        $this->assertDatabaseCount('transaction_events', 1);
         $this->assertDatabaseHas('transaction_events', ['full_name' => 'DE QUIROZ, GEMMA S.', 'transaction_type' => 'TRANCH 1', 'status' => 'Claimed']);
-        $this->assertDatabaseHas('transaction_events', ['full_name' => 'NEW CLIENT', 'status' => 'Pending']);
+        $this->assertDatabaseMissing('transaction_events', ['full_name' => 'NEW CLIENT']);
         $this->assertDatabaseCount('transaction_history', 0);
         $this->get(route('transaction-events.index'))->assertOk()->assertSee('Update Matching Records');
     }

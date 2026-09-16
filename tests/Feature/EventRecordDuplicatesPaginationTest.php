@@ -89,9 +89,10 @@ class EventRecordDuplicatesPaginationTest extends TestCase
             'full_name' => '  DELA CRUZ, JUAN B. JR.  ', 'sector' => ' education ',
             'client_category' => 'pwd', 'transaction_category' => 'events', 'transaction_type' => 'type',
         ]));
+        $expected[] = DB::table('transaction_events')->insertGetId(array_replace($base, ['sector' => 'Health']));
         foreach ([
             'full_name' => 'Pedro A. Dela Cruz', 'birth_date' => '1991-01-01',
-            'client_category' => 'SENIOR', 'sector' => 'Health',
+            'client_category' => 'SENIOR',
             'transaction_category' => 'OTHER', 'transaction_type' => 'OTHER',
             'event_date' => '2026-09-02', 'transferred_at' => null,
         ] as $field => $value) {
@@ -100,10 +101,10 @@ class EventRecordDuplicatesPaginationTest extends TestCase
         DB::table('transaction_events')->insert(array_replace($base, ['full_name' => 'Juan A. Santos']));
 
         $response = $this->get(route('transaction-events.records-duplicates'))->assertOk()
-            ->assertSee('Lastname and Firstname')->assertSee('<strong>Sector</strong>', false);
+            ->assertSee('Lastname and Firstname')->assertDontSee('<strong>Sector</strong>', false);
         $groups = $response->viewData('exactGroups');
         $this->assertSame(1, $groups->total());
-        $this->assertSame(2, $response->viewData('exactRecordsTotal'));
+        $this->assertSame(3, $response->viewData('exactRecordsTotal'));
         $this->assertSame($expected, $groups->first()['events']->pluck('id')->sort()->values()->all());
     }
 
