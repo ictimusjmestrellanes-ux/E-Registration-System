@@ -11,6 +11,40 @@ class EventRecordsFilterTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_multiple_addresses_filter_both_lists_exports_and_bulk_ids(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+        foreach ([false, true] as $transferred) {
+            $records = collect(['North, City', 'South', 'Other'])->map(fn ($address) => TransactionEvent::create([
+                'full_name' => ($transferred ? 'Record ' : 'Import ').$address,
+                'address' => $address,
+                'transferred_at' => $transferred ? now() : null,
+            ]));
+            $filters = ['address' => [' north, city ', 'South']];
+            $route = $transferred ? 'transaction-events.records' : 'transaction-events.index';
+            $idsRoute = $transferred ? 'transaction-events.undo-transfer-selected.ids' : 'transaction-events.transfer-selected.ids';
+            $exportRoute = $transferred ? 'transaction-events.records.export' : 'transaction-events.export';
+            $expectedIds = $records->take(2)->pluck('id')->sort()->values()->all();
+
+            $this->get(route($route, $filters))->assertOk()
+                ->assertViewHas('events', fn ($events) => $events->total() === 2
+                    && $events->pluck('id')->sort()->values()->all() === $expectedIds);
+            $ids = $this->postJson(route($idsRoute), $filters + ['select_all' => 1])
+                ->assertOk()->assertJsonPath('total', 2)->json('ids');
+            sort($ids);
+            $this->assertSame($expectedIds, $ids);
+
+            $export = $this->get(route($exportRoute, $filters))->assertOk();
+            $zip = new \ZipArchive();
+            $this->assertTrue($zip->open($export->getFile()->getPathname()));
+            $sheet = $zip->getFromName('xl/worksheets/sheet1.xml');
+            $zip->close();
+            $this->assertStringContainsString($records[0]->full_name, $sheet);
+            $this->assertStringContainsString($records[1]->full_name, $sheet);
+            $this->assertStringNotContainsString($records[2]->full_name, $sheet);
+        }
+    }
+
     public function test_address_type_options_use_all_records_in_each_pages_scope(): void
     {
         $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
@@ -162,7 +196,7 @@ class EventRecordsFilterTest extends TestCase
             $filters = ['address' => 'Pasong Buaya II'];
 
             $this->get(route($listRoute, $filters))->assertOk()
-                ->assertSee('name="address"', false)
+                ->assertSee('name="address[]"', false)
                 ->assertSee('All addresses')
                 ->assertSee('Pasong Buaya II')
                 ->assertSee($matching->full_name)

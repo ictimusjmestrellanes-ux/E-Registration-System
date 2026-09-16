@@ -245,18 +245,7 @@
                                                 name="search" placeholder="Full name" value="{{ request('search') }}">
                                         </div>
                                     </div>
-                                    <div class="col-12 col-md-6 col-xl-4">
-                                        <label for="eventAddressFilter"
-                                            class="form-label fw-semibold text-uppercase small">Address</label>
-                                        <select class="form-select" id="eventAddressFilter" name="address">
-                                            <option value="">All addresses</option>
-                                            @foreach ($addresses as $address)
-                                                <option value="{{ $address }}" @selected(request('address') === $address)>
-                                                    {{ $address }}
-                                                </option>
-                                            @endforeach
-                                        </select>
-                                    </div>
+                                    
                                     {{-- <div class="col-12 col-md-6 col-xl-2">
                                         <label for="eventContactFilter"
                                             class="form-label fw-semibold text-uppercase small">Contact</label>
@@ -278,7 +267,7 @@
                                             value="{{ request('age_to') }}">
                                     </div> --}}
 
-                                    <div class="col-12 col-md-6 col-xl-4">
+                                    <div class="col-12 col-md-6 col-xl-2">
                                         <label class="form-label fw-semibold text-uppercase small">Client
                                             Category</label>
                                         <div class="dropdown w-100">
@@ -288,7 +277,6 @@
                                                 data-bs-auto-close="outside" aria-expanded="false"
                                                 style="padding: 0.5rem 0.75rem;">
                                                 <span id="eventClientCategoryLabel">All client categories</span>
-                                                <i class="ri-arrow-down-s-line ms-2 flex-shrink-0"></i>
                                             </button>
                                             <div class="dropdown-menu w-100" id="eventClientCategoryDropdown"
                                                 style="max-height: 260px; overflow-y: auto;">
@@ -328,6 +316,11 @@
                                         </div>
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
+                                        <label for="eventAddressFilterBtn"
+                                            class="form-label fw-semibold text-uppercase small">Address</label>
+                                        @include('pages.transaction_events.partials.addressDropdown', ['addressId' => 'eventAddressFilter'])
+                                    </div>
+                                    <div class="col-12 col-md-6 col-xl-2">
                                         <label for="eventTransactionCategory"
                                             class="form-label fw-semibold text-uppercase small">Transaction
                                             Category</label>
@@ -345,7 +338,6 @@
                                                 data-bs-auto-close="outside" aria-expanded="false"
                                                 style="padding: 0.5rem 0.75rem;">
                                                 <span id="eventTypeFilterLabel">All types</span>
-                                                <i class="ri-arrow-down-s-line ms-2 flex-shrink-0"></i>
                                             </button>
                                             <div class="dropdown-menu w-100" id="eventTypeFilterDropdown">
                                                 <div class="p-2">
@@ -1444,7 +1436,7 @@
 
                 // Carry over the active list filters so the backend
                 // targets exactly the rows shown across pages.
-                ['search', 'address', 'contact', 'age_from', 'age_to', 'date_from', 'date_to',
+                ['search', 'contact', 'age_from', 'age_to', 'date_from', 'date_to',
                     'event_date_from', 'event_date_to',
                     'duplicate_names'
                 ].forEach((name) => {
@@ -1456,11 +1448,10 @@
 
                 // Multi-value filters: forward every selected value so
                 // select-all covers the whole filtered population.
-                ['client_category', 'transaction_category', 'transaction_type'].forEach((name) => {
-                    let values = params.getAll(name + '[]');
-                    if (values.length === 0) {
-                        values = params.getAll(name);
-                    }
+                ['address', 'client_category', 'transaction_category', 'transaction_type'].forEach((name) => {
+                    const values = Array.from(params.entries())
+                        .filter(([key]) => key === name || key.startsWith(name + '['))
+                        .map(([, value]) => value);
                     values.filter((v) => v !== '').forEach((value) => {
                         addHidden(name + '[]', value, true);
                     });
@@ -1781,7 +1772,7 @@
                         select_all: 1,
                         exclude_duplicates: 1
                     };
-                    ['search', 'address', 'contact', 'age_from', 'age_to', 'date_from', 'date_to',
+                    ['search', 'contact', 'age_from', 'age_to', 'date_from', 'date_to',
                         'event_date_from', 'event_date_to',
                         'duplicate_names'
                     ].forEach((name) => {
@@ -1790,11 +1781,10 @@
                             payload[name] = value;
                         }
                     });
-                    ['client_category', 'transaction_category', 'transaction_type'].forEach((name) => {
-                        let values = params.getAll(name + '[]');
-                        if (values.length === 0) {
-                            values = params.getAll(name);
-                        }
+                    ['address', 'client_category', 'transaction_category', 'transaction_type'].forEach((name) => {
+                        let values = Array.from(params.entries())
+                            .filter(([key]) => key === name || key.startsWith(name + '['))
+                            .map(([, value]) => value);
                         values = values.filter((v) => v !== '');
                         if (values.length > 0) {
                             payload[name] = values;
@@ -2856,4 +2846,5 @@
             }
         });
     </script>
+    <script src="{{ asset('js/event-record-filter-search.js') }}?v={{ filemtime(public_path('js/event-record-filter-search.js')) }}"></script>
 @endpush

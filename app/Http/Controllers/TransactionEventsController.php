@@ -228,6 +228,19 @@ class TransactionEventsController extends Controller
      *
      * @return string[]
      */
+    private function applyAddressFilter($query, Request $request): void
+    {
+        // Commas belong to addresses, not separators between selections.
+        $addresses = collect((array) $request->input('address', []))
+            ->filter(fn ($value) => is_string($value))
+            ->map(fn ($value) => mb_strtolower(trim($value)))
+            ->filter(fn ($value) => $value !== '')
+            ->unique()->values()->all();
+        if ($addresses) {
+            $query->whereIn(DB::raw('LOWER(TRIM(address))'), $addresses);
+        }
+    }
+
     private function multiFilterValues(Request $request, string $key): array
     {
         $raw = $request->input($key);
@@ -260,9 +273,7 @@ class TransactionEventsController extends Controller
             $query->where('contact_no', 'like', "%{$contact}%");
         }
 
-        if ($address = trim((string) $request->input('address', ''))) {
-            $query->whereRaw('LOWER(TRIM(address)) = ?', [mb_strtolower($address)]);
-        }
+        $this->applyAddressFilter($query, $request);
 
         if ($ageFrom = $request->input('age_from')) {
             $query->where('age', '>=', (int) $ageFrom);
@@ -336,9 +347,7 @@ class TransactionEventsController extends Controller
             $query->where('contact_no', 'like', "%{$contact}%");
         }
 
-        if ($address = trim((string) $request->input('address', ''))) {
-            $query->whereRaw('LOWER(TRIM(address)) = ?', [mb_strtolower($address)]);
-        }
+        $this->applyAddressFilter($query, $request);
 
         if ($ageFrom = $request->input('age_from')) {
             $query->where('age', '>=', (int) $ageFrom);

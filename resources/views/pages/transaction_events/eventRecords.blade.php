@@ -274,16 +274,9 @@
                                         </div>
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
-                                        <label for="recordAddressFilter"
+                                        <label for="recordAddressFilterBtn"
                                             class="form-label fw-semibold text-uppercase small">Address</label>
-                                        <select class="form-select" id="recordAddressFilter" name="address">
-                                            <option value="">All addresses</option>
-                                            @foreach ($addresses as $address)
-                                                <option value="{{ $address }}" @selected(request('address') === $address)>
-                                                    {{ $address }}
-                                                </option>
-                                            @endforeach
-                                        </select>
+                                        @include('pages.transaction_events.partials.addressDropdown', ['addressId' => 'recordAddressFilter'])
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
                                         <label for="recordCategoryFilter"
@@ -1011,7 +1004,7 @@
                         select_all: 1,
                         exclude_duplicates: 1
                     };
-                    ['search', 'address', 'contact', 'age_from', 'age_to', 'date_from', 'date_to',
+                    ['search', 'contact', 'age_from', 'age_to', 'date_from', 'date_to',
                         'event_date_from', 'event_date_to', 'status'
                     ].forEach((name) => {
                         const value = params.get(name);
@@ -1021,7 +1014,7 @@
                     });
 
                     // Handle filters which can have multiple values
-                    ['client_category', 'transaction_category', 'transaction_type'].forEach((name) => {
+                    ['address', 'client_category', 'transaction_category', 'transaction_type'].forEach((name) => {
                         const values = Array.from(params.entries())
                             .filter(([key]) => key === name || key.startsWith(name + '['))
                             .map(([, value]) => value);
@@ -1338,4 +1331,5 @@
                 syncRecordClientCategoryVisibility);
         });
     </script>
+    <script src="{{ asset('js/event-record-filter-search.js') }}?v={{ filemtime(public_path('js/event-record-filter-search.js')) }}"></script>
 @endpush
