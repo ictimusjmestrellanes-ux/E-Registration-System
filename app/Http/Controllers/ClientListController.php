@@ -3,8 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Models\Client;
+use App\Models\TransactionHistory;
+use App\Services\ClientIdCompactor;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
+use Throwable;
 
 class ClientListController extends Controller
 {
@@ -78,6 +86,262 @@ class ClientListController extends Controller
         $clientCivilStatuses = Client::whereNotNull('civil_status')->distinct()->orderBy('civil_status')->pluck('civil_status');
 
         return view('pages.clients.clientList', compact('clients', 'matchedClientId', 'groupClientIds', 'clientCities', 'clientBarangays', 'clientCivilStatuses'));
+    }
+
+    public function destroyWithoutTransactions(Request $request, ClientIdCompactor $compactor)
+    {
+        abort_if(auth()->user()?->role_name === 'Viewer' || !feature_allowed('Archive Clients'), 403);
+
+        $request->validate([
+            'select_all' => ['required', 'boolean'],
+            'selected_ids' => ['required', 'json'],
+            'excluded_ids' => ['required', 'json'],
+            'max_client_id' => [Rule::requiredIf($request->boolean('select_all')), 'nullable', 'integer', 'min:0'],
+            'operation_id' => ['nullable', 'uuid'],
+        ]);
+
+        $selectAll = $request->boolean('select_all');
+        $selectedIds = $this->parseJsonClientIds($request->input('selected_ids'));
+        $excludedIds = array_fill_keys($this->parseJsonClientIds($request->input('excluded_ids')), true);
+
+        if (!$selectAll && $selectedIds === []) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'Select at least one client to delete.'], 422);
+            }
+            return redirect()->route('client.list')->with('error', 'Select at least one client to delete.');
+        }
+
+        $operationId = $request->input('operation_id');
+        $report = fn (array $status) => $this->recordDeletionProgress($operationId, $status);
+        $report(['state' => 'working', 'message' => 'Preparing selected clients...',
+            'checked' => 0, 'total' => 0, 'deleted' => 0]);
+
+        try {
+            [$deletedCount, $renumberedCount, $mediaPaths] = DB::transaction(function () use (
+                $selectAll, $selectedIds, $excludedIds, $request, $compactor, $report
+            ) {
+            $deletedIds = [];
+            $mediaPaths = [];
+            $checkedCount = 0;
+            $queries = $selectAll
+                ? [$this->clientsWithoutDirectTransactionsQuery()->where('clients.id', '<=', (int) $request->input('max_client_id'))]
+                : array_map(
+                    fn ($ids) => $this->clientsWithoutDirectTransactionsQuery()->whereIn('clients.id', $ids),
+                    array_chunk($selectedIds, 500)
+                );
+            $totalCandidates = array_sum(array_map(fn ($query) => (clone $query)->count(), $queries));
+            $report(['state' => 'working', 'message' => 'Checking selected clients...',
+                'checked' => 0, 'total' => $totalCandidates, 'deleted' => 0]);
+
+            foreach ($queries as $query) {
+                $query->chunkById(100, function ($candidates) use (
+                    &$deletedIds, &$mediaPaths, &$checkedCount, $excludedIds, $selectAll, $totalCandidates, $report
+                ) {
+                    foreach ($candidates as $candidate) {
+                        if ($selectAll && isset($excludedIds[$candidate->id])) {
+                            continue;
+                        }
+
+                        $client = Client::query()->lockForUpdate()->find($candidate->id);
+                        if (!$client) {
+                            continue;
+                        }
+
+                        // Older history rows can be linked only by the transaction ID prefix.
+                        $hasHistory = filled($client->client_id) && TransactionHistory::query()
+                            ->where('client_id', $client->client_id)
+                            ->orWhere('transaction_id', 'like', $client->client_id . '-%')
+                            ->exists();
+
+                        if ($hasHistory) {
+                            continue;
+                        }
+
+                        $mediaPaths[] = array_filter([$client->photo_path, $client->fingerprint_path]);
+                        $deletedIds[] = (string) $client->client_id;
+                        $client->delete();
+                    }
+                    $checkedCount += $candidates->count();
+                    $report(['state' => 'working', 'message' => 'Checking and deleting selected clients...',
+                        'checked' => $checkedCount, 'total' => $totalCandidates,
+                        'deleted' => count($deletedIds)]);
+                });
+            }
+
+            $renumberedCount = $compactor->compactAfterDeletion($deletedIds,
+                function (string $message, int $renumbered) use ($report, $checkedCount, $totalCandidates, &$deletedIds) {
+                    $report(['state' => 'working', 'message' => $message,
+                        'checked' => $checkedCount, 'total' => $totalCandidates,
+                        'deleted' => count($deletedIds), 'renumbered' => $renumbered]);
+                });
+            $report(['state' => 'working', 'message' => 'Saving changes...',
+                'checked' => $checkedCount, 'total' => $totalCandidates,
+                'deleted' => count($deletedIds), 'renumbered' => $renumberedCount]);
+
+            return [count($deletedIds), $renumberedCount, $mediaPaths];
+            });
+        } catch (Throwable $exception) {
+            $report(['state' => 'failed', 'message' => 'Deletion could not be completed. Check the Client List before retrying.']);
+            throw $exception;
+        }
+
+        $report(['state' => 'working', 'message' => 'Removing saved media...',
+            'deleted' => $deletedCount, 'renumbered' => $renumberedCount]);
+        $mediaWarning = '';
+        try {
+            foreach ($mediaPaths as $paths) {
+                Storage::disk('public')->delete($paths);
+            }
+        } catch (Throwable $exception) {
+            report($exception);
+            $mediaWarning = ' Some saved media could not be removed.';
+        }
+
+        $message = $deletedCount === 0
+            ? 'No selected clients without transaction history were found.'
+            : "Deleted {$deletedCount} " . ($deletedCount === 1 ? 'client' : 'clients') . ' without transaction history.'
+                . ($renumberedCount > 0
+                    ? " Updated {$renumberedCount} client " . ($renumberedCount === 1 ? 'ID' : 'IDs') . ' and linked transaction IDs.'
+                    : '') . $mediaWarning;
+        $report(['state' => 'complete', 'message' => $message,
+            'deleted' => $deletedCount, 'renumbered' => $renumberedCount,
+            'redirect' => route('client.list')]);
+
+        if ($request->expectsJson()) {
+            session()->flash('success', $message);
+            return response()->json(['message' => $message, 'redirect' => route('client.list')]);
+        }
+
+        return redirect()->route('client.list')->with('success', $message);
+    }
+
+    public function deletionProgress(string $operationId)
+    {
+        abort_if(auth()->user()?->role_name === 'Viewer' || !feature_allowed('Archive Clients'), 403);
+        abort_unless(Str::isUuid($operationId), 404);
+
+        return response()->json(Cache::store('file')->get(
+            $this->deletionProgressKey($operationId),
+            ['state' => 'pending', 'message' => 'Waiting for deletion to start...',
+                'checked' => 0, 'total' => 0, 'deleted' => 0]
+        ));
+    }
+
+    private function recordDeletionProgress(?string $operationId, array $status): void
+    {
+        if (!$operationId) {
+            return;
+        }
+
+        // A separate file cache keeps polling visible while the database
+        // transaction is still open and its writes are uncommitted.
+        Cache::store('file')->put($this->deletionProgressKey($operationId), $status, now()->addMinutes(20));
+    }
+
+    private function deletionProgressKey(string $operationId): string
+    {
+        return 'client_delete_progress:' . auth()->id() . ':' . $operationId;
+    }
+
+    public function previewWithoutTransactions(Request $request)
+    {
+        abort_if(auth()->user()?->role_name === 'Viewer' || !feature_allowed('Archive Clients'), 403);
+
+        $request->validate([
+            'max_client_id' => ['nullable', 'integer', 'min:0'],
+            'page' => ['nullable', 'integer', 'min:1'],
+        ]);
+        $maxClientId = $request->has('max_client_id')
+            ? (int) $request->query('max_client_id')
+            : (int) Client::query()->max('id');
+        $page = max(1, $request->integer('page', 1));
+        $perPage = 10;
+
+        $candidates = $this->clientsWithoutDirectTransactionsQuery()
+            ->where('clients.id', '<=', $maxClientId)
+            ->orderBy('clients.id')
+            ->get(['clients.id', 'clients.client_id']);
+
+        $candidateIdsByClientId = $candidates->filter(fn (Client $client) => filled($client->client_id))
+            ->pluck('id', 'client_id')
+            ->all();
+        $linkedByLegacyId = [];
+
+        if ($candidateIdsByClientId !== []) {
+            DB::table('transaction_history')
+                ->select(['id', 'transaction_id'])
+                ->chunkById(1000, function ($histories) use ($candidateIdsByClientId, &$linkedByLegacyId) {
+                    foreach ($histories as $history) {
+                        $transactionId = (string) $history->transaction_id;
+                        $separator = strpos($transactionId, '-');
+
+                        while ($separator !== false) {
+                            $prefix = substr($transactionId, 0, $separator);
+                            if (isset($candidateIdsByClientId[$prefix])) {
+                                $linkedByLegacyId[$candidateIdsByClientId[$prefix]] = true;
+                            }
+                            $separator = strpos($transactionId, '-', $separator + 1);
+                        }
+                    }
+                });
+        }
+
+        $eligibleIds = $candidates->pluck('id')
+            ->reject(fn ($id) => isset($linkedByLegacyId[$id]))
+            ->values();
+        $total = $eligibleIds->count();
+        $pageIds = $eligibleIds->slice(($page - 1) * $perPage, $perPage)->all();
+
+        $clients = Client::query()
+            ->whereIn('clients.id', $pageIds)
+            ->select(['clients.id', 'clients.client_id', 'clients.first_name', 'clients.middle_name',
+                'clients.last_name', 'clients.suffix', 'clients.address', 'clients.barangay',
+                'clients.city', 'clients.province'])
+            ->orderBy('clients.id')
+            ->get();
+
+        $preview = $clients->map(fn (Client $client) => [
+            'id' => $client->id,
+            'client_id' => $client->client_id,
+            'full_name' => $client->full_name,
+            'address' => collect([$client->address, $client->barangay, $client->city, $client->province])
+                ->filter(fn ($part) => filled($part))
+                ->implode(', '),
+        ])->values()->all();
+
+        return response()->json([
+            'data' => $preview,
+            'total' => $total,
+            'current_page' => $page,
+            'last_page' => max(1, (int) ceil($total / $perPage)),
+            'from' => $preview === [] ? null : ($page - 1) * $perPage + 1,
+            'to' => $preview === [] ? null : ($page - 1) * $perPage + count($preview),
+            'max_client_id' => $maxClientId,
+        ]);
+    }
+
+    private function clientsWithoutDirectTransactionsQuery(): Builder
+    {
+        return Client::query()
+            ->whereNotExists(function ($query) {
+                $query->selectRaw('1')
+                    ->from('transaction_history')
+                    ->whereColumn('transaction_history.client_id', 'clients.client_id');
+            });
+    }
+
+    private function parseJsonClientIds(string $json): array
+    {
+        $ids = json_decode($json, true);
+
+        if (!is_array($ids)) {
+            return [];
+        }
+
+        return array_values(array_unique(array_filter(array_map(
+            static fn ($id) => filter_var($id, FILTER_VALIDATE_INT) ?: null,
+            $ids
+        ), static fn ($id) => $id > 0)));
     }
 
     /**

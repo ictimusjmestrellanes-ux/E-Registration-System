@@ -139,6 +139,12 @@
                                     Fingerprint</button>
                                 @unless (auth()->user()?->role_name === 'Viewer')
                                     <a href="{{ route('clients') }}" class="btn btn-sm btn-primary">Add Client</a>
+                                    @if (feature_allowed('Archive Clients'))
+                                        <button type="button" class="btn btn-sm btn-outline-danger"
+                                            data-bs-toggle="modal" data-bs-target="#deleteClientsWithoutTransactionsModal">
+                                            Delete Clients Without Transactions
+                                        </button>
+                                    @endif
                                 @endunless
                             </div>
                         </div>
@@ -442,6 +448,96 @@
         </div>
     </div>
 
+    @unless (auth()->user()?->role_name === 'Viewer')
+        @if (feature_allowed('Archive Clients'))
+            <div class="modal fade" id="deleteClientsWithoutTransactionsModal" tabindex="-1"
+                aria-labelledby="deleteClientsWithoutTransactionsModalLabel" aria-hidden="true"
+                data-preview-url="{{ route('client.list.preview-without-transactions') }}"
+                data-progress-url="{{ route('client.list.delete-progress', ['operationId' => '__operation__']) }}">
+                <div class="modal-dialog modal-dialog-centered modal-lg">
+                    <form action="{{ route('client.list.destroy-without-transactions') }}" method="POST"
+                        class="modal-content">
+                        @csrf
+                        @method('DELETE')
+                        <input type="hidden" name="select_all" id="deleteClientsSelectAllValue" value="0">
+                        <input type="hidden" name="selected_ids" id="deleteClientsSelectedIds" value="[]">
+                        <input type="hidden" name="excluded_ids" id="deleteClientsExcludedIds" value="[]">
+                        <input type="hidden" name="max_client_id" id="deleteClientsMaxClientId" value="">
+                        <input type="hidden" name="operation_id" id="deleteClientsOperationId" value="">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="deleteClientsWithoutTransactionsModalLabel">
+                                Delete Clients Without Transactions
+                            </h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"
+                                id="deleteClientsClose"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div id="deleteClientsSelectionContent">
+                            <p class="mb-2">Select the clients with no transaction history that you want to delete.</p>
+                            <p class="fw-semibold mb-2" id="deleteClientsPreviewCount" role="status" aria-live="polite">
+                                Loading eligible clients...
+                            </p>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" id="deleteClientsSelectAll" disabled>
+                                <label class="form-check-label fw-semibold" for="deleteClientsSelectAll">
+                                    Select all eligible clients across every page
+                                </label>
+                            </div>
+                            <p class="small text-muted mb-2" id="deleteClientsSelectionCount" aria-live="polite">
+                                0 clients selected
+                            </p>
+                            <div class="table-responsive border rounded" style="max-height: 360px; overflow-y: auto;">
+                                <table class="table table-sm table-striped align-middle mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th scope="col">Select</th>
+                                            <th>Client ID</th>
+                                            <th>Full Name</th>
+                                            <th>Address</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="deleteClientsPreviewRows">
+                                        <tr><td colspan="4" class="text-center text-muted py-3">Loading...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mt-2">
+                                <span class="small text-muted" id="deleteClientsPreviewPage"></span>
+                                <div class="d-flex gap-2">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary"
+                                        id="deleteClientsPreviewPrevious" disabled>Previous</button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary"
+                                        id="deleteClientsPreviewNext" disabled>Next</button>
+                                </div>
+                            </div>
+                            <p class="text-muted small mt-3 mb-0">Only selected clients will be deleted. Select all
+                                includes eligible clients on every page, even when the Client List is filtered. Later
+                                client IDs will move down to fill available gaps, and their transaction IDs will be
+                                updated to match. Archived IDs remain reserved. Saved photos and fingerprints of
+                                deleted clients will also be removed. This action cannot be undone.</p>
+                            </div>
+                            <div class="d-none py-3 text-center" id="deleteClientsProgress" role="status" aria-live="polite">
+                                <div class="spinner-border text-primary mb-3" aria-hidden="true"></div>
+                                <h6 class="fw-semibold mb-2" id="deleteClientsProgressMessage">Preparing deletion...</h6>
+                                <p class="text-muted mb-1" id="deleteClientsProgressCount">Checking selected clients...</p>
+                                <p class="small text-muted mb-0">Keep this page open until the deletion finishes.</p>
+                                <div class="alert alert-danger d-none mt-3 mb-0 text-start" id="deleteClientsProgressError"
+                                    role="alert"></div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-soft-secondary" data-bs-dismiss="modal"
+                                id="deleteClientsCancel">Cancel</button>
+                            <button type="submit" class="btn btn-danger" id="deleteEligibleClientsConfirm" disabled>
+                                Delete Selected Clients
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        @endif
+    @endunless
+
     <div class="modal fade" id="clientPhotoModal" tabindex="-1" aria-labelledby="clientPhotoModalLabel"
         aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-md">
@@ -498,6 +594,314 @@
 @endsection
 
 @section('script')
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const modal = document.getElementById('deleteClientsWithoutTransactionsModal');
+            if (!modal) return;
+
+            const form = modal.querySelector('form');
+            const rows = document.getElementById('deleteClientsPreviewRows');
+            const count = document.getElementById('deleteClientsPreviewCount');
+            const pageLabel = document.getElementById('deleteClientsPreviewPage');
+            const previous = document.getElementById('deleteClientsPreviewPrevious');
+            const next = document.getElementById('deleteClientsPreviewNext');
+            const confirmDelete = document.getElementById('deleteEligibleClientsConfirm');
+            const selectAll = document.getElementById('deleteClientsSelectAll');
+            const selectionCount = document.getElementById('deleteClientsSelectionCount');
+            const selectAllValue = document.getElementById('deleteClientsSelectAllValue');
+            const selectedIdsValue = document.getElementById('deleteClientsSelectedIds');
+            const excludedIdsValue = document.getElementById('deleteClientsExcludedIds');
+            const maxClientIdValue = document.getElementById('deleteClientsMaxClientId');
+            const operationIdValue = document.getElementById('deleteClientsOperationId');
+            const selectionContent = document.getElementById('deleteClientsSelectionContent');
+            const progressPanel = document.getElementById('deleteClientsProgress');
+            const progressMessage = document.getElementById('deleteClientsProgressMessage');
+            const progressCount = document.getElementById('deleteClientsProgressCount');
+            const progressError = document.getElementById('deleteClientsProgressError');
+            const progressSpinner = progressPanel.querySelector('.spinner-border');
+            const closeButton = document.getElementById('deleteClientsClose');
+            const cancelButton = document.getElementById('deleteClientsCancel');
+            const selectedIds = new Set();
+            const excludedIds = new Set();
+            let allSelected = false;
+            let totalEligible = 0;
+            let previewReady = false;
+            let previewMaxClientId = null;
+            let currentPage = 1;
+            let requestVersion = 0;
+            let processing = false;
+            let progressTimer = null;
+            let progressSnapshot = {};
+            let postConnectionLost = false;
+            let allowCloseOnDisconnect = false;
+
+            const renderProgress = (update) => {
+                progressSnapshot = { ...progressSnapshot, ...update };
+                progressMessage.textContent = progressSnapshot.message || 'Processing deletion...';
+                const checked = Number(progressSnapshot.checked) || 0;
+                const total = Number(progressSnapshot.total) || 0;
+                const deleted = Number(progressSnapshot.deleted) || 0;
+                progressCount.textContent = total > 0 ?
+                    `Checked ${checked.toLocaleString()} of ${total.toLocaleString()} clients. Deleted ${deleted.toLocaleString()}.` :
+                    `${deleted.toLocaleString()} ${deleted === 1 ? 'client' : 'clients'} deleted so far.`;
+            };
+
+            const stopProgressPolling = () => {
+                if (progressTimer) clearTimeout(progressTimer);
+                progressTimer = null;
+            };
+
+            const showProgressError = (message) => {
+                processing = false;
+                stopProgressPolling();
+                progressSpinner.classList.add('d-none');
+                progressMessage.textContent = 'Could not confirm deletion';
+                progressError.textContent = message;
+                progressError.classList.remove('d-none');
+                closeButton.disabled = false;
+                cancelButton.disabled = false;
+                cancelButton.textContent = 'Close';
+            };
+
+            const finishProgress = (redirectUrl) => {
+                processing = false;
+                stopProgressPolling();
+                progressSpinner.classList.add('d-none');
+                progressMessage.textContent = 'Deletion complete. Opening Client List...';
+                window.location.assign(redirectUrl || @json(route('client.list')));
+            };
+
+            const pollProgress = async (operationId) => {
+                if (!processing) return;
+                try {
+                    const url = modal.dataset.progressUrl.replace('__operation__', operationId);
+                    const response = await fetch(url, {
+                        headers: { 'Accept': 'application/json' },
+                        cache: 'no-store'
+                    });
+                    if (response.ok) {
+                        const status = await response.json();
+                        renderProgress(status);
+                        if (status.state === 'complete' && postConnectionLost) {
+                            finishProgress(status.redirect);
+                            return;
+                        }
+                        if (status.state === 'failed') {
+                            showProgressError(status.message || 'Check the Client List before trying again.');
+                            return;
+                        }
+                    }
+                } catch (error) {
+                    if (postConnectionLost) {
+                        progressMessage.textContent = 'Connection interrupted. Checking deletion status...';
+                    }
+                }
+                if (processing) progressTimer = setTimeout(() => pollProgress(operationId), 800);
+            };
+
+            const updateSelection = () => {
+                const selectedCount = allSelected ?
+                    Math.max(0, totalEligible - excludedIds.size) : selectedIds.size;
+                const everyClientSelected = totalEligible > 0 && selectedCount === totalEligible;
+                selectAll.checked = everyClientSelected;
+                selectAll.indeterminate = selectedCount > 0 && !everyClientSelected;
+                selectAll.disabled = !previewReady || totalEligible === 0;
+                selectionCount.textContent = `${selectedCount.toLocaleString()} ${selectedCount === 1 ? 'client' : 'clients'} selected`;
+                confirmDelete.textContent = selectedCount ?
+                    `Delete Selected Clients (${selectedCount.toLocaleString()})` : 'Delete Selected Clients';
+                confirmDelete.disabled = !previewReady || selectedCount === 0;
+            };
+
+            const showMessage = (message) => {
+                rows.replaceChildren();
+                const cell = rows.insertRow().insertCell();
+                cell.colSpan = 4;
+                cell.className = 'text-center text-muted py-3';
+                cell.textContent = message;
+            };
+
+            const loadPreview = async (page) => {
+                const version = ++requestVersion;
+                const firstLoad = previewMaxClientId === null;
+                const previousWasDisabled = previous.disabled;
+                const nextWasDisabled = next.disabled;
+                previewReady = false;
+                previous.disabled = true;
+                next.disabled = true;
+                updateSelection();
+                if (firstLoad) {
+                    count.textContent = 'Loading eligible clients...';
+                    pageLabel.textContent = '';
+                    showMessage('Loading...');
+                } else {
+                    pageLabel.textContent = `Loading page ${page}...`;
+                    rows.querySelectorAll('input[type="checkbox"]').forEach((checkbox) => {
+                        checkbox.disabled = true;
+                    });
+                }
+
+                try {
+                    const url = new URL(modal.dataset.previewUrl, window.location.href);
+                    url.searchParams.set('page', page);
+                    if (previewMaxClientId !== null) {
+                        url.searchParams.set('max_client_id', previewMaxClientId);
+                    }
+                    const response = await fetch(url, { headers: { 'Accept': 'application/json' } });
+                    if (!response.ok) throw new Error('Preview request failed');
+                    const preview = await response.json();
+                    if (version !== requestVersion) return;
+
+                    const clients = Array.isArray(preview.data) ? preview.data : [];
+                    previewMaxClientId = Number(preview.max_client_id) || 0;
+                    const total = Number(preview.total) || 0;
+                    totalEligible = total;
+                    currentPage = Number(preview.current_page) || 1;
+                    count.textContent = `${total.toLocaleString()} ${total === 1 ? 'client' : 'clients'} eligible for deletion`;
+                    pageLabel.textContent = total ?
+                        `Showing ${preview.from}–${preview.to} of ${total.toLocaleString()}` : '';
+
+                    rows.replaceChildren();
+                    if (!clients.length) {
+                        showMessage('No clients without transaction history were found.');
+                    } else {
+                        clients.forEach((client) => {
+                            const row = rows.insertRow();
+                            const checkbox = document.createElement('input');
+                            checkbox.type = 'checkbox';
+                            checkbox.className = 'form-check-input';
+                            checkbox.setAttribute('aria-label',
+                                `Select client ${client.client_id || client.id}: ${client.full_name || '-'}`);
+                            const id = Number(client.id);
+                            checkbox.checked = allSelected ? !excludedIds.has(id) : selectedIds.has(id);
+                            checkbox.addEventListener('change', () => {
+                                if (allSelected) {
+                                    checkbox.checked ? excludedIds.delete(id) : excludedIds.add(id);
+                                } else {
+                                    checkbox.checked ? selectedIds.add(id) : selectedIds.delete(id);
+                                }
+                                updateSelection();
+                            });
+                            row.insertCell().appendChild(checkbox);
+                            ['client_id', 'full_name', 'address'].forEach((field) => {
+                                row.insertCell().textContent = client[field] || '-';
+                            });
+                        });
+                    }
+
+                    previous.disabled = currentPage <= 1;
+                    next.disabled = currentPage >= Number(preview.last_page);
+                    previewReady = true;
+                    updateSelection();
+                } catch (error) {
+                    if (version !== requestVersion) return;
+                    if (firstLoad) {
+                        count.textContent = 'Unable to load eligible clients.';
+                        showMessage('Close this window and try again.');
+                    } else {
+                        pageLabel.textContent = 'Could not load this page. Try again.';
+                        previous.disabled = previousWasDisabled;
+                        next.disabled = nextWasDisabled;
+                        rows.querySelectorAll('input[type="checkbox"]').forEach((checkbox) => {
+                            checkbox.disabled = false;
+                        });
+                        previewReady = true;
+                    }
+                    updateSelection();
+                }
+            };
+
+            modal.addEventListener('show.bs.modal', () => {
+                if (processing) return;
+                selectedIds.clear();
+                excludedIds.clear();
+                allSelected = false;
+                totalEligible = 0;
+                previewMaxClientId = null;
+                progressSnapshot = {};
+                postConnectionLost = false;
+                allowCloseOnDisconnect = false;
+                stopProgressPolling();
+                selectionContent.classList.remove('d-none');
+                progressPanel.classList.add('d-none');
+                progressSpinner.classList.remove('d-none');
+                progressError.classList.add('d-none');
+                closeButton.disabled = false;
+                cancelButton.disabled = false;
+                cancelButton.textContent = 'Cancel';
+                loadPreview(1);
+            });
+            modal.addEventListener('hide.bs.modal', (event) => {
+                if (processing && !allowCloseOnDisconnect) event.preventDefault();
+            });
+            modal.addEventListener('hidden.bs.modal', () => {
+                processing = false;
+                stopProgressPolling();
+                requestVersion++;
+                previewReady = false;
+                confirmDelete.disabled = true;
+            });
+            selectAll.addEventListener('change', () => {
+                allSelected = selectAll.checked;
+                selectedIds.clear();
+                excludedIds.clear();
+                rows.querySelectorAll('input[type="checkbox"]').forEach((checkbox) => {
+                    checkbox.checked = allSelected;
+                });
+                updateSelection();
+            });
+            previous.addEventListener('click', () => loadPreview(currentPage - 1));
+            next.addEventListener('click', () => loadPreview(currentPage + 1));
+            form.addEventListener('submit', async (event) => {
+                event.preventDefault();
+                if (!previewReady || confirmDelete.disabled) {
+                    return;
+                }
+                selectAllValue.value = allSelected ? '1' : '0';
+                selectedIdsValue.value = JSON.stringify([...selectedIds]);
+                excludedIdsValue.value = JSON.stringify([...excludedIds]);
+                maxClientIdValue.value = previewMaxClientId;
+                operationIdValue.value = window.crypto?.randomUUID?.() ||
+                    'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (character) => {
+                        const random = window.crypto.getRandomValues(new Uint8Array(1))[0] & 15;
+                        return (character === 'x' ? random : ((random & 3) | 8)).toString(16);
+                    });
+                processing = true;
+                confirmDelete.disabled = true;
+                closeButton.disabled = true;
+                cancelButton.disabled = true;
+                selectionContent.classList.add('d-none');
+                progressPanel.classList.remove('d-none');
+                progressError.classList.add('d-none');
+                renderProgress({ state: 'pending', message: 'Starting deletion...', checked: 0,
+                    total: 0, deleted: 0 });
+                progressTimer = setTimeout(() => pollProgress(operationIdValue.value), 400);
+
+                try {
+                    const response = await fetch(form.action, {
+                        method: 'POST',
+                        body: new FormData(form),
+                        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+                    });
+                    const result = await response.json().catch(() => ({}));
+                    if (!response.ok) {
+                        showProgressError(result.message || 'Deletion failed. Check the Client List before trying again.');
+                        return;
+                    }
+                    renderProgress({ state: 'complete', message: result.message });
+                    finishProgress(result.redirect);
+                } catch (error) {
+                    postConnectionLost = true;
+                    allowCloseOnDisconnect = true;
+                    closeButton.disabled = false;
+                    cancelButton.disabled = false;
+                    cancelButton.textContent = 'Close';
+                    progressMessage.textContent = 'Connection interrupted. Checking deletion status...';
+                    progressError.textContent = 'You can close this window and check the Client List. Do not retry until you confirm whether deletion finished.';
+                    progressError.classList.remove('d-none');
+                }
+            });
+        });
+    </script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const modalEl = document.getElementById('clientPhotoModal');

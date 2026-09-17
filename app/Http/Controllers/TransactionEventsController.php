@@ -853,7 +853,7 @@ class TransactionEventsController extends Controller
      * Paginate group descriptors in SQL, then fetch the visible groups in one
      * joined query. Query count is independent of the number of duplicates.
      *
-     * Exact match is: Same Lastname and Firstname + Birth Date + Client Category +
+     * Exact match is: Same Lastname and Firstname + Client Category +
      * Transaction Category + Transaction Type + Event Date (normalized:
      * case-insensitive, trimmed, date-only so "PWD" = "pwd" and datetimes
      * on the same day still match).
@@ -866,7 +866,6 @@ class TransactionEventsController extends Controller
             'transaction_category' => "LOWER(TRIM(COALESCE(transaction_category,'')))",
             'transaction_type' => "LOWER(TRIM(COALESCE(transaction_type,'')))",
             'event_date' => "COALESCE(DATE(event_date),'')",
-            'birth_date' => "COALESCE(DATE(birth_date),'')",
             default => $column,
         };
     }
@@ -932,16 +931,15 @@ class TransactionEventsController extends Controller
     }
 
     /**
-     * One shared aggregation for every duplicate tab: transferred (and
+     * One shared aggregation for Exact Match and Full Name: transferred (and
      * pre-filtered) rows grouped by the full normalized duplicate key.
-     * All tabs regroup these rows in PHP, so the table is scanned once
-     * instead of once per pattern plus once per totals query.
+     * Both tabs regroup these rows in PHP.
      *
      * @return \Illuminate\Support\Collection<int, object>
      */
     private function recordDuplicateKeyRows(Request $request): Collection
     {
-        $columns = ['event_date', 'birth_date', 'client_category', 'transaction_category', 'transaction_type'];
+        $columns = ['event_date', 'client_category', 'transaction_category', 'transaction_type'];
         $query = DB::table('transaction_events')->whereNotNull('transferred_at');
         $this->applyRecordDuplicatePrefilters($query, $request);
         $query->selectRaw($this->recordDuplicateNormalizedExpression('full_name').' as fullname');
@@ -959,15 +957,13 @@ class TransactionEventsController extends Controller
 
     /**
      * Regroup full-key rows into tab descriptors. Exact combines parsed first/last
-     * names and keeps groups with more than one record; likely regroups by each pattern and keeps
-     * groups with more than one record that vary outside the pattern (so an
-     * exact match never repeats as likely).
+     * names; Full Name combines normalized names.
      *
      * @return \Illuminate\Support\Collection<int, object>
      */
     private function buildRecordDuplicateDescriptors(Collection $keyRows, array $patterns, bool $excludeExact): Collection
     {
-        $columns = ['event_date', 'birth_date', 'client_category', 'transaction_category', 'transaction_type'];
+        $columns = ['event_date', 'client_category', 'transaction_category', 'transaction_type'];
         $descriptors = collect();
         foreach ($patterns as $pattern => $groupColumns) {
             $grouped = $keyRows->groupBy(function ($row) use ($pattern, $groupColumns) {
@@ -1016,18 +1012,18 @@ class TransactionEventsController extends Controller
 
     private function paginatedRecordDuplicateGroups(Collection $keyRows, array $patterns, Request $request, int $perPage, string $pageName, bool $excludeExact = false): array
     {
-        $columns = ['event_date', 'birth_date', 'client_category', 'transaction_category', 'transaction_type'];
+        $columns = ['event_date', 'client_category', 'transaction_category', 'transaction_type'];
         $keyRowsById = $keyRows->keyBy('group_id');
         // Match rules identify records first; display and paginate once per client.
-        // Use birth date to separate namesakes in Exact. Likely and Full Name
-        // group matching names regardless of birth date.
+        // Exact groups parsed last and first names. Full Name groups the
+        // normalized full name.
         $descriptors = $this->buildRecordDuplicateDescriptors($keyRows, $patterns, $excludeExact)
             ->groupBy(function ($descriptor) use ($pageName) {
                 if ($pageName !== 'exact_page') {
                     return $descriptor->fullname;
                 }
                 $name = $this->splitImportFullName($descriptor->fullname);
-                return json_encode([$name['last'], $name['first'], $descriptor->birth_date]);
+                return json_encode([$name['last'], $name['first']]);
             })
             ->map(function ($matches) use ($keyRowsById) {
                 $memberIds = $matches->flatMap(fn ($match) => $match->member_ids)->unique()->values();
@@ -1088,6 +1084,101 @@ class TransactionEventsController extends Controller
         ]), $recordsTotal];
     }
 
+    /**
+     * Group records with the same parsed last and first name when at least
+     * one nonblank event date, transaction type, or client category matches.
+     */
+    private function likelyRecordGroups(Request $request, int $perPage): array
+    {
+        $base = DB::table('transaction_events')->whereNotNull('transferred_at');
+        $this->applyRecordDuplicatePrefilters($base, $request);
+        $rows = $base->get(['id', 'full_name', 'event_date', 'transaction_category',
+            'transaction_type', 'client_category']);
+        $normalized = static fn ($value) => mb_strtolower(preg_replace('/\s+/u', ' ', trim((string) $value)));
+        $people = [];
+        foreach ($rows as $row) {
+            $name = $this->splitImportFullName((string) $row->full_name);
+            $first = $normalized(preg_split('/\s+/u', trim($name['first']))[0] ?? '');
+            $last = $normalized($name['last']);
+            if ($first === '' || $last === '') {
+                continue;
+            }
+            $people[json_encode([$last, $first])][] = $row;
+        }
+
+        $matches = collect();
+        foreach ($people as $personRows) {
+            $eventIds = [];
+            $matchedFields = [];
+            foreach (['event_date' => 'Event Date', 'transaction_type' => 'Transaction Type',
+                'client_category' => 'Client Category'] as $field => $label) {
+                $buckets = [];
+                foreach ($personRows as $row) {
+                    $value = $field === 'event_date'
+                        ? substr(trim((string) $row->$field), 0, 10)
+                        : $normalized($row->$field);
+                    if ($value !== '') {
+                        $buckets[$value][] = (int) $row->id;
+                    }
+                }
+                foreach ($buckets as $bucket) {
+                    if (count($bucket) < 2) {
+                        continue;
+                    }
+                    $matchedFields[$field] = $label;
+                    foreach ($bucket as $eventId) {
+                        $eventIds[$eventId] = true;
+                    }
+                }
+            }
+            if (count($eventIds) < 2) {
+                continue;
+            }
+            $eventIds = array_keys($eventIds);
+            $matchedIdLookup = array_fill_keys($eventIds, true);
+            // Exact-only groups belong in Exact Match, not Likely Match.
+            $exactKeys = collect($personRows)->filter(fn ($row) => isset($matchedIdLookup[(int) $row->id]))
+                ->map(function ($row) use ($normalized) {
+                    $name = $this->splitImportFullName((string) $row->full_name);
+                    return json_encode([
+                        $normalized($name['first']),
+                        substr(trim((string) $row->event_date), 0, 10),
+                        $normalized($row->client_category),
+                        $normalized($row->transaction_category),
+                        $normalized($row->transaction_type),
+                    ]);
+                })->unique();
+            if ($exactKeys->count() === 1) {
+                continue;
+            }
+            $matches->push([
+                'event_ids' => $eventIds,
+                'total' => count($eventIds),
+                'matched_fields' => array_values($matchedFields),
+            ]);
+        }
+        $matches = $matches->sort(fn ($a, $b) => ($b['total'] <=> $a['total'])
+            ?: (min($a['event_ids']) <=> min($b['event_ids'])))->values();
+        $recordsTotal = $matches->sum('total');
+        $page = max(1, (int) $request->input('likely_page', 1));
+        $visible = $matches->forPage($page, $perPage)->values();
+        $events = $visible->isEmpty() ? collect() : TransactionEvent::query()
+            ->with('transferredTransaction:id,transaction_id')
+            ->whereIn('id', $visible->flatMap(fn ($group) => $group['event_ids'])->all())
+            ->get()->keyBy('id');
+        $groups = $visible->map(fn ($group) => [
+            'events' => collect($group['event_ids'])->map(fn ($id) => $events->get($id))->filter()->values(),
+            'total' => $group['total'],
+            'matched_fields' => $group['matched_fields'],
+        ]);
+
+        return [new LengthAwarePaginator($groups, $matches->count(), $perPage, $page, [
+            'path' => url()->current(),
+            'query' => array_merge($request->query(), ['duplicate_tab' => 'likely']),
+            'pageName' => 'likely_page',
+        ]), (int) $recordsTotal];
+    }
+
     public function recordsDuplicates(Request $request)
     {
         if (!feature_allowed('Event Records')) {
@@ -1098,22 +1189,14 @@ class TransactionEventsController extends Controller
             $perPage = 10;
         }
 
-        // Exact match is: Same Lastname and Firstname + Birth Date + Client Category +
+        // Exact match is: Same Lastname and Firstname + Client Category +
         // Transaction Category + Transaction Type + Event Date.
-        // One shared full-key aggregation feeds all tabs, so the table is
-        // scanned once no matter how many patterns or pages are involved.
+        // Exact Match and Full Name share the full-key aggregation.
         $duplicateKeyRows = $this->recordDuplicateKeyRows($request);
         [$exactGroups, $exactRecordsTotal] = $this->paginatedRecordDuplicateGroups($duplicateKeyRows, [
-            'exact' => ['event_date', 'birth_date', 'client_category', 'transaction_category', 'transaction_type'],
+            'exact' => ['event_date', 'client_category', 'transaction_category', 'transaction_type'],
         ], $request, $perPage, 'exact_page');
-        [$likelyGroups, $likelyRecordsTotal] = $this->paginatedRecordDuplicateGroups($duplicateKeyRows, [
-            'event_date+transaction_category' => ['event_date', 'transaction_category'],
-            'event_date+transaction_type' => ['event_date', 'transaction_type'],
-            'transaction_category+transaction_type' => ['transaction_category', 'transaction_type'],
-            'event_date' => ['event_date'],
-            'transaction_type' => ['transaction_type'],
-            'transaction_category' => ['transaction_category'],
-        ], $request, $perPage, 'likely_page', true);
+        [$likelyGroups, $likelyRecordsTotal] = $this->likelyRecordGroups($request, $perPage);
         [$similarGroups, $similarRecordsTotal] = $this->paginatedRecordDuplicateGroups($duplicateKeyRows, [
             'full_name' => [],
         ], $request, $perPage, 'similar_page');
@@ -1129,7 +1212,8 @@ class TransactionEventsController extends Controller
             ->select('transaction_type')->distinct()->pluck('transaction_type')->filter()->sort()->values();
 
         return view('pages.transaction_events.recordsDuplicates', compact(
-            'exactGroups', 'likelyGroups', 'similarGroups', 'exactRecordsTotal', 'likelyRecordsTotal', 'similarRecordsTotal',
+            'exactGroups', 'likelyGroups', 'similarGroups',
+            'exactRecordsTotal', 'likelyRecordsTotal', 'similarRecordsTotal',
             'exactGroupsTotal', 'likelyGroupsTotal', 'similarGroupsTotal',
             'filterClientCategories', 'filterTransactionCategories', 'filterTransactionTypes', 'perPage'
         ));

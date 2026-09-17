@@ -50,11 +50,6 @@
             border-color: #6276df;
             box-shadow: 0 0 0 0.2rem rgba(77, 99, 214, 0.12);
         }
-
-        #eventFiltersCard .btn-primary {
-            background: linear-gradient(135deg, #4d63d6, #5a73ff);
-            border-color: transparent;
-        }
     </style>
     <div class="container-fluid">
 

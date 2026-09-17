@@ -91,13 +91,13 @@
                                             @if ($canEditRole)
                                                 <td class="text-center">
                                                     @if (feature_allowed('Edit User Roles'))
-                                                        <button type="button" class="btn btn-sm btn-soft-warning"
+                                                        <button type="button" class="btn btn-sm btn-soft-primary"
                                                             data-bs-toggle="modal"
                                                             data-bs-target="#editRoleModal-{{ $user->id }}">
                                                             <i class="ri-edit-box-line align-bottom"></i> Edit Role
                                                         </button>
                                                     @else
-                                                        <button type="button" class="btn btn-sm btn-soft-warning"
+                                                        <button type="button" class="btn btn-sm btn-soft-primary"
                                                             data-bs-toggle="modal"
                                                             data-bs-target="#editRoleModal-{{ $user->id }}" disabled>
                                                             <i class="ri-edit-box-line align-bottom"></i>Not Allowed to Edit

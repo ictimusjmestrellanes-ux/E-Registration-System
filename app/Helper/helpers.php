@@ -88,7 +88,7 @@ function feature_route_map(): array
         'Edit User Roles' => ['users/*/role'],
         'Update User Status' => ['users/*/status'],
         'Transfer Selected' => ['transaction-events/transfer-selected'],
-        'Archive Clients' => ['clients/*/archive', 'clients/*/delete'],
+        'Archive Clients' => ['clients/*/archive', 'clients/*/delete', 'client-list/without-transactions', 'client-list/without-transactions/preview', 'client-list/without-transactions/progress/*'],
         'Edit Client' => ['clients/*/edit', 'clients/*/update'],
         'View Client' => ['clients/*'],
         'Restore Archive' => ['archive/*/restore'],

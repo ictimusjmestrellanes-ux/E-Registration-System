@@ -51,10 +51,7 @@
             box-shadow: 0 0 0 0.2rem rgba(77, 99, 214, 0.12);
         }
 
-        #recordFiltersCard .btn-primary {
-            background: linear-gradient(135deg, #4d63d6, #5a73ff);
-            border-color: transparent;
-        }
+        
     </style>
     @php
         $activeRecordFilters = request()->hasAny([
@@ -561,19 +558,16 @@
                                                                 </ul>
                                                             </div>
                                                         @endif
-                                                        <form
-                                                            action="{{ route('transaction-events.undo-transfer', $event) }}"
-                                                            method="POST" class="m-0 flex-shrink-0">
-                                                            @csrf
-                                                            @if (feature_allowed('Undo Transfer'))
-                                                                <button type="submit"
-                                                                    class="btn btn-sm btn-soft-warning d-inline-flex align-items-center justify-content-center gap-1 text-nowrap w-100"
-                                                                    onclick="return confirm('Undo this transfer? The created transaction record will be removed and this event will return to pending. The client record will remain.');">
-                                                                    <i class="ri-arrow-go-back-line"
-                                                                        aria-hidden="true"></i> Undo Transfer
-                                                                </button>
-                                                            @endif
-                                                        </form>
+                                                        @if (feature_allowed('Undo Transfer'))
+                                                            <button type="button"
+                                                                class="btn btn-sm btn-soft-warning d-inline-flex align-items-center justify-content-center gap-1 text-nowrap flex-shrink-0"
+                                                                data-bs-toggle="modal" data-bs-target="#undoSingleTransferModal"
+                                                                data-undo-url="{{ route('transaction-events.undo-transfer', $event) }}"
+                                                                data-event-id="{{ $event->id }}"
+                                                                data-event-name="{{ $event->full_name }}">
+                                                                <i class="ri-arrow-go-back-line" aria-hidden="true"></i> Undo Transfer
+                                                            </button>
+                                                        @endif
                                                     </div>
                                                 </td>
                                             @endif
@@ -602,6 +596,9 @@
 
     @if (auth()->user()?->role_name !== 'Viewer')
         @include('pages.transaction_events.editRecord')
+        @if (feature_allowed('Undo Transfer'))
+            @include('pages.transaction_events.partials.undoSingleTransferModal')
+        @endif
     @endif
 
     <!-- Bulk Undo Transfer Confirmation Modal -->

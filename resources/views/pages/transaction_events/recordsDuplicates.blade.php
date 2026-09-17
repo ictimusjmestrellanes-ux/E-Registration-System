@@ -46,13 +46,13 @@
                                 $out = '<div class="border rounded-4 p-3 mb-3">';
                                 $out .= '<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">';
                                 $out .= '<div>';
-                                $out .= '<h6 class="mb-0">' . e($first->full_name) . ' <span class="badge bg-danger-subtle text-danger ms-1">' . (int) $group['total'] . ' records</span></h6>';
+                                $out .= '<h6 class="mb-0">' . e($first->full_name) . ' (' . e($first->transferredTransaction?->transaction_id ?? '-') . ') <span class="badge bg-danger-subtle text-danger ms-1">' .  (int) $group['total'] . ' records</span></h6>';
                                 $out .= '</div>';
                                 $out .= '</div>';
                                 $out .= '<div class="table-responsive">';
                                 $out .= '<table class="table table-sm table-hover align-middle mb-0">';
                                 $out .= '<thead class="table-light"><tr>';
-                                $out .= '<th>ID</th><th>Transaction ID</th><th>Full Name</th><th>Age</th><th>Birth Date</th><th>Contact No.</th><th>Category</th><th>Transaction Category</th><th>Transaction Type</th><th>Event Date</th><th>Status</th>';
+                                $out .= '<th>ID</th><th>Transaction ID</th><th>Full Name</th><th>Age</th><th>Birth Date</th><th>Contact No.</th><th>Client Category</th><th>Transaction Category</th><th>Transaction Type</th><th>Event Date</th><th>Status</th>';
                                 if (auth()->user()?->role_name !== 'Viewer') {
                                     $out .= '<th class="text-center">Action</th>';
                                 }
@@ -79,12 +79,10 @@
                                     if (auth()->user()?->role_name !== 'Viewer') {
                                         $out .= '<td class="text-center text-nowrap">';
                                         $out .= view('pages.transaction_events.partials.duplicateStatusAction', ['event' => $event, 'tab' => $tab])->render();
-                                        $out .= '<form action="' . e(route('transaction-events.undo-transfer', array_merge(request()->query(), ['event' => $event, 'duplicate_tab' => $tab]))) . '" method="POST" class="d-inline m-0">';
-                                        $out .= csrf_field();
                                         if (feature_allowed('Undo Transfer')) {
-                                            $out .= '<button type="submit" class="btn btn-sm btn-soft-warning" onclick="return confirm(\'Undo transfer for event #' . $event->id . ' (' . e($event->full_name) . ')? The created transaction record will be removed and this event will return to pending. The client record will remain.\');" title="Undo transfer"><i class="ri-arrow-go-back-line me-1"></i> Undo Transfer</button>';
+                                            $undoUrl = route('transaction-events.undo-transfer', array_merge(request()->query(), ['event' => $event, 'duplicate_tab' => $tab]));
+                                            $out .= '<button type="button" class="btn btn-sm btn-soft-warning" data-bs-toggle="modal" data-bs-target="#undoSingleTransferModal" data-undo-url="' . e($undoUrl) . '" data-event-id="' . (int) $event->id . '" data-event-name="' . e($event->full_name) . '" title="Undo transfer"><i class="ri-arrow-go-back-line me-1"></i> Undo Transfer</button>';
                                         }
-                                        $out .= '</form>';
                                         $out .= '</td>';
                                     }
                                     $out .= '</tr>';
@@ -121,6 +119,7 @@
 
                             <form method="GET" id="dupFiltersForm"
                                 class="mt-3 {{ request()->anyFilled(['search', 'client_category', 'transaction_category', 'transaction_type', 'status', 'date_from', 'date_to']) ? '' : 'd-none' }}">
+                                <input type="hidden" name="duplicate_tab" id="dupActiveTab" value="{{ $activeTab }}">
                                 <div class="row g-3">
                                     <div class="col-12 col-xl-4">
                                         <label for="dupKeywordInput"
@@ -325,7 +324,7 @@
                             <div class="tab-pane fade {{ $showLikely || $showFullName ? '' : 'show active' }}" id="rexact-tab" role="tabpanel">
                                 <div class="alert alert-danger-subtle d-flex align-items-center mb-3 py-2" role="alert">
                                     <i class="ri-error-warning-line fs-4 me-2"></i>
-                                    <div class="small">Same <strong>Lastname and Firstname</strong>, <strong>Birth Date</strong>, <strong>Client Category</strong>, <strong>Transaction Category</strong>, <strong>Transaction Type</strong>, and <strong>Event Date</strong>. High confidence duplicates.</div>
+                                    <div class="small">Same <strong>Lastname and Firstname</strong>, <strong>Client Category</strong>, <strong>Transaction Category</strong>, <strong>Transaction Type</strong>, and <strong>Event Date</strong>. High confidence duplicates.</div>
                                 </div>
                                 @forelse ($exactGroups as $group)
                                     {!! $renderGroup($group, 'exact') !!}
@@ -347,9 +346,7 @@
                                 <div class="alert alert-warning-subtle d-flex align-items-center mb-3 py-2" role="alert">
                                     <i class="ri-alert-line fs-4 me-2"></i>
                                     <div class="small">
-                                        Same <strong>Full Name</strong> plus at least one of:
-                                        Event Date + Transaction Category, Event Date + Transaction Type, Transaction Category + Transaction Type, Event Date only, Transaction Type only, or Transaction Category only.
-                                        Review before acting.
+                                        Same <strong>Lastname and Firstname</strong> plus at least one matching <strong>Event Date</strong>, <strong>Transaction Type</strong>, or <strong>Client Category</strong>. Exact-only groups appear in Exact Match. Review before acting.
                                     </div>
                                 </div>
                                 @forelse ($likelyGroups as $group)
@@ -394,6 +391,10 @@
             </div>
         </div>
     </div>
+
+    @if (auth()->user()?->role_name !== 'Viewer' && feature_allowed('Undo Transfer'))
+        @include('pages.transaction_events.partials.undoSingleTransferModal')
+    @endif
 @endsection
 
 @push('scripts')
@@ -403,6 +404,11 @@
                 tab.addEventListener('shown.bs.tab', () => {
                     document.getElementById('duplicateClientCount').textContent = `${tab.dataset.clientCount} client group(s) in this tab`;
                     document.getElementById('duplicateRecordCount').textContent = `${tab.dataset.recordCount} record(s) in this tab`;
+                    document.getElementById('dupActiveTab').value = ({
+                        '#rexact-tab': 'exact',
+                        '#rlikely-tab': 'likely',
+                        '#rsimilar-tab': 'full_name',
+                    })[tab.getAttribute('href')];
                 });
             });
             const toggleBtn = document.getElementById('dupFiltersToggleBtn');
@@ -425,6 +431,7 @@
             document.getElementById('dupPerPageSelect')?.addEventListener('change', function() {
                 const url = new URL(window.location.href);
                 url.searchParams.set('per_page', this.value);
+                url.searchParams.set('duplicate_tab', document.getElementById('dupActiveTab').value);
                 ['exact_page', 'likely_page', 'similar_page', 'page'].forEach((k) => url.searchParams.delete(k));
                 window.location.href = url.toString();
             });

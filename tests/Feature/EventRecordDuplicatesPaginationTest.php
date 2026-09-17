@@ -49,6 +49,7 @@ class EventRecordDuplicatesPaginationTest extends TestCase
             foreach (['TYPE-A', 'TYPE-A', 'TYPE-B'] as $type) {
                 DB::table('transaction_events')->insert([
                     'full_name' => 'Juan Santos', 'status' => $status,
+                    'event_date' => '2026-09-01',
                     'transaction_type' => $type, 'transferred_at' => '2026-09-01 12:00:00',
                 ]);
             }
@@ -75,7 +76,7 @@ class EventRecordDuplicatesPaginationTest extends TestCase
         $this->assertSame(9, $response->viewData('exactRecordsTotal'));
     }
 
-    public function test_exact_match_uses_first_last_names_and_all_event_fields(): void
+    public function test_exact_match_uses_first_last_names_and_event_fields_except_birth_date(): void
     {
         $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
         $base = [
@@ -90,8 +91,9 @@ class EventRecordDuplicatesPaginationTest extends TestCase
             'client_category' => 'pwd', 'transaction_category' => 'events', 'transaction_type' => 'type',
         ]));
         $expected[] = DB::table('transaction_events')->insertGetId(array_replace($base, ['sector' => 'Health']));
+        $expected[] = DB::table('transaction_events')->insertGetId(array_replace($base, ['birth_date' => '2000-02-02']));
         foreach ([
-            'full_name' => 'Pedro A. Dela Cruz', 'birth_date' => '1991-01-01',
+            'full_name' => 'Pedro A. Dela Cruz',
             'client_category' => 'SENIOR',
             'transaction_category' => 'OTHER', 'transaction_type' => 'OTHER',
             'event_date' => '2026-09-02', 'transferred_at' => null,
@@ -104,7 +106,7 @@ class EventRecordDuplicatesPaginationTest extends TestCase
             ->assertSee('Lastname and Firstname')->assertDontSee('<strong>Sector</strong>', false);
         $groups = $response->viewData('exactGroups');
         $this->assertSame(1, $groups->total());
-        $this->assertSame(3, $response->viewData('exactRecordsTotal'));
+        $this->assertSame(4, $response->viewData('exactRecordsTotal'));
         $this->assertSame($expected, $groups->first()['events']->pluck('id')->sort()->values()->all());
     }
 
@@ -240,7 +242,8 @@ class EventRecordDuplicatesPaginationTest extends TestCase
         foreach ($likely as $group) {
             $this->assertNotContains($group['events']->pluck('id')->sort()->values()->all(), $exactMemberSets);
         }
-        $this->assertLessThanOrEqual(11, $queries->count(), 'Duplicate queries must not grow with group count.');
+        // Likely Match adds a bounded lookup for its visible records and histories.
+        $this->assertLessThanOrEqual(13, $queries->count(), 'Duplicate queries must not grow with group count.');
     }
 
     public function test_exact_matches_are_excluded_from_likely_tab(): void
@@ -273,7 +276,7 @@ class EventRecordDuplicatesPaginationTest extends TestCase
         $this->assertSame(0, $response->viewData('likelyRecordsTotal'));
     }
 
-    public function test_different_birth_dates_still_match_likely_but_not_exact(): void
+    public function test_different_birth_dates_match_exact_and_do_not_repeat_in_likely(): void
     {
         $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
         $historyIds = [];
@@ -297,13 +300,11 @@ class EventRecordDuplicatesPaginationTest extends TestCase
         ]);
 
         $response = $this->get(route('transaction-events.records-duplicates'))->assertOk();
-        // Same name/date/categories/type but different birth dates: not exact,
-        // but still likely because birth date is ignored there.
-        $this->assertSame(0, $response->viewData('exactGroups')->total());
-        $this->assertSame(0, $response->viewData('exactRecordsTotal'));
-        $this->assertSame(1, $response->viewData('likelyGroups')->total());
-        $this->assertSame(2, $response->viewData('likelyRecordsTotal'));
-        $this->assertCount(2, $response->viewData('likelyGroups')->first()['events']);
+        $this->assertSame(1, $response->viewData('exactGroups')->total());
+        $this->assertSame(2, $response->viewData('exactRecordsTotal'));
+        $this->assertCount(2, $response->viewData('exactGroups')->first()['events']);
+        $this->assertSame(0, $response->viewData('likelyGroups')->total());
+        $this->assertSame(0, $response->viewData('likelyRecordsTotal'));
     }
 
     public function test_likely_match_ignores_birth_date(): void

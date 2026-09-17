@@ -76,6 +76,12 @@ Route::group(['namespace' => 'App\Http\Controllers'], function () {
 
         // --------------------- Client List ------------------//
         Route::get('client-list', [ClientListController::class, 'index'])->name('client.list');
+        Route::get('client-list/without-transactions/preview', [ClientListController::class, 'previewWithoutTransactions'])
+            ->name('client.list.preview-without-transactions');
+        Route::get('client-list/without-transactions/progress/{operationId}', [ClientListController::class, 'deletionProgress'])
+            ->name('client.list.delete-progress');
+        Route::delete('client-list/without-transactions', [ClientListController::class, 'destroyWithoutTransactions'])
+            ->name('client.list.destroy-without-transactions');
 
         // --------------------- Duplicate Review ------------------//
         Route::get('duplicate-review', [DuplicateReviewController::class, 'index'])->name('duplicate.review');

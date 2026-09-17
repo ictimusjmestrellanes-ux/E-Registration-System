@@ -5,9 +5,12 @@ namespace App\Http\Controllers;
 use App\Models\ActivityLog;
 use App\Models\ArchivedClient;
 use App\Models\Client;
+use App\Models\TransactionHistory;
+use App\Services\ClientIdCompactor;
 use App\Http\Controllers\Traits\HandlesClientStorage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
@@ -135,28 +138,43 @@ class ClientsController extends Controller
         return view('pages.clients.clientShow', compact('client', 'transactions', 'transaction', 'perPage'));
     }
 
-    public function destroy(Client $client)
+    public function destroy(Client $client, ClientIdCompactor $compactor)
     {
-        if ($client->photo_path) {
-            Storage::disk('public')->delete($client->photo_path);
+        abort_if(auth()->user()?->role_name === 'Viewer' || !feature_allowed('Archive Clients'), 403);
+
+        $result = DB::transaction(function () use ($client, $compactor) {
+            $client = Client::query()->lockForUpdate()->findOrFail($client->id);
+            if (filled($client->client_id) && TransactionHistory::query()
+                ->where('client_id', $client->client_id)
+                ->orWhere('transaction_id', 'like', $client->client_id . '-%')
+                ->exists()) {
+                return null;
+            }
+
+            $paths = array_filter([$client->photo_path, $client->fingerprint_path]);
+            $deletedClientId = (string) $client->client_id;
+            $this->recordActivity(
+                'client_deleted',
+                'Deleted client ' . $this->clientDisplayName($client) . '.',
+                ['client_id' => $client->id],
+                $client
+            );
+            $client->delete();
+
+            return [$paths, $compactor->compactAfterDeletion([$deletedClientId])];
+        });
+
+        if ($result === null) {
+            return redirect()->route('client.list')->with('error', 'Clients with transaction history cannot be deleted.');
         }
 
-        if ($client->fingerprint_path) {
-            Storage::disk('public')->delete($client->fingerprint_path);
-        }
+        Storage::disk('public')->delete($result[0]);
+        TransactionHistory::flushDashboardCache();
 
-        $this->recordActivity(
-            'client_deleted',
-            'Deleted client ' . $this->clientDisplayName($client) . '.',
-            ['client_id' => $client->id],
-            $client
-        );
-
-        $client->delete();
-
-        \App\Models\TransactionHistory::flushDashboardCache();
-
-        return redirect()->route('client.list')->with('success', 'Client deleted successfully.');
+        return redirect()->route('client.list')->with('success', 'Client deleted successfully.'
+            . ($result[1] > 0
+                ? " Updated {$result[1]} client " . ($result[1] === 1 ? 'ID' : 'IDs') . ' and linked transaction IDs.'
+                : ''));
     }
 
     public function archive(Client $client)
