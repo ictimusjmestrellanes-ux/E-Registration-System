@@ -32,6 +32,7 @@ class TransactionEventsUndoTransferTest extends TestCase
             'client_id' => '2600001',
             'first_name' => 'Jane',
             'last_name' => 'Doe',
+            'birth_date' => '1990-01-01',
         ]);
 
         $unrelatedTransaction = TransactionHistory::create([
@@ -44,16 +45,18 @@ class TransactionEventsUndoTransferTest extends TestCase
 
         $event = TransactionEvent::create([
             'full_name' => 'Jane Doe',
+            'birth_date' => '1990-01-01',
             'client_category' => 'PWD',
             'transaction_category' => 'social_services',
             'transaction_type' => 'educational_assistance',
         ]);
 
         $this->post(route('transaction-events.transfer', $event))
-            ->assertRedirect(route('transaction-events.index'));
+            ->assertRedirect(route('transaction-events.records'));
 
         $event->refresh();
         $transferredTransactionId = $event->transferred_transaction_id;
+        $event->update(['status' => 'Claimed']);
 
         $this->assertNotNull($transferredTransactionId);
         $this->assertDatabaseHas('transaction_history', ['id' => $transferredTransactionId]);
@@ -70,6 +73,7 @@ class TransactionEventsUndoTransferTest extends TestCase
         $this->assertDatabaseHas('transaction_history', ['id' => $unrelatedTransaction->id]);
         $this->assertDatabaseHas('transaction_events', [
             'id' => $event->id,
+            'status' => 'Pending',
             'transferred_at' => null,
             'transferred_transaction_id' => null,
         ]);
@@ -85,7 +89,9 @@ class TransactionEventsUndoTransferTest extends TestCase
 
         $this->get(route('transaction-events.index'))
             ->assertOk()
-            ->assertSee('Jane Doe');
+            ->assertSee('Jane Doe')
+            ->assertSee('<th data-column="status">Status</th>', false)
+            ->assertSee('data-event-status="'.$event->id.'">Pending</span>', false);
     }
 
     public function test_undo_transfer_uses_the_audit_link_for_legacy_transferred_events(): void
@@ -95,6 +101,7 @@ class TransactionEventsUndoTransferTest extends TestCase
 
         $event = TransactionEvent::create([
             'full_name' => 'Legacy Event',
+            'status' => 'Unclaimed',
             'transaction_category' => 'social_services',
             'transaction_type' => 'burial_assistance',
             'transferred_at' => now(),
@@ -123,6 +130,7 @@ class TransactionEventsUndoTransferTest extends TestCase
         $this->assertDatabaseMissing('transaction_history', ['id' => $transaction->id]);
         $this->assertDatabaseHas('transaction_events', [
             'id' => $event->id,
+            'status' => 'Pending',
             'transferred_at' => null,
             'transferred_transaction_id' => null,
         ]);
@@ -154,10 +162,12 @@ class TransactionEventsUndoTransferTest extends TestCase
             'client_id' => '2600001',
             'first_name' => 'Jane',
             'last_name' => 'Doe',
+            'birth_date' => '1990-01-01',
         ]);
 
         $event = TransactionEvent::create([
             'full_name' => 'Jane Doe',
+            'birth_date' => '1990-01-01',
             'transaction_category' => 'social_services',
             'transaction_type' => 'burial_assistance',
         ]);

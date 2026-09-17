@@ -18,13 +18,14 @@ class TransferExistingClientsTest extends TestCase
         parent::setUp();
         Storage::fake('local');
         $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
-        Client::create(['client_id' => '2600001', 'first_name' => 'Jane', 'last_name' => 'Doe']);
+        Client::create(['client_id' => '2600001', 'first_name' => 'Jane', 'last_name' => 'Doe', 'birth_date' => '1990-01-01']);
     }
 
     private function event(string $name): TransactionEvent
     {
         return TransactionEvent::create([
             'full_name' => $name,
+            'birth_date' => '1990-01-01',
             'client_category' => 'PWD',
             'transaction_category' => 'social_services',
             'transaction_type' => 'burial_assistance',
@@ -87,7 +88,7 @@ class TransferExistingClientsTest extends TestCase
         $this->assertNotNull($known->fresh()->transferred_transaction_id);
     }
 
-    public function test_form_selected_and_select_all_create_transactions_for_every_row(): void
+    public function test_form_selected_and_select_all_transfer_only_matching_clients(): void
     {
         foreach ([false, true] as $selectAll) {
             $known = $this->event('Jane Doe');
@@ -95,14 +96,14 @@ class TransferExistingClientsTest extends TestCase
             $payload = $selectAll ? ['select_all' => 1] : ['event_ids' => [$known->id, $unknown->id]];
             $this->post(route('transaction-events.transfer-selected'), $payload)
                 ->assertRedirect()->assertSessionHas('success');
-            $this->assertNotNull($unknown->fresh()->transferred_transaction_id);
+            $this->assertNull($unknown->fresh()->transferred_transaction_id);
             $this->assertNotNull($known->fresh()->transferred_transaction_id);
         }
-        $this->assertDatabaseCount('transaction_history', 4);
-        $this->assertDatabaseCount('clients', 2);
+        $this->assertDatabaseCount('transaction_history', 2);
+        $this->assertDatabaseCount('clients', 1);
     }
 
-    public function test_chunked_select_all_reuses_matches_and_creates_unknown_clients(): void
+    public function test_chunked_select_all_reuses_matches_and_keeps_unknown_clients_pending(): void
     {
         $known = $this->event('Jane Doe');
         $unknown = $this->event('Unknown Person');
@@ -115,14 +116,14 @@ class TransferExistingClientsTest extends TestCase
             ])->assertOk();
         }
         $this->postJson(route('transaction-events.transfer-selected.finish'), ['token' => $token])
-            ->assertOk()->assertJson(['successCount' => 2, 'skippedCount' => 0, 'createdClients' => 1]);
-        $this->assertNotNull($unknown->fresh()->transferred_transaction_id);
+            ->assertOk()->assertJson(['successCount' => 1, 'skippedCount' => 1, 'createdClients' => 0]);
+        $this->assertNull($unknown->fresh()->transferred_transaction_id);
         $this->assertNotNull($known->fresh()->transferred_transaction_id);
         $this->assertDatabaseCount('transaction_history', 2);
-        $this->assertDatabaseCount('clients', 2);
+        $this->assertDatabaseCount('clients', 1);
     }
 
-    public function test_chunked_selected_with_no_matches_creates_client_and_transaction(): void
+    public function test_chunked_selected_with_no_matches_keeps_event_pending(): void
     {
         $event = $this->event('Unknown Person');
         $prepare = $this->postJson(route('transaction-events.transfer-selected.prepare'), ['event_ids' => [$event->id]]);
@@ -131,11 +132,11 @@ class TransferExistingClientsTest extends TestCase
         $this->postJson(route('transaction-events.transfer-selected.process'), ['token' => $token, 'offset' => 0])
             ->assertOk();
         $this->postJson(route('transaction-events.transfer-selected.finish'), ['token' => $token])
-            ->assertOk()->assertJson(['successCount' => 1, 'skippedCount' => 0, 'createdClients' => 1,
-                'redirect' => route('transaction-events.records')]);
-        $this->assertNotNull($event->fresh()->transferred_transaction_id);
+            ->assertOk()->assertJson(['successCount' => 0, 'skippedCount' => 1, 'createdClients' => 0,
+                'redirect' => route('transaction-events.index')]);
+        $this->assertNull($event->fresh()->transferred_transaction_id);
         $this->assertDatabaseCount('transaction_history', 1);
-        $this->assertDatabaseCount('clients', 2);
+        $this->assertDatabaseCount('clients', 1);
     }
 
     public function test_selected_events_append_distinct_history_entries_and_retries_do_not_duplicate(): void

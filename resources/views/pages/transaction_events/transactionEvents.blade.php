@@ -214,6 +214,7 @@
             'transaction_type' => 'Transaction Type',
             'event_date' => 'Event Date',
             'created_at' => 'Imported',
+            'status' => 'Status',
         ] as $key => $label)
                                             <div class="form-check">
                                                 <input class="form-check-input event-list-column-toggle" type="checkbox"
@@ -491,6 +492,7 @@
                                         <th data-column="transaction_type">Transaction Type</th>
                                         <th data-column="event_date">Event Date</th>
                                         <th style="width: 100px;" data-column="created_at">Imported</th>
+                                        <th data-column="status">Status</th>
                                         <th style="width: 250px; text-align: center;">Action</th>
                                     </tr>
                                 </thead>
@@ -526,16 +528,18 @@
                                                 {{ optional($event->event_date)->format('M d, Y') ?? '-' }}</td>
                                             <td data-column="created_at" class="small">
                                                 {{ optional($event->created_at)->format('M d, Y') }}</td>
-                                            <td class="text-center">
+                                            <td data-column="status" class="text-center">
                                                 @php
                                                     $statusColor = match ($event->status) {
                                                         'Claimed' => 'success',
-                                                        'Unclaimed' => 'warning',
-                                                        default => 'secondary',
+                                                        'Unclaimed' => 'danger',
+                                                        default => 'warning',
                                                     };
                                                 @endphp
-                                                <span class="badge bg-{{ $statusColor }}-subtle text-{{ $statusColor }} px-3 py-2 mb-1"
+                                                <span class="badge bg-{{ $statusColor }}-subtle text-{{ $statusColor }} px-3 py-2"
                                                     data-event-status="{{ $event->id }}">{{ $event->status }}</span>
+                                            </td>
+                                            <td class="text-center">
                                                 @if ($isTransferred)
                                                     <div class="small text-muted">Transferred</div>
                                                 @elseif (auth()->user()?->role_name !== 'Viewer')
@@ -581,7 +585,7 @@
                                         </tr>
                                     @empty
                                         <tr>
-                                            <td colspan="12" class="text-center text-muted py-5">
+                                            <td colspan="13" class="text-center text-muted py-5">
                                                 No transaction events found.
                                             </td>
                                         </tr>
@@ -892,9 +896,9 @@
                             This option never creates clients, Import Events, or transaction history.
                             Address and birth date do not affect matching.
                             Repeated matching rows are marked Claimed only once.</div>
-                        <div class="small text-muted mt-2">“Import Anyway” saves every valid row in this file to Import
-                            Events for review, including matching and duplicate rows. No clients or transaction history are
-                            created until you transfer the events.</div>
+                        <div class="small text-muted mt-2">“Import Anyway” adds a transaction to the history of each
+                            matching client. It registers clients who are not yet in the Client List and adds their
+                            transactions too. Every valid row, including repeated rows, is imported.</div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal">Cancel</button>
@@ -2816,7 +2820,7 @@
 
             document.getElementById('importDuplicateContinueBtn')?.addEventListener('click', function() {
                 bootstrap.Modal.getInstance(document.getElementById('importDuplicateModal'))?.hide();
-                runImport(true);
+                runImport();
             });
 
             document.getElementById('importDuplicateUpdateBtn')?.addEventListener('click', function() {

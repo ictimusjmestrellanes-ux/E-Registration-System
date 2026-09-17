@@ -273,7 +273,7 @@ class EventRecordDuplicatesPaginationTest extends TestCase
         $this->assertSame(0, $response->viewData('likelyRecordsTotal'));
     }
 
-    public function test_different_birth_dates_match_neither_tab(): void
+    public function test_different_birth_dates_still_match_likely_but_not_exact(): void
     {
         $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
         $historyIds = [];
@@ -297,15 +297,16 @@ class EventRecordDuplicatesPaginationTest extends TestCase
         ]);
 
         $response = $this->get(route('transaction-events.records-duplicates'))->assertOk();
-        // Same name/date/categories/type but different birth dates: not
-        // exact, and every likely pattern also requires the birth date.
+        // Same name/date/categories/type but different birth dates: not exact,
+        // but still likely because birth date is ignored there.
         $this->assertSame(0, $response->viewData('exactGroups')->total());
         $this->assertSame(0, $response->viewData('exactRecordsTotal'));
-        $this->assertSame(0, $response->viewData('likelyGroups')->total());
-        $this->assertSame(0, $response->viewData('likelyRecordsTotal'));
+        $this->assertSame(1, $response->viewData('likelyGroups')->total());
+        $this->assertSame(2, $response->viewData('likelyRecordsTotal'));
+        $this->assertCount(2, $response->viewData('likelyGroups')->first()['events']);
     }
 
-    public function test_likely_match_requires_birth_date(): void
+    public function test_likely_match_ignores_birth_date(): void
     {
         $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
         $historyIds = [];
@@ -317,7 +318,7 @@ class EventRecordDuplicatesPaginationTest extends TestCase
         }
         DB::table('transaction_events')->insert([
             [
-                'full_name' => 'Likely Person', 'birth_date' => '1990-01-01', 'event_date' => '2026-09-02',
+                'full_name' => 'Likely Person', 'birth_date' => '2000-02-02', 'event_date' => '2026-09-02',
                 'client_category' => 'PWD', 'transaction_category' => 'EVENTS', 'transaction_type' => 'TYPE-A',
                 'transferred_at' => '2026-09-01 12:00:00', 'transferred_transaction_id' => $historyIds[0],
             ],
@@ -329,7 +330,7 @@ class EventRecordDuplicatesPaginationTest extends TestCase
         ]);
 
         $response = $this->get(route('transaction-events.records-duplicates'))->assertOk();
-        // Same name/birth date/date/category but different client category
+        // Same name/date/category but different birth date, client category,
         // and type: not exact, but likely via date+category, date-only,
         // and category-only.
         $this->assertSame(0, $response->viewData('exactGroups')->total());

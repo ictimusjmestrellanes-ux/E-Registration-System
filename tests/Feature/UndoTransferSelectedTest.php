@@ -46,6 +46,9 @@ class UndoTransferSelectedTest extends TestCase
         [$e1, $h1] = $this->seedTransferred('T-0001', 'Alpha One');
         [$e2, $h2] = $this->seedTransferred('T-0002', 'Beta Two');
         [$e3, $h3] = $this->seedTransferred('T-0003', 'Gamma Three');
+        $e1->update(['status' => 'Claimed']);
+        $e2->update(['status' => 'Unclaimed']);
+        $e3->update(['status' => 'Claimed']);
 
         // E3's transaction has requirements -> must be skipped, not deleted.
         DB::table('transaction_requirements')->insert([
@@ -78,11 +81,13 @@ class UndoTransferSelectedTest extends TestCase
         $this->assertDatabaseMissing('transaction_history', ['id' => $h2]);
         $this->assertDatabaseHas('transaction_events', [
             'id' => $e1->id,
+            'status' => 'Pending',
             'transferred_at' => null,
             'transferred_transaction_id' => null,
         ]);
         $this->assertDatabaseHas('transaction_events', [
             'id' => $e2->id,
+            'status' => 'Pending',
             'transferred_at' => null,
             'transferred_transaction_id' => null,
         ]);
@@ -90,6 +95,7 @@ class UndoTransferSelectedTest extends TestCase
         // Skipped: requirement-backed transfer untouched.
         $this->assertDatabaseHas('transaction_history', ['id' => $h3]);
         $this->assertNotNull($e3->fresh()->transferred_at);
+        $this->assertSame('Claimed', $e3->fresh()->status);
     }
 
     public function test_undo_transfer_selected_rejects_empty_selection(): void

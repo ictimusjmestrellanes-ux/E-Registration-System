@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Client;
 use App\Models\TransactionEvent;
+use App\Models\TransactionHistory;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -41,38 +42,53 @@ class ImportAnywayTest extends TestCase
         $this->assertDatabaseCount('transaction_history', 0);
     }
 
-    public function test_import_anyway_stages_entire_file_through_chunks_and_finish_fallback(): void
+    public function test_import_anyway_reuses_existing_client_and_registers_new_client_through_chunks_and_finish_fallback(): void
     {
         $this->prepareUser();
         $prepared = $this->postJson(route('transaction-events.import.prepare'), [
-            'csv_file' => $this->file(), 'events_only' => 1,
+            'csv_file' => $this->file(),
         ])->assertOk();
         $token = $prepared->json('token');
         $this->postJson(route('transaction-events.import.process'), ['token' => $token, 'offset' => 0, 'limit' => 1])
             ->assertOk()->assertJsonPath('imported', 1);
         $this->postJson(route('transaction-events.import.finish'), ['token' => $token])
             ->assertOk()->assertJsonPath('imported', 3)->assertJsonPath('skipped', 0);
-        $this->assertPendingFile();
+        $this->assertTransferredFile();
         $this->get(route('transaction-events.index'))->assertOk()
+            ->assertDontSee('Maria Santos');
+        $this->get(route('transaction-events.records'))->assertOk()
             ->assertSee('Dela Cruz, Juan P.')->assertSee('Maria Santos');
-        $this->get(route('transaction-events.records'))->assertOk()->assertDontSee('Maria Santos');
     }
 
-    public function test_direct_form_fallback_stages_all_rows(): void
+    public function test_direct_form_fallback_transfers_all_rows(): void
     {
         $this->prepareUser();
-        $this->post(route('transaction-events.import'), ['csv_file' => $this->file(), 'events_only' => 1])
+        $this->post(route('transaction-events.import'), ['csv_file' => $this->file()])
             ->assertRedirect(route('transaction-events.index'));
-        $this->assertPendingFile();
+        $this->assertTransferredFile();
     }
 
-    private function assertPendingFile(): void
+    public function test_import_anyway_button_uses_client_and_history_import_mode(): void
     {
-        $this->assertDatabaseCount('clients', 1);
-        $this->assertDatabaseCount('transaction_history', 0);
+        $this->prepareUser();
+        $html = $this->get(route('transaction-events.index'))->assertOk()->getContent();
+        $this->assertMatchesRegularExpression(
+            "/importDuplicateContinueBtn'\)\?\.addEventListener\('click', function\(\) \{.{0,220}runImport\(\);/s",
+            $html
+        );
+    }
+
+    private function assertTransferredFile(): void
+    {
+        $this->assertDatabaseCount('clients', 2);
+        $this->assertDatabaseCount('transaction_history', 3);
         $this->assertDatabaseCount('transaction_events', 3);
-        $this->assertSame(3, TransactionEvent::whereNull('transferred_at')->whereNull('transferred_transaction_id')->count());
+        $this->assertSame(0, TransactionEvent::whereNull('transferred_at')->count());
         $this->assertSame(2, TransactionEvent::where('full_name', 'Maria Santos')->count());
         $this->assertDatabaseHas('transaction_events', ['full_name' => 'Dela Cruz, Juan P.', 'contact_no' => '09170000001']);
+        $this->assertSame(1, TransactionHistory::where('client_id', '2600001')->count());
+        $maria = Client::where('first_name', 'Maria')->where('last_name', 'Santos')->firstOrFail();
+        $this->assertSame(2, TransactionHistory::where('client_id', $maria->client_id)->count());
+        $this->assertSame(3, TransactionEvent::whereHas('transferredTransaction')->count());
     }
 }

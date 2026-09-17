@@ -347,7 +347,7 @@
                                 <div class="alert alert-warning-subtle d-flex align-items-center mb-3 py-2" role="alert">
                                     <i class="ri-alert-line fs-4 me-2"></i>
                                     <div class="small">
-                                        Same <strong>Full Name</strong>, <strong>Birth Date</strong> plus at least one of:
+                                        Same <strong>Full Name</strong> plus at least one of:
                                         Event Date + Transaction Category, Event Date + Transaction Type, Transaction Category + Transaction Type, Event Date only, Transaction Type only, or Transaction Category only.
                                         Review before acting.
                                     </div>

@@ -1019,11 +1019,11 @@ class TransactionEventsController extends Controller
         $columns = ['event_date', 'birth_date', 'client_category', 'transaction_category', 'transaction_type'];
         $keyRowsById = $keyRows->keyBy('group_id');
         // Match rules identify records first; display and paginate once per client.
-        // Use birth date to separate namesakes in Exact/Likely, while the Full
-        // Name tab continues to compare names regardless of birth date.
+        // Use birth date to separate namesakes in Exact. Likely and Full Name
+        // group matching names regardless of birth date.
         $descriptors = $this->buildRecordDuplicateDescriptors($keyRows, $patterns, $excludeExact)
             ->groupBy(function ($descriptor) use ($pageName) {
-                if ($pageName === 'similar_page') {
+                if ($pageName !== 'exact_page') {
                     return $descriptor->fullname;
                 }
                 $name = $this->splitImportFullName($descriptor->fullname);
@@ -1107,12 +1107,12 @@ class TransactionEventsController extends Controller
             'exact' => ['event_date', 'birth_date', 'client_category', 'transaction_category', 'transaction_type'],
         ], $request, $perPage, 'exact_page');
         [$likelyGroups, $likelyRecordsTotal] = $this->paginatedRecordDuplicateGroups($duplicateKeyRows, [
-            'event_date+transaction_category' => ['birth_date', 'event_date', 'transaction_category'],
-            'event_date+transaction_type' => ['birth_date', 'event_date', 'transaction_type'],
-            'transaction_category+transaction_type' => ['birth_date', 'transaction_category', 'transaction_type'],
-            'event_date' => ['birth_date', 'event_date'],
-            'transaction_type' => ['birth_date', 'transaction_type'],
-            'transaction_category' => ['birth_date', 'transaction_category'],
+            'event_date+transaction_category' => ['event_date', 'transaction_category'],
+            'event_date+transaction_type' => ['event_date', 'transaction_type'],
+            'transaction_category+transaction_type' => ['transaction_category', 'transaction_type'],
+            'event_date' => ['event_date'],
+            'transaction_type' => ['transaction_type'],
+            'transaction_category' => ['transaction_category'],
         ], $request, $perPage, 'likely_page', true);
         [$similarGroups, $similarRecordsTotal] = $this->paginatedRecordDuplicateGroups($duplicateKeyRows, [
             'full_name' => [],
@@ -2839,7 +2839,11 @@ class TransactionEventsController extends Controller
                 ->where('subject_type', 'TransactionHistory')
                 ->get()
                 ->first(function ($log) use ($event) {
-                    $properties = is_array($log->properties) ? $log->properties : (array) ($log->properties ?? []);
+                    $properties = $log->properties;
+                    if (is_string($properties)) {
+                        $properties = json_decode($properties, true);
+                    }
+                    $properties = is_array($properties) ? $properties : [];
                     return (int) ($properties['event_id'] ?? 0) === (int) $event->id;
                 });
 
@@ -2860,6 +2864,7 @@ class TransactionEventsController extends Controller
         $linkedTransactionId = $transaction->transaction_id;
         $transaction->delete();
         $event->update([
+            'status' => 'Pending',
             'transferred_at' => null,
             'transferred_transaction_id' => null,
         ]);
@@ -3012,6 +3017,7 @@ class TransactionEventsController extends Controller
             $transaction = $transactionId ? TransactionHistory::find($transactionId) : null;
             if (! $transaction) {
                 $event->update([
+                    'status' => 'Pending',
                     'transferred_at' => null,
                     'transferred_transaction_id' => null,
                 ]);
@@ -3026,6 +3032,7 @@ class TransactionEventsController extends Controller
 
             $transaction->delete();
             $event->update([
+                'status' => 'Pending',
                 'transferred_at' => null,
                 'transferred_transaction_id' => null,
             ]);
