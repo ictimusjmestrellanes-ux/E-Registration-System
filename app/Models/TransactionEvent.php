@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\ImportName;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -43,6 +44,11 @@ class TransactionEvent extends Model
     ];
 
     public const STATUSES = ['Pending', 'Claimed', 'Unclaimed'];
+
+    public function getDisplayNameAttribute(): string
+    {
+        return ImportName::format((string) $this->full_name);
+    }
 
     public function transferredTransaction(): BelongsTo
     {

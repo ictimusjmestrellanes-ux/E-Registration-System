@@ -32,4 +32,20 @@ class ImportName
 
         return compact('first', 'middle', 'last', 'suffix');
     }
+
+    public static function format(string $value): string
+    {
+        $name = self::split($value);
+        $middle = $name['middle'];
+        if (mb_strlen($middle) === 1) {
+            $middle .= '.';
+        }
+
+        $given = trim(implode(' ', array_filter([$name['first'], $middle], fn ($part) => $part !== '')));
+        $formatted = $name['last'] !== '' && $given !== ''
+            ? $name['last'].', '.$given
+            : $name['last'].$given;
+
+        return trim(implode(' ', array_filter([$formatted, $name['suffix']], fn ($part) => $part !== '')));
+    }
 }

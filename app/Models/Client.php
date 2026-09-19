@@ -121,6 +121,22 @@ class Client extends Model
         ]))));
     }
 
+    public function getListDisplayNameAttribute(): string
+    {
+        $lastName = trim((string) $this->last_name);
+        $firstName = trim((string) $this->first_name);
+        $middleName = trim((string) $this->middle_name);
+        $middleDisplay = mb_strlen($middleName) === 1 ? $middleName . '.' : $middleName;
+
+        $name = implode(', ', array_filter([$lastName, $firstName], fn ($part) => $part !== ''));
+
+        return mb_strtoupper(trim(implode(' ', array_filter([
+            $name,
+            $middleDisplay,
+            trim((string) $this->suffix),
+        ], fn ($part) => $part !== ''))));
+    }
+
     public function transactions()
     {
         return $this->hasMany(Transaction::class, 'client_id', 'client_id');

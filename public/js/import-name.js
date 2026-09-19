@@ -30,8 +30,8 @@
     }
     function format(value) {
         const name = split(value);
-        const initial = name.middle ? Array.from(name.middle)[0].toUpperCase() + '.' : '';
-        const given = [name.first, initial].filter(Boolean).join(' ');
+        const middle = Array.from(name.middle).length === 1 ? name.middle + '.' : name.middle;
+        const given = [name.first, middle].filter(Boolean).join(' ');
         return [name.last && given ? name.last + ', ' + given : name.last || given, name.suffix]
             .filter(Boolean).join(' ');
     }

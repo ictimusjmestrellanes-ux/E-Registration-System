@@ -12,6 +12,9 @@ for (const source of ['Dela Cruz, Juan Carlos P.', 'Juan Carlos P. Dela Cruz', '
 }
 assert.equal(format('Santos, Maria'), 'Santos, Maria');
 assert.equal(format('Maria Santos'), 'Santos, Maria');
+assert.equal(format('Juan Maria Santos'), 'Santos, Juan Maria');
+assert.equal(format('Santos, Juan Maria'), 'Santos, Juan Maria');
+assert.equal(format('Juan M Santos'), 'Santos, Juan M.');
 assert.equal(format('Jose P. Mercado Jr.'), 'Mercado, Jose P. JR');
 assert.equal(format('Peña, José Ñ.'), 'Peña, José Ñ.');
 assert.equal(format('Prince'), 'Prince');

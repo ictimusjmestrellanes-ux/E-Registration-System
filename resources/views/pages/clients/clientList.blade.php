@@ -328,7 +328,7 @@
                                 <tbody class="text-center text-uppercase">
                                     @forelse ($clients as $client)
                                         @php
-                                            $clientName = $client->full_name;
+                                            $clientName = $client->list_display_name;
                                             $clientPhoto = $client->photo_url ?: $defaultClientPhoto;
                                         @endphp
                                         <tr data-client-row="{{ $client->id }}"
@@ -355,7 +355,7 @@
                                                 <button type="button" class="btn p-0 border-0 bg-transparent"
                                                     data-bs-toggle="modal" data-bs-target="#clientPhotoModal"
                                                     data-client-photo="{{ $clientPhoto }}"
-                                                    data-client-name="{{ trim($client->first_name . ' ' . ($client->middle_name ? $client->middle_name . ' ' : '') . $client->last_name) }}">
+                                                    data-client-name="{{ $clientName }}">
                                                     <img src="{{ $clientPhoto }}" alt="Client Photo"
                                                         onerror="this.onerror=null;this.src='{{ $defaultClientPhoto }}';"
                                                         class="rounded-3 border object-fit-cover"
@@ -363,7 +363,7 @@
                                                 </button>
                                             </td>
                                             <td>
-                                                {{ $client->full_name }}
+                                                {{ $clientName }}
                                             </td>
                                             <td>{{ $client->gender ?? '-' }}</td>
                                             <td>{{ $client->civil_status ?? '-' }}</td>
@@ -966,20 +966,18 @@
                 let visibleCount = 0;
 
                 clientRows.forEach((row) => {
-                    const searchableValue = row.dataset.searchAll || '';
                     const rowSex = (row.dataset.searchGender || '').toLowerCase();
                     const rowCivilStatus = (row.dataset.searchCivilStatus || '').toLowerCase();
                     const rowCity = (row.dataset.searchCity || '').toLowerCase();
                     const rowBarangay = (row.dataset.searchBarangay || '').toLowerCase();
                     const createdAt = row.dataset.searchCreatedAt || '';
-                    const matchesSearch = !query || searchableValue.includes(query);
                     const matchesSex = !sex || rowSex === sex;
                     const matchesCivilStatus = !civilStatus || rowCivilStatus === civilStatus;
                     const matchesCity = !city || rowCity === city;
                     const matchesBarangay = !barangay || rowBarangay === barangay;
                     const matchesDate = (!dateFrom || createdAt >= dateFrom) && (!dateTo || createdAt <=
                         dateTo);
-                    const matches = matchesSearch && matchesSex && matchesCivilStatus && matchesCity &&
+                    const matches = matchesSex && matchesCivilStatus && matchesCity &&
                         matchesBarangay && matchesDate;
                     row.classList.toggle('d-none', !matches);
 

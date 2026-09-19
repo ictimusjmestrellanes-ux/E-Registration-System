@@ -43,9 +43,30 @@ class ClientListController extends Controller
             // Server-side keyword search so results span every page.
             ->when($request->filled('search'), function ($q) use ($request) {
                 $keyword = strtolower(trim($request->input('search')));
-                $q->where(function ($sub) use ($keyword) {
-                    $sub->whereRaw("LOWER(CONCAT_WS(' ', first_name, middle_name, last_name, suffix)) LIKE ?", ["%{$keyword}%"])
+                $nameExpression = DB::connection()->getDriverName() === 'sqlite'
+                    ? "LOWER(TRIM(COALESCE(first_name, '') || ' ' || COALESCE(middle_name, '') || ' ' || COALESCE(last_name, '') || ' ' || COALESCE(suffix, '')))"
+                    : "LOWER(CONCAT_WS(' ', first_name, middle_name, last_name, suffix))";
+                $formattedNameExpression = DB::connection()->getDriverName() === 'sqlite'
+                    ? "LOWER(TRIM(COALESCE(last_name, '') || ', ' || COALESCE(first_name, '') || ' ' || COALESCE(middle_name, '')))"
+                    : "LOWER(CONCAT_WS('', last_name, ', ', first_name, ' ', COALESCE(middle_name, '')))";
+
+                $q->where(function ($sub) use ($keyword, $nameExpression, $formattedNameExpression) {
+                    $sub->whereRaw("{$nameExpression} LIKE ?", ["%{$keyword}%"])
+                        ->orWhereRaw("{$formattedNameExpression} LIKE ?", ['%' . rtrim($keyword, '.') . '%'])
                         ->orWhereRaw('LOWER(client_id) LIKE ?', ["%{$keyword}%"]);
+
+                    if (str_contains($keyword, ',')) {
+                        [$lastName, $givenNames] = array_map('trim', explode(',', $keyword, 2));
+                        $givenNames = preg_replace('/\s+(?:JR\.?|SR\.?|II|III|IV|V)$/iu', '', $givenNames);
+                        $firstName = preg_split('/\s+/u', $givenNames)[0] ?? '';
+
+                        if ($lastName !== '' && $firstName !== '') {
+                            $sub->orWhere(function ($formattedName) use ($lastName, $firstName) {
+                                $formattedName->whereRaw('LOWER(TRIM(last_name)) LIKE ?', ["%{$lastName}%"])
+                                    ->whereRaw('LOWER(TRIM(first_name)) LIKE ?', ["{$firstName}%"]);
+                            });
+                        }
+                    }
                 });
             })
             ->when($request->filled('gender'), fn ($q) => $q->where('gender', $request->input('gender')))
@@ -303,7 +324,7 @@ class ClientListController extends Controller
         $preview = $clients->map(fn (Client $client) => [
             'id' => $client->id,
             'client_id' => $client->client_id,
-            'full_name' => $client->full_name,
+            'full_name' => $client->list_display_name,
             'address' => collect([$client->address, $client->barangay, $client->city, $client->province])
                 ->filter(fn ($part) => filled($part))
                 ->implode(', '),

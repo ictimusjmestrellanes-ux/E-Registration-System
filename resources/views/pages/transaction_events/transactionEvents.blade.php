@@ -2,73 +2,24 @@
 @section('title', 'ERS | Transaction Events')
 
 @section('content')
-    <style>
-        #eventFiltersCard {
-            background: #ffffff;
-            border: 1px solid #e3e8ef;
-            box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
-        }
-
-        #eventFiltersCard .form-label,
-        #eventFiltersCard .small,
-        #eventFiltersCard .fw-bold,
-        #eventFiltersCard .fw-semibold {
-            color: #1f2937 !important;
-        }
-
-        #eventFiltersCard .input-group-text,
-        #eventFiltersCard .form-control,
-        #eventFiltersCard .form-select {
-            background-color: #f8fafc;
-            color: #111827;
-            border-color: #d5dbe3;
-        }
-
-        #eventFiltersCard .input-group-text {
-            color: #475569;
-        }
-
-        #eventFiltersCard .form-control::placeholder {
-            color: #94a3b8;
-        }
-
-        #eventFiltersCard .form-control:focus,
-        #eventFiltersCard .form-select:focus {
-            border-color: #4d63d6;
-            box-shadow: 0 0 0 0.2rem rgba(77, 99, 214, 0.14);
-        }
-
-        #eventFiltersCard .client-filters-toggle-btn {
-            transition: background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
-        }
-
-        #eventFiltersCard .client-filters-toggle-btn:hover,
-        #eventFiltersCard .client-filters-toggle-btn:focus,
-        #eventFiltersCard .client-filters-toggle-btn:active {
-            background: #eef2ff;
-            color: #2f49c5;
-            border-color: #6276df;
-            box-shadow: 0 0 0 0.2rem rgba(77, 99, 214, 0.12);
-        }
-    </style>
     <div class="container-fluid">
 
         @if (session('success'))
-            <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <div class="alert alert-success alert-dismissible fade show auto-dismiss-alert" role="alert">
                 {{ session('success') }}
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
         @endif
 
         @if (session('error'))
-            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <div class="alert alert-danger alert-dismissible fade show auto-dismiss-alert" role="alert">
                 {{ session('error') }}
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
         @endif
 
         @if ($errors->any())
-            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <div class="alert alert-danger alert-dismissible fade show auto-dismiss-alert" role="alert">
                 @foreach ($errors->all() as $error)
                     <div>{{ $error }}</div>
                 @endforeach
@@ -94,22 +45,12 @@
                                         <span class="badge bg-danger text-white ms-1">{{ $totalDuplicateGroups }}</span>
                                     @endif
                                 </a>
-                            @else
-                                <button type="button" class="btn btn-sm btn-outline-warning" disabled
-                                    title="You do not have permission to view duplicate names.">
-                                    <i class="ri-file-copy-2-line me-1"></i> Not Allowed to View Duplicate Names
-                                </button>
                             @endif
                             @if (feature_allowed('View Archive Files'))
                                 <a href="{{ route('transaction-events.archives') }}"
                                     class="btn btn-outline-secondary btn-sm">
                                     <i class="ri-archive-line me-1"></i> View Archives Files
                                 </a>
-                            @else
-                                <button type="button" class="btn btn-outline-secondary btn-sm" disabled
-                                    title="You do not have permission to view archive files.">
-                                    <i class="ri-archive-line me-1"></i> Not Allowed to View Archives
-                                </button>
                             @endif
 
                             <form id="bulkTransferForm" action="{{ route('transaction-events.transfer-selected') }}"
@@ -162,26 +103,10 @@
                                         event date range, and imported date range.</div>
                                 </div>
                                 <div class="d-flex flex-wrap gap-2 align-items-center">
-                                    <button type="button" class="btn btn-sm btn-outline-primary client-filters-toggle-btn"
+                                    <button type="button" class="btn btn-sm btn-soft-primary client-filters-toggle-btn"
                                         id="eventFiltersToggleBtn">
                                         Show Filters <i class="ri-arrow-down-s-line ms-1"></i>
                                     </button>
-                                    @if (request()->hasAny([
-                                            'search',
-                                            'contact',
-                                            'age_from',
-                                            'age_to',
-                                            'date_from',
-                                            'date_to',
-                                            'event_date_from',
-                                            'event_date_to',
-                                            'client_category',
-                                            'transaction_category',
-                                            'transaction_type',
-                                        ]))
-                                        <a href="{{ route('transaction-events.index') }}"
-                                            class="btn btn-sm btn-soft-secondary">Reset</a>
-                                    @endif
                                     <select class="form-select form-select-sm w-auto" id="eventPerPageSelect"
                                         aria-label="Records per page" title="Records per page">
                                         @foreach ([15, 25, 50, 100] as $size)
@@ -241,7 +166,7 @@
                                                 name="search" placeholder="Full name" value="{{ request('search') }}">
                                         </div>
                                     </div>
-                                    
+
                                     {{-- <div class="col-12 col-md-6 col-xl-2">
                                         <label for="eventContactFilter"
                                             class="form-label fw-semibold text-uppercase small">Contact</label>
@@ -314,7 +239,9 @@
                                     <div class="col-12 col-md-6 col-xl-2">
                                         <label for="eventAddressFilterBtn"
                                             class="form-label fw-semibold text-uppercase small">Address</label>
-                                        @include('pages.transaction_events.partials.addressDropdown', ['addressId' => 'eventAddressFilter'])
+                                        @include('pages.transaction_events.partials.addressDropdown', [
+                                            'addressId' => 'eventAddressFilter',
+                                        ])
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
                                         <label for="eventTransactionCategory"
@@ -398,6 +325,8 @@
                                     </div>
 
                                     <div class="col-12 col-xl-4 d-flex gap-2 justify-content-end">
+                                        <a href="{{ route('transaction-events.index') }}"
+                                            class="btn btn-sm btn-soft-primary px-3">Reset</a>
                                         <button type="submit" class="btn btn-sm btn-primary px-4">
                                             <i class="ri-filter-3-fill me-1"></i> Apply Filters
                                         </button>
@@ -417,8 +346,9 @@
                         @endif
 
                         <div id="selectAllPagesBar"
-                            class="alert alert-primary border-0 shadow-sm d-none align-items-center justify-content-between gap-3 mb-3 px-3 py-2"
-                            role="alert"> {{-- Left: Selection Info --}}
+                            class="alert alert-info border-0 shadow-sm d-none align-items-center justify-content-between gap-3 mb-3 px-3 py-2"
+                            role="alert">
+                            {{-- Left: Selection Info --}}
                             <div class="d-flex align-items-center gap-2 flex-grow-1">
                                 <div class="bulk-action-icon flex-shrink-0"> <i
                                         class="ri-checkbox-multiple-line text-primary"></i>
@@ -428,23 +358,28 @@
                                         class="text-muted"> Apply an action to the selected transaction events. </small>
                                 </div>
                             </div> {{-- Right: Bulk Actions --}}
-                            <div class="bulk-action-buttons d-flex align-items-center justify-content-end flex-wrap gap-2 ms-auto">
-                                @unless (auth()->user()?->role_name === 'Viewer') {{-- Transfer Actions --}} @if (feature_allowed('Transfer Selected'))
-                                    <button type="button"
-                                        class="btn btn-success btn-sm d-inline-flex align-items-center justify-content-center gap-1 px-3"
-                                        id="bulkTransferBtn" disabled title="Transfer all selected events"> <i
-                                            class="ri-exchange-box-line"></i> <span>Transfer Selected</span> </button>
-                                    <button type="button"
-                                        class="btn btn-info btn-sm d-inline-flex align-items-center justify-content-center gap-1 px-3"
-                                        id="transferOneByOneBtn" disabled
-                                        title="Transfer checked events individually. If Select All is active, all matching events across pages will be included.">
-                                        <i class="ri-exchange-line"></i> <span>Transfer 1 by 1</span> </button>
-                                @else
-                                    <button type="button"
-                                        class="btn btn-light border btn-sm text-muted d-inline-flex align-items-center justify-content-center gap-1 px-3"
-                                        disabled title="You do not have permission to transfer selected events."> <i
-                                            class="ri-lock-line"></i> <span>Transfer Not Allowed</span> </button>
-                                    @endif {{-- Delete Action --}} @if (feature_allowed('Delete Event'))
+                            <div
+                                class="     ">
+                                @unless (auth()->user()?->role_name === 'Viewer') {{-- Transfer Actions --}}
+                                    @if (feature_allowed('Transfer Selected'))
+                                        <button type="button"
+                                            class="btn btn-success btn-sm d-inline-flex align-items-center justify-content-center gap-1 px-3"
+                                            id="bulkTransferBtn" disabled title="Transfer all selected events"> <i
+                                                class="ri-exchange-box-line"></i> <span>Transfer Selected</span> </button>
+                                        <button type="button"
+                                            class="btn btn-primary btn-sm d-inline-flex align-items-center justify-content-center gap-1 px-3"
+                                            id="transferOneByOneBtn" disabled
+                                            title="Create a new client for each selected event in batches of up to 500. Select All includes matching events across pages.">
+                                            <i class="ri-exchange-line"></i> <span>Force Create Client</span> </button>
+                                    @else
+                                        <button type="button"
+                                            class="btn btn-light border btn-sm text-muted d-inline-flex align-items-center
+                                            justify-content-center gap-1 px-3"
+                                            disabled title="You do not have permission to transfer selected events.">
+                                            <i class="ri-lock-line"></i> <span>Transfer Not Allowed</span> </button>
+                                    @endif
+                                    {{-- Delete Action --}}
+                                    @if (feature_allowed('Delete Event'))
                                         <button type="button"
                                             class="btn btn-danger btn-sm d-inline-flex align-items-center justify-content-center gap-1 px-3"
                                             id="bulkDeleteBtn" disabled
@@ -456,10 +391,13 @@
                                             class="btn btn-light border btn-sm text-muted d-inline-flex align-items-center justify-content-center gap-1 px-3"
                                             disabled title="You do not have permission to delete events."> <i
                                                 class="ri-lock-line"></i> <span>Delete Not Allowed</span> </button>
-                                    @endif @endunless {{-- Clear Selection --}} <button type="button"
-                                        id="clearSelectionBtn"
-                                        class="btn btn-outline-secondary btn-sm d-none align-items-center justify-content-center gap-1 px-3">
-                                        <i class="ri-close-circle-line"></i> <span>Clear</span> </button>
+                                    @endif
+                                @endunless
+                                {{-- Clear Selection --}}
+                                <button type="button" id="clearSelectionBtn"
+                                    class="btn btn-soft-primary btn-sm d-none align-items-center justify-content-center gap-1">
+                                    <i class="ri-close-line"></i> <span>Clear</span>
+                                </button>
                             </div>
                         </div>
                         <div class="table-responsive">
@@ -472,7 +410,7 @@
                                                 @unless (auth()->user()?->role_name === 'Viewer')
                                                     <input type="checkbox" class="form-check-input"
                                                         id="selectAllTransactionEvents"
-                                                        aria-label="Select all transaction events on this page"
+                                                        aria-label="Select all matching transaction events"
                                                         title="Select all">
                                                 @endunless
                                             </div>
@@ -488,7 +426,7 @@
                                         <th data-column="event_date">Event Date</th>
                                         <th style="width: 100px;" data-column="created_at">Imported</th>
                                         <th data-column="status">Status</th>
-                                        <th style="width: 250px; text-align: center;">Action</th>
+                                        <th style="width: 200px; text-align: center;">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -502,11 +440,11 @@
                                                     <input type="checkbox" class="form-check-input transaction-event-checkbox"
                                                         value="{{ $event->id }}"
                                                         aria-label="Select transaction event {{ $event->id }}"
-                                                        {{ $isTransferred ? 'disabled' : '' }}
-                                                        {{ in_array($event->full_name, $duplicateFullNames, true) ? 'data-duplicate="1" title="Duplicate name - excluded from Select All"' : '' }}>
+                                                        {{ $isTransferred ? 'disabled' : '' }}>
                                                 @endunless
                                             </td>
-                                            <td data-column="full_name" class="fw-semibold">{{ $event->full_name }}</td>
+                                            <td data-column="full_name" class="fw-semibold"
+                                                title="{{ $event->full_name }}">{{ $event->display_name }}</td>
                                             <td data-column="age">{{ $event->age ?? '-' }}</td>
                                             <td data-column="birth_date">
                                                 {{ $event->birth_date ? $event->birth_date->format('M d, Y') : '-' }}</td>
@@ -522,7 +460,7 @@
                                             <td data-column="event_date" class="small">
                                                 {{ optional($event->event_date)->format('M d, Y') ?? '-' }}</td>
                                             <td data-column="created_at" class="small">
-                                                {{ optional($event->created_at)->format('M d, Y') }}</td>
+                                                {{ optional($event->created_at)->timezone('Asia/Manila')->format('M d, Y H:i:s') }}</td>
                                             <td data-column="status" class="text-center">
                                                 @php
                                                     $statusColor = match ($event->status) {
@@ -531,7 +469,8 @@
                                                         default => 'warning',
                                                     };
                                                 @endphp
-                                                <span class="badge bg-{{ $statusColor }}-subtle text-{{ $statusColor }} px-3 py-2"
+                                                <span
+                                                    class="badge bg-{{ $statusColor }}-subtle text-{{ $statusColor }} px-3 py-2"
                                                     data-event-status="{{ $event->id }}">{{ $event->status }}</span>
                                             </td>
                                             <td class="text-center">
@@ -652,7 +591,7 @@
             </div>
         </div>
 
-        <!-- Transfer 1 by 1 Confirmation Modal -->
+        <!-- Force Create Client Confirmation Modal -->
         <div class="modal fade" id="transferOneByOneConfirmModal" tabindex="-1"
             aria-labelledby="transferOneByOneConfirmModalLabel" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered modal-sm">
@@ -661,12 +600,12 @@
                         <div class="mb-3">
                             <i class="ri-exchange-line text-info" style="font-size: 3rem;"></i>
                         </div>
-                        <p class="fs-5 fw-semibold mb-1" id="transferOneByOneConfirmModalLabel">Confirm Transfer 1 by 1
-                        </p>
+                        <p class="fs-5 fw-semibold mb-1" id="transferOneByOneConfirmModalLabel">Confirm Force Create Client</p>
                         <p class="text-muted mb-0">
-                            Transfer <span class="fw-semibold" id="transferOneByOneCount">0</span>
-                            selected event(s) one at a time?
+                            Create <span class="fw-semibold" id="transferOneByOneCount">0</span>
+                            selected event(s) in batches of up to 500?
                         </p>
+                        <p class="text-muted small mt-2 mb-0">Each event creates a new client and a linked transaction, even if a matching client already exists.</p>
                     </div>
                     <div class="modal-footer border-0 justify-content-center gap-3 pt-0">
                         <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal">Cancel</button>
@@ -779,8 +718,9 @@
                                 <small class="text-muted">Detected columns:</small>
                                 <div id="previewColumnsList" class="small mt-1"></div>
                             </div>
-                            <p class="small text-muted">Names are shown as Lastname, Firstname M.I. Hover over a name to
-                                see the original. For names without a comma or middle initial, verify the name order in your
+                            <p class="small text-muted">Names are shown as Lastname, Firstname Middle Name or M.I. Hover
+                                over a name to
+                                see the original. For names without a comma, verify the name order in your
                                 file before importing.</p>
                             <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
                                 <table class="table table-bordered table-hover align-middle mb-0">
@@ -877,15 +817,21 @@
                             </div>
                             <span id="importDuplicatePageInfo" class="small text-muted" aria-live="polite"></span>
                             <nav aria-label="Imported data pages" class="d-flex align-items-center gap-1">
-                                <button type="button" class="btn btn-sm btn-outline-secondary" id="importDuplicateFirst">First</button>
-                                <button type="button" class="btn btn-sm btn-outline-secondary" id="importDuplicatePrevious">Previous</button>
-                                <button type="button" class="btn btn-sm btn-outline-secondary" id="importDuplicateNext">Next</button>
-                                <button type="button" class="btn btn-sm btn-outline-secondary" id="importDuplicateLast">Last</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary"
+                                    id="importDuplicateFirst">First</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary"
+                                    id="importDuplicatePrevious">Previous</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary"
+                                    id="importDuplicateNext">Next</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary"
+                                    id="importDuplicateLast">Last</button>
                             </nav>
                         </div>
                         <div class="small mt-2"><strong>Update Matching Records (recommended):</strong> Match by full name,
-                            client category, transaction category, transaction type, and event date (ignoring case and surrounding spaces; dates must be the same calendar day).
-                            Set the status to Claimed, including linked transaction history. Keep the saved transaction type.
+                            client category, transaction category, transaction type, and event date (ignoring case and
+                            surrounding spaces; dates must be the same calendar day).
+                            Set the status to Claimed, including linked transaction history. Keep the saved transaction
+                            type.
                             Records already marked Claimed stay unchanged;
                             unmatched rows, multiple matches, and rows missing any matching field are skipped for review.
                             This option never creates clients, Import Events, or transaction history.
@@ -967,7 +913,25 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            @include('pages.transaction_events.partials.addressTypeFilter', ['addressId' => 'eventAddressFilter', 'typeSelector' => '.event-type-checkbox', 'allTypesId' => 'eventTypeFilterAll'])
+            // Auto-dismiss success/error alerts after 5 seconds with fade.
+            document.querySelectorAll('.auto-dismiss-alert').forEach(function(alertEl) {
+                setTimeout(function() {
+                    if (typeof bootstrap !== 'undefined' && bootstrap.Alert) {
+                        bootstrap.Alert.getOrCreateInstance(alertEl).close();
+                    } else {
+                        alertEl.classList.remove('show');
+                        setTimeout(function() {
+                            alertEl.remove();
+                        }, 150);
+                    }
+                }, 5000);
+            });
+
+            @include('pages.transaction_events.partials.addressTypeFilter', [
+                'addressId' => 'eventAddressFilter',
+                'typeSelector' => '.event-type-checkbox',
+                'allTypesId' => 'eventTypeFilterAll',
+            ])
             // Parse an API response, throwing a clear, actionable error when the
             // server returns HTML (e.g. Azure "419 Page Expired" / proxy error)
             // instead of JSON, so the user sees a real message rather than
@@ -1271,13 +1235,9 @@
             const confirmBulkTransferBtn = document.getElementById('confirmBulkTransferBtn');
             let selectedBulkTransferIds = [];
             const totalMatchingEvents = @json($events->total());
-            const selectableTotal = @json($selectableTotal ?? $events->total());
             let allPagesSelected = false;
 
             if (selectAll) {
-                const selectableCheckboxes = () => eventCheckboxes.filter((checkbox) => !checkbox.dataset
-                    .duplicate && !checkbox.disabled);
-
                 const enabledCheckboxes = () => eventCheckboxes.filter((checkbox) => !checkbox.disabled);
 
                 const hasMorePages = @json($events->lastPage() > 1);
@@ -1291,6 +1251,17 @@
                         bar.classList.add('d-none');
                         bar.classList.remove('d-flex');
                     }
+                    clearBtn?.classList.add('d-none');
+                };
+
+                const showBarManualSelected = (count) => {
+                    if (!bar || !barText) {
+                        return;
+                    }
+                    bar.classList.remove('d-none');
+                    bar.classList.add('d-flex');
+                    clearBtn?.classList.remove('d-none');
+                    barText.textContent = `${count} transaction event${count === 1 ? '' : 's'} selected.`;
                 };
 
                 const showBarAllSelected = () => {
@@ -1303,8 +1274,8 @@
                         clearBtn.classList.remove('d-none');
                     }
                     barText.innerHTML = '<i class="ri-check-double-line me-1"></i><strong>All ' +
-                        selectableTotal +
-                        '</strong> matching events are selected (across all pages). Duplicate names are excluded.';
+                        totalMatchingEvents +
+                        '</strong> matching events are selected (across all pages).';
                 };
 
                 const clearAllSelection = () => {
@@ -1323,8 +1294,9 @@
                 }
 
                 var syncSelectAllState = () => {
-                    const selectable = selectableCheckboxes();
+                    const selectable = enabledCheckboxes();
                     const checkedCount = selectable.filter((checkbox) => checkbox.checked).length;
+                    const checkedRows = eventCheckboxes.filter((checkbox) => checkbox.checked && !checkbox.disabled);
                     if (allPagesSelected) {
                         selectAll.checked = true;
                         selectAll.indeterminate = false;
@@ -1333,61 +1305,36 @@
                             (selectable.length > 0 && checkedCount === selectable.length);
                         selectAll.indeterminate = checkedCount > 0 && checkedCount < selectable.length;
                     }
-                    // Keep Select All enabled even when the first page contains
-                    // duplicates: duplicates are skipped, not a reason to lock
-                    // the checkbox. Disable when there is nothing to select:
-                    // no enabled rows, only duplicates on this single page,
-                    // or the whole remaining filtered data is duplicates.
-                    selectAll.disabled = enabledCheckboxes().length === 0 ||
-                        selectableTotal === 0 ||
-                        (selectable.length === 0 && !hasMorePages);
+                    selectAll.disabled = selectable.length === 0 || totalMatchingEvents === 0;
                     if (bulkTransferBtn) {
-                        // Any manual selection (including duplicate-named rows) enables the button.
-                        const anyChecked = eventCheckboxes.some((checkbox) => checkbox.checked);
-                        bulkTransferBtn.disabled = !allPagesSelected && !anyChecked;
+                        bulkTransferBtn.disabled = !allPagesSelected && checkedRows.length === 0;
                     }
                     const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
                     if (bulkDeleteBtn) {
-                        const anyChecked = eventCheckboxes.some((checkbox) => checkbox.checked);
-                        bulkDeleteBtn.disabled = !allPagesSelected && !anyChecked;
+                        bulkDeleteBtn.disabled = !allPagesSelected && checkedRows.length === 0;
                     }
                     if (transferOneByOneBtn) {
-                        // 1-by-1 resolves the full select-all population when
-                        // all-pages mode is active, so keep it enabled there
-                        // even if this page's rows are all duplicates.
-                        const anyCheckedRow = eventCheckboxes.some((checkbox) => checkbox.checked &&
-                            !checkbox.disabled);
-                        transferOneByOneBtn.disabled = !allPagesSelected && !anyCheckedRow;
+                        transferOneByOneBtn.disabled = !allPagesSelected && checkedRows.length === 0;
+                    }
+
+                    if (allPagesSelected) {
+                        showBarAllSelected();
+                    } else if (checkedRows.length > 0) {
+                        showBarManualSelected(checkedRows.length);
+                    } else {
+                        hideBar();
                     }
                 };
 
                 selectAll.addEventListener('change', function() {
-                    // If the whole remaining data is duplicates, there is
-                    // nothing selectable: revert immediately.
-                    if (selectAll.checked && selectableTotal === 0) {
-                        selectAll.checked = false;
-                        allPagesSelected = false;
-                        hideBar();
-                        syncSelectAllState();
-                        return;
-                    }
-                    // Duplicates stay unchecked: only non-duplicate rows on this
-                    // page are checked, even when Select All is used.
-                    selectableCheckboxes().forEach((checkbox) => {
+                    enabledCheckboxes().forEach((checkbox) => {
                         checkbox.checked = selectAll.checked;
                     });
                     if (selectAll.checked) {
                         if (hasMorePages) {
-                            // Selecting everything on this page means all pages:
-                            // mark every matching event across all pages as selected
-                            // (backend excludes duplicates via exclude_duplicates).
+                            // Select every matching event across all pages.
                             allPagesSelected = true;
                             showBarAllSelected();
-                        } else if (selectableCheckboxes().length === 0) {
-                            // Single page with only duplicates: nothing to select.
-                            selectAll.checked = false;
-                            allPagesSelected = false;
-                            hideBar();
                         } else {
                             allPagesSelected = false;
                             hideBar();
@@ -1401,9 +1348,8 @@
 
                 eventCheckboxes.forEach((checkbox) => {
                     checkbox.addEventListener('change', function() {
-                        if (!checkbox.checked) {
+                        if (allPagesSelected) {
                             allPagesSelected = false;
-                            hideBar();
                         }
                         syncSelectAllState();
                     });
@@ -1412,7 +1358,7 @@
                 syncSelectAllState();
             }
 
-            // Shared select-all payload: select_all + exclude_duplicates plus
+            // Shared select-all payload: select_all plus
             // every active list filter so the backend targets exactly the rows
             // shown across pages. Used by both bulk transfer and bulk delete.
             const appendSelectAllInputs = (form) => {
@@ -1428,8 +1374,6 @@
                 };
 
                 addHidden('select_all', '1', false);
-                // Always exclude duplicates when using select all
-                addHidden('exclude_duplicates', '1', false);
 
                 const params = new URLSearchParams(window.location.search);
 
@@ -1471,7 +1415,7 @@
 
                     if (bulkTransferCount) {
                         bulkTransferCount.textContent = allPagesSelected ?
-                            selectableTotal :
+                            totalMatchingEvents :
                             selectedBulkTransferIds.length;
                     }
 
@@ -1645,7 +1589,7 @@
 
                     if (bulkDeleteCount) {
                         bulkDeleteCount.textContent = allPagesSelected ?
-                            selectableTotal :
+                            totalMatchingEvents :
                             selectedBulkDeleteIds.length;
                     }
 
@@ -1719,7 +1663,7 @@
                 });
             }
 
-            // ----- Transfer 1 by 1: confirm first, then checked events, one request each -----
+            // ----- Force Create Client: confirm first, then process up to 500 events per request -----
             const transferOneByOneConfirmModalEl = document.getElementById('transferOneByOneConfirmModal');
             const transferOneByOneCount = document.getElementById('transferOneByOneCount');
             const confirmTransferOneByOneBtn = document.getElementById('confirmTransferOneByOneBtn');
@@ -1768,8 +1712,7 @@
                 const resolveOneByOneIds = async () => {
                     const params = new URLSearchParams(window.location.search);
                     const payload = {
-                        select_all: 1,
-                        exclude_duplicates: 1
+                        select_all: 1
                     };
                     ['search', 'contact', 'age_from', 'age_to', 'date_from', 'date_to',
                         'event_date_from', 'event_date_to',
@@ -1780,7 +1723,8 @@
                             payload[name] = value;
                         }
                     });
-                    ['address', 'client_category', 'transaction_category', 'transaction_type'].forEach((name) => {
+                    ['address', 'client_category', 'transaction_category', 'transaction_type'].forEach((
+                        name) => {
                         let values = Array.from(params.entries())
                             .filter(([key]) => key === name || key.startsWith(name + '['))
                             .map(([, value]) => value);
@@ -1854,53 +1798,56 @@
                     if (progressModal) {
                         progressModal.show();
                     }
-                    setProgress(0, 'Transferring 1 of ' + ids.length + '...');
-
-                    let done = 0;
-                    const failed = [];
+                    setProgress(0, 'Preparing client creation...');
 
                     try {
-                        for (let i = 0; i < ids.length; i++) {
-                            setProgress(
-                                (i / ids.length) * 100,
-                                'Transferring ' + (i + 1) + ' of ' + ids.length + '...'
-                            );
-
-                            const res = await fetch(
-                                '{{ route('transaction-events.transfer-one') }}', {
-                                    method: 'POST',
-                                    headers: {
-                                        'X-CSRF-TOKEN': csrfToken,
-                                        'Accept': 'application/json',
-                                        'Content-Type': 'application/json',
-                                    },
-                                    body: JSON.stringify({
-                                        event_id: ids[i]
-                                    }),
-                                });
-                            const text = await res.text();
-                            let data;
-                            try {
-                                data = JSON.parse(text);
-                            } catch (e) {
-                                throw new Error(
-                                    `Invalid response from the server (HTTP ${res.status}). Please try again.`
-                                );
-                            }
+                        const postTransferStep = async (url, payload) => {
+                            const res = await fetch(url, {
+                                method: 'POST',
+                                headers: {
+                                    'X-CSRF-TOKEN': csrfToken,
+                                    'Accept': 'application/json',
+                                    'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify(payload),
+                            });
+                            const data = await parseApiResponse(res);
                             if (!res.ok || !data.success) {
-                                failed.push('#' + ids[i] + (data.message ? ': ' + data.message : ''));
-                                continue;
+                                throw new Error(data.message || 'Client creation failed.');
                             }
-                            done++;
+                            return data;
+                        };
+
+                        const prepare = await postTransferStep(
+                            '{{ route('transaction-events.transfer-selected.prepare') }}', {
+                                event_ids: ids,
+                                force_new_clients: true,
+                            });
+                        const total = prepare.total;
+                        const chunkSize = 500;
+                        let offset = 0;
+
+                        while (offset < total) {
+                            const next = Math.min(offset + chunkSize, total);
+                            setProgress(
+                                (offset / total) * 100,
+                                'Creating clients ' + (offset + 1) + ' - ' + next + ' of ' + total + '...'
+                            );
+                            const chunk = await postTransferStep(
+                                '{{ route('transaction-events.transfer-selected.process') }}', {
+                                    token: prepare.token,
+                                    offset: offset,
+                                    limit: chunkSize,
+                                });
+                            offset = chunk.processed;
                         }
 
+                        const finished = await postTransferStep(
+                            '{{ route('transaction-events.transfer-selected.finish') }}', {
+                                token: prepare.token,
+                            });
                         setProgress(100, 'Done!');
-                        const summary =
-                            `Transferred ${done} of ${ids.length} to existing clients. Unmatched records remain in Import Events` +
-                            (failed.length > 0 ?
-                                `. Skipped ${failed.length}: ${failed.slice(0, 5).join('; ')}${failed.length > 5 ? '...' : ''}` :
-                                '');
-                        new Message('imessage').show(summary, failed.length > 0 ? 'fail' : 'success',
+                        new Message('imessage').show(finished.message, finished.type,
                             'top-center');
                         setTimeout(function() {
                             if (progressModal) {
@@ -1913,7 +1860,7 @@
                             progressModal.hide();
                         }
                         transferOneByOneBtn.disabled = false;
-                        new Message('imessage').show(error.message || 'Transfer failed.', 'fail',
+                        new Message('imessage').show(error.message || 'Create failed.', 'fail',
                             'top-center');
                     }
                 });
@@ -2328,7 +2275,8 @@
                     const previewColumnsDiv = document.getElementById('previewColumns');
                     const previewColumnsList = document.getElementById('previewColumnsList');
                     if (result.header && Array.isArray(result.header) && result.header.length > 0) {
-                        previewColumnsList.innerHTML = result.header.filter(h => String(h).trim().toLowerCase() !== 'sector').map(h => '<code>' + escapeHtml(h) +
+                        previewColumnsList.innerHTML = result.header.filter(h => String(h).trim()
+                            .toLowerCase() !== 'sector').map(h => '<code>' + escapeHtml(h) +
                             '</code>').join(', ');
                         previewColumnsDiv.style.display = 'block';
                     }
@@ -2682,8 +2630,10 @@
                     if (updateExisting && finishData.errors?.length) {
                         progressModal.hide();
                         confirmBtn.disabled = false;
-                        const details = finishData.errors.map(e => `Row ${e.row} (${e.data}): ${e.error}`).join('\n');
-                        alert(`Import complete: ${finishData.created} created, ${finishData.updated} updated, ${finishData.unchanged} unchanged, ${finishData.skipped} skipped.\n\nRows requiring review (first 10):\n${details}`);
+                        const details = finishData.errors.map(e => `Row ${e.row} (${e.data}): ${e.error}`)
+                            .join('\n');
+                        alert(
+                            `Import complete: ${finishData.created} created, ${finishData.updated} updated, ${finishData.unchanged} unchanged, ${finishData.skipped} skipped.\n\nRows requiring review (first 10):\n${details}`);
                     }
                     setProgress(100, 'Done!');
                     setTimeout(function() {
@@ -2736,7 +2686,7 @@
                 document.getElementById('importDuplicateBody').innerHTML = duplicateRows
                     .slice(start, start + pageSize).map(row => `
                         <tr>
-                            <td class="fw-semibold">${escapeHtml(row.full_name)}</td>
+                            <td class="fw-semibold">${escapeHtml(ImportName.format(row.full_name))}</td>
                             <td>${escapeHtml(row.client_category || '-')}</td>
                             <td>${escapeHtml(row.transaction_category || '-')}</td>
                             <td>${escapeHtml(row.transaction_type || '-')}</td>
@@ -2754,11 +2704,12 @@
                 renderDuplicatePage();
             });
             for (const [id, page] of [
-                ['importDuplicateFirst', () => 1],
-                ['importDuplicatePrevious', () => duplicatePage - 1],
-                ['importDuplicateNext', () => duplicatePage + 1],
-                ['importDuplicateLast', () => Math.ceil(duplicateRows.length / Number(duplicatePageSize.value))],
-            ]) {
+                    ['importDuplicateFirst', () => 1],
+                    ['importDuplicatePrevious', () => duplicatePage - 1],
+                    ['importDuplicateNext', () => duplicatePage + 1],
+                    ['importDuplicateLast', () => Math.ceil(duplicateRows.length / Number(duplicatePageSize
+                    .value))],
+                ]) {
                 document.getElementById(id).addEventListener('click', function() {
                     duplicatePage = page();
                     renderDuplicatePage();
@@ -2845,5 +2796,7 @@
             }
         });
     </script>
-    <script src="{{ asset('js/event-record-filter-search.js') }}?v={{ filemtime(public_path('js/event-record-filter-search.js')) }}"></script>
+    <script
+        src="{{ asset('js/event-record-filter-search.js') }}?v={{ filemtime(public_path('js/event-record-filter-search.js')) }}">
+    </script>
 @endpush

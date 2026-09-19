@@ -36,7 +36,7 @@
         </div>
 
         @if (session('success'))
-            <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <div class="alert alert-success alert-dismissible fade show auto-dismiss-alert" role="alert">
                 {{ session('success') }}
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
@@ -139,3 +139,23 @@
         @endforeach
     @endif
 @endsection
+
+@push('scripts')
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Auto-dismiss success alert after 5 seconds with fade.
+            document.querySelectorAll('.auto-dismiss-alert').forEach(function(alertEl) {
+                setTimeout(function() {
+                    if (typeof bootstrap !== 'undefined' && bootstrap.Alert) {
+                        bootstrap.Alert.getOrCreateInstance(alertEl).close();
+                    } else {
+                        alertEl.classList.remove('show');
+                        setTimeout(function() {
+                            alertEl.remove();
+                        }, 150);
+                    }
+                }, 5000);
+            });
+        });
+    </script>
+@endpush

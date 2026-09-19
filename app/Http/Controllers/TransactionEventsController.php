@@ -58,21 +58,6 @@ class TransactionEventsController extends Controller
 
         $events = $query->paginate($perPage)->withQueryString();
 
-        // How many rows would Select All actually target (duplicates excluded).
-        // If the remaining filtered data is all duplicates, this is 0 and the
-        // Select All checkbox must stay disabled.
-        if ($request->boolean('duplicate_names')) {
-            $selectableTotal = 0;
-        } else {
-            $selectableQuery = TransactionEvent::whereNull('transferred_at')
-                ->where('not_duplicate', false);
-            $this->applyEventListFilters($selectableQuery, $request);
-            if (! empty($duplicateFullNames)) {
-                $selectableQuery->whereNotIn('full_name', $duplicateFullNames);
-            }
-            $selectableTotal = (clone $selectableQuery)->count();
-        }
-
         // Distinct values (from pending events) for the dropdown filters.
         $pendingBase = TransactionEvent::whereNull('transferred_at')->where('not_duplicate', false);
         $clientCategories = (clone $pendingBase)->select('client_category')->distinct()
@@ -98,7 +83,7 @@ class TransactionEventsController extends Controller
             ->count();
 
         return view('pages.transaction_events.transactionEvents',
-            compact('events', 'totalDuplicateGroups', 'duplicateFullNames', 'clientCategories', 'transactionCategories', 'transactionTypes', 'addresses', 'addressTypes', 'selectableTotal'));
+            compact('events', 'totalDuplicateGroups', 'duplicateFullNames', 'clientCategories', 'transactionCategories', 'transactionTypes', 'addresses', 'addressTypes'));
     }
 
     private function addressTypeOptions($query): Collection
@@ -266,7 +251,7 @@ class TransactionEventsController extends Controller
     private function applyEventListFilters($query, Request $request): void
     {
         if ($search = $request->input('search')) {
-            $query->where('full_name', 'like', "%{$search}%");
+            $this->applyEventNameSearch($query, $search);
         }
 
         if ($contact = $request->input('contact')) {
@@ -312,6 +297,26 @@ class TransactionEventsController extends Controller
         }
     }
 
+    private function applyEventNameSearch($query, string $search): void
+    {
+        $search = trim($search);
+        $query->where(function ($nameQuery) use ($search) {
+            $nameQuery->where('full_name', 'like', "%{$search}%");
+
+            if (str_contains($search, ',')) {
+                [$lastName, $givenName] = array_map('trim', explode(',', $search, 2));
+                $givenName = rtrim($givenName, '.');
+
+                if ($lastName !== '' && $givenName !== '') {
+                    $nameQuery->orWhere(function ($partsQuery) use ($lastName, $givenName) {
+                        $partsQuery->where('full_name', 'like', "%{$lastName}%")
+                            ->where('full_name', 'like', "%{$givenName}%");
+                    });
+                }
+            }
+        });
+    }
+
     private function duplicateFullNamesList(): array
     {
         // Scope to the pending list population so already-transferred records
@@ -340,7 +345,23 @@ class TransactionEventsController extends Controller
         }
 
         if ($search = $request->input('search')) {
-            $query->where('full_name', 'like', "%{$search}%");
+            $transactionSearch = trim(str_replace(['(', ')', "'", '"'], '', $search));
+            $query->where(function ($searchQuery) use ($search, $transactionSearch) {
+                $this->applyEventNameSearch($searchQuery, $search);
+
+                if ($transactionSearch !== '') {
+                    $searchQuery->orWhereHas('transferredTransaction', function ($transactionQuery) use ($transactionSearch) {
+                        if (ctype_digit($transactionSearch)) {
+                            $transactionQuery->where(function ($idQuery) use ($transactionSearch) {
+                                $idQuery->where('transaction_id', 'like', "{$transactionSearch}-%")
+                                    ->orWhere('transaction_id', 'like', "%-{$transactionSearch}");
+                            });
+                        } else {
+                            $transactionQuery->where('transaction_id', 'like', "%{$transactionSearch}%");
+                        }
+                    });
+                }
+            });
         }
 
         if ($contact = $request->input('contact')) {
@@ -549,6 +570,57 @@ class TransactionEventsController extends Controller
 
         return redirect()->route($returnRoute, $request->query())
             ->with('success', 'Event status updated to '.$validated['status'].'.');
+    }
+
+    public function updateRecordStatusSelected(Request $request)
+    {
+        abort_unless(feature_allowed('Event Records'), 404);
+        abort_if(auth()->user()->role_name === 'Viewer', 403, 'Viewer role is read-only.');
+        abort_unless(feature_allowed('Tag Transaction Event Record Status'), 403);
+
+        $validated = $request->validate([
+            'event_ids' => ['required', 'array', 'min:1'],
+            'event_ids.*' => ['integer'],
+            'status' => ['required', \Illuminate\Validation\Rule::in(TransactionEvent::STATUSES)],
+        ]);
+
+        $ids = array_values(array_unique(array_filter($validated['event_ids'], 'is_numeric')));
+        if ($ids === []) {
+            abort(422, 'No event ids were selected.');
+        }
+
+        $updated = 0;
+        $skipped = 0;
+
+        foreach ($ids as $id) {
+            try {
+                $changed = DB::transaction(function () use ($id, $validated) {
+                    $event = TransactionEvent::whereKey($id)->lockForUpdate()->first();
+                    if (! $event || $event->transferred_at === null) {
+                        return null;
+                    }
+
+                    return $this->setEventStatus($event, $validated['status']);
+                });
+            } catch (\RuntimeException $exception) {
+                // Missing linked history etc. counts as skipped, not fatal.
+                $skipped++;
+                continue;
+            }
+
+            if ($changed === null) {
+                $skipped++;
+            } elseif ($changed) {
+                $updated++;
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'updated' => $updated,
+            'skipped' => $skipped,
+            'status' => $validated['status'],
+        ]);
     }
 
     public function records(Request $request)
@@ -2973,44 +3045,50 @@ class TransactionEventsController extends Controller
             'event_id' => ['required', 'integer'],
         ]);
 
-        $event = TransactionEvent::find($request->input('event_id'));
-        if (! $event) {
-            abort(404, 'The selected event id is invalid.');
-        }
+        $result = DB::transaction(function () use ($request) {
+            $event = TransactionEvent::whereKey($request->integer('event_id'))->lockForUpdate()->first();
+            if (! $event) {
+                abort(404, 'The selected event id is invalid.');
+            }
 
-        if ($event->transferred_at !== null) {
-            return response()->json(['success' => false, 'message' => 'This event has already been transferred.'], 422);
-        }
+            if ($event->transferred_at !== null) {
+                return ['success' => false, 'message' => 'This event has already been transferred.'];
+            }
 
-        $client = $this->findClientForImport($event->full_name, $event->birth_date?->format('Y-m-d'));
-        if ($client === null) {
-            return response()->json(['success' => false, 'created_client' => false,
-                'message' => 'No matching client found in the Client List. This record remains in Import Events.'], 422);
-        }
+            // Match Force Create All: every event receives its own new client,
+            // even when another client already has the same name.
+            $client = $this->createClientForImportRow(
+                $event->full_name,
+                $event->getAttributes(),
+                $event->birth_date?->format('Y-m-d')
+            );
 
-        $history = TransactionHistory::create([
-            'client_id' => $client->client_id,
-            'client_category' => $event->client_category ?? '',
-            'transaction_id' => $this->nextTransactionIdForClient($client->client_id),
-            'transaction_date' => $event->event_date?->format('Y-m-d') ?? now()->toDateString(),
-            'category' => $event->transaction_category ?? '',
-            'type' => $event->transaction_type ?? '',
-            'events_transaction_type' => $event->transaction_type ?? '',
-            'status' => $event->status,
-            'source' => 'transfer-one',
-            'description' => 'Transferred from event record.',
-        ]);
+            $history = TransactionHistory::create([
+                'client_id' => $client->client_id,
+                'client_category' => $event->client_category ?? '',
+                'transaction_id' => $this->nextTransactionIdForClient($client->client_id),
+                'transaction_date' => $event->event_date?->format('Y-m-d') ?? now()->toDateString(),
+                'category' => $event->transaction_category ?? '',
+                'type' => $event->transaction_type ?? '',
+                'events_transaction_type' => $event->transaction_type ?? '',
+                'status' => $event->status,
+                'source' => 'transfer-one',
+                'description' => 'Transferred from event record.',
+            ]);
 
-        $event->update([
-            'transferred_at' => now(),
-            'transferred_transaction_id' => $history->id,
-        ]);
+            $event->update([
+                'transferred_at' => now(),
+                'transferred_transaction_id' => $history->id,
+            ]);
 
-        return response()->json([
-            'success' => true,
-            'created_client' => false,
-            'transaction_id' => $history->transaction_id,
-        ]);
+            return [
+                'success' => true,
+                'created_client' => true,
+                'transaction_id' => $history->transaction_id,
+            ];
+        });
+
+        return response()->json($result, $result['success'] ? 200 : 422);
     }
 
     /**
@@ -3369,16 +3447,16 @@ class TransactionEventsController extends Controller
      *
      * @return array{success: bool, created_client: bool}
      */
-    private function transferSinglePendingEvent(TransactionEvent $event): array
+    private function transferSinglePendingEvent(TransactionEvent $event, bool $forceNewClient = false): array
     {
-        return DB::transaction(function () use ($event) {
+        return DB::transaction(function () use ($event, $forceNewClient) {
             $event = TransactionEvent::whereKey($event->id)->lockForUpdate()->first();
             if ($event === null || $event->transferred_at !== null) {
                 return ['success' => false, 'created_client' => false];
             }
 
             $birthDate = $event->birth_date?->format('Y-m-d');
-            $client = $this->findClientForImport($event->full_name, $birthDate);
+            $client = $forceNewClient ? null : $this->findClientForImport($event->full_name, $birthDate);
             $createdClient = $client === null;
             if ($createdClient) {
                 $client = $this->createClientForImportRow($event->full_name, $event->getAttributes(), $birthDate);
@@ -3394,7 +3472,7 @@ class TransactionEventsController extends Controller
                 'type' => $event->transaction_type ?? '',
                 'events_transaction_type' => $event->transaction_type ?? '',
                 'status' => $event->status,
-                'source' => 'transfer',
+                'source' => $forceNewClient ? 'transfer-one' : 'transfer',
                 'description' => 'Transferred from event record.',
             ]);
 
@@ -3468,6 +3546,7 @@ class TransactionEventsController extends Controller
             'successCount' => 0,
             'skippedCount' => 0,
             'createdClients' => 0,
+            'forceNewClients' => $request->boolean('force_new_clients'),
         ]);
 
         return response()->json([
@@ -3494,7 +3573,6 @@ class TransactionEventsController extends Controller
             'offset' => ['required', 'integer', 'min:0'],
         ]);
 
-        $limit = min(max((int) $request->input('limit', 200), 1), 1000);
         $session = $this->loadTransferSession($request->input('token'));
 
         if ($session === null) {
@@ -3503,6 +3581,9 @@ class TransactionEventsController extends Controller
                 'message' => 'Transfer session not found. Please start the transfer again.',
             ], 404);
         }
+
+        $forceNewClients = (bool) ($session['forceNewClients'] ?? false);
+        $limit = min(max((int) $request->input('limit', 200), 1), $forceNewClients ? 500 : 1000);
 
         $ids = $session['ids'] ?? [];
         $offset = (int) $request->input('offset');
@@ -3516,7 +3597,7 @@ class TransactionEventsController extends Controller
                 ->get();
 
             foreach ($events as $event) {
-                $result = $this->transferSinglePendingEvent($event);
+                $result = $this->transferSinglePendingEvent($event, $forceNewClients);
 
                 if ($result['success']) {
                     $session['successCount'] = ($session['successCount'] ?? 0) + 1;

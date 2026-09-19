@@ -2,57 +2,6 @@
 @section('title', 'ERS | Events - Records')
 
 @section('content')
-    <style>
-        #recordFiltersCard {
-            background: #ffffff;
-            border: 1px solid #e3e8ef;
-            box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
-        }
-
-        #recordFiltersCard .form-label,
-        #recordFiltersCard .small,
-        #recordFiltersCard .fw-bold,
-        #recordFiltersCard .fw-semibold {
-            color: #1f2937 !important;
-        }
-
-        #recordFiltersCard .input-group-text,
-        #recordFiltersCard .form-control,
-        #recordFiltersCard .form-select {
-            background-color: #f8fafc;
-            color: #111827;
-            border-color: #d5dbe3;
-        }
-
-        #recordFiltersCard .input-group-text {
-            color: #475569;
-        }
-
-        #recordFiltersCard .form-control::placeholder {
-            color: #94a3b8;
-        }
-
-        #recordFiltersCard .form-control:focus,
-        #recordFiltersCard .form-select:focus {
-            border-color: #4d63d6;
-            box-shadow: 0 0 0 0.2rem rgba(77, 99, 214, 0.14);
-        }
-
-        #recordFiltersCard .client-filters-toggle-btn {
-            transition: background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
-        }
-
-        #recordFiltersCard .client-filters-toggle-btn:hover,
-        #recordFiltersCard .client-filters-toggle-btn:focus,
-        #recordFiltersCard .client-filters-toggle-btn:active {
-            background: #eef2ff;
-            color: #2f49c5;
-            border-color: #6276df;
-            box-shadow: 0 0 0 0.2rem rgba(77, 99, 214, 0.12);
-        }
-
-        
-    </style>
     @php
         $activeRecordFilters = request()->hasAny([
             'status',
@@ -82,14 +31,14 @@
         </div>
 
         @if (session('success'))
-            <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <div class="alert alert-success alert-dismissible fade show auto-dismiss-alert" role="alert">
                 {{ session('success') }}
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
         @endif
 
         @if (session('error'))
-            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <div class="alert alert-danger alert-dismissible fade show auto-dismiss-alert" role="alert">
                 {{ session('error') }}
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
@@ -108,24 +57,19 @@
 
                                 </div>
                                 <div class="d-flex flex-wrap gap-2 align-items-center">
-                                    <button type="button" class="btn btn-sm btn-outline-primary client-filters-toggle-btn"
+                                    <button type="button" class="btn btn-sm btn-soft-primary client-filters-toggle-btn"
                                         id="recordFiltersToggleBtn">
                                         Show Filters <i class="ri-arrow-down-s-line ms-1"></i>
                                     </button>
                                     @if ($activeRecordFilters)
                                         <a href="{{ route('transaction-events.records') }}"
-                                            class="btn btn-sm btn-soft-secondary">Reset</a>
+                                            class="btn btn-sm btn-soft-primary">Reset</a>
                                     @endif
                                     @if (feature_allowed('Events Records Duplicates'))
                                         <a href="{{ route('transaction-events.records-duplicates') }}"
                                             class="btn btn-sm btn-outline-warning">
                                             <i class="ri-file-copy-2-line me-1"></i>View Duplicate Records
                                         </a>
-                                    @else
-                                        <button type="button" class="btn btn-sm btn-outline-warning" disabled
-                                            title="Feature not allowed">
-                                            <i class="ri-file-copy-2-line me-1"></i>Not Allowed to View Duplicate Records
-                                        </button>
                                     @endif
 
                                     <a href="{{ route('transaction-events.records.export', request()->query()) }}"
@@ -199,7 +143,7 @@
                                         <div class="input-group">
                                             <span class="input-group-text"><i class="ri-search-line"></i></span>
                                             <input type="text" class="form-control" id="recordKeywordInput"
-                                                name="search" placeholder="Full name" value="{{ request('search') }}">
+                                                name="search" placeholder="Full name or transaction ID" value="{{ request('search') }}">
                                         </div>
                                     </div>
                                     {{-- <div class="col-12 col-md-2 col-xl-2">
@@ -386,15 +330,38 @@
                         @if (auth()->user()?->role_name !== 'Viewer')
                             <div id="selectAllUndoBar"
                                 class="alert alert-info border-0 shadow-sm d-none align-items-center justify-content-between gap-3 mb-3 px-3 py-2"
-                                role="alert"> {{-- Left side: Info --}}
+                                role="alert"> 
+                                {{-- Left side: Info --}}
                                 <div class="d-flex align-items-center gap-2 flex-grow-1">
                                     <div class="lh-sm">
                                         <div class="fw-semibold text-dark" id="selectAllUndoText"></div> <small
                                             class="text-muted"> Select the records you want to restore to their previous
                                             transfer. </small>
                                     </div>
-                                </div> {{-- Right side: Actions --}} <div
-                                    class="d-flex align-items-center flex-wrap gap-2 ms-auto">
+                                </div> 
+                                {{-- Right side: Actions --}} 
+                                <div class="d-flex align-items-center flex-wrap gap-2 ms-auto">
+                                    @if (feature_allowed('Tag Transaction Event Record Status'))
+                                        <div class="dropdown">
+                                            <button type="button"
+                                                class="btn btn-sm btn-info dropdown-toggle d-inline-flex align-items-center gap-1 px-3"
+                                                id="tagSelectedBtn" data-bs-toggle="dropdown" aria-expanded="false"
+                                                disabled title="Select at least 5 records (or Select All) to bulk tag">
+                                                <i class="ri-price-tag-3-line"></i> <span>Tag Selected</span>
+                                            </button>
+                                            <ul class="dropdown-menu dropdown-menu-end"
+                                                aria-labelledby="tagSelectedBtn">
+                                                @foreach (\App\Models\TransactionEvent::STATUSES as $status)
+                                                    <li>
+                                                        <button type="button" class="dropdown-item tag-selected-option"
+                                                            data-status="{{ $status }}">
+                                                            Tag as {{ $status }}
+                                                        </button>
+                                                    </li>
+                                                @endforeach
+                                            </ul>
+                                        </div>
+                                    @endif
                                     @if (feature_allowed('Undo Transfer'))
                                         <button type="button"
                                             class="btn btn-sm btn-warning d-inline-flex align-items-center gap-1 px-3"
@@ -403,7 +370,7 @@
                                                 class="ri-arrow-go-back-line"></i> <span>Undo Transfer</span> </button>
                                     @endif
                                     <button type="button"
-                                        class="btn btn-sm btn-outline-secondary d-none align-items-center gap-1"
+                                        class="btn btn-sm btn-soft-primary d-none align-items-center gap-1"
                                         id="clearUndoSelectionBtn"> <i class="ri-close-line"></i> <span>Clear</span>
                                     </button>
                                 </div>
@@ -488,7 +455,7 @@
                                             @endif
                                             <td data-column="transaction_id" class="fw-semibold" style="width: 150px">
                                                 {{ $event->transferredTransaction?->transaction_id ?? '-' }}</td>
-                                            <td data-column="full_name" class="fw-semibold">{{ $event->full_name }}</td>
+                                            <td data-column="full_name" class="fw-semibold" title="{{ $event->full_name }}">{{ $event->display_name }}</td>
                                             <td data-column="age">{{ $event->age ?? '-' }}</td>
                                             <td data-column="birth_date">
                                                 {{ optional($event->birth_date)->format('M d, Y') ?? '-' }}</td>
@@ -519,17 +486,7 @@
                                             </td>
                                             @if (auth()->user()?->role_name !== 'Viewer')
                                                 <td class="text-center" style="min-width: 160px">
-                                                    <div
-                                                        class="d-flex flex-nowrap align-items-center justify-content-center gap-2">
-                                                        @if (feature_allowed('Edit Transaction Event Record'))
-                                                            <button type="button" data-bs-toggle="modal"
-                                                                data-bs-target="#editRecordModal"
-                                                                data-update-url="{{ route('transaction-events.records.update', array_merge(request()->query(), ['event' => $event->id])) }}"
-                                                                data-record="{{ json_encode(array_merge($event->only(['id', 'full_name', 'age', 'contact_no', 'address', 'client_category', 'transaction_category', 'transaction_type']), ['birth_date' => $event->birth_date?->format('Y-m-d'), 'event_date' => $event->event_date?->format('Y-m-d')])) }}"
-                                                                class="btn btn-sm btn-soft-primary d-inline-flex align-items-center justify-content-center gap-1 text-nowrap">
-                                                                <i class="ri-pencil-line" aria-hidden="true"></i> Edit
-                                                            </button>
-                                                        @endif
+                                                    <div class="d-flex flex-nowrap align-items-center justify-content-center gap-2">
                                                         @if (feature_allowed('Tag Transaction Event Record Status'))
                                                             <div class="dropdown">
                                                                 <button type="button"
@@ -537,7 +494,7 @@
                                                                     data-bs-toggle="dropdown" aria-expanded="false"
                                                                     aria-label="Tag status for event #{{ $event->id }}">
                                                                     <i class="ri-price-tag-3-line me-1"
-                                                                        aria-hidden="true"></i>Tag as
+                                                                        aria-hidden="true"></i>Tag
                                                                 </button>
                                                                 <ul class="dropdown-menu dropdown-menu-end">
                                                                     @foreach (\App\Models\TransactionEvent::STATUSES as $status)
@@ -566,6 +523,15 @@
                                                                 data-event-id="{{ $event->id }}"
                                                                 data-event-name="{{ $event->full_name }}">
                                                                 <i class="ri-arrow-go-back-line" aria-hidden="true"></i> Undo Transfer
+                                                            </button>
+                                                        @endif
+                                                        @if (feature_allowed('Edit Transaction Event Record'))
+                                                            <button type="button" data-bs-toggle="modal"
+                                                                data-bs-target="#editRecordModal"
+                                                                data-update-url="{{ route('transaction-events.records.update', array_merge(request()->query(), ['event' => $event->id])) }}"
+                                                                data-record="{{ json_encode(array_merge($event->only(['id', 'full_name', 'age', 'contact_no', 'address', 'client_category', 'transaction_category', 'transaction_type']), ['birth_date' => $event->birth_date?->format('Y-m-d'), 'event_date' => $event->event_date?->format('Y-m-d')])) }}"
+                                                                class="btn btn-sm btn-soft-primary d-inline-flex align-items-center justify-content-center gap-1 text-nowrap">
+                                                                <i class="ri-pencil-line" aria-hidden="true"></i> Edit
                                                             </button>
                                                         @endif
                                                     </div>
@@ -614,12 +580,36 @@
                     <p class="text-muted mb-0">
                         Undo transfer for <span class="fw-semibold" id="undoTransferConfirmCount">0</span>
                         selected event(s)? Their transaction records will be removed and the events will return to
-                        pending. Events whose transactions have requirements will be skipped.
+                        Import Events as pending. Events whose transactions have requirements will be skipped.
                     </p>
                 </div>
                 <div class="modal-footer border-0 justify-content-center gap-3 pt-0">
                     <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal">Cancel</button>
                     <button type="button" class="btn btn-warning px-4" id="confirmUndoTransferBtn">
+                        <i class="ri-check-line me-1"></i> Continue
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Bulk Tag Status Confirmation Modal -->
+    <div class="modal fade" id="tagStatusConfirmModal" tabindex="-1" aria-labelledby="tagStatusConfirmModalLabel"
+        aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content">
+                <div class="modal-body text-center py-4">
+                    <div class="mb-3">
+                        <i class="ri-price-tag-3-line text-info" style="font-size: 3rem;"></i>
+                    </div>
+                    <p class="fs-5 fw-semibold mb-1" id="tagStatusConfirmModalLabel">Confirm Bulk Tag</p>
+                    <p class="text-muted mb-0">
+                        Tag <span class="fw-semibold" id="tagStatusConfirmCount">0</span>
+                        selected record(s) as <span class="fw-semibold" id="tagStatusConfirmStatus">Pending</span>?
+                    </p>
+                </div>
+                <div class="modal-footer border-0 justify-content-center gap-3 pt-0">
+                    <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-info px-4" id="confirmTagStatusBtn">
                         <i class="ri-check-line me-1"></i> Continue
                     </button>
                 </div>
@@ -711,6 +701,20 @@
     </script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            // Auto-dismiss success/error alerts after 5 seconds with fade.
+            document.querySelectorAll('.auto-dismiss-alert').forEach(function(alertEl) {
+                setTimeout(function() {
+                    if (typeof bootstrap !== 'undefined' && bootstrap.Alert) {
+                        bootstrap.Alert.getOrCreateInstance(alertEl).close();
+                    } else {
+                        alertEl.classList.remove('show');
+                        setTimeout(function() {
+                            alertEl.remove();
+                        }, 150);
+                    }
+                }, 5000);
+            });
+
             @include('pages.transaction_events.partials.addressTypeFilter', ['addressId' => 'recordAddressFilter', 'typeSelector' => '.record-type-checkbox', 'allTypesId' => 'recordTypeFilterAll'])
             const editModal = document.getElementById('editRecordModal');
             const editForm = document.getElementById('editRecordForm');
@@ -836,6 +840,17 @@
                     undoBar.classList.add('d-none');
                     undoBar.classList.remove('d-flex');
                 }
+                undoClearBtn?.classList.add('d-none');
+            };
+
+            const showUndoBarManualSelected = (count) => {
+                if (!undoBar || !undoBarText) {
+                    return;
+                }
+                undoBar.classList.remove('d-none');
+                undoBar.classList.add('d-flex');
+                undoClearBtn?.classList.remove('d-none');
+                undoBarText.textContent = `${count} transaction record${count === 1 ? '' : 's'} selected.`;
             };
 
             const showUndoBarAllSelected = () => {
@@ -849,7 +864,7 @@
                 }
                 undoBarText.innerHTML = '<i class="ri-check-double-line me-1"></i><strong>All ' +
                     totalMatchingEvents +
-                    '</strong> matching records are selected (across all pages). Duplicate records (same full name, client category, transaction category, transaction type and event date) are excluded.';
+                    '</strong> matching records are selected (across all pages). Duplicates are excluded from Undo, included in Tag.';
             };
 
             const clearAllUndoSelection = () => {
@@ -875,12 +890,23 @@
                 const boxes = selectedEventCheckboxes();
                 const selectable = selectableEventCheckboxes();
                 const checkedSelectable = selectable.filter((b) => b.checked);
+                const checkedForTag = boxes.filter((b) => b.checked);
                 const count = allPagesSelected ? totalMatchingEvents : checkedSelectable.length;
+                const tagCount = allPagesSelected ? totalMatchingEvents : checkedForTag.length;
                 if (undoSelectedCount) {
                     undoSelectedCount.textContent = `${count} selected`;
                 }
                 if (undoSelectedBtn) {
                     undoSelectedBtn.disabled = !allPagesSelected && checkedSelectable.length === 0;
+                }
+                // Bulk Tag needs Select All or at least 5 checked records (duplicates included).
+                const tagSelectedBtn = document.getElementById('tagSelectedBtn');
+                if (tagSelectedBtn) {
+                    const canBulkTag = allPagesSelected || tagCount >= 5;
+                    tagSelectedBtn.disabled = !canBulkTag;
+                    tagSelectedBtn.title = canBulkTag ?
+                        `Tag ${tagCount} selected record(s)` :
+                        'Select at least 5 records (or Select All) to bulk tag';
                 }
                 if (eventSelectAll) {
                     if (allPagesSelected) {
@@ -898,6 +924,14 @@
                     // on this page (or no other pages to cover).
                     eventSelectAll.disabled = boxes.length === 0 ||
                         (selectable.length === 0 && !hasMorePages);
+                }
+
+                if (allPagesSelected) {
+                    showUndoBarAllSelected();
+                } else if (checkedSelectable.length > 0) {
+                    showUndoBarManualSelected(checkedSelectable.length);
+                } else {
+                    hideUndoBar();
                 }
             };
 
@@ -931,9 +965,8 @@
 
             document.querySelector('#eventRecordsTable tbody')?.addEventListener('change', function(e) {
                 if (e.target?.classList?.contains('event-select-checkbox')) {
-                    if (!e.target.checked) {
+                    if (allPagesSelected) {
                         allPagesSelected = false;
-                        hideUndoBar();
                     }
                     syncUndoSelection();
                 }
@@ -1095,10 +1128,10 @@
                             skipped += data.skipped || 0;
                         }
                         new Message('imessage').show(
-                            `Undone ${undone} transfer(s)${skipped > 0 ? `, skipped ${skipped}` : ''}. Reloading...`,
+                            `Undone ${undone} transfer(s)${skipped > 0 ? `, skipped ${skipped}` : ''}. Opening Import Events...`,
                             'success', 'top-center');
                         setTimeout(function() {
-                            window.location.reload();
+                            window.location.href = @json(route('transaction-events.index'));
                         }, 1200);
                     } catch (error) {
                         confirmUndoTransferBtn.disabled = false;
@@ -1111,6 +1144,192 @@
                 undoConfirmModalEl.addEventListener('hidden.bs.modal', function() {
                     confirmUndoTransferBtn.disabled = false;
                     pendingUndoIds = [];
+                });
+            }
+
+            // ----- Bulk Tag Selected (Pending / Claimed / Unclaimed) -----
+            // Same Action > Tag dropdown, but for Select All or 5+ checked records.
+            const tagSelectedBtn = document.getElementById('tagSelectedBtn');
+            const tagStatusConfirmModalEl = document.getElementById('tagStatusConfirmModal');
+            const tagStatusConfirmCount = document.getElementById('tagStatusConfirmCount');
+            const tagStatusConfirmStatus = document.getElementById('tagStatusConfirmStatus');
+            const confirmTagStatusBtn = document.getElementById('confirmTagStatusBtn');
+            let pendingTagIds = [];
+            let pendingTagStatus = '';
+
+            if (tagSelectedBtn && tagStatusConfirmModalEl && confirmTagStatusBtn) {
+                const tagConfirmModal = bootstrap.Modal.getOrCreateInstance(tagStatusConfirmModalEl);
+                const tagCsrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute(
+                    'content') || '';
+                const tagUrl = '{{ route('transaction-events.records.status-selected') }}';
+                const tagIdsUrl = '{{ route('transaction-events.undo-transfer-selected.ids') }}';
+
+                const resolveTagIds = async (onResolving) => {
+                    if (!allPagesSelected) {
+                        // Bulk tag includes duplicates (unlike bulk undo).
+                        return selectedEventCheckboxes()
+                            .filter((b) => b.checked)
+                            .map((b) => parseInt(b.value, 10))
+                            .filter((id) => id > 0);
+                    }
+                    if (onResolving) {
+                        onResolving();
+                    }
+                    const params = new URLSearchParams(window.location.search);
+                    const payload = {
+                        select_all: 1,
+                        exclude_duplicates: 0
+                    };
+                    ['search', 'contact', 'age_from', 'age_to', 'date_from', 'date_to',
+                        'event_date_from', 'event_date_to', 'status'
+                    ].forEach((name) => {
+                        const value = params.get(name);
+                        if (value !== null && value !== '') {
+                            payload[name] = value;
+                        }
+                    });
+                    ['address', 'client_category', 'transaction_category', 'transaction_type'].forEach((name) => {
+                        const values = Array.from(params.entries())
+                            .filter(([key]) => key === name || key.startsWith(name + '['))
+                            .map(([, value]) => value);
+                        const filtered = values.filter(v => v !== '');
+                        if (filtered.length > 0) {
+                            payload[name] = filtered;
+                        }
+                    });
+                    const res = await fetch(tagIdsUrl, {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRF-TOKEN': tagCsrfToken,
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(payload),
+                    });
+                    const idsText = await res.text();
+                    let idsData;
+                    try {
+                        idsData = JSON.parse(idsText);
+                    } catch (e) {
+                        throw new Error(
+                            `Invalid response from the server (HTTP ${res.status}). Please try again.`
+                        );
+                    }
+                    if (!res.ok || !idsData.success) {
+                        throw new Error(idsData.message || 'Could not resolve matching records.');
+                    }
+                    return (idsData.ids || []).map((id) => parseInt(id, 10)).filter((id) => id > 0);
+                };
+
+                document.querySelectorAll('.tag-selected-option').forEach(function(optionBtn) {
+                    optionBtn.addEventListener('click', async function() {
+                        const status = optionBtn.dataset.status || '';
+                        if (!status) {
+                            return;
+                        }
+                        const originalHtml = tagSelectedBtn.innerHTML;
+                        tagSelectedBtn.disabled = true;
+                        try {
+                            const ids = await resolveTagIds(function() {
+                                tagSelectedBtn.innerHTML =
+                                    `<i class="ri-loader-3-line ri-spin me-1"></i> Resolving...`;
+                            });
+                            if (ids.length < 5 && !allPagesSelected) {
+                                new Message('imessage').show(
+                                    'Select at least 5 records (or Select All) to bulk tag.',
+                                    'fail', 'top-center');
+                                return;
+                            }
+                            if (ids.length === 0) {
+                                new Message('imessage').show('No records selected to tag.',
+                                    'fail', 'top-center');
+                                return;
+                            }
+                            pendingTagIds = ids;
+                            pendingTagStatus = status;
+                            if (tagStatusConfirmCount) {
+                                tagStatusConfirmCount.textContent = ids.length;
+                            }
+                            if (tagStatusConfirmStatus) {
+                                tagStatusConfirmStatus.textContent = status;
+                            }
+                            tagConfirmModal.show();
+                        } catch (error) {
+                            new Message('imessage').show(error.message || 'Bulk tag failed.',
+                                'fail', 'top-center');
+                        } finally {
+                            tagSelectedBtn.innerHTML = originalHtml;
+                            syncUndoSelection();
+                        }
+                    });
+                });
+
+                confirmTagStatusBtn.addEventListener('click', async function() {
+                    if (pendingTagIds.length === 0 || !pendingTagStatus) {
+                        return;
+                    }
+                    const ids = pendingTagIds;
+                    const status = pendingTagStatus;
+                    pendingTagIds = [];
+                    pendingTagStatus = '';
+                    confirmTagStatusBtn.disabled = true;
+                    tagConfirmModal.hide();
+                    tagSelectedBtn.disabled = true;
+
+                    const CHUNK = 50;
+                    let updated = 0;
+                    let skipped = 0;
+
+                    try {
+                        for (let offset = 0; offset < ids.length; offset += CHUNK) {
+                            const slice = ids.slice(offset, offset + CHUNK);
+                            tagSelectedBtn.innerHTML =
+                                `<i class="ri-loader-3-line ri-spin me-1"></i> Tagging ${Math.min(offset + CHUNK, ids.length)} of ${ids.length}...`;
+                            const res = await fetch(tagUrl, {
+                                method: 'POST',
+                                headers: {
+                                    'X-CSRF-TOKEN': tagCsrfToken,
+                                    'Accept': 'application/json',
+                                    'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify({
+                                    event_ids: slice,
+                                    status: status
+                                }),
+                            });
+                            const text = await res.text();
+                            let data;
+                            try {
+                                data = JSON.parse(text);
+                            } catch (e) {
+                                throw new Error(
+                                    `Invalid response from the server (HTTP ${res.status}). Please try again.`
+                                );
+                            }
+                            if (!res.ok || !data.success) {
+                                throw new Error(data.message || 'Bulk tag failed.');
+                            }
+                            updated += data.updated || 0;
+                            skipped += data.skipped || 0;
+                        }
+                        new Message('imessage').show(
+                            `Tagged ${updated} record(s) as ${status}${skipped > 0 ? `, skipped ${skipped}` : ''}. Reloading...`,
+                            'success', 'top-center');
+                        setTimeout(function() {
+                            window.location.reload();
+                        }, 1200);
+                    } catch (error) {
+                        confirmTagStatusBtn.disabled = false;
+                        syncUndoSelection();
+                        new Message('imessage').show(error.message || 'Bulk tag failed.', 'fail',
+                            'top-center');
+                    }
+                });
+
+                tagStatusConfirmModalEl.addEventListener('hidden.bs.modal', function() {
+                    confirmTagStatusBtn.disabled = false;
+                    pendingTagIds = [];
+                    pendingTagStatus = '';
                 });
             }
 

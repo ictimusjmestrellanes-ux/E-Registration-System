@@ -160,6 +160,7 @@ Route::group(['namespace' => 'App\Http\Controllers'], function () {
         Route::post('transaction-events/transfer-selected/finish', [TransactionEventsController::class, 'finishTransferSelected'])->name('transaction-events.transfer-selected.finish');
         Route::post('transaction-events/undo-transfer-selected', [TransactionEventsController::class, 'undoTransferSelected'])->name('transaction-events.undo-transfer-selected');
         Route::post('transaction-events/undo-transfer-selected/ids', [TransactionEventsController::class, 'undoTransferSelectedIds'])->name('transaction-events.undo-transfer-selected.ids');
+        Route::post('transaction-events/records/status-selected', [TransactionEventsController::class, 'updateRecordStatusSelected'])->name('transaction-events.records.status-selected');
 
         // {event} wildcard routes (declared last so they don't eat static segments)
         Route::put('transaction-events/{event}/record', [TransactionEventsController::class, 'updateRecord'])->name('transaction-events.records.update');

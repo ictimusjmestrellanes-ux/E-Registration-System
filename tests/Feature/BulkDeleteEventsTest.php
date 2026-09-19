@@ -96,6 +96,25 @@ class BulkDeleteEventsTest extends TestCase
         $this->assertDatabaseHas('transaction_events', ['id' => $transferred->id]);
     }
 
+    public function test_select_all_in_duplicate_names_filter_deletes_duplicate_rows(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+
+        $first = $this->seedPending('Juan Dela Cruz');
+        $second = $this->seedPending('Juan Dela Cruz');
+        $unique = $this->seedPending('Maria Santos');
+
+        $this->delete(route('transaction-events.delete-selected'), [
+            'select_all' => 1,
+            'duplicate_names' => 1,
+        ])->assertRedirect(route('transaction-events.index'))
+            ->assertSessionHas('success');
+
+        $this->assertDatabaseMissing('transaction_events', ['id' => $first->id]);
+        $this->assertDatabaseMissing('transaction_events', ['id' => $second->id]);
+        $this->assertDatabaseHas('transaction_events', ['id' => $unique->id]);
+    }
+
     public function test_delete_selected_with_empty_selection_reports_error(): void
     {
         $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
