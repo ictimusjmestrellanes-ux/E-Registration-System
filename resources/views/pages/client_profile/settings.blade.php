@@ -162,8 +162,8 @@
                                         <!--end col-->
                                         <div class="col-lg-12">
                                             <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                                                <button type="submit" class="btn btn-primary">Update</button>
-                                                <button type="reset" class="btn btn-soft-success" style="min-width: 170px;">Cancel</button>
+                                                <button type="submit" class="btn btn-sm btn-primary">Update</button>
+                                                <button type="reset" class="btn btn-sm btn-soft-secondary" >Cancel</button>
                                             </div>
                                         </div>
                                         <!--end col-->

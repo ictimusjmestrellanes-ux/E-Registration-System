@@ -8,19 +8,21 @@
         <span data-category-label>All categories</span>
     </button>
     <div class="dropdown-menu w-100 p-2" aria-labelledby="{{ $filterId }}" style="max-height: 280px; overflow-y: auto;">
+        <input type="search" class="form-control form-control-sm mb-2" placeholder="Search categories..." autocomplete="off" data-dropdown-search>
         <div class="form-check mb-2">
             <input class="form-check-input" type="checkbox" id="{{ $filterId }}All" data-category-all>
             <label class="form-check-label fw-semibold" for="{{ $filterId }}All">All categories</label>
         </div>
         <hr class="my-2">
         @foreach ($filterCategories as $category)
-            <div class="form-check">
+            <div class="form-check" data-option-row data-option-label="{{ strtolower($category) }}">
                 <input class="form-check-input" type="checkbox" name="transaction_category[]"
                     id="{{ $filterId }}Option{{ $loop->index }}" value="{{ $category }}"
                     @checked($selectedCategories->contains($category)) data-category-option>
                 <label class="form-check-label" for="{{ $filterId }}Option{{ $loop->index }}">{{ $category }}</label>
             </div>
         @endforeach
+        <div class="text-muted small px-1 py-2 d-none" data-dropdown-empty>No matches found.</div>
     </div>
 </div>
 @push('scripts')

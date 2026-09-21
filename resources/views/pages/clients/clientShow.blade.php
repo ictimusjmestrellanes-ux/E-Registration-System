@@ -297,8 +297,14 @@
                                     <tbody class="text-center">
                                         @forelse ($transactions as $transaction)
                                             @php
-                                                $txStatus = $transaction->status ?? 'Completed';
-                                                $txIsDisabled = in_array(strtolower(trim($txStatus)), ['approved', 'claimed'], true);
+                                                $txStatus = $transaction->status ?? 'Pending';
+                                                $txIsDisabled = strtolower(trim($txStatus)) === 'claimed';
+                                                $txStatusColor = match (strtolower(trim($txStatus))) {
+                                                    'pending' => 'warning',
+                                                    'claimed' => 'success',
+                                                    'unclaimed' => 'danger',
+                                                    default => 'secondary',
+                                                };
                                                 $transactionEditUrl = route('transactions.edit', $transaction->id);
                                             @endphp
                                             <tr class="transaction-row {{ $txIsDisabled ? 'transaction-row-disabled' : '' }}" data-transaction-url="{{ auth()->user()?->role_name === 'Viewer' ? '' : ($txIsDisabled ? '' : $transactionEditUrl) }}">
@@ -320,11 +326,7 @@
                                                 <td data-column="transaction_type" class="text-uppercase">{{ $transaction->type_label ?? 'N/A' }}</td>
                                                 {{-- <td data-column="events_transaction_type" class="text-uppercase">{{ $transaction->events_transaction_type ?: 'N/A' }}</td> --}}
                                                 <td data-column="status">
-                                                    @if (strtolower($txStatus) === 'pending')
-                                                        <span class="badge bg-warning-subtle text-warning">{{ $txStatus }}</span>
-                                                    @else
-                                                        <span class="badge bg-success-subtle text-success">{{ $txStatus }}</span>
-                                                    @endif
+                                                    <span class="badge bg-{{ $txStatusColor }}-subtle text-{{ $txStatusColor }}">{{ $txStatus }}</span>
                                                 </td>
                                                 <td data-column="actions_taken">{{ $transaction->actions_taken ?? 'N/A' }}</td>
                                                 <td data-column="remarks">{{ $transaction->remarks ?? 'N/A' }}</td>

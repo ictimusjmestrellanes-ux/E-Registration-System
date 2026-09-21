@@ -43,6 +43,13 @@ class EventRecordStatusTest extends TestCase
                 'id' => $event->transferred_transaction_id, 'status' => $status,
                 'type' => 'TRANCH 1', 'events_transaction_type' => 'TRANCH 1',
             ]);
+            $transactionsPage = $this->get(route('transactions.index'))->assertOk();
+            $this->assertSame($status, $transactionsPage->viewData('transactions')->first()->status);
+            $this->assertSame(
+                1,
+                $this->get(route('transactions.index', ['status' => $status]))
+                    ->assertOk()->viewData('transactions')->total()
+            );
         }
     }
 
@@ -56,6 +63,20 @@ class EventRecordStatusTest extends TestCase
         $this->patchJson(route('transaction-events.records.status', $event), ['status' => 'Claimed'])->assertNotFound();
         $this->assertSame('Pending', $event->fresh()->status);
         $this->assertSame('Pending', $event->transferredTransaction->status);
+    }
+
+    public function test_tag_selected_updates_the_all_transactions_status(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+        $event = $this->record();
+
+        $this->postJson(route('transaction-events.records.status-selected'), [
+            'event_ids' => [$event->id],
+            'status' => 'Unclaimed',
+        ])->assertOk()->assertJsonPath('updated', 1);
+
+        $transactionsPage = $this->get(route('transactions.index'))->assertOk();
+        $this->assertSame('Unclaimed', $transactionsPage->viewData('transactions')->first()->status);
     }
 
     public function test_duplicate_tabs_can_tag_one_record_and_keep_the_current_page_and_filters(): void

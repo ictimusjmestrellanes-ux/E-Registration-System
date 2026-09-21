@@ -45,11 +45,11 @@ class TransactionEventsController extends Controller
             $query->whereIn('full_name', $duplicateFullNames);
         }
 
-        if ($request->boolean('duplicate_names')) {
-            $query->orderBy('full_name')->orderBy('id', 'desc');
-        } else {
-            $query->orderByDesc('id');
-        }
+        $sort = $this->normalizeEventSort(
+            $request->input('sort'),
+            $request->boolean('duplicate_names')
+        );
+        $this->applyEventSort($query, $sort);
 
         $perPage = (int) $request->input('per_page', 15);
         if (! in_array($perPage, [15, 25, 50, 100], true)) {
@@ -83,7 +83,85 @@ class TransactionEventsController extends Controller
             ->count();
 
         return view('pages.transaction_events.transactionEvents',
-            compact('events', 'totalDuplicateGroups', 'duplicateFullNames', 'clientCategories', 'transactionCategories', 'transactionTypes', 'addresses', 'addressTypes'));
+            compact('events', 'totalDuplicateGroups', 'duplicateFullNames', 'clientCategories', 'transactionCategories', 'transactionTypes', 'addresses', 'addressTypes', 'sort'));
+    }
+
+    /**
+     * Whitelisted sort keys for the Import Events list (single `sort` param,
+     * same pattern as the All Transactions module).
+     */
+    private function validEventSorts(): array
+    {
+        return [
+            'newest', 'oldest',
+            'client_asc', 'client_desc',
+            'age_asc', 'age_desc',
+            'birth_asc', 'birth_desc',
+            'contact_asc', 'contact_desc',
+            'address_asc', 'address_desc',
+            'clientcat_asc', 'clientcat_desc',
+            'category_asc', 'category_desc',
+            'type_asc', 'type_desc',
+            'eventdate_asc', 'eventdate_desc',
+            'imported_asc', 'imported_desc',
+            'status_asc', 'status_desc',
+        ];
+    }
+
+    private function normalizeEventSort(?string $sort, bool $isDuplicateNames = false): string
+    {
+        if (in_array($sort, $this->validEventSorts(), true)) {
+            return $sort;
+        }
+
+        return $isDuplicateNames ? 'client_asc' : 'newest';
+    }
+
+    /**
+     * Apply server-side ordering for the Import Events list. Text columns
+     * sort case-insensitively, matching the All Transactions module.
+     */
+    private function applyEventSort($query, string $sort): void
+    {
+        if ($sort === 'newest') {
+            $query->orderByDesc('id');
+
+            return;
+        }
+
+        if ($sort === 'oldest') {
+            $query->orderBy('id');
+
+            return;
+        }
+
+        $direction = str_ends_with($sort, '_desc') ? 'desc' : 'asc';
+        $column = match (true) {
+            str_starts_with($sort, 'client_') => 'full_name',
+            str_starts_with($sort, 'age_') => 'age',
+            str_starts_with($sort, 'birth_') => 'birth_date',
+            str_starts_with($sort, 'contact_') => 'contact_no',
+            str_starts_with($sort, 'address_') => 'address',
+            str_starts_with($sort, 'clientcat_') => 'client_category',
+            str_starts_with($sort, 'category_') => 'transaction_category',
+            str_starts_with($sort, 'type_') => 'transaction_type',
+            str_starts_with($sort, 'eventdate_') => 'event_date',
+            str_starts_with($sort, 'imported_') => 'created_at',
+            str_starts_with($sort, 'status_') => 'status',
+            default => 'id',
+        };
+
+        $textColumns = ['full_name', 'contact_no', 'address', 'client_category', 'transaction_category', 'transaction_type', 'status'];
+
+        if ($column === 'full_name') {
+            $query->orderByRaw('LOWER(TRIM(full_name)) '.$direction);
+        } elseif (in_array($column, $textColumns, true)) {
+            $query->orderByRaw("LOWER({$column}) {$direction}");
+        } else {
+            $query->orderBy($column, $direction);
+        }
+
+        $query->orderBy('id', $direction === 'asc' ? 'asc' : 'desc');
     }
 
     private function addressTypeOptions($query): Collection
@@ -568,8 +646,15 @@ class TransactionEventsController extends Controller
                 ->with('error', $exception->getMessage());
         }
 
+        app(\App\Services\ActivityLogger::class)->record(
+            'event_status_tagged',
+            "Tagged event #{$event->id} ({$event->full_name}) as {$validated['status']}.",
+            ['event_id' => $event->id, 'full_name' => $event->full_name, 'status' => $validated['status']],
+            $event
+        );
+
         return redirect()->route($returnRoute, $request->query())
-            ->with('success', 'Event status updated to '.$validated['status'].'.');
+            ->with('success', 'Event and All Transactions status updated to '.$validated['status'].'.');
     }
 
     public function updateRecordStatusSelected(Request $request)
@@ -615,6 +700,15 @@ class TransactionEventsController extends Controller
             }
         }
 
+        if ($updated > 0) {
+            app(\App\Services\ActivityLogger::class)->record(
+                'events_status_tagged',
+                "Tagged {$updated} event record(s) as {$validated['status']}. Skipped {$skipped}.",
+                ['updated' => $updated, 'skipped' => $skipped, 'status' => $validated['status'], 'event_ids' => $ids],
+                ['type' => 'TransactionEvent']
+            );
+        }
+
         return response()->json([
             'success' => true,
             'updated' => $updated,
@@ -633,38 +727,16 @@ class TransactionEventsController extends Controller
 
         $this->applyRecordFilters($query, $request);
 
-        // Allow sortable columns via query params: sort_by, sort_dir
-        $allowedSorts = [
-            'id' => 'id',
-            'transaction_id' => 'transferred_transaction_id',
-            'full_name' => 'full_name',
-            'age' => 'age',
-            'birth_date' => 'birth_date',
-            'contact' => 'contact_no',
-            'address' => 'address',
-            'client_category' => 'client_category',
-            'transaction_category' => 'transaction_category',
-            'transaction_type' => 'transaction_type',
-            'event_date' => 'event_date',
-            'transferred_at' => 'transferred_at',
-        ];
-
-        $sortBy = $request->input('sort_by', 'full_name');
-        $sortDir = strtolower($request->input('sort_dir', 'asc')) === 'asc' ? 'asc' : 'desc';
-        $sortColumn = $allowedSorts[$sortBy] ?? null;
+        // Single `sort` param (same pattern as All Transactions). Legacy
+        // `sort_by`/`sort_dir` links keep working by mapping to the new keys.
+        $sort = $this->normalizeRecordSort($request->input('sort', $this->legacyRecordSort($request)));
 
         $perPage = (int) $request->input('per_page', 10);
         if (!in_array($perPage, [10, 15, 25, 50, 100], true)) {
             $perPage = 10;
         }
 
-        if ($sortColumn === 'full_name') {
-            $query = $query->orderByRaw('LOWER(TRIM(full_name)) '.$sortDir)->orderBy('id');
-        } elseif ($sortColumn) {
-            $query = $query->orderBy($sortColumn, $sortDir);
-        } else {
-            $query = $query->orderByRaw('LOWER(TRIM(full_name))')->orderBy('id');
-        }
+        $this->applyRecordSort($query, $sort);
 
         $events = $query->with('transferredTransaction:id,transaction_id')
             ->paginate($perPage)
@@ -707,7 +779,119 @@ class TransactionEventsController extends Controller
             ->values()
             ->all();
 
-        return view('pages.transaction_events.eventRecords', compact('events', 'categories', 'types', 'clientCategories', 'addresses', 'addressTypes', 'typeClientCategories', 'duplicateRecordIds'));
+        return view('pages.transaction_events.eventRecords', compact('events', 'categories', 'types', 'clientCategories', 'addresses', 'addressTypes', 'typeClientCategories', 'duplicateRecordIds', 'sort'));
+    }
+
+    /**
+     * Whitelisted sort keys for the Event Records list (single `sort` param,
+     * same pattern as the All Transactions module).
+     */
+    private function validRecordSorts(): array
+    {
+        return [
+            'newest', 'oldest',
+            'client_asc', 'client_desc',
+            'txid_asc', 'txid_desc',
+            'age_asc', 'age_desc',
+            'birth_asc', 'birth_desc',
+            'contact_asc', 'contact_desc',
+            'address_asc', 'address_desc',
+            'clientcat_asc', 'clientcat_desc',
+            'category_asc', 'category_desc',
+            'type_asc', 'type_desc',
+            'eventdate_asc', 'eventdate_desc',
+            'transferred_asc', 'transferred_desc',
+            'status_asc', 'status_desc',
+        ];
+    }
+
+    private function normalizeRecordSort(?string $sort): string
+    {
+        return in_array($sort, $this->validRecordSorts(), true) ? $sort : 'client_asc';
+    }
+
+    /**
+     * Map legacy `sort_by`/`sort_dir` params to the new single `sort` keys
+     * so old bookmarks and links keep working.
+     */
+    private function legacyRecordSort(Request $request): string
+    {
+        if (! $request->has('sort_by') && ! $request->has('sort_dir')) {
+            return 'client_asc';
+        }
+
+        $map = [
+            'full_name' => 'client',
+            'transaction_id' => 'txid',
+            'age' => 'age',
+            'birth_date' => 'birth',
+            'contact' => 'contact',
+            'address' => 'address',
+            'client_category' => 'clientcat',
+            'transaction_category' => 'category',
+            'transaction_type' => 'type',
+            'event_date' => 'eventdate',
+            'transferred_at' => 'transferred',
+            'status' => 'status',
+            'id' => 'newest',
+        ];
+
+        $key = $map[$request->input('sort_by', 'full_name')] ?? 'client';
+        $dir = strtolower((string) $request->input('sort_dir', 'asc')) === 'desc' ? 'desc' : 'asc';
+
+        if ($key === 'newest') {
+            return $dir === 'asc' ? 'oldest' : 'newest';
+        }
+
+        return $key.'_'.$dir;
+    }
+
+    /**
+     * Apply server-side ordering for the Event Records list. Text columns
+     * sort case-insensitively, matching the All Transactions module.
+     */
+    private function applyRecordSort($query, string $sort): void
+    {
+        if ($sort === 'newest') {
+            $query->orderByDesc('id');
+
+            return;
+        }
+
+        if ($sort === 'oldest') {
+            $query->orderBy('id');
+
+            return;
+        }
+
+        $direction = str_ends_with($sort, '_desc') ? 'desc' : 'asc';
+        $column = match (true) {
+            str_starts_with($sort, 'client_') => 'full_name',
+            str_starts_with($sort, 'txid_') => 'transferred_transaction_id',
+            str_starts_with($sort, 'age_') => 'age',
+            str_starts_with($sort, 'birth_') => 'birth_date',
+            str_starts_with($sort, 'contact_') => 'contact_no',
+            str_starts_with($sort, 'address_') => 'address',
+            str_starts_with($sort, 'clientcat_') => 'client_category',
+            str_starts_with($sort, 'category_') => 'transaction_category',
+            str_starts_with($sort, 'type_') => 'transaction_type',
+            str_starts_with($sort, 'eventdate_') => 'event_date',
+            str_starts_with($sort, 'transferred_') => 'transferred_at',
+            str_starts_with($sort, 'status_') => 'status',
+            default => 'full_name',
+        };
+
+        $textColumns = ['contact_no', 'address', 'client_category', 'transaction_category', 'transaction_type', 'status'];
+
+        if ($column === 'full_name') {
+            $query->orderByRaw('LOWER(TRIM(full_name)) '.$direction);
+        } elseif (in_array($column, $textColumns, true)) {
+            $query->orderByRaw("LOWER({$column}) {$direction}");
+        } else {
+            $query->orderBy($column, $direction);
+        }
+
+        $query->orderBy('id', 'asc');
     }
 
     /**
@@ -1346,6 +1530,35 @@ class TransactionEventsController extends Controller
         $page = (int) $request->input('page', 1);
 
         $base = TransactionEvent::whereNull('transferred_at')->where('not_duplicate', false);
+
+        if ($search = trim((string) $request->input('search', ''))) {
+            $base->where(function ($q) use ($search) {
+                $q->where('full_name', 'like', "%{$search}%")
+                    ->orWhere('client_category', 'like', "%{$search}%")
+                    ->orWhere('transaction_category', 'like', "%{$search}%")
+                    ->orWhere('transaction_type', 'like', "%{$search}%");
+            });
+        }
+
+        if ($vals = $this->multiFilterValues($request, 'client_category')) {
+            $base->whereIn('client_category', $vals);
+        }
+
+        if ($vals = $this->multiFilterValues($request, 'transaction_category')) {
+            $base->whereIn('transaction_category', $vals);
+        }
+
+        if ($vals = $this->multiFilterValues($request, 'transaction_type')) {
+            $base->whereIn('transaction_type', $vals);
+        }
+
+        if ($from = $request->input('date_from')) {
+            $base->whereDate('event_date', '>=', $from);
+        }
+
+        if ($to = $request->input('date_to')) {
+            $base->whereDate('event_date', '<=', $to);
+        }
 
         $groupsQuery = (clone $base)
             ->selectRaw('LOWER(TRIM(full_name)) as fullname, event_date, client_category, transaction_category, transaction_type, COUNT(*) as total')
@@ -2277,6 +2490,10 @@ class TransactionEventsController extends Controller
                 ? $this->importUpdateSummary($payload, $skipped)
                 : 'Successfully imported ' . $imported . ' event(s).' . ($skipped > 0 ? ' Skipped ' . $skipped . ' invalid row(s).' : ''));
 
+            $importMessage = ($payload['update_existing'] ?? false)
+                ? $this->importUpdateSummary($payload, $skipped)
+                : 'Successfully imported ' . $imported . ' event(s).' . ($skipped > 0 ? ' Skipped ' . $skipped . ' invalid row(s).' : '');
+
             $this->logImportSummary(
                 (string) ($payload['original_filename'] ?? 'transaction-events.csv'),
                 $payload,
@@ -2295,6 +2512,8 @@ class TransactionEventsController extends Controller
                 'unchanged' => (int) ($payload['unchanged'] ?? 0),
                 'skipped' => $skipped,
                 'errors' => array_slice($errors, 0, 10), // Return first 10 errors
+                'message' => $importMessage,
+                'type' => 'success',
             ], 200, [], JSON_INVALID_UTF8_SUBSTITUTE);
         } catch (\Throwable $e) {
             Log::error('Import finalization failed', [
@@ -2971,6 +3190,13 @@ class TransactionEventsController extends Controller
             'transferred_transaction_id' => $history->id,
         ]);
 
+        app(\App\Services\ActivityLogger::class)->record(
+            'event_transferred',
+            "Transferred event #{$event->id} ({$event->full_name}) to transaction {$history->transaction_id}.",
+            ['event_id' => $event->id, 'full_name' => $event->full_name, 'transaction_id' => $history->transaction_id],
+            $event
+        );
+
         return redirect()->route('transaction-events.records')->with('success', 'Event transferred successfully.');
     }
 
@@ -3085,8 +3311,19 @@ class TransactionEventsController extends Controller
                 'success' => true,
                 'created_client' => true,
                 'transaction_id' => $history->transaction_id,
+                'event_id' => $event->id,
+                'full_name' => $event->full_name,
             ];
         });
+
+        if ($result['success']) {
+            app(\App\Services\ActivityLogger::class)->record(
+                'event_force_created',
+                "Force Create Client: created a new client and transaction {$result['transaction_id']} for event #{$result['event_id']} ({$result['full_name']}).",
+                ['event_id' => $result['event_id'], 'full_name' => $result['full_name'], 'transaction_id' => $result['transaction_id']],
+                ['type' => 'TransactionEvent', 'id' => $result['event_id']]
+            );
+        }
 
         return response()->json($result, $result['success'] ? 200 : 422);
     }
@@ -3107,6 +3344,19 @@ class TransactionEventsController extends Controller
         foreach ($this->resolveBulkTransferEvents($request) as $event) {
             $result = $this->transferSinglePendingEvent($event);
             $result['success'] ? $transferred++ : $skipped++;
+        }
+
+        if ($transferred > 0) {
+            app(\App\Services\ActivityLogger::class)->record(
+                'events_transfer_selected',
+                "Transfer Selected: created {$transferred} new transaction(s). Skipped {$skipped} event(s).",
+                [
+                    'transferred' => $transferred,
+                    'skipped' => $skipped,
+                    'select_all' => $request->boolean('select_all'),
+                ],
+                ['type' => 'TransactionEvent']
+            );
         }
 
         return redirect()->back()->with($transferred > 0 ? 'success' : 'error',
@@ -3199,6 +3449,15 @@ class TransactionEventsController extends Controller
                 'transferred_transaction_id' => null,
             ]);
             $undone++;
+        }
+
+        if ($undone > 0) {
+            app(\App\Services\ActivityLogger::class)->record(
+                'events_transfer_undone',
+                "Undo Transfer Selected: undid transfer for {$undone} event(s). Skipped {$skipped} event(s).",
+                ['undone' => $undone, 'skipped' => $skipped],
+                ['type' => 'TransactionEvent']
+            );
         }
 
         return response()->json([
@@ -3325,7 +3584,7 @@ class TransactionEventsController extends Controller
 
         if ($event->transferred_at !== null) {
             return redirect()->route('transaction-events.index')
-                ->with('error', 'Event #' . $event->id . ' is already approved/transferred and cannot be deleted.');
+                ->with('error', 'Event #' . $event->id . ' is already transferred and cannot be deleted.');
         }
 
         $fullName = $event->full_name;
@@ -3666,6 +3925,24 @@ class TransactionEventsController extends Controller
         }
 
         $request->session()->flash($successCount > 0 ? 'success' : 'error', $message);
+
+        if ($successCount > 0) {
+            $forceNewClients = (bool) ($session['forceNewClients'] ?? false);
+            app(\App\Services\ActivityLogger::class)->record(
+                $forceNewClients ? 'events_force_created_all' : 'events_transfer_selected',
+                ($forceNewClients ? 'Force Create All' : 'Transfer Selected')
+                    .": transferred {$successCount} event(s)."
+                    .($createdClients > 0 ? " Auto-created {$createdClients} new client(s)." : '')
+                    .($skippedCount > 0 ? " Skipped {$skippedCount} event(s)." : ''),
+                [
+                    'transferred' => $successCount,
+                    'created_clients' => $createdClients,
+                    'skipped' => $skippedCount,
+                    'force_new_clients' => $forceNewClients,
+                ],
+                ['type' => 'TransactionEvent']
+            );
+        }
 
         return response()->json([
             'success' => true,

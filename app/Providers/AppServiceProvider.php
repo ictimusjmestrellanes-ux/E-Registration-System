@@ -2,9 +2,11 @@
 
 namespace App\Providers;
 
+use App\Models\ActivityLog;
 use App\Services\FingerprintBridgeService;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use SocialiteProviders\Manager\SocialiteWasCalled;
 use Illuminate\Support\Facades\URL;
@@ -36,6 +38,46 @@ class AppServiceProvider extends ServiceProvider
 
         Event::listen(function (SocialiteWasCalled $event): void {
             $event->extendSocialite('azure', \SocialiteProviders\Azure\Provider::class);
+        });
+
+        // Navbar notification feed: latest import / transfer / tag / delete /
+        // undo updates. Admins see every user's updates; other roles see only
+        // their own (same scoping as the Activity Logs page).
+        View::composer('layouts.master', function ($view): void {
+            if (!auth()->check()) {
+                return;
+            }
+
+            try {
+                $isPrivileged = in_array(auth()->user()->role_name, ['Admin', 'Super Admin'], true);
+                $baseQuery = ActivityLog::query()->whereIn('action', ActivityLog::NOTIFICATION_ACTIONS);
+                if (! $isPrivileged) {
+                    $baseQuery->where('user_id', auth()->id());
+                }
+
+                $notifications = (clone $baseQuery)->with('user')
+                    ->latest()
+                    ->orderByDesc('id')
+                    ->take(8)
+                    ->get();
+
+                // Anything logged after the user's read marker (higher id)
+                // counts as unread.
+                $readId = auth()->user()->notifications_read_id;
+                $unreadCount = (clone $baseQuery)
+                    ->when($readId, fn ($query) => $query->where('id', '>', $readId))
+                    ->count();
+
+                $view->with('navbarNotifications', $notifications)
+                    ->with('navbarNotificationCount', $notifications->count())
+                    ->with('navbarUnreadCount', $unreadCount);
+            } catch (\Throwable) {
+                // The navbar must never break page rendering (e.g. pending
+                // migrations on a fresh checkout).
+                $view->with('navbarNotifications', collect())
+                    ->with('navbarNotificationCount', 0)
+                    ->with('navbarUnreadCount', 0);
+            }
         });
 
         if ($this->app->runningInConsole()) {

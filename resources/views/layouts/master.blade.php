@@ -140,7 +140,9 @@
                         <div class="dropdown topbar-head-dropdown ms-1 header-item" id="notificationDropdown">
                             <button type="button" class="btn btn-icon btn-topbar material-shadow-none btn-ghost-secondary rounded-circle" id="page-header-notifications-dropdown" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-haspopup="true" aria-expanded="false">
                                 <i class="bx bx-bell fs-22"></i>
-                                <span class="position-absolute topbar-badge fs-10 translate-middle badge rounded-pill bg-danger"><span class="visually-hidden">unread messages</span></span>
+                                @if (($navbarUnreadCount ?? 0) > 0)
+                                    <span class="position-absolute topbar-badge fs-10 translate-middle badge rounded-pill bg-danger">{{ $navbarUnreadCount > 99 ? '99+' : $navbarUnreadCount }}<span class="visually-hidden">unread messages</span></span>
+                                @endif
                             </button>
                             <div class="dropdown-menu dropdown-menu-lg dropdown-menu-end p-0" aria-labelledby="page-header-notifications-dropdown">
 
@@ -151,7 +153,7 @@
                                                 <h6 class="m-0 fs-16 fw-semibold text-white"> Notifications </h6>
                                             </div>
                                             <div class="col-auto dropdown-tabs">
-                                                <span class="badge bg-light text-body fs-13">New</span>
+                                                <span class="badge bg-light text-body fs-13">{{ ($navbarUnreadCount ?? 0) > 0 ? ($navbarUnreadCount > 99 ? '99+' : $navbarUnreadCount) . ' New' : 'New' }}</span>
                                             </div>
                                         </div>
                                     </div>
@@ -163,12 +165,6 @@
                                                     All
                                                 </a>
                                             </li>
-                                           
-                                            <li class="nav-item waves-effect waves-light">
-                                                <a class="nav-link" data-bs-toggle="tab" href="#alerts-tab" role="tab" aria-selected="false">
-                                                    Alerts
-                                                </a>
-                                            </li>
                                         </ul>
                                     </div>
 
@@ -177,10 +173,74 @@
                                 <div class="tab-content position-relative" id="notificationItemsTabContent">
                                     <div class="tab-pane fade show active py-2 ps-2" id="all-noti-tab" role="tabpanel">
                                         <div data-simplebar="" style="max-height: 300px;" class="pe-2">
-                                            <div class="my-3 text-center view-all">
-                                                <button type="button" class="btn btn-soft-success waves-effect waves-light">View
+                                            @php
+                                                $notifMeta = function ($action) {
+                                                    $action = strtolower((string) $action);
+                                                    return match (true) {
+                                                        $action === 'events_imported' => ['ri-upload-2-line', 'bg-success-subtle text-success'],
+                                                        in_array($action, ['event_transferred', 'events_transfer_selected'], true) => ['ri-exchange-line', 'bg-success-subtle text-success'],
+                                                        in_array($action, ['event_force_created', 'events_force_created_all'], true) => ['ri-user-add-line', 'bg-info-subtle text-info'],
+                                                        in_array($action, ['event_status_tagged', 'events_status_tagged'], true) => ['ri-price-tag-3-line', 'bg-info-subtle text-info'],
+                                                        in_array($action, ['event_deleted', 'events_bulk_deleted'], true) => ['ri-delete-bin-line', 'bg-danger-subtle text-danger'],
+                                                        in_array($action, ['event_transfer_undone', 'events_transfer_undone'], true) => ['ri-arrow-go-back-line', 'bg-warning-subtle text-warning'],
+                                                        default => ['ri-notification-2-line', 'bg-primary-subtle text-primary'],
+                                                    };
+                                                };
+                                                $notifLabel = function ($action) {
+                                                    return match (strtolower((string) $action)) {
+                                                        'events_imported' => 'Import done',
+                                                        'event_transferred' => 'Transfer',
+                                                        'events_transfer_selected' => 'Transfer selected',
+                                                        'event_force_created' => 'Force create client',
+                                                        'events_force_created_all' => 'Force create all',
+                                                        'event_status_tagged', 'events_status_tagged' => 'Tag update',
+                                                        'event_deleted' => 'Deleted',
+                                                        'events_bulk_deleted' => 'Deleted selected',
+                                                        'event_transfer_undone', 'events_transfer_undone' => 'Undo transfer',
+                                                        default => ucfirst(str_replace('_', ' ', (string) $action)),
+                                                    };
+                                                };
+                                            @endphp
+                                            @forelse (($navbarNotifications ?? collect()) as $notification)
+                                                @php
+                                                    [$notifIcon, $notifClass] = $notifMeta($notification->action);
+                                                @endphp
+                                                <div class="text-reset notification-item d-block dropdown-item position-relative">
+                                                    <div class="d-flex">
+                                                        <span class="avatar-xs flex-shrink-0 me-3">
+                                                            <span class="avatar-title rounded-circle fs-16 {{ $notifClass }}">
+                                                                <i class="{{ $notifIcon }}"></i>
+                                                            </span>
+                                                        </span>
+                                                        <div class="flex-grow-1">
+                                                            <span class="badge rounded-pill {{ $notifClass }} mb-1">{{ $notifLabel($notification->action) }}</span>
+                                                            <h6 class="mt-0 mb-1 fs-13 fw-semibold">{{ \Illuminate\Support\Str::limit($notification->description, 110) }}</h6>
+                                                            <p class="mb-1 fs-11 fw-medium text-uppercase text-muted">
+                                                                {{ $notification->user?->name ?? 'System' }}
+                                                                <span class="mx-1">┬╖</span>
+                                                                {{ optional($notification->created_at)->timezone('Asia/Manila')->diffForHumans() }}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            @empty
+                                                <div class="text-center py-4">
+                                                    <i class="ri-notification-off-line fs-24 text-muted"></i>
+                                                    <p class="text-muted mt-2 mb-0">No import, transfer, tag, delete, or undo updates yet.</p>
+                                                </div>
+                                            @endforelse
+                                            <div class="my-3 text-center view-all d-flex justify-content-center gap-2 flex-wrap px-2">
+                                                @if (($navbarUnreadCount ?? 0) > 0)
+                                                    <form method="POST" action="{{ route('notifications.read-all') }}" class="m-0">
+                                                        @csrf
+                                                        <button type="submit" class="btn btn-sm btn-soft-primary waves-effect waves-light">
+                                                            <i class="ri-check-double-line align-middle me-1"></i>Mark all as read
+                                                        </button>
+                                                    </form>
+                                                @endif
+                                                <a href="{{ route('activity.logs') }}" class="btn btn-sm btn-soft-success waves-effect waves-light">View
                                                     All Notifications <i class="ri-arrow-right-line align-middle"></i>
-                                                </button>
+                                                </a>
                                             </div>
                                         </div>
 
@@ -346,6 +406,7 @@
     </script>
     <!-- imessage -->
     <script src="{{ asset('assets/js/imessage.js') }}"></script>
+    <script src="{{ asset('assets/js/ers-notify.js') }}"></script>
 
     <script>
         document.addEventListener("DOMContentLoaded", function () {
@@ -361,6 +422,12 @@
                     new Message('imessage').show(messages[type], type === "error" ? "fail" : type, "top-center");
                 }
             });
+
+            // Pending toast queued before a redirect/reload (AJAX flows:
+            // import done, transfer selected, force create, bulk tag/undo).
+            if (window.ErsNotify) {
+                window.ErsNotify.flush("top-center", 5000);
+            }
         });
     </script>
 
@@ -395,6 +462,47 @@
             });
 
             setInterval(checkSession, 60000);
+        })();
+    </script>
+    <!-- Searchable multi-select dropdowns: any input[data-dropdown-search] filters
+         its parent .dropdown-menu option rows without closing the dropdown. -->
+    <script>
+        (function () {
+            function wireDropdownSearch(input) {
+                if (!input || input.dataset.wired === '1') return;
+                input.dataset.wired = '1';
+                ['click', 'keydown', 'keyup'].forEach(function (evt) {
+                    input.addEventListener(evt, function (e) { e.stopPropagation(); });
+                });
+                input.addEventListener('input', function () {
+                    var menu = input.closest('.dropdown-menu');
+                    if (!menu) return;
+                    var q = input.value.trim().toLowerCase();
+                    var rows = Array.from(menu.querySelectorAll('[data-option-row]'));
+                    // Fallback for legacy dropdowns without data-option-row markers.
+                    if (!rows.length) {
+                        rows = Array.from(menu.querySelectorAll('.form-check')).filter(function (row) {
+                            return !row.contains(input);
+                        });
+                    }
+                    var visible = 0;
+                    rows.forEach(function (row) {
+                        var hay = (row.dataset.optionLabel || row.textContent || '').toLowerCase();
+                        var show = !q || hay.indexOf(q) !== -1;
+                        row.style.display = show ? '' : 'none';
+                        if (show) visible++;
+                    });
+                    var empty = menu.querySelector('[data-dropdown-empty]');
+                    if (empty) empty.classList.toggle('d-none', visible !== 0);
+                });
+            }
+
+            function wireAll(scope) {
+                (scope || document).querySelectorAll('input[data-dropdown-search]').forEach(wireDropdownSearch);
+            }
+
+            document.addEventListener('DOMContentLoaded', function () { wireAll(document); });
+            window.wireDropdownSearch = wireAll;
         })();
     </script>
     @stack('scripts')

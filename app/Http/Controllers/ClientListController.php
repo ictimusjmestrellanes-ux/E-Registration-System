@@ -92,7 +92,10 @@ class ClientListController extends Controller
                     $q->whereRaw('0 = 1');
                 }
             })
-            ->orderBy('client_id', 'desc')
+            ->orderByRaw("LOWER(TRIM(COALESCE(last_name, ''))) ASC")
+            ->orderByRaw("LOWER(TRIM(COALESCE(first_name, ''))) ASC")
+            ->orderByRaw("LOWER(TRIM(COALESCE(middle_name, ''))) ASC")
+            ->orderBy('id', 'asc')
             ->when($matchedClientId, function ($query, $matchedClientId) {
                 $query->where('id', $matchedClientId);
             })

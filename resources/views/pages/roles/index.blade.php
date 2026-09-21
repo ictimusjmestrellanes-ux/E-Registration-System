@@ -18,13 +18,9 @@
                                 </span>
                                 @if ($canManage)
                                     @if (feature_allowed('Add Roles'))
-                                        <button type="button" class="btn btn-primary" data-bs-toggle="modal"
+                                        <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal"
                                             data-bs-target="#addRoleModal">
                                             <i class="ri-add-line align-bottom me-1"></i> Add Role
-                                        </button>
-                                    @else
-                                        <button type="button" class="btn btn-primary" disabled>
-                                            <i class="ri-add-line align-bottom me-1"></i>Not Allowed to Add Role
                                         </button>
                                     @endif
                                 @endif
@@ -104,8 +100,8 @@
                             </div>
                         </div>
                         <div class="modal-footer">
-                            <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-                            <button type="submit" class="btn btn-primary">Create Role</button>
+                            <button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-sm btn-primary">Create Role</button>
                         </div>
                     </form>
                 </div>

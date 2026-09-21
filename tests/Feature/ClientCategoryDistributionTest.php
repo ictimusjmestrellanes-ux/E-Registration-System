@@ -27,7 +27,7 @@ class ClientCategoryDistributionTest extends TestCase
             'category' => $category,
             'type' => $type,
             'events_transaction_type' => $eventType,
-            'status' => 'Approved',
+            'status' => 'Claimed',
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -98,7 +98,7 @@ class ClientCategoryDistributionTest extends TestCase
             'category' => 'BIGAY BIGAS SA MASA',
             'type' => 'BIGAY BIGAS SA MASA',
             'events_transaction_type' => 'TRANCH 1',
-            'status' => 'Approved',
+            'status' => 'Claimed',
             'created_at' => now(),
             'updated_at' => now(),
         ]);

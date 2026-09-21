@@ -18,15 +18,17 @@ class UsersController extends Controller
     {
         $search = trim((string) $request->query('search', ''));
         $role = trim((string) $request->query('role', ''));
+        $status = trim((string) $request->query('status', ''));
+        if (! in_array($status, ['Active', 'Inactive'], true)) {
+            $status = '';
+        }
 
         $users = User::query()
             ->when($search !== '', function ($query) use ($search) {
-                $query->where(function ($query) use ($search) {
-                    $query->where('name', 'like', "%{$search}%")
-                        ->orWhere('email', 'like', "%{$search}%");
-                });
+                $query->where('name', 'like', "%{$search}%");
             })
             ->when($role !== '', fn ($query) => $query->where('role_name', $role))
+            ->when($status !== '', fn ($query) => $query->where('status', $status))
             ->latest()
             ->paginate(10)
             ->withQueryString();
@@ -38,6 +40,7 @@ class UsersController extends Controller
             'users' => $users,
             'roles' => Role::orderBy('name')->pluck('name')->all() ?: User::ROLES,
             'selectedRole' => $role,
+            'selectedStatus' => $status,
             'search' => $search,
             'totalUsers' => $totalUsers,
             'activeUsers' => $activeUsers,

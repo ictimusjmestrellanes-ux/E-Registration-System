@@ -103,7 +103,7 @@
                                         event date range, and imported date range.</div>
                                 </div>
                                 <div class="d-flex flex-wrap gap-2 align-items-center">
-                                    <button type="button" class="btn btn-sm btn-soft-primary client-filters-toggle-btn"
+                                    <button type="button" class="btn btn-sm btn-primary client-filters-toggle-btn"
                                         id="eventFiltersToggleBtn">
                                         Show Filters <i class="ri-arrow-down-s-line ms-1"></i>
                                     </button>
@@ -202,6 +202,7 @@
                                             <div class="dropdown-menu w-100" id="eventClientCategoryDropdown"
                                                 style="max-height: 260px; overflow-y: auto;">
                                                 <div class="p-2">
+                                                    <input type="search" class="form-control form-control-sm mb-2" placeholder="Search client categories..." autocomplete="off" data-dropdown-search>
                                                     <div class="form-check mb-2">
                                                         <input class="form-check-input" type="checkbox"
                                                             id="eventClientCategoryAll" value="">
@@ -220,7 +221,7 @@
                                                                 $clientCategory,
                                                             );
                                                         @endphp
-                                                        <div class="form-check">
+                                                        <div class="form-check" data-option-row data-option-label="{{ strtolower($clientCategory) }}">
                                                             <input class="form-check-input event-client-category-checkbox"
                                                                 type="checkbox"
                                                                 id="eventClientCategory_{{ $loop->index }}"
@@ -232,6 +233,7 @@
                                                             </label>
                                                         </div>
                                                     @endforeach
+                                                    <div class="text-muted small px-1 py-2 d-none" data-dropdown-empty>No matches found.</div>
                                                 </div>
                                             </div>
                                         </div>
@@ -264,6 +266,7 @@
                                             </button>
                                             <div class="dropdown-menu w-100" id="eventTypeFilterDropdown">
                                                 <div class="p-2">
+                                                    <input type="search" class="form-control form-control-sm mb-2" placeholder="Search types..." autocomplete="off" data-dropdown-search>
                                                     <div class="form-check mb-2">
                                                         <input class="form-check-input" type="checkbox"
                                                             id="eventTypeFilterAll" value="">
@@ -280,7 +283,7 @@
                                                             )->filter();
                                                             $isChecked = $selectedTypes->contains($txType);
                                                         @endphp
-                                                        <div class="form-check">
+                                                        <div class="form-check" data-option-row data-option-label="{{ strtolower($txType) }}">
                                                             <input class="form-check-input event-type-checkbox"
                                                                 type="checkbox" id="eventTypeFilter_{{ $loop->index }}"
                                                                 value="{{ $txType }}"
@@ -291,6 +294,7 @@
                                                             </label>
                                                         </div>
                                                     @endforeach
+                                                    <div class="text-muted small px-1 py-2 d-none" data-dropdown-empty>No matches found.</div>
                                                 </div>
                                             </div>
                                         </div>
@@ -415,17 +419,20 @@
                                                 @endunless
                                             </div>
                                         </th>
-                                        <th data-column="full_name">Full Name</th>
-                                        <th data-column="age">Age</th>
-                                        <th data-column="birth_date">Birth Date</th>
-                                        <th data-column="contact_no">Contact No.</th>
-                                        <th data-column="address">Address</th>
-                                        <th data-column="client_category">Client Category</th>
-                                        <th data-column="transaction_category">Transaction Category</th>
-                                        <th data-column="transaction_type">Transaction Type</th>
-                                        <th data-column="event_date">Event Date</th>
-                                        <th style="width: 100px;" data-column="created_at">Imported</th>
-                                        <th data-column="status">Status</th>
+                                        @php
+                                            $currentSort = $sort ?? request('sort', 'newest');
+                                        @endphp
+                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Full Name', 'asc' => 'client_asc', 'desc' => 'client_desc', 'current' => $currentSort, 'column' => 'full_name'])
+                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Age', 'asc' => 'age_asc', 'desc' => 'age_desc', 'current' => $currentSort, 'column' => 'age'])
+                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Birth Date', 'asc' => 'birth_asc', 'desc' => 'birth_desc', 'current' => $currentSort, 'column' => 'birth_date'])
+                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Contact No.', 'asc' => 'contact_asc', 'desc' => 'contact_desc', 'current' => $currentSort, 'column' => 'contact_no'])
+                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Address', 'asc' => 'address_asc', 'desc' => 'address_desc', 'current' => $currentSort, 'column' => 'address'])
+                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Client Category', 'asc' => 'clientcat_asc', 'desc' => 'clientcat_desc', 'current' => $currentSort, 'column' => 'client_category'])
+                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Transaction Category', 'asc' => 'category_asc', 'desc' => 'category_desc', 'current' => $currentSort, 'column' => 'transaction_category'])
+                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Transaction Type', 'asc' => 'type_asc', 'desc' => 'type_desc', 'current' => $currentSort, 'column' => 'transaction_type'])
+                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Event Date', 'asc' => 'eventdate_asc', 'desc' => 'eventdate_desc', 'current' => $currentSort, 'column' => 'event_date'])
+                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Imported', 'asc' => 'imported_asc', 'desc' => 'imported_desc', 'current' => $currentSort, 'column' => 'created_at', 'style' => 'width: 160px;'])
+                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Status', 'asc' => 'status_asc', 'desc' => 'status_desc', 'current' => $currentSort, 'column' => 'status'])
                                         <th style="width: 200px; text-align: center;">Action</th>
                                     </tr>
                                 </thead>
@@ -451,15 +458,15 @@
                                             <td data-column="contact_no">{{ $event->contact_no }}
                                             </td>
                                             <td data-column="address">{{ $event->address ?? '-' }}</td>
-                                            <td data-column="client_category" class="small">
+                                            <td data-column="client_category">
                                                 {{ $event->client_category ?? '-' }}</td>
-                                            <td data-column="transaction_category" class="small">
+                                            <td data-column="transaction_category">
                                                 {{ $event->transaction_category ?? '-' }}</td>
-                                            <td data-column="transaction_type" class="small">
+                                            <td data-column="transaction_type">
                                                 {{ $event->transaction_type ?? '-' }}</td>
-                                            <td data-column="event_date" class="small">
+                                            <td data-column="event_date">
                                                 {{ optional($event->event_date)->format('M d, Y') ?? '-' }}</td>
-                                            <td data-column="created_at" class="small">
+                                            <td data-column="created_at">
                                                 {{ optional($event->created_at)->timezone('Asia/Manila')->format('M d, Y H:i:s') }}</td>
                                             <td data-column="status" class="text-center">
                                                 @php
@@ -577,7 +584,7 @@
                             Create transactions from <span class="fw-semibold" id="bulkTransferCount">0</span>
                             selected event(s)?
                         </p>
-                        <p class="text-muted small mt-2 mb-0">Each selected event creates a new approved transaction in
+                        <p class="text-muted small mt-2 mb-0">Each selected event creates a new pending transaction in
                             Transaction History. Existing clients are reused; a new client is registered when no match is
                             found.</p>
                     </div>
@@ -1410,6 +1417,8 @@
                         .map((checkbox) => checkbox.value);
 
                     if (selectedBulkTransferIds.length === 0 && !allPagesSelected) {
+                        new Message('imessage').show('No records selected to transfer.',
+                            'fail', 'top-center');
                         return;
                     }
 
@@ -1549,10 +1558,18 @@
                         }
 
                         setTransferProgress(100, 'Done!');
+                        // Notify: queue toast so it survives the redirect to Records.
+                        if (window.ErsNotify) {
+                            window.ErsNotify.queue(finishData.message ||
+                                'Transfer completed.', finishData.type || 'success');
+                        }
+                        new Message('imessage').show(finishData.message || 'Transfer completed.',
+                            finishData.type === 'error' ? 'fail' : (finishData.type ||
+                                'success'), 'top-center', 2500);
                         setTimeout(function() {
                             progressModal.hide();
                             window.location.href = finishData.redirect;
-                        }, 500);
+                        }, 1200);
                     } catch (error) {
                         progressModal.hide();
                         confirmBulkTransferBtn.disabled = false;
@@ -1584,6 +1601,8 @@
                         .map((checkbox) => checkbox.value);
 
                     if (selectedBulkDeleteIds.length === 0 && !allPagesSelected) {
+                        new Message('imessage').show('No records selected to delete.',
+                            'fail', 'top-center');
                         return;
                     }
 
@@ -1847,6 +1866,10 @@
                                 token: prepare.token,
                             });
                         setProgress(100, 'Done!');
+                        // Notify: force create client(s) — queue so it survives reload.
+                        if (window.ErsNotify) {
+                            window.ErsNotify.queue(finished.message, finished.type);
+                        }
                         new Message('imessage').show(finished.message, finished.type,
                             'top-center');
                         setTimeout(function() {
@@ -2632,13 +2655,27 @@
                         confirmBtn.disabled = false;
                         const details = finishData.errors.map(e => `Row ${e.row} (${e.data}): ${e.error}`)
                             .join('\n');
+                        const updateMsg =
+                            `Import complete: ${finishData.created} created, ${finishData.updated} updated, ${finishData.unchanged} unchanged, ${finishData.skipped} skipped.`;
+                        if (window.ErsNotify) {
+                            window.ErsNotify.queue(updateMsg, 'success');
+                        }
                         alert(
-                            `Import complete: ${finishData.created} created, ${finishData.updated} updated, ${finishData.unchanged} unchanged, ${finishData.skipped} skipped.\n\nRows requiring review (first 10):\n${details}`);
+                            `${updateMsg}\n\nRows requiring review (first 10):\n${details}`);
                     }
                     setProgress(100, 'Done!');
+                    // Notify: import done (import data / force create all / update matching).
+                    const importMsg = finishData.message ||
+                        `Successfully imported ${finishData.imported ?? finishData.created ?? 0} event(s).` +
+                        ((finishData.skipped ?? 0) > 0 ? ` Skipped ${finishData.skipped} invalid row(s).` : '');
+                    if (window.ErsNotify) {
+                        window.ErsNotify.queue(importMsg, finishData.type || 'success');
+                    }
+                    new Message('imessage').show(importMsg, finishData.type || 'success',
+                        'top-center', 2500);
                     setTimeout(function() {
                         window.location.href = '{{ route('transaction-events.index') }}';
-                    }, 500);
+                    }, 1200);
                 } catch (error) {
                     progressModal.hide();
                     confirmBtn.disabled = false;

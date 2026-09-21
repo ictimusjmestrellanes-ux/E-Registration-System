@@ -144,6 +144,7 @@
                                             <div class="dropdown-menu w-100" id="dupClientCategoryDropdown"
                                                 style="max-height: 260px; overflow-y: auto;">
                                                 <div class="p-2">
+                                                    <input type="search" class="form-control form-control-sm mb-2" placeholder="Search client categories..." autocomplete="off" data-dropdown-search>
                                                     <div class="form-check mb-2">
                                                         <input class="form-check-input" type="checkbox"
                                                             id="dupClientCategoryAll" value="">
@@ -158,7 +159,7 @@
                                                             $dupSelectedClientCategories = collect((array) request('client_category', []))->filter();
                                                             $dupIsClientCategoryChecked = $dupSelectedClientCategories->contains($clientCategory);
                                                         @endphp
-                                                        <div class="form-check">
+                                                        <div class="form-check" data-option-row data-option-label="{{ strtolower($clientCategory) }}">
                                                             <input class="form-check-input dup-client-category-checkbox"
                                                                 type="checkbox" id="dupClientCategory_{{ $loop->index }}"
                                                                 value="{{ $clientCategory }}"
@@ -169,6 +170,7 @@
                                                             </label>
                                                         </div>
                                                     @endforeach
+                                                    <div class="text-muted small px-1 py-2 d-none" data-dropdown-empty>No matches found.</div>
                                                 </div>
                                             </div>
                                         </div>
@@ -186,6 +188,7 @@
                                             <div class="dropdown-menu w-100" id="dupTransactionCategoryDropdown"
                                                 style="max-height: 260px; overflow-y: auto;">
                                                 <div class="p-2">
+                                                    <input type="search" class="form-control form-control-sm mb-2" placeholder="Search categories..." autocomplete="off" data-dropdown-search>
                                                     <div class="form-check mb-2">
                                                         <input class="form-check-input" type="checkbox"
                                                             id="dupTransactionCategoryAll" value="">
@@ -200,7 +203,7 @@
                                                             $dupSelectedTransactionCategories = collect((array) request('transaction_category', []))->filter();
                                                             $dupIsTransactionCategoryChecked = $dupSelectedTransactionCategories->contains($transactionCategory);
                                                         @endphp
-                                                        <div class="form-check">
+                                                        <div class="form-check" data-option-row data-option-label="{{ strtolower($transactionCategory) }}">
                                                             <input class="form-check-input dup-transaction-category-checkbox"
                                                                 type="checkbox" id="dupTransactionCategory_{{ $loop->index }}"
                                                                 value="{{ $transactionCategory }}"
@@ -211,6 +214,7 @@
                                                             </label>
                                                         </div>
                                                     @endforeach
+                                                    <div class="text-muted small px-1 py-2 d-none" data-dropdown-empty>No matches found.</div>
                                                 </div>
                                             </div>
                                         </div>
@@ -228,6 +232,7 @@
                                             <div class="dropdown-menu w-100" id="dupTransactionTypeDropdown"
                                                 style="max-height: 260px; overflow-y: auto;">
                                                 <div class="p-2">
+                                                    <input type="search" class="form-control form-control-sm mb-2" placeholder="Search types..." autocomplete="off" data-dropdown-search>
                                                     <div class="form-check mb-2">
                                                         <input class="form-check-input" type="checkbox"
                                                             id="dupTransactionTypeAll" value="">
@@ -242,7 +247,7 @@
                                                             $dupSelectedTransactionTypes = collect((array) request('transaction_type', []))->filter();
                                                             $dupIsTransactionTypeChecked = $dupSelectedTransactionTypes->contains($transactionType);
                                                         @endphp
-                                                        <div class="form-check">
+                                                        <div class="form-check" data-option-row data-option-label="{{ strtolower($transactionType) }}">
                                                             <input class="form-check-input dup-transaction-type-checkbox"
                                                                 type="checkbox" id="dupTransactionType_{{ $loop->index }}"
                                                                 value="{{ $transactionType }}"
@@ -253,6 +258,7 @@
                                                             </label>
                                                         </div>
                                                     @endforeach
+                                                    <div class="text-muted small px-1 py-2 d-none" data-dropdown-empty>No matches found.</div>
                                                 </div>
                                             </div>
                                         </div>

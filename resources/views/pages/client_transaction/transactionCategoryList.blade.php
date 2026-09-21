@@ -30,12 +30,16 @@
                                         service category, transaction category/type, and transaction date range. Search covers all pages.</div>
                                 </div>
                                 <div class="d-flex flex-wrap gap-2 align-items-center">
-                                    <button type="button" class="btn btn-sm btn-outline-primary"
+                                    <button type="button" class="btn btn-sm btn-primary"
                                         id="transactionFiltersToggleBtn">
                                         Show Filters <i class="ri-arrow-down-s-line ms-1"></i>
                                     </button>
-                                    <a href="{{ $category ? route('transactions.category', $category) : route('transactions.index') }}"
-                                        class="btn btn-sm btn-soft-secondary" id="transactionFiltersResetBtn">Reset</a>
+                                    @php
+                                        // Reset clears all filters AND returns to the default A–Z sort.
+                                        $resetUrl = ($category ? route('transactions.category', $category) : route('transactions.index')) . '?sort=client_asc';
+                                    @endphp
+                                    <a href="{{ $resetUrl }}"
+                                        class="btn btn-sm btn-soft-primary" id="transactionFiltersResetBtn">Reset</a>
                                 </div>
                             </div>
 
@@ -52,6 +56,38 @@
                                         </div>
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
+                                        <label class="form-label fw-semibold text-uppercase small">Client Category</label>
+                                        @include('pages.transaction_events.partials.multiSelectSearchDropdown', [
+                                            'dropdownId' => 'txClientCategory',
+                                            'fieldName' => 'client_category',
+                                            'options' => $filterClientCategories ?? [],
+                                            'allLabel' => 'All client categories',
+                                            'searchPlaceholder' => 'Search client categories...',
+                                        ])
+                                    </div>
+                                    @if (!$category)
+                                        <div class="col-12 col-md-6 col-xl-2">
+                                            <label class="form-label fw-semibold text-uppercase small">Transaction Category</label>
+                                            @include('pages.transaction_events.partials.multiSelectSearchDropdown', [
+                                                'dropdownId' => 'txTransactionCategory',
+                                                'fieldName' => 'transaction_category',
+                                                'options' => $filterTransactionCategories ?? [],
+                                                'allLabel' => 'All transaction categories',
+                                                'searchPlaceholder' => 'Search categories...',
+                                            ])
+                                        </div>
+                                    @endif
+                                    <div class="col-12 col-md-6 col-xl-2">
+                                        <label class="form-label fw-semibold text-uppercase small">Transaction Type</label>
+                                        @include('pages.transaction_events.partials.multiSelectSearchDropdown', [
+                                            'dropdownId' => 'txTransactionType',
+                                            'fieldName' => 'transaction_type',
+                                            'options' => $filterTransactionTypes ?? [],
+                                            'allLabel' => 'All transaction types',
+                                            'searchPlaceholder' => 'Search types...',
+                                        ])
+                                    </div>
+                                    <div class="col-12 col-md-6 col-xl-2">
                                         <label for="transactionStatusFilter"
                                             class="form-label fw-semibold text-uppercase small">Status</label>
                                         <select class="form-select" id="transactionStatusFilter" name="status">
@@ -59,41 +95,6 @@
                                             @foreach (($filterStatuses ?? []) as $status)
                                                 <option value="{{ $status }}" {{ request('status') === $status ? 'selected' : '' }}>
                                                     {{ $status }}</option>
-                                            @endforeach
-                                        </select>
-                                    </div>
-                                    <div class="col-12 col-md-6 col-xl-2">
-                                        <label for="transactionClientCategoryFilter"
-                                            class="form-label fw-semibold text-uppercase small">Client Category</label>
-                                        <select class="form-select" id="transactionClientCategoryFilter" name="client_category">
-                                            <option value="">All Client Categories</option>
-                                            @foreach (($filterClientCategories ?? []) as $clientCategory)
-                                                <option value="{{ $clientCategory }}" {{ request('client_category') === $clientCategory ? 'selected' : '' }}>
-                                                    {{ $clientCategory }}</option>
-                                            @endforeach
-                                        </select>
-                                    </div>
-                                    @if (!$category)
-                                        <div class="col-12 col-md-6 col-xl-2">
-                                            <label for="transactionTxCategoryFilter"
-                                                class="form-label fw-semibold text-uppercase small">Transaction Category</label>
-                                            <select class="form-select" id="transactionTxCategoryFilter" name="transaction_category">
-                                                <option value="">All Transaction Categories</option>
-                                                @foreach (($filterTransactionCategories ?? []) as $transactionCategory)
-                                                    <option value="{{ $transactionCategory }}" {{ request('transaction_category') === $transactionCategory ? 'selected' : '' }}>
-                                                        {{ $transactionCategory }}</option>
-                                                @endforeach
-                                            </select>
-                                        </div>
-                                    @endif
-                                    <div class="col-12 col-md-6 col-xl-2">
-                                        <label for="transactionTxTypeFilter"
-                                            class="form-label fw-semibold text-uppercase small">Transaction Type</label>
-                                        <select class="form-select" id="transactionTxTypeFilter" name="transaction_type">
-                                            <option value="">All Transaction Types</option>
-                                            @foreach (($filterTransactionTypes ?? []) as $transactionType)
-                                                <option value="{{ $transactionType }}" {{ request('transaction_type') === $transactionType ? 'selected' : '' }}>
-                                                    {{ $transactionType }}</option>
                                             @endforeach
                                         </select>
                                     </div>
@@ -129,24 +130,26 @@
                             <table class="table table-hover align-middle mb-0">
                                 <thead class="table-light">
                                     <tr>
-                                        <th>Client</th>
-                                        <th>Transaction ID</th>
-                                        <th>Event Date</th>
-                                        <th>Transaction Category</th>
-                                        <th>Transaction Type</th>
-                                        <th>Clerk</th>
-                                        <th style="width: 110px; text-align: center;">Status</th>
+                                        @php
+                                            $currentSort = $sort ?? request('sort', 'client_asc');
+                                        @endphp
+                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Client', 'asc' => 'client_asc', 'desc' => 'client_desc', 'current' => $currentSort])
+                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Transaction ID', 'asc' => 'txid_asc', 'desc' => 'txid_desc', 'current' => $currentSort])
+                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Event Date', 'asc' => 'date_asc', 'desc' => 'date_desc', 'current' => $currentSort])
+                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Transaction Category', 'asc' => 'category_asc', 'desc' => 'category_desc', 'current' => $currentSort])
+                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Transaction Type', 'asc' => 'type_asc', 'desc' => 'type_desc', 'current' => $currentSort])
+                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Client Category', 'asc' => 'clientcat_asc', 'desc' => 'clientcat_desc', 'current' => $currentSort])
+                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Status', 'asc' => 'status_asc', 'desc' => 'status_desc', 'current' => $currentSort, 'center' => true, 'style' => 'width: 130px; text-align: center;'])
                                         <th style="width: 200px;">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     @forelse ($transactions as $transaction)
                                         @php
-                                            $isApproved = strtolower($transaction->status ?? 'Pending') === 'approved';
                                             $client = App\Models\Client::where('client_id', $transaction->client_id)->first();
-                                            $clientName = $client->full_name ?? $transaction->client_id;
+                                            $clientName = ($client && filled($client->list_display_name)) ? $client->list_display_name : $transaction->client_id;
                                         @endphp
-                                        <tr class="{{ $isApproved ? '' : 'table-warning' }}" data-transaction-row
+                                        <tr data-transaction-row
                                             data-search-transaction-id="{{ strtolower($transaction->transaction_id ?? '') }}"
                                             data-search-client="{{ strtolower($clientName) }}"
                                             data-search-client-id="{{ strtolower($transaction->client_id ?? '') }}"
@@ -160,19 +163,25 @@
                                             data-search-date="{{ $transaction->transaction_date?->format('Y-m-d') }}"
                                             data-search-all="{{ strtolower(($transaction->transaction_id ?? '') . ' ' . $clientName . ' ' . ($transaction->client_id ?? '') . ' ' . ($transaction->category ?? '') . ' ' . ($transaction->type ?? '') . ' ' . ($transaction->events_transaction_type ?? '') . ' ' . ($transaction->clerk ?? '') . ' ' . ($transaction->status ?? '') . ' ' . ($transaction->client_category ?? '')) }}">
                                             <td class="fw-semibold">{{ $clientName }}</td>
-                                            <td class="small">
-                                                <a href="{{ route('transactions.show', $transaction->id) }}"
-                                                    class="text-primary">{{ $transaction->transaction_id }}</a>
+                                            <td class="fw-semibold" style="font-size: 14px">
+                                                {{ $transaction->transaction_id }}
                                             </td>
-                                            <td class="small">{{ $transaction->transaction_date?->format('M d, Y') }}</td>
+                                            <td class="small text-uppercase">{{ filled($transaction->client_category) ? $transaction->client_category : ($client->sector ?? '-') }}</td>
                                             <td class="small">{{ $transaction->category_label ?? '-' }}</td>
                                             <td class="small">{{ $transaction->events_transaction_type ?: $transaction->type_label }}</td>
-                                            <td class="small">{{ $transaction->clerk ?? '-' }}</td>
+                                            <td class="small">{{ $transaction->transaction_date?->format('M d, Y') }}</td>
                                             <td class="text-center">
+                                               @php
+                                                    $txStatus = $transaction->status ?? 'Pending';
+                                                    $statusColor = match (strtolower(trim($txStatus))) {
+                                                        'claimed' => 'success',
+                                                        'unclaimed' => 'danger',
+                                                        'pending' => 'warning',
+                                                        default => 'secondary',
+                                                    };
+                                                @endphp
                                                 <span
-                                                    class="badge {{ $isApproved ? 'bg-success-subtle text-success' : 'bg-warning-subtle text-warning' }} px-3 py-2">
-                                                    {{ $transaction->status ?? 'Pending' }}
-                                                </span>
+                                                    class="badge bg-{{ $statusColor }}-subtle text-{{ $statusColor }} px-3 py-2">{{ $txStatus }}</span>
                                             </td>
                                             <td class="text-center">
                                                 @if ($client)
@@ -218,18 +227,18 @@
             const transactionFiltersFormEl = document.getElementById('transactionFiltersForm');
             const transactionKeywordInput = document.getElementById('transactionKeywordInput');
             const transactionStatusFilter = document.getElementById('transactionStatusFilter');
-            const transactionClientCategoryFilter = document.getElementById('transactionClientCategoryFilter');
             const transactionCategoryFilter = document.getElementById('transactionCategoryFilter');
-            const transactionTxCategoryFilter = document.getElementById('transactionTxCategoryFilter');
-            const transactionTxTypeFilter = document.getElementById('transactionTxTypeFilter');
             const transactionDateFrom = document.getElementById('transactionDateFrom');
             const transactionDateTo = document.getElementById('transactionDateTo');
             const transactionSearchSummary = document.getElementById('transactionSearchSummary');
             const transactionSearchNoResultsRow = document.getElementById('transactionSearchNoResultsRow');
 
+            const checkedValues = (checkboxClass) => Array.from(document.querySelectorAll('.' + checkboxClass + ':checked'))
+                .map((cb) => cb.value.trim().toLowerCase()).filter(Boolean);
+
             if (!transactionFiltersToggleBtn || !transactionFiltersFormEl || !transactionKeywordInput ||
-                !transactionStatusFilter || !transactionClientCategoryFilter || !transactionDateFrom ||
-                !transactionDateTo || !transactionSearchSummary || !transactionTxTypeFilter
+                !transactionStatusFilter || !transactionDateFrom ||
+                !transactionDateTo || !transactionSearchSummary
             ) {
                 return;
             }
@@ -259,10 +268,10 @@
             const filterTransactionList = () => {
                 const query = transactionKeywordInput.value.trim().toLowerCase();
                 const status = transactionStatusFilter.value.trim().toLowerCase();
-                const clientCategory = transactionClientCategoryFilter.value.trim().toLowerCase();
+                const clientCategories = checkedValues('txClientCategory-checkbox');
                 const category = transactionCategoryFilter ? transactionCategoryFilter.value.trim().toLowerCase() : '';
-                const txCategory = transactionTxCategoryFilter ? transactionTxCategoryFilter.value.trim().toLowerCase() : '';
-                const txType = transactionTxTypeFilter.value.trim().toLowerCase();
+                const txCategories = checkedValues('txTransactionCategory-checkbox');
+                const txTypes = checkedValues('txTransactionType-checkbox');
                 const dateFrom = transactionDateFrom.value;
                 const dateTo = transactionDateTo.value;
                 let visibleCount = 0;
@@ -277,10 +286,10 @@
                     const rowDate = row.dataset.searchDate || '';
                     const matchesSearch = !query || searchableValue.includes(query);
                     const matchesStatus = !status || rowStatus === status;
-                    const matchesClientCategory = !clientCategory || rowClientCategory === clientCategory;
+                    const matchesClientCategory = clientCategories.length === 0 || clientCategories.includes(rowClientCategory);
                     const matchesCategory = !category || rowCategoryKey === category || rowCategory === category;
-                    const matchesTxCategory = !txCategory || rowCategory === txCategory;
-                    const matchesTxType = !txType || rowTxType === txType;
+                    const matchesTxCategory = txCategories.length === 0 || txCategories.includes(rowCategory);
+                    const matchesTxType = txTypes.length === 0 || txTypes.includes(rowTxType);
                     const matchesDate = (!dateFrom || rowDate >= dateFrom) && (!dateTo || rowDate <= dateTo);
                     const matches = matchesSearch && matchesStatus && matchesClientCategory &&
                         matchesCategory && matchesTxCategory && matchesTxType && matchesDate;
@@ -296,9 +305,9 @@
                 }
 
                 if (transactionSearchSummary) {
-                    const activeFilters = [query, status, clientCategory, category, txCategory, txType, dateFrom, dateTo].filter(
-                        Boolean).length;
-                    if (!activeFilters) {
+                    const activeCount = [query, status, category, dateFrom, dateTo].filter(Boolean).length +
+                        clientCategories.length + txCategories.length + txTypes.length;
+                    if (!activeCount) {
                         transactionSearchSummary.textContent = 'Showing all transactions.';
                     } else {
                         transactionSearchSummary.textContent =
@@ -309,14 +318,10 @@
 
             transactionKeywordInput.addEventListener('input', filterTransactionList);
             transactionStatusFilter.addEventListener('change', filterTransactionList);
-            transactionClientCategoryFilter.addEventListener('change', filterTransactionList);
             if (transactionCategoryFilter) {
                 transactionCategoryFilter.addEventListener('change', filterTransactionList);
             }
-            if (transactionTxCategoryFilter) {
-                transactionTxCategoryFilter.addEventListener('change', filterTransactionList);
-            }
-            transactionTxTypeFilter.addEventListener('change', filterTransactionList);
+            document.addEventListener('multiSelectChange', filterTransactionList);
             transactionDateFrom.addEventListener('change', filterTransactionList);
             transactionDateTo.addEventListener('change', filterTransactionList);
         });

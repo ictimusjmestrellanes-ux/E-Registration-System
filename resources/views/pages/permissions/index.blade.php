@@ -15,23 +15,14 @@
                             <div class="d-flex align-items-center gap-2">
                                 @if ($canEdit)
                                     @if (feature_allowed('Add Permissions'))
-                                    <button type="button" class="btn btn-primary" data-bs-toggle="modal"
-                                        data-bs-target="#addPermissionModal">
-                                        <i class="ri-add-line align-bottom me-1"></i> Add Permission
-                                    </button>
-                                    @else
-                                    <button type="button" class="btn btn-primary" data-bs-toggle="modal"
-                                        data-bs-target="#addPermissionModal" disabled>
-                                        <i class="ri-add-line align-bottom me-1"></i> Not Allowed to Add Permission
-                                    </button>
+                                        <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal"
+                                            data-bs-target="#addPermissionModal">
+                                            <i class="ri-add-line align-bottom me-1"></i> Add Permission
+                                        </button>
                                     @endif
                                     @if (feature_allowed('Save Permissions'))
-                                        <button type="submit" form="permissionsForm" class="btn btn-success">
+                                        <button type="submit" form="permissionsForm" class="btn btn-sm btn-success">
                                             <i class="ri-save-line align-bottom me-1"></i> Save Changes
-                                        </button>
-                                    @else
-                                        <button type="submit" form="permissionsForm" class="btn btn-success" disabled>
-                                            <i class="ri-save-line align-bottom me-1"></i>Not allowed to Save Changes
                                         </button>
                                     @endif
                                 @endif
@@ -107,13 +98,6 @@
                                                             title="Delete Permission">
                                                             <i class="ri-delete-bin-line"></i>
                                                         </button>
-                                                    @else
-                                                        <button type="button" class="btn btn-sm btn-soft-danger"
-                                                            data-bs-toggle="modal"
-                                                            data-bs-target="#deletePermissionModal-{{ str_replace(' ', '-', $permission['feature']) }}"
-                                                            title="Delete Permission" disabled>
-                                                            <i class="ri-delete-bin-line"></i>
-                                                        </button>
                                                     @endif
                                                 </td>
                                             @endif
@@ -152,8 +136,8 @@
                             </div>
                         </div>
                         <div class="modal-footer">
-                            <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-                            <button type="submit" class="btn btn-primary">Add Permission</button>
+                            <button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-sm btn-primary">Add Permission</button>
                         </div>
                     </form>
                 </div>
@@ -179,8 +163,8 @@
                                 </p>
                             </div>
                             <div class="modal-footer">
-                                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-                                <button type="submit" class="btn btn-danger">Delete</button>
+                                <button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal">Cancel</button>
+                                <button type="submit" class="btn btn-sm btn-danger">Delete</button>
                             </div>
                         </form>
                     </div>

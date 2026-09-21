@@ -184,40 +184,34 @@
                                         </div>
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
-                                        <label for="dupClientCategoryFilter"
-                                            class="form-label fw-semibold text-uppercase small">Client Category</label>
-                                        <select class="form-select" id="dupClientCategoryFilter" name="client_category">
-                                            <option value="">All Client Categories</option>
-                                            @foreach (($filterClientCategories ?? []) as $clientCategory)
-                                                <option value="{{ $clientCategory }}"
-                                                    {{ strtolower(request('client_category', '')) === strtolower($clientCategory) ? 'selected' : '' }}>
-                                                    {{ $clientCategory }}</option>
-                                            @endforeach
-                                        </select>
+                                        <label class="form-label fw-semibold text-uppercase small">Client Category</label>
+                                        @include('pages.transaction_events.partials.multiSelectSearchDropdown', [
+                                            'dropdownId' => 'dupClientCategory',
+                                            'fieldName' => 'client_category',
+                                            'options' => $filterClientCategories ?? [],
+                                            'allLabel' => 'All client categories',
+                                            'searchPlaceholder' => 'Search client categories...',
+                                        ])
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
-                                        <label for="dupTransactionCategoryFilter"
-                                            class="form-label fw-semibold text-uppercase small">Transaction Category</label>
-                                        <select class="form-select" id="dupTransactionCategoryFilter" name="transaction_category">
-                                            <option value="">All Categories</option>
-                                            @foreach (($filterTransactionCategories ?? []) as $transactionCategory)
-                                                <option value="{{ $transactionCategory }}"
-                                                    {{ strtolower(request('transaction_category', '')) === strtolower($transactionCategory) ? 'selected' : '' }}>
-                                                    {{ $transactionCategory }}</option>
-                                            @endforeach
-                                        </select>
+                                        <label class="form-label fw-semibold text-uppercase small">Transaction Category</label>
+                                        @include('pages.transaction_events.partials.multiSelectSearchDropdown', [
+                                            'dropdownId' => 'dupTransactionCategory',
+                                            'fieldName' => 'transaction_category',
+                                            'options' => $filterTransactionCategories ?? [],
+                                            'allLabel' => 'All categories',
+                                            'searchPlaceholder' => 'Search categories...',
+                                        ])
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
-                                        <label for="dupTransactionTypeFilter"
-                                            class="form-label fw-semibold text-uppercase small">Transaction Type</label>
-                                        <select class="form-select" id="dupTransactionTypeFilter" name="transaction_type">
-                                            <option value="">All Types</option>
-                                            @foreach (($filterTransactionTypes ?? []) as $transactionType)
-                                                <option value="{{ $transactionType }}"
-                                                    {{ strtolower(request('transaction_type', '')) === strtolower($transactionType) ? 'selected' : '' }}>
-                                                    {{ $transactionType }}</option>
-                                            @endforeach
-                                        </select>
+                                        <label class="form-label fw-semibold text-uppercase small">Transaction Type</label>
+                                        @include('pages.transaction_events.partials.multiSelectSearchDropdown', [
+                                            'dropdownId' => 'dupTransactionType',
+                                            'fieldName' => 'transaction_type',
+                                            'options' => $filterTransactionTypes ?? [],
+                                            'allLabel' => 'All types',
+                                            'searchPlaceholder' => 'Search types...',
+                                        ])
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
                                         <label for="dupDateFrom"

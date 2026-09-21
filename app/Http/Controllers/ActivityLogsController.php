@@ -127,4 +127,20 @@ class ActivityLogsController extends Controller
             'filteredTotal'
         ));
     }
+
+    /**
+     * Mark every navbar notification as read for the current user by
+     * stamping their read marker. Read-only safe: it only touches the
+     * user's own preference, so Viewers may use it too.
+     */
+    public function markAllAsRead(Request $request)
+    {
+        $request->user()->update(['notifications_read_id' => ActivityLog::max('id') ?? 0]);
+
+        if ($request->wantsJson()) {
+            return response()->json(['success' => true]);
+        }
+
+        return redirect()->back()->with('success', 'All notifications marked as read.');
+    }
 }

@@ -115,9 +115,9 @@
                                                 </div>
                                                 <div class="col-md d-flex flex-column justify-content-center">
                                                     <div class="d-flex flex-wrap gap-2 mb-2">
-                                                        <button type="button" class="btn btn-soft-primary"
+                                                        <button type="button" class="btn btn-sm  btn-soft-primary"
                                                             id="openCameraBtn">Open Camera</button>
-                                                        <button type="button" class="btn btn-soft-success"
+                                                        <button type="button" class="btn btn-sm btn-soft-success"
                                                             id="retakePhotoBtn" disabled>Retake</button>
                                                     </div>
                                                     <input type="file" id="clientPhotoFileInput" class="d-none"
@@ -140,10 +140,10 @@
                                                 </div>
                                                 <div class="col-md d-flex flex-column justify-content-center">
                                                     <div class="d-flex flex-wrap gap-2 mb-2">
-                                                        <button type="button" class="btn btn-soft-primary"
+                                                        <button type="button" class="btn btn-sm  btn-soft-primary"
                                                             id="openFingerprintBtn" data-bs-toggle="modal"
                                                             data-bs-target="#fingerprintModal">Open Scanner</button>
-                                                        <button type="button" class="btn btn-soft-success"
+                                                        <button type="button" class="btn btn-sm btn-soft-success"
                                                             id="clearFingerprintBtn" disabled>Clear</button>
                                                     </div>
                                                     <p class="text-muted small mb-2">
@@ -513,8 +513,8 @@
                     <p class="text-muted small mt-2 mb-0">Position the camera, then click Capture Photo.</p>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-soft-secondary" data-bs-dismiss="modal">Close</button>
-                    <button type="button" class="btn btn-primary" id="capturePhotoBtn" disabled>Capture Photo</button>
+                    <button type="button" class="btn btn-sm btn-soft-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-sm btn-primary" id="capturePhotoBtn" disabled>Capture Photo</button>
                 </div>
             </div>
         </div>
@@ -538,7 +538,7 @@
                                 </p>
                             </div>
                             <div class="d-flex gap-2">
-                                <button type="button" class="btn btn-soft-secondary"
+                                <button type="button" class="btn btn-sm btn-soft-secondary"
                                     id="clearFingerprintCaptureBtn">Clear</button>
                             </div>
                         </div>
@@ -552,10 +552,10 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-soft-primary d-none" id="retryFingerprintCaptureBtn">Scan
+                    <button type="button" class="btn btn-sm btn-soft-primary d-none" id="retryFingerprintCaptureBtn">Scan
                         Again</button>
-                    <button type="button" class="btn btn-soft-secondary" data-bs-dismiss="modal">Close</button>
-                    <button type="button" class="btn btn-primary" id="saveFingerprintBtn">Use Fingerprint</button>
+                    <button type="button" class="btn btn-sm btn-soft-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-sm btn-primary" id="saveFingerprintBtn">Use Fingerprint</button>
                 </div>
             </div>
         </div>

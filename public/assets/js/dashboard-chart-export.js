@@ -20,7 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
         header.classList.add('d-flex', 'flex-wrap', 'gap-2', 'align-items-center', 'justify-content-between');
         const button = document.createElement('button');
         button.type = 'button';
-        button.className = 'btn btn-sm btn-outline-primary ms-auto';
+        button.className = 'btn btn-sm btn-primary ms-auto';
         button.innerHTML = '<i class="ri-external-link-line me-1" aria-hidden="true"></i>Export';
         button.setAttribute('aria-label', `Export ${header.querySelector('h5').textContent.trim()} (opens preview in a new tab)`);
         header.append(button);

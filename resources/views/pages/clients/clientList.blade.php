@@ -1,119 +1,7 @@
 @extends('layouts.master')
 @section('title', 'ERS | Client List')
 @section('content')
-    <style>
-        .client-details-panel {
-            background: #f8fafc;
-            border: 1px solid #e2e8f0;
-            color: #0f172a;
-        }
-
-        .client-details-panel .client-details-label,
-        .client-details-panel .client-details-title,
-        .client-details-panel .client-details-text {
-            color: inherit;
-        }
-
-        .client-details-panel .client-details-muted {
-            color: #64748b;
-        }
-
-        #editClientModal .form-control,
-        #editClientModal .form-select {
-            text-transform: uppercase;
-        }
-
-        #editClientModal .form-control::placeholder {
-            text-transform: uppercase;
-        }
-
-        #clientFiltersCard {
-            background: #ffffff;
-            border: 1px solid #e3e8ef;
-            box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
-        }
-
-        #clientFiltersCard .form-label,
-        #clientFiltersCard .small,
-        #clientFiltersCard .fw-bold,
-        #clientFiltersCard .fw-semibold {
-            color: #1f2937 !important;
-        }
-
-        #clientFiltersCard .input-group-text,
-        #clientFiltersCard .form-control,
-        #clientFiltersCard .form-select {
-            background-color: #f8fafc;
-            color: #111827;
-            border-color: #d5dbe3;
-        }
-
-        #clientFiltersCard .input-group-text {
-            color: #475569;
-        }
-
-        #clientFiltersCard .form-control::placeholder {
-            color: #94a3b8;
-        }
-
-        #clientFiltersCard .form-control:focus,
-        #clientFiltersCard .form-select:focus {
-            border-color: #4d63d6;
-            box-shadow: 0 0 0 0.2rem rgba(77, 99, 214, 0.14);
-        }
-
-        #clientFiltersCard .btn-outline-primary {
-            color: #3551d5;
-            border-color: #7a8de8;
-        }
-
-        #clientFiltersCard .client-filters-toggle-btn {
-            transition: background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
-        }
-
-        #clientFiltersCard .client-filters-toggle-btn:hover,
-        #clientFiltersCard .client-filters-toggle-btn:focus,
-        #clientFiltersCard .client-filters-toggle-btn:active {
-            background: #eef2ff;
-            color: #2f49c5;
-            border-color: #6276df;
-            box-shadow: 0 0 0 0.2rem rgba(77, 99, 214, 0.12);
-        }
-
-        #clientFiltersCard .btn-soft-secondary {
-            background: #eef2ff;
-            color: #334155;
-            border-color: #e5e7eb;
-        }
-
-        #clientFiltersCard .badge {
-            background: #eef2ff !important;
-            color: #334155 !important;
-        }
-
-        #clientFiltersCard .input-group-text,
-        #clientFiltersCard .form-control,
-        #clientFiltersCard .form-select {
-            box-shadow: none;
-        }
-
-        #clientFiltersCard .text-primary {
-            color: #3551d5 !important;
-        }
-
-        #clientFiltersCard .bg-primary-subtle {
-            background: rgba(77, 99, 214, 0.12) !important;
-        }
-
-        #clientFiltersCard .btn-primary {
-            background: linear-gradient(135deg, #4d63d6, #5a73ff);
-            border-color: transparent;
-        }
-
-        #clientListTable tbody tr:hover {
-            background-color: rgba(77, 99, 214, 0.06);
-        }
-    </style>
+    
     @php
         $defaultClientPhoto = asset('assets/images/profile.png');
     @endphp
@@ -139,8 +27,8 @@
                                     Fingerprint</button>
                                 @unless (auth()->user()?->role_name === 'Viewer')
                                     <a href="{{ route('clients') }}" class="btn btn-sm btn-primary">Add Client</a>
-                                    @if (feature_allowed('Archive Clients'))
-                                        <button type="button" class="btn btn-sm btn-outline-danger"
+                                    @if (feature_allowed('Delete Clients Without Transactions'))
+                                        <button type="button" class="btn btn-sm btn-danger"
                                             data-bs-toggle="modal" data-bs-target="#deleteClientsWithoutTransactionsModal">
                                             Delete Clients Without Transactions
                                         </button>
@@ -189,11 +77,11 @@
                                         and created date range. Search covers all pages.</div>
                                 </div>
                                 <div class="d-flex flex-wrap gap-2 align-items-center">
-                                    <button type="button" class="btn btn-sm btn-outline-primary client-filters-toggle-btn"
+                                    <button type="button" class="btn btn-sm btn-primary client-filters-toggle-btn"
                                         id="clientFiltersToggleBtn">
                                         Show Filters <i class="ri-arrow-down-s-line ms-1"></i>
                                     </button>
-                                    <a href="{{ route('client.list') }}" class="btn btn-sm btn-soft-secondary"
+                                    <a href="{{ route('client.list') }}" class="btn btn-sm btn-soft-primary"
                                         id="clientFiltersResetBtn">Reset</a>
                                     <select class="form-select form-select-sm w-auto" id="clientPerPageSelect"
                                         aria-label="Clients per page" title="Clients per page">
@@ -318,11 +206,11 @@
                                         <th>Client ID</th>
                                         <th>Photo</th>
                                         <th>Full Name</th>
-                                        <th>Gender</th>
-                                        <th>Civil Status</th>
-                                        <th>Contact 1</th>
-                                        <th>Location</th>
-                                        <th>Actions</th>
+                                        <th>Sex</th>
+                                        <th>Age</th>
+                                        <th>Contact</th>
+                                        <th>Address</th>
+                                        <th style="width:190px">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody class="text-center text-uppercase">
@@ -366,7 +254,7 @@
                                                 {{ $clientName }}
                                             </td>
                                             <td>{{ $client->gender ?? '-' }}</td>
-                                            <td>{{ $client->civil_status ?? '-' }}</td>
+                                            <td>{{ $client->age ?? '-' }}</td>
                                             <td>{{ $client->contact ?? '-' }}</td>
                                             <td class="text-start">
                                                 <div class="small lh-sm">
@@ -383,12 +271,6 @@
                                                             class="btn btn-sm btn-soft-info">
                                                             View
                                                         </a>
-                                                    @else
-                                                        <a href="{{ route('clients.show', $client) }}"
-                                                            class="btn btn-sm btn-soft-info disabled"
-                                                            aria-disabled="true">
-                                                            Not Allowed to View
-                                                        </a>
                                                     @endif
                                                     @unless (auth()->user()?->role_name === 'Viewer')
                                                         @if (feature_allowed('Edit Client'))
@@ -396,25 +278,13 @@
                                                                 class="btn btn-sm btn-soft-primary">
                                                                 Edit
                                                             </a>
-                                                        @else
-                                                            <a href="{{ route('clients.edit', $client) }}"
-                                                                class="btn btn-sm btn-soft-primary disabled"
-                                                                aria-disabled="true">
-                                                                Not Allowed to Edit
-                                                            </a>
                                                         @endif
                                                         <form action="{{ route('clients.archive', $client) }}" method="POST"
                                                             onsubmit="return confirm('Are you sure you want to archive this client?');">
                                                             @csrf
                                                             @if (feature_allowed('Archive Clients'))
                                                                 <button type="submit" class="btn btn-sm btn-soft-warning">
-                                                                    Archive
-                                                                </button>
-                                                            @else
-                                                                <button type="submit"
-                                                                    class="btn btn-sm btn-soft-warning"
-                                                                    disabled>
-                                                                    Not Allowed to Archive
+                                                                    ARCHIVE
                                                                 </button>
                                                             @endif
                                                         </form>

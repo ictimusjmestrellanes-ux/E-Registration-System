@@ -53,7 +53,7 @@ class DashboardDataRefreshTest extends TestCase
             'category' => 'CARAVAN',
             'type' => 'CARAVAN',
             'events_transaction_type' => 'TRANCH 1',
-            'status' => 'Approved',
+            'status' => 'Claimed',
             'created_at' => $registeredAt,
             'updated_at' => $registeredAt,
         ]);
@@ -117,7 +117,7 @@ class DashboardDataRefreshTest extends TestCase
                 'category' => 'CARAVAN',
                 'type' => 'CARAVAN',
                 'events_transaction_type' => 'TRANCH 1',
-                'status' => 'Approved',
+                'status' => 'Claimed',
             ]);
         }
 
@@ -169,7 +169,7 @@ class DashboardDataRefreshTest extends TestCase
                 'category' => $category,
                 'type' => $type,
                 'events_transaction_type' => $index === 0 ? 'EVENT TYPE' : null,
-                'status' => 'Approved',
+                'status' => 'Claimed',
                 // All rows are imported in September, regardless of transaction month.
                 'created_at' => now(),
                 'updated_at' => now(),

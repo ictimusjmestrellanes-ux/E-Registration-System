@@ -176,7 +176,7 @@ class EventRecordDuplicatesPaginationTest extends TestCase
             foreach ([0, 1] as $copy) {
                 $history = DB::table('transaction_history')->insertGetId([
                     'transaction_id' => 'DUP-'.$group.'-'.$copy, 'client_id' => 'C1',
-                    'transaction_date' => '2026-09-01', 'type' => 'TYPE', 'category' => 'EVENTS', 'status' => 'Approved',
+                    'transaction_date' => '2026-09-01', 'type' => 'TYPE', 'category' => 'EVENTS', 'status' => 'Claimed',
                 ]);
                 $rows[] = [
                     'full_name' => ($copy ? '  PERSON ' : 'person ').$group.($copy ? '  ' : ''),
@@ -194,7 +194,7 @@ class EventRecordDuplicatesPaginationTest extends TestCase
             foreach ([0, 1, 2] as $group) {
                 $history = DB::table('transaction_history')->insertGetId([
                     'transaction_id' => 'LIKELY-'.$group.'-'.$copy, 'client_id' => 'C1',
-                    'transaction_date' => '2026-09-02', 'type' => $type, 'category' => 'EVENTS', 'status' => 'Approved',
+                    'transaction_date' => '2026-09-02', 'type' => $type, 'category' => 'EVENTS', 'status' => 'Claimed',
                 ]);
                 $rows[] = [
                     'full_name' => 'Likely Person '.$group,
@@ -253,7 +253,7 @@ class EventRecordDuplicatesPaginationTest extends TestCase
         foreach (['EXACT-1', 'EXACT-2'] as $transactionId) {
             $historyIds[] = DB::table('transaction_history')->insertGetId([
                 'transaction_id' => $transactionId, 'client_id' => 'C1',
-                'transaction_date' => '2026-09-01', 'type' => 'TYPE', 'category' => 'EVENTS', 'status' => 'Approved',
+                'transaction_date' => '2026-09-01', 'type' => 'TYPE', 'category' => 'EVENTS', 'status' => 'Claimed',
             ]);
         }
         DB::table('transaction_events')->insert([
@@ -283,7 +283,7 @@ class EventRecordDuplicatesPaginationTest extends TestCase
         foreach (['BIRTH-1', 'BIRTH-2'] as $transactionId) {
             $historyIds[] = DB::table('transaction_history')->insertGetId([
                 'transaction_id' => $transactionId, 'client_id' => 'C1',
-                'transaction_date' => '2026-09-01', 'type' => 'TYPE', 'category' => 'EVENTS', 'status' => 'Approved',
+                'transaction_date' => '2026-09-01', 'type' => 'TYPE', 'category' => 'EVENTS', 'status' => 'Claimed',
             ]);
         }
         DB::table('transaction_events')->insert([
@@ -314,7 +314,7 @@ class EventRecordDuplicatesPaginationTest extends TestCase
         foreach (['LIKELY-1', 'LIKELY-2'] as $transactionId) {
             $historyIds[] = DB::table('transaction_history')->insertGetId([
                 'transaction_id' => $transactionId, 'client_id' => 'C1',
-                'transaction_date' => '2026-09-02', 'type' => 'TYPE-A', 'category' => 'EVENTS', 'status' => 'Approved',
+                'transaction_date' => '2026-09-02', 'type' => 'TYPE-A', 'category' => 'EVENTS', 'status' => 'Claimed',
             ]);
         }
         DB::table('transaction_events')->insert([

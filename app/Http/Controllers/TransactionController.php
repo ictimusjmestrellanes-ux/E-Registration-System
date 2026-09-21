@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\ActivityLog;
 use App\Models\Client;
+use App\Models\TransactionEvent;
 use App\Models\TransactionHistory;
 use Illuminate\Http\Request;
 
@@ -16,7 +17,9 @@ class TransactionController extends Controller
 
     public function index(Request $request)
     {
-        $transactions = TransactionHistory::query()
+        $sort = $this->normalizeTransactionSort($request->input('sort', 'client_asc'));
+
+        $query = TransactionHistory::query()
             ->when($request->filled('search'), function ($query) use ($request) {
                 $query->where(function ($q) use ($request) {
                     $q->where('transaction_id', 'like', '%' . $request->search . '%')
@@ -27,18 +30,18 @@ class TransactionController extends Controller
                 });
             })
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->input('status')))
-            ->when($request->filled('client_category'), fn ($q) => $q->where('client_category', $request->input('client_category')))
+            ->when($this->multiValues($request, 'client_category'), fn ($q, $v) => $q->whereIn('client_category', $v))
             ->when($request->filled('category_filter'), function ($q) use ($request) {
                 $q->whereIn('category', $this->categoryFilterValues($request->input('category_filter')));
             })
-            ->when($request->filled('transaction_category'), fn ($q) => $q->where('category', $request->input('transaction_category')))
-            ->when($request->filled('transaction_type'), fn ($q) => $q->where('events_transaction_type', $request->input('transaction_type')))
+            ->when($this->multiValues($request, 'transaction_category'), fn ($q, $v) => $q->whereIn('category', $v))
+            ->when($this->multiValues($request, 'transaction_type'), fn ($q, $v) => $q->whereIn('events_transaction_type', $v))
             ->when($request->filled('date_from'), fn ($q) => $q->whereDate('transaction_date', '>=', $request->input('date_from')))
-            ->when($request->filled('date_to'), fn ($q) => $q->whereDate('transaction_date', '<=', $request->input('date_to')))
-            ->orderByDesc('transaction_date')
-            ->orderByDesc('id')
-            ->paginate(15)
-            ->withQueryString();
+            ->when($request->filled('date_to'), fn ($q) => $q->whereDate('transaction_date', '<=', $request->input('date_to')));
+
+        $this->applyTransactionSort($query, $sort);
+
+        $transactions = $query->paginate(15)->withQueryString();
 
         $total = $transactions->total();
 
@@ -47,6 +50,7 @@ class TransactionController extends Controller
             'labels' => 'All',
             'transactions' => $transactions,
             'total' => $total,
+            'sort' => $sort,
         ] + $this->transactionFilterOptions());
     }
 
@@ -55,6 +59,8 @@ class TransactionController extends Controller
         if (!array_key_exists($category, TransactionHistory::CATEGORIES)) {
             abort(404);
         }
+
+        $sort = $this->normalizeTransactionSort($request->input('sort', 'client_asc'));
 
         $aliases = [];
         foreach (TransactionHistory::query()->select('category')->distinct()->pluck('category') as $stored) {
@@ -66,7 +72,7 @@ class TransactionController extends Controller
 
         $categoryNames = array_unique(array_merge($aliases[$category] ?? [], [$category]));
 
-        $transactions = TransactionHistory::query()
+        $query = TransactionHistory::query()
             ->whereIn('category', $categoryNames)
             ->when($request->filled('search'), function ($query) use ($request) {
                 $query->where(function ($q) use ($request) {
@@ -77,19 +83,19 @@ class TransactionController extends Controller
                 });
             })
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->input('status')))
-            ->when($request->filled('client_category'), fn ($q) => $q->where('client_category', $request->input('client_category')))
-            ->when($request->filled('transaction_type'), fn ($q) => $q->where('events_transaction_type', $request->input('transaction_type')))
+            ->when($this->multiValues($request, 'client_category'), fn ($q, $v) => $q->whereIn('client_category', $v))
+            ->when($this->multiValues($request, 'transaction_type'), fn ($q, $v) => $q->whereIn('events_transaction_type', $v))
             ->when($request->filled('date_from'), fn ($q) => $q->whereDate('transaction_date', '>=', $request->input('date_from')))
-            ->when($request->filled('date_to'), fn ($q) => $q->whereDate('transaction_date', '<=', $request->input('date_to')))
-            ->orderByDesc('transaction_date')
-            ->orderByDesc('id')
-            ->paginate(15)
-            ->withQueryString();
+            ->when($request->filled('date_to'), fn ($q) => $q->whereDate('transaction_date', '<=', $request->input('date_to')));
+
+        $this->applyTransactionSort($query, $sort);
+
+        $transactions = $query->paginate(15)->withQueryString();
 
         $labels = TransactionHistory::CATEGORIES[$category];
         $total = $transactions->total();
 
-        return view('pages.client_transaction.transactionCategoryList', compact('category', 'labels', 'transactions', 'total') + $this->transactionFilterOptions());
+        return view('pages.client_transaction.transactionCategoryList', compact('category', 'labels', 'transactions', 'total', 'sort') + $this->transactionFilterOptions());
     }
 
     /**
@@ -100,6 +106,7 @@ class TransactionController extends Controller
         $statuses = TransactionHistory::query()
             ->whereNotNull('status')
             ->where('status', '<>', '')
+            ->whereIn('status', TransactionEvent::STATUSES)
             ->distinct()
             ->orderBy('status')
             ->pluck('status');
@@ -132,6 +139,96 @@ class TransactionController extends Controller
             'filterTransactionCategories' => $transactionCategories,
             'filterTransactionTypes' => $transactionTypes,
         ];
+    }
+
+    /**
+     * Whitelisted sort keys for the transaction list (single `sort` param).
+     */
+    private function validTransactionSorts(): array
+    {
+        return [
+            'newest',
+            'client_asc', 'client_desc',
+            'txid_asc', 'txid_desc',
+            'date_asc', 'date_desc',
+            'category_asc', 'category_desc',
+            'type_asc', 'type_desc',
+            'clientcat_asc', 'clientcat_desc',
+            'status_asc', 'status_desc',
+        ];
+    }
+
+    private function normalizeTransactionSort(?string $sort): string
+    {
+        return in_array($sort, $this->validTransactionSorts(), true) ? $sort : 'client_asc';
+    }
+
+    /**
+     * Apply server-side ordering for the transaction list. Client sorting
+     * joins the clients table (last → first → middle, case-insensitive).
+     */
+    private function applyTransactionSort($query, string $sort): void
+    {
+        if (in_array($sort, ['client_asc', 'client_desc'], true)) {
+            $direction = $sort === 'client_asc' ? 'asc' : 'desc';
+            $query->leftJoin('clients', 'clients.client_id', '=', 'transaction_history.client_id')
+                ->select('transaction_history.*')
+                ->orderByRaw("LOWER(clients.last_name) {$direction}")
+                ->orderByRaw("LOWER(clients.first_name) {$direction}")
+                ->orderByRaw("LOWER(clients.middle_name) {$direction}")
+                ->orderByDesc('transaction_history.transaction_date')
+                ->orderByDesc('transaction_history.id');
+
+            return;
+        }
+
+        if ($sort === 'newest') {
+            $query->orderByDesc('transaction_history.transaction_date')
+                ->orderByDesc('transaction_history.id');
+
+            return;
+        }
+
+        $direction = str_ends_with($sort, '_desc') ? 'desc' : 'asc';
+        $column = match (true) {
+            str_starts_with($sort, 'txid_') => 'transaction_history.transaction_id',
+            str_starts_with($sort, 'date_') => 'transaction_history.transaction_date',
+            str_starts_with($sort, 'category_') => 'transaction_history.category',
+            str_starts_with($sort, 'type_') => 'transaction_history.events_transaction_type',
+            str_starts_with($sort, 'clientcat_') => 'transaction_history.client_category',
+            str_starts_with($sort, 'status_') => 'transaction_history.status',
+            default => 'transaction_history.transaction_date',
+        };
+
+        if ($column === 'transaction_history.transaction_date') {
+            $direction === 'asc'
+                ? $query->orderBy('transaction_history.transaction_date')
+                : $query->orderByDesc('transaction_history.transaction_date');
+        } else {
+            $query->orderByRaw("LOWER({$column}) {$direction}");
+        }
+
+        $query->orderByDesc('transaction_history.id');
+    }
+
+    /**
+     * Normalize single- or multi-select filter input into a clean value list.
+     */
+    private function multiValues(Request $request, string $key): array
+    {
+        $raw = $request->input($key);
+        $values = is_array($raw) ? $raw : [$raw];
+        $clean = [];
+        foreach ($values as $value) {
+            foreach (explode(',', (string) $value) as $part) {
+                $part = trim($part);
+                if ($part !== '') {
+                    $clean[] = $part;
+                }
+            }
+        }
+
+        return array_values(array_unique($clean));
     }
 
     /**
@@ -171,7 +268,7 @@ class TransactionController extends Controller
         $validated['transaction_id'] = $this->nextClientTransactionId($validated['client_id']);
         $validated['source'] = 'E-Registration';
         $validated['category'] = TransactionHistory::normalizeCategory($validated['category']);
-        $validated['status'] = in_array(auth()->user()->role_name, ['Admin', 'Super Admin'], true) ? 'Approved' : 'Pending';
+        $validated['status'] = 'Pending';
         $validated['clerk'] = auth()->user()->name ?? null;
         $validated['amount'] = (float) ($validated['amount'] ?? 0);
 
@@ -406,8 +503,8 @@ class TransactionController extends Controller
                     : 'No subject information recorded yet.',
             ],
             [
-                'title' => 'Approval',
-                'done' => strtolower($transaction->status ?? 'Pending') === 'approved',
+                'title' => 'Claim Status',
+                'done' => strtolower($transaction->status ?? 'Pending') === 'claimed',
                 'time' => null,
                 'detail' => $transaction->status ?? 'Pending',
             ],

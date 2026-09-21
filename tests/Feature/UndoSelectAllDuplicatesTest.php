@@ -27,7 +27,7 @@ class UndoSelectAllDuplicatesTest extends TestCase
             'category' => 'BIGAY BIGAS SA MASA',
             'type' => 'BIGAY BIGAS SA MASA',
             'events_transaction_type' => 'TRANCH 1',
-            'status' => 'Approved',
+            'status' => 'Claimed',
             'created_at' => now(),
             'updated_at' => now(),
         ]);

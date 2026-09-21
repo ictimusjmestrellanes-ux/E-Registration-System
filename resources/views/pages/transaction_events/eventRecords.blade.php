@@ -57,7 +57,7 @@
 
                                 </div>
                                 <div class="d-flex flex-wrap gap-2 align-items-center">
-                                    <button type="button" class="btn btn-sm btn-soft-primary client-filters-toggle-btn"
+                                    <button type="button" class="btn btn-sm btn-primary client-filters-toggle-btn"
                                         id="recordFiltersToggleBtn">
                                         Show Filters <i class="ri-arrow-down-s-line ms-1"></i>
                                     </button>
@@ -180,6 +180,7 @@
                                             <div class="dropdown-menu w-100" id="recordClientCategoryDropdown"
                                                 style="max-height: 260px; overflow-y: auto;">
                                                 <div class="p-2">
+                                                    <input type="search" class="form-control form-control-sm mb-2" placeholder="Search client categories..." autocomplete="off" data-dropdown-search>
                                                     <div class="form-check mb-2">
                                                         <input class="form-check-input" type="checkbox"
                                                             id="recordClientCategoryAll" value="">
@@ -198,7 +199,7 @@
                                                                 $clientCategory,
                                                             );
                                                         @endphp
-                                                        <div class="form-check">
+                                                        <div class="form-check" data-option-row data-option-label="{{ strtolower($clientCategory) }}">
                                                             <input class="form-check-input record-client-category-checkbox"
                                                                 type="checkbox"
                                                                 id="recordClientCategory_{{ $loop->index }}"
@@ -210,6 +211,7 @@
                                                             </label>
                                                         </div>
                                                     @endforeach
+                                                    <div class="text-muted small px-1 py-2 d-none" data-dropdown-empty>No matches found.</div>
                                                 </div>
                                             </div>
                                         </div>
@@ -240,6 +242,7 @@
                                             </button>
                                             <div class="dropdown-menu w-100" id="recordTypeFilterDropdown">
                                                 <div class="p-2">
+                                                    <input type="search" class="form-control form-control-sm mb-2" placeholder="Search types..." autocomplete="off" data-dropdown-search>
                                                     <div class="form-check mb-2">
                                                         <input class="form-check-input" type="checkbox"
                                                             id="recordTypeFilterAll" value="">
@@ -256,7 +259,7 @@
                                                             )->filter();
                                                             $isChecked = $selectedTypes->contains($type);
                                                         @endphp
-                                                        <div class="form-check">
+                                                        <div class="form-check" data-option-row data-option-label="{{ strtolower($type) }}">
                                                             <input class="form-check-input record-type-checkbox"
                                                                 type="checkbox" id="recordTypeFilter_{{ $loop->index }}"
                                                                 value="{{ $type }}"
@@ -267,6 +270,7 @@
                                                             </label>
                                                         </div>
                                                     @endforeach
+                                                    <div class="text-muted small px-1 py-2 d-none" data-dropdown-empty>No matches found.</div>
                                                 </div>
                                             </div>
                                         </div>
@@ -388,53 +392,20 @@
                                             </th>
                                         @endif
                                         @php
-                                            $currentSort = request('sort_by', 'full_name');
-                                            $currentDir = request('sort_dir', 'asc') === 'asc' ? 'asc' : 'desc';
-                                            $sortUrl = function ($col) use ($currentSort, $currentDir) {
-                                                $next =
-                                                    $currentSort === $col && $currentDir === 'desc' ? 'asc' : 'desc';
-                                                return route(
-                                                    'transaction-events.records',
-                                                    array_merge(request()->query(), [
-                                                        'sort_by' => $col,
-                                                        'sort_dir' => $next,
-                                                    ]),
-                                                );
-                                            };
-                                            $sortIcon = function ($col) use ($currentSort, $currentDir) {
-                                                if ($currentSort !== $col) {
-                                                    return '';
-                                                }
-                                                return $currentDir === 'asc'
-                                                    ? '<i class="ri-arrow-up-s-line ms-1"></i>'
-                                                    : '<i class="ri-arrow-down-s-line ms-1"></i>';
-                                            };
+                                            $currentSort = $sort ?? request('sort', 'client_asc');
                                         @endphp
-                                        <th data-column="transaction_id"><a href="{{ $sortUrl('transaction_id') }}"
-                                                class="text-reset">Transaction ID {!! $sortIcon('transaction_id') !!}</a></th>
-                                        <th data-column="full_name"><a href="{{ $sortUrl('full_name') }}"
-                                                class="text-reset">Full Name {!! $sortIcon('full_name') !!}</a></th>
-                                        <th data-column="age"><a href="{{ $sortUrl('age') }}" class="text-reset">Age
-                                                {!! $sortIcon('age') !!}</a></th>
-                                        <th data-column="birth_date"><a href="{{ $sortUrl('birth_date') }}"
-                                                class="text-reset">Birth Date {!! $sortIcon('birth_date') !!}</a></th>
-                                        <th data-column="contact"><a href="{{ $sortUrl('contact') }}"
-                                                class="text-reset">Contact No. {!! $sortIcon('contact') !!}</a></th>
-                                        <th data-column="address"><a href="{{ $sortUrl('address') }}"
-                                                class="text-reset">Address {!! $sortIcon('address') !!}</a></th>
-                                        <th data-column="client_category"><a href="{{ $sortUrl('client_category') }}"
-                                                class="text-reset">Client Category {!! $sortIcon('client_category') !!}</a></th>
-                                        <th data-column="transaction_category"><a
-                                                href="{{ $sortUrl('transaction_category') }}"
-                                                class="text-reset">Transaction Category {!! $sortIcon('transaction_category') !!}</a></th>
-                                        <th data-column="transaction_type"><a href="{{ $sortUrl('transaction_type') }}"
-                                                class="text-reset">Transaction Type {!! $sortIcon('transaction_type') !!}</a></th>
-                                        <th data-column="event_date"><a href="{{ $sortUrl('event_date') }}"
-                                                class="text-reset">Event Date {!! $sortIcon('event_date') !!}</a></th>
-                                        <th style="width: 160px;" data-column="transferred_at"><a
-                                                href="{{ $sortUrl('transferred_at') }}" class="text-reset">Transferred At
-                                                {!! $sortIcon('transferred_at') !!}</a></th>
-                                        <th style="width: 120px;" class="text-center" data-column="status">Status</th>
+                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Transaction ID', 'asc' => 'txid_asc', 'desc' => 'txid_desc', 'current' => $currentSort, 'column' => 'transaction_id'])
+                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Full Name', 'asc' => 'client_asc', 'desc' => 'client_desc', 'current' => $currentSort, 'column' => 'full_name'])
+                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Age', 'asc' => 'age_asc', 'desc' => 'age_desc', 'current' => $currentSort, 'column' => 'age'])
+                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Birth Date', 'asc' => 'birth_asc', 'desc' => 'birth_desc', 'current' => $currentSort, 'column' => 'birth_date'])
+                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Contact No.', 'asc' => 'contact_asc', 'desc' => 'contact_desc', 'current' => $currentSort, 'column' => 'contact'])
+                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Address', 'asc' => 'address_asc', 'desc' => 'address_desc', 'current' => $currentSort, 'column' => 'address'])
+                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Client Category', 'asc' => 'clientcat_asc', 'desc' => 'clientcat_desc', 'current' => $currentSort, 'column' => 'client_category'])
+                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Transaction Category', 'asc' => 'category_asc', 'desc' => 'category_desc', 'current' => $currentSort, 'column' => 'transaction_category'])
+                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Transaction Type', 'asc' => 'type_asc', 'desc' => 'type_desc', 'current' => $currentSort, 'column' => 'transaction_type'])
+                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Event Date', 'asc' => 'eventdate_asc', 'desc' => 'eventdate_desc', 'current' => $currentSort, 'column' => 'event_date'])
+                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Transferred At', 'asc' => 'transferred_asc', 'desc' => 'transferred_desc', 'current' => $currentSort, 'column' => 'transferred_at', 'style' => 'width: 160px;'])
+                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Status', 'asc' => 'status_asc', 'desc' => 'status_desc', 'current' => $currentSort, 'column' => 'status', 'style' => 'width: 120px;', 'center' => true])
                                         @if (auth()->user()?->role_name !== 'Viewer')
                                             <th style="width: 140px;" class="text-center">Action</th>
                                         @endif
@@ -1130,6 +1101,12 @@
                         new Message('imessage').show(
                             `Undone ${undone} transfer(s)${skipped > 0 ? `, skipped ${skipped}` : ''}. Opening Import Events...`,
                             'success', 'top-center');
+                        // Notify: queue so the undo result shows after redirect.
+                        if (window.ErsNotify) {
+                            window.ErsNotify.queue(
+                                `Undone ${undone} transfer(s)${skipped > 0 ? `, skipped ${skipped}` : ''}.`,
+                                'success');
+                        }
                         setTimeout(function() {
                             window.location.href = @json(route('transaction-events.index'));
                         }, 1200);
@@ -1315,6 +1292,12 @@
                         new Message('imessage').show(
                             `Tagged ${updated} record(s) as ${status}${skipped > 0 ? `, skipped ${skipped}` : ''}. Reloading...`,
                             'success', 'top-center');
+                        // Notify: queue so the tag result shows after reload.
+                        if (window.ErsNotify) {
+                            window.ErsNotify.queue(
+                                `Tagged ${updated} record(s) as ${status}${skipped > 0 ? `, skipped ${skipped}` : ''}.`,
+                                'success');
+                        }
                         setTimeout(function() {
                             window.location.reload();
                         }, 1200);

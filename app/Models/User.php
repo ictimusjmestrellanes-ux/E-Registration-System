@@ -49,6 +49,7 @@ class User extends Authenticatable
         'google_id',
         'azure_id',
         'auth_provider',
+        'notifications_read_id',
     ];
 
 
@@ -69,6 +70,7 @@ class User extends Authenticatable
      */
     protected $casts = [
         'email_verified_at' => 'datetime',
+        'notifications_read_id' => 'integer',
     ];
 
     public function getAvatarUrlAttribute()

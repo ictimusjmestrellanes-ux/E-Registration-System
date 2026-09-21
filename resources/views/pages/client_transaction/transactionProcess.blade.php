@@ -3,7 +3,9 @@
 @section('content')
     @php
         $txStatus = $transaction->status ?? 'Pending';
-        $isApproved = strtolower($txStatus) === 'approved';
+        $isClaimed = strtolower($txStatus) === 'claimed';
+        $isUnclaimed = strtolower($txStatus) === 'unclaimed';
+        $txBadge = $isClaimed ? 'bg-success-subtle text-success' : ($isUnclaimed ? 'bg-danger-subtle text-danger' : (strtolower($txStatus) === 'pending' ? 'bg-warning-subtle text-warning' : 'bg-secondary-subtle text-secondary'));
     @endphp
 
     <div class="container-fluid">
@@ -32,7 +34,7 @@
                                 <div class="border rounded-4 p-4 bg-light-subtle h-100">
                                     <div class="d-flex align-items-center justify-content-between mb-4">
                                         <h5 class="mb-0">Process Steps</h5>
-                                        <span class="badge {{ $isApproved ? 'bg-success-subtle text-success' : 'bg-warning-subtle text-warning' }} fs-6">
+                                        <span class="badge {{ $txBadge }} fs-6">
                                             {{ $txStatus }}
                                         </span>
                                     </div>
