@@ -71,17 +71,20 @@
                                             <i class="ri-file-copy-2-line me-1"></i>View Duplicate Records
                                         </a>
                                     @endif
-
-                                    <a href="{{ route('transaction-events.records.export', request()->query()) }}"
-                                        class="btn btn-sm btn-soft-success text-nowrap"
-                                        title="Export the currently filtered records to Excel">
-                                        <i class="ri-download-line me-1"></i> Export XLSX
-                                    </a>
-                                    <a href="{{ route('transaction-events.records.export-pdf', request()->query()) }}"
-                                        id="recordExportPdfBtn" class="btn btn-sm btn-soft-danger text-nowrap"
-                                        title="Export all filtered records to PDF in alphabetical order">
-                                        <i class="ri-file-pdf-line me-1"></i> Export PDF
-                                    </a>
+                                    @if (feature_allowed('Export Transaction Event Records'))
+                                        <a href="{{ route('transaction-events.records.export', request()->query()) }}"
+                                            class="btn btn-sm btn-soft-success text-nowrap"
+                                            title="Export the currently filtered records to Excel">
+                                            <i class="ri-download-line me-1"></i> Export XLSX
+                                        </a>
+                                    @endif
+                                    @if (feature_allowed('Print Payroll Transaction PDF'))
+                                        <a href="{{ route('transaction-events.records.export-pdf', request()->query()) }}"
+                                            id="recordExportPdfBtn" class="btn btn-sm btn-soft-danger text-nowrap"
+                                            title="Print the filtered payroll as PDF or Excel in alphabetical order">
+                                            <i class="ri-printer-line me-1"></i> Print Payroll
+                                        </a>
+                                    @endif
 
                                     <select class="form-select form-select-sm w-auto" id="recordPerPageSelect"
                                         aria-label="Records per page" title="Records per page">
@@ -592,7 +595,7 @@
         <div class="modal-dialog modal-dialog-centered">
             <form class="modal-content" id="recordPdfDetailsForm">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="recordPdfDetailsTitle">PDF report details</h5>
+                    <h5 class="modal-title" id="recordPdfDetailsTitle">Payroll report details</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
@@ -601,8 +604,7 @@
                         dates.</p>
                     <div class="mb-3">
                         <label for="recordPdfDate" class="form-label">Date</label>
-                        <input type="text" class="form-control" id="recordPdfDate" name="report_date"
-                            maxlength="100" placeholder="Automatic date or date range">
+                        <input type="date" class="form-control" id="recordPdfDate" name="report_date">
                     </div>
                     <div class="mb-3">
                         <label for="recordPdfPrepared" class="form-label">Prepared by</label>
@@ -632,9 +634,14 @@
                             </div>
                         @endforeach
                     </fieldset>
+                    <div id="recordPayrollExcelError" class="alert alert-danger d-none mt-3 mb-0" role="alert"></div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-success" id="recordPayrollExcelBtn"
+                        data-url="{{ route('transaction-events.records.payroll-xlsx', request()->query()) }}">
+                        <i class="ri-file-excel-2-line me-1"></i> Download Excel
+                    </button>
                     <button type="submit" class="btn btn-primary">Generate PDF</button>
                 </div>
             </form>

@@ -42,7 +42,7 @@
                 @php($recordNumber = ($rowOffset ?? 0) + $pageIndex * 20 + $loop->iteration)
                 <tr>
                     <td class="center">{{ $recordNumber }}</td><td></td>
-                    <td>{{ mb_strtoupper($event->full_name ?? '') }}</td>
+                    <td>{{ mb_strtoupper($event->display_name) }}</td>
                     <td>{{ mb_strtoupper($event->address ?? '') }}</td>
                     <td class="center">{{ mb_strtoupper($event->export_sex ?? '') }}</td>
                     <td class="center">{{ $event->age }}</td>

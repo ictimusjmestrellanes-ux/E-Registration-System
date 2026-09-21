@@ -20,12 +20,65 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const detailsElement = document.getElementById('recordPdfDetailsModal');
     const detailsForm = document.getElementById('recordPdfDetailsForm');
+    const excelButton = document.getElementById('recordPayrollExcelBtn');
+    const excelError = document.getElementById('recordPayrollExcelError');
     button.addEventListener('click', (event) => {
         // Preserve normal open-in-new-tab behavior and the non-JavaScript link.
         if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
         event.preventDefault();
         if (busy) return;
         bootstrap.Modal.getOrCreateInstance(detailsElement).show();
+    });
+
+    excelButton?.addEventListener('click', async () => {
+        if (busy || !detailsForm.reportValidity()) return;
+        excelButton.disabled = true;
+        excelError.classList.add('d-none');
+        const originalLabel = excelButton.innerHTML;
+        excelButton.textContent = 'Preparing Excel…';
+
+        try {
+            const url = new URL(excelButton.dataset.url, window.location.href);
+            const formData = new FormData(detailsForm);
+            for (const name of ['report_date', 'prepared_by', 'reviewed_by', 'approved_by', 'numbered_tranches', 'numbered_tranches[]']) {
+                url.searchParams.delete(name);
+            }
+            for (const [name, value] of formData.entries()) {
+                url.searchParams.append(name === 'numbered_tranches' ? 'numbered_tranches[]' : name, value);
+            }
+
+            const response = await fetch(url, { credentials: 'same-origin', headers: { Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' } });
+            if (response.redirected || response.status === 401 || response.status === 419) {
+                throw new Error('Your session expired. Refresh the page and sign in before exporting again.');
+            }
+            if (!response.ok || !(response.headers.get('Content-Type') || '').includes('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')) {
+                throw new Error('Excel export failed. Please check the report details and try again.');
+            }
+
+            const blob = await response.blob();
+            if (blob.size < 4 || await blob.slice(0, 2).text() !== 'PK') {
+                throw new Error('The Excel download was incomplete. Please try again.');
+            }
+            const disposition = response.headers.get('Content-Disposition') || '';
+            const filename = disposition.match(/filename="?([^";\\/]+)"?/i)?.[1] || 'event-records-payroll.xlsx';
+            const downloadUrl = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            setTimeout(() => URL.revokeObjectURL(downloadUrl), 60000);
+            bootstrap.Modal.getOrCreateInstance(detailsElement).hide();
+        } catch (error) {
+            excelError.textContent = error instanceof TypeError
+                ? 'The connection was interrupted. Please try the Excel download again.'
+                : error.message;
+            excelError.classList.remove('d-none');
+        } finally {
+            excelButton.disabled = false;
+            excelButton.innerHTML = originalLabel;
+        }
     });
 
     detailsForm.addEventListener('submit', async (event) => {

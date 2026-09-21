@@ -57,6 +57,12 @@ class TransactionEvent extends Model
 
     protected static function booted(): void
     {
+        static::saving(static function (self $event): void {
+            if ($event->isDirty('full_name') || $event->display_name_sort === null) {
+                $event->display_name_sort = mb_strtolower(ImportName::format((string) $event->full_name));
+            }
+        });
+
         // Event imports, transfers, and undo operations can affect the
         // dashboard's caravan trend. Share the same request-level cache
         // invalidation as transaction history writes.

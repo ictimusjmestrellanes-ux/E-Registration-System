@@ -154,7 +154,7 @@ class TransactionEventsController extends Controller
         $textColumns = ['full_name', 'contact_no', 'address', 'client_category', 'transaction_category', 'transaction_type', 'status'];
 
         if ($column === 'full_name') {
-            $query->orderByRaw('LOWER(TRIM(full_name)) '.$direction);
+            $query->orderByRaw('COALESCE(display_name_sort, LOWER(TRIM(full_name))) '.$direction);
         } elseif (in_array($column, $textColumns, true)) {
             $query->orderByRaw("LOWER({$column}) {$direction}");
         } else {
@@ -884,7 +884,7 @@ class TransactionEventsController extends Controller
         $textColumns = ['contact_no', 'address', 'client_category', 'transaction_category', 'transaction_type', 'status'];
 
         if ($column === 'full_name') {
-            $query->orderByRaw('LOWER(TRIM(full_name)) '.$direction);
+            $query->orderByRaw('COALESCE(display_name_sort, LOWER(TRIM(full_name))) '.$direction);
         } elseif (in_array($column, $textColumns, true)) {
             $query->orderByRaw("LOWER({$column}) {$direction}");
         } else {
@@ -915,7 +915,7 @@ class TransactionEventsController extends Controller
 
         $query = TransactionEvent::whereNotNull('transferred_at');
         $this->applyRecordFilters($query, $request);
-        $events = $query->orderByRaw('LOWER(TRIM(full_name))')->orderBy('id')->get();
+        $events = $query->orderByRaw('COALESCE(display_name_sort, LOWER(TRIM(full_name)))')->orderBy('id')->get();
 
         // Sex is available only through the linked client; never infer it from a name.
         $histories = TransactionHistory::whereIn('id', $events->pluck('transferred_transaction_id')->filter()->unique())
@@ -946,6 +946,54 @@ class TransactionEventsController extends Controller
             'Content-Disposition' => 'attachment; filename="event_records_'.now()->format('Ymd_His').'.pdf"',
             'Cache-Control' => 'private, no-store',
         ]);
+    }
+
+    /**
+     * Download the printable payroll roster in Excel using the PDF report details.
+     */
+    public function exportRecordsPayrollXlsx(Request $request)
+    {
+        abort_unless(feature_allowed('Event Records') && feature_allowed('Print Payroll Transaction PDF'), 404);
+
+        $details = $request->validate([
+            'prepared_by' => 'nullable|string|max:100',
+            'reviewed_by' => 'nullable|string|max:100',
+            'approved_by' => 'nullable|string|max:100',
+            'report_date' => 'nullable|string|max:100',
+            'numbered_tranches' => 'sometimes|array|max:4',
+            'numbered_tranches.*' => 'required|integer|in:1,2,3,4|distinct',
+        ]);
+
+        @ini_set('memory_limit', '512M');
+        @set_time_limit(300);
+
+        $query = TransactionEvent::whereNotNull('transferred_at');
+        $this->applyRecordFilters($query, $request);
+        $events = $query->orderByRaw('COALESCE(display_name_sort, LOWER(TRIM(full_name)))')->orderBy('id')->get();
+
+        $histories = TransactionHistory::whereIn('id', $events->pluck('transferred_transaction_id')->filter()->unique())
+            ->pluck('client_id', 'id');
+        $clients = Client::whereIn('client_id', $histories->values()->unique())
+            ->get(['client_id', 'gender'])->keyBy('client_id');
+        foreach ($events as $event) {
+            $event->setAttribute('export_sex', $clients->get($histories->get($event->transferred_transaction_id))?->gender ?? '');
+        }
+
+        $categories = $events->pluck('transaction_category')->map(fn ($value) => mb_strtoupper(trim((string) $value)))->unique();
+        $selectedCategories = collect($this->multiFilterValues($request, 'transaction_category'))
+            ->map(fn ($value) => mb_strtoupper(trim($value)));
+        $isRice = ($categories->isNotEmpty() ? $categories : $selectedCategories)->all() === ['BIGAY BIGAS SA MASA'];
+        $dates = $events->pluck('event_date')->filter()->map(fn ($date) => $date->format('Y-m-d'))->unique()->sort()->values();
+        $dateLabel = $dates->count() === 1 ? $dates->first() : ($dates->count() > 1 ? $dates->first().' to '.$dates->last() : '');
+        $dateLabel = $details['report_date'] ?? $dateLabel;
+
+        $path = app(\App\Services\EventRecordsPayrollXlsxExporter::class)
+            ->render($events, $isRice, $dateLabel, $details);
+
+        return response()->download($path, 'event-records-payroll_'.now()->format('Ymd_His').'.xlsx', [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Cache-Control' => 'private, no-store',
+        ])->deleteFileAfterSend(true);
     }
 
     public function advanceRecordsPdf(Request $request, string $token)

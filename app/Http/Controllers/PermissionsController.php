@@ -52,6 +52,8 @@ class PermissionsController extends Controller
         ['feature' => 'Edit Transaction Event Record', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
         ['feature' => 'Tag Transaction Event Record Status', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
         ['feature' => 'Delete Clients Without Transactions', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
+        ['feature' => 'Export Transaction Event Records', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
+        ['feature' => 'Print Payroll Transaction PDF', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
     ];
 
     /**

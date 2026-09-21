@@ -133,6 +133,7 @@ Route::group(['namespace' => 'App\Http\Controllers'], function () {
         Route::get('transaction-events/records', [TransactionEventsController::class, 'records'])->name('transaction-events.records');
         Route::get('transaction-events/records/export', [TransactionEventsController::class, 'exportRecords'])->name('transaction-events.records.export');
         Route::get('transaction-events/records/export-pdf', [TransactionEventsController::class, 'exportRecordsPdf'])->name('transaction-events.records.export-pdf');
+        Route::get('transaction-events/records/payroll-xlsx', [TransactionEventsController::class, 'exportRecordsPayrollXlsx'])->name('transaction-events.records.payroll-xlsx');
         Route::post('transaction-events/records/export-pdf', [TransactionEventsController::class, 'exportRecordsPdf']);
         Route::post('transaction-events/records/export-pdf/{token}/step', [TransactionEventsController::class, 'advanceRecordsPdf'])->name('transaction-events.records.pdf-step');
         Route::get('transaction-events/records/export-pdf/{token}/download', [TransactionEventsController::class, 'downloadRecordsPdf'])->name('transaction-events.records.pdf-download');
