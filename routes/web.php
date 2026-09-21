@@ -177,5 +177,6 @@ Route::group(['namespace' => 'App\Http\Controllers'], function () {
         // Navbar notifications: outside viewer.readonly so Viewers can also
         // mark their own notifications as read (touches only their profile).
         Route::post('notifications/mark-all-read', [ActivityLogsController::class, 'markAllAsRead'])->name('notifications.read-all');
+        Route::get('notifications/state', [ActivityLogsController::class, 'notificationState'])->name('notifications.state');
     });
 });

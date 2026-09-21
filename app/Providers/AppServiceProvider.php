@@ -60,6 +60,7 @@ class AppServiceProvider extends ServiceProvider
                     ->orderByDesc('id')
                     ->take(8)
                     ->get();
+                $latestId = (clone $baseQuery)->max('id') ?? 0;
 
                 // Anything logged after the user's read marker (higher id)
                 // counts as unread.
@@ -70,12 +71,14 @@ class AppServiceProvider extends ServiceProvider
 
                 $view->with('navbarNotifications', $notifications)
                     ->with('navbarNotificationCount', $notifications->count())
+                    ->with('navbarLatestId', $latestId)
                     ->with('navbarUnreadCount', $unreadCount);
             } catch (\Throwable) {
                 // The navbar must never break page rendering (e.g. pending
                 // migrations on a fresh checkout).
                 $view->with('navbarNotifications', collect())
                     ->with('navbarNotificationCount', 0)
+                    ->with('navbarLatestId', 0)
                     ->with('navbarUnreadCount', 0);
             }
         });

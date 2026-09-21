@@ -137,12 +137,15 @@
                             </button>
                         </div>
 
-                        <div class="dropdown topbar-head-dropdown ms-1 header-item" id="notificationDropdown">
+                        <div class="dropdown topbar-head-dropdown ms-1 header-item" id="notificationDropdown"
+                            data-state-url="{{ route('notifications.state') }}"
+                            data-sound-url="{{ asset('assets/ringtone/universfield-new-notification-040-493469.mp3') }}"
+                            data-latest-id="{{ $navbarLatestId ?? 0 }}"
+                            data-unread-count="{{ $navbarUnreadCount ?? 0 }}"
+                            data-user-id="{{ auth()->id() }}">
                             <button type="button" class="btn btn-icon btn-topbar material-shadow-none btn-ghost-secondary rounded-circle" id="page-header-notifications-dropdown" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-haspopup="true" aria-expanded="false">
                                 <i class="bx bx-bell fs-22"></i>
-                                @if (($navbarUnreadCount ?? 0) > 0)
-                                    <span class="position-absolute topbar-badge fs-10 translate-middle badge rounded-pill bg-danger">{{ $navbarUnreadCount > 99 ? '99+' : $navbarUnreadCount }}<span class="visually-hidden">unread messages</span></span>
-                                @endif
+                                <span class="position-absolute topbar-badge fs-10 translate-middle badge rounded-pill bg-danger {{ ($navbarUnreadCount ?? 0) > 0 ? '' : 'd-none' }}" id="notificationUnreadBadge">{{ $navbarUnreadCount > 99 ? '99+' : ($navbarUnreadCount ?? 0) }}<span class="visually-hidden">unread messages</span></span>
                             </button>
                             <div class="dropdown-menu dropdown-menu-lg dropdown-menu-end p-0" aria-labelledby="page-header-notifications-dropdown">
 
@@ -153,7 +156,7 @@
                                                 <h6 class="m-0 fs-16 fw-semibold text-white"> Notifications </h6>
                                             </div>
                                             <div class="col-auto dropdown-tabs">
-                                                <span class="badge bg-light text-body fs-13">{{ ($navbarUnreadCount ?? 0) > 0 ? ($navbarUnreadCount > 99 ? '99+' : $navbarUnreadCount) . ' New' : 'New' }}</span>
+                                                <span class="badge bg-light text-body fs-13" id="notificationUnreadLabel">{{ $navbarUnreadCount > 99 ? '99+' : ($navbarUnreadCount ?? 0) }} New</span>
                                             </div>
                                         </div>
                                     </div>
@@ -230,14 +233,12 @@
                                                 </div>
                                             @endforelse
                                             <div class="my-3 text-center view-all d-flex justify-content-center gap-2 flex-wrap px-2">
-                                                @if (($navbarUnreadCount ?? 0) > 0)
-                                                    <form method="POST" action="{{ route('notifications.read-all') }}" class="m-0">
+                                                    <form method="POST" action="{{ route('notifications.read-all') }}" class="m-0 {{ ($navbarUnreadCount ?? 0) > 0 ? '' : 'd-none' }}" id="markAllNotificationsReadForm">
                                                         @csrf
                                                         <button type="submit" class="btn btn-sm btn-soft-primary waves-effect waves-light">
                                                             <i class="ri-check-double-line align-middle me-1"></i>Mark all as read
                                                         </button>
                                                     </form>
-                                                @endif
                                                 <a href="{{ route('activity.logs') }}" class="btn btn-sm btn-soft-success waves-effect waves-light">View
                                                     All Notifications <i class="ri-arrow-right-line align-middle"></i>
                                                 </a>
@@ -407,6 +408,7 @@
     <!-- imessage -->
     <script src="{{ asset('assets/js/imessage.js') }}"></script>
     <script src="{{ asset('assets/js/ers-notify.js') }}"></script>
+    <script src="{{ asset('assets/js/notification-read.js') }}?v={{ filemtime(public_path('assets/js/notification-read.js')) }}"></script>
 
     <script>
         document.addEventListener("DOMContentLoaded", function () {

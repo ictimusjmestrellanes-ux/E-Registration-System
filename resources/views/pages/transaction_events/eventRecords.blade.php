@@ -166,7 +166,11 @@
                                             id="recordAgeTo" name="age_to" placeholder="To"
                                             value="{{ request('age_to') }}">
                                     </div> --}}
-
+                                    <div class="col-12 col-md-6 col-xl-2">
+                                        <label for="recordAddressFilterBtn"
+                                            class="form-label fw-semibold text-uppercase small">Address</label>
+                                        @include('pages.transaction_events.partials.addressDropdown', ['addressId' => 'recordAddressFilter'])
+                                    </div>
                                     <div class="col-12 col-md-6 col-xl-2">
                                         <label class="form-label fw-semibold text-uppercase small">Client Category</label>
                                         <div class="dropdown w-100">
@@ -180,7 +184,7 @@
                                             <div class="dropdown-menu w-100" id="recordClientCategoryDropdown"
                                                 style="max-height: 260px; overflow-y: auto;">
                                                 <div class="p-2">
-                                                    <input type="search" class="form-control form-control-sm mb-2" placeholder="Search client categories..." autocomplete="off" data-dropdown-search>
+                                                    <input type="search" class="form-control form-control-sm mb-2" placeholder="Search client categories..." autocomplete="off">
                                                     <div class="form-check mb-2">
                                                         <input class="form-check-input" type="checkbox"
                                                             id="recordClientCategoryAll" value="">
@@ -216,11 +220,7 @@
                                             </div>
                                         </div>
                                     </div>
-                                    <div class="col-12 col-md-6 col-xl-2">
-                                        <label for="recordAddressFilterBtn"
-                                            class="form-label fw-semibold text-uppercase small">Address</label>
-                                        @include('pages.transaction_events.partials.addressDropdown', ['addressId' => 'recordAddressFilter'])
-                                    </div>
+                                    
                                     <div class="col-12 col-md-6 col-xl-2">
                                         <label for="recordCategoryFilter"
                                             class="form-label fw-semibold text-uppercase small">Transaction
@@ -242,7 +242,7 @@
                                             </button>
                                             <div class="dropdown-menu w-100" id="recordTypeFilterDropdown">
                                                 <div class="p-2">
-                                                    <input type="search" class="form-control form-control-sm mb-2" placeholder="Search types..." autocomplete="off" data-dropdown-search>
+                                                    <input type="search" class="form-control form-control-sm mb-2" placeholder="Search types..." autocomplete="off">
                                                     <div class="form-check mb-2">
                                                         <input class="form-check-input" type="checkbox"
                                                             id="recordTypeFilterAll" value="">

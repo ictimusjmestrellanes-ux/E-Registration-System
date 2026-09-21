@@ -19,22 +19,28 @@ document.addEventListener('DOMContentLoaded', function () {
         menu.style.maxHeight = '300px';
         menu.style.overflowY = 'auto';
 
-        const searchContainer = document.createElement('div');
-        searchContainer.className = 'p-2 bg-body sticky-top';
-        const search = document.createElement('input');
-        search.type = 'search';
-        search.className = 'form-control form-control-sm';
-        search.placeholder = `Search ${name}...`;
+        let search = menu.querySelector('input[type="search"]');
+        if (!search) {
+            const searchContainer = document.createElement('div');
+            searchContainer.className = 'p-2 bg-body sticky-top';
+            search = document.createElement('input');
+            search.type = 'search';
+            search.className = 'form-control form-control-sm';
+            search.placeholder = `Search ${name}...`;
+            search.autocomplete = 'off';
+            searchContainer.appendChild(search);
+            menu.prepend(searchContainer);
+        }
         search.setAttribute('aria-label', `Search ${name}`);
-        search.autocomplete = 'off';
-        searchContainer.appendChild(search);
-        menu.prepend(searchContainer);
 
-        const empty = document.createElement('div');
-        empty.className = 'small text-muted p-2';
-        empty.textContent = 'No matching options';
-        empty.setAttribute('role', 'status');
-        menu.appendChild(empty);
+        let empty = menu.querySelector('[data-dropdown-empty]');
+        if (!empty) {
+            empty = document.createElement('div');
+            empty.className = 'small text-muted p-2 d-none';
+            empty.textContent = 'No matching options';
+            empty.setAttribute('role', 'status');
+            menu.appendChild(empty);
+        }
 
         function filterOptions() {
             const term = search.value.trim().toLocaleLowerCase();
@@ -48,7 +54,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     matches++;
                 }
             });
-            empty.hidden = matches > 0;
+            empty.classList.toggle('d-none', matches > 0);
         }
 
         search.addEventListener('input', filterOptions);

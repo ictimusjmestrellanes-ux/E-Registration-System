@@ -135,12 +135,44 @@ class ActivityLogsController extends Controller
      */
     public function markAllAsRead(Request $request)
     {
-        $request->user()->update(['notifications_read_id' => ActivityLog::max('id') ?? 0]);
+        $readId = ActivityLog::max('id') ?? 0;
+        $user = $request->user();
+        $user->update(['notifications_read_id' => $readId]);
 
         if ($request->wantsJson()) {
-            return response()->json(['success' => true]);
+            $unreadQuery = ActivityLog::query()
+                ->whereIn('action', ActivityLog::NOTIFICATION_ACTIONS)
+                ->where('id', '>', $readId);
+            if (! in_array($user->role_name, ['Admin', 'Super Admin'], true)) {
+                $unreadQuery->where('user_id', $user->id);
+            }
+
+            return response()->json([
+                'success' => true,
+                'unread_count' => $unreadQuery->count(),
+            ]);
         }
 
         return redirect()->back()->with('success', 'All notifications marked as read.');
+    }
+
+    public function notificationState(Request $request)
+    {
+        $user = $request->user();
+        $query = ActivityLog::query()->whereIn('action', ActivityLog::NOTIFICATION_ACTIONS);
+        if (! in_array($user->role_name, ['Admin', 'Super Admin'], true)) {
+            $query->where('user_id', $user->id);
+        }
+
+        $latestId = (clone $query)->max('id') ?? 0;
+        $readId = $user->notifications_read_id;
+        $unreadCount = (clone $query)
+            ->when($readId, fn ($items) => $items->where('id', '>', $readId))
+            ->count();
+
+        return response()->json([
+            'latest_id' => $latestId,
+            'unread_count' => $unreadCount,
+        ])->header('Cache-Control', 'no-store');
     }
 }
