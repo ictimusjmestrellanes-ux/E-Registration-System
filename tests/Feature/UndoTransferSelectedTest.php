@@ -75,6 +75,7 @@ class UndoTransferSelectedTest extends TestCase
         $response->assertJsonPath('success', true);
         $response->assertJsonPath('undone', 2);
         $response->assertJsonPath('skipped', 3);
+        $this->assertEqualsCanonicalizing([$e1->id, $e2->id], $response->json('removed_ids'));
 
         // Undone: transactions gone, events reset to pending.
         $this->assertDatabaseMissing('transaction_history', ['id' => $h1]);

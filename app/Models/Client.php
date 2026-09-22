@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 
 class Client extends Model
 {
@@ -126,6 +127,14 @@ class Client extends Model
         $lastName = trim((string) $this->last_name);
         $firstName = trim((string) $this->first_name);
         $middleName = trim((string) $this->middle_name);
+
+        // Older imports of "LASTNAME FIRSTNAME M.I." may have stored the
+        // trailing initial as last_name. Present those existing records in
+        // the intended order on both the client list and client details.
+        if ($middleName !== '' && preg_match('/^[\p{L}]\.?$/u', $lastName)) {
+            [$lastName, $firstName, $middleName] = [$firstName, $middleName, $lastName];
+        }
+
         $middleDisplay = mb_strlen($middleName) === 1 ? $middleName . '.' : $middleName;
 
         $name = implode(', ', array_filter([$lastName, $firstName], fn ($part) => $part !== ''));
@@ -135,6 +144,26 @@ class Client extends Model
             $middleDisplay,
             trim((string) $this->suffix),
         ], fn ($part) => $part !== ''))));
+    }
+
+    /**
+     * SQL expressions that follow the same legacy-name correction as
+     * list_display_name. They keep paginated client-based lists ordered by
+     * the surname users actually see.
+     *
+     * @return array{0: string, 1: string, 2: string}
+     */
+    public static function listDisplaySortExpressions(string $table = 'clients'): array
+    {
+        $lengthFunction = DB::connection()->getDriverName() === 'mysql' ? 'CHAR_LENGTH' : 'LENGTH';
+        $legacyInitial = "TRIM(COALESCE({$table}.middle_name, '')) <> ''"
+            ." AND {$lengthFunction}(REPLACE(TRIM(COALESCE({$table}.last_name, '')), '.', '')) = 1";
+
+        return [
+            "LOWER(CASE WHEN ({$legacyInitial}) THEN TRIM(COALESCE({$table}.first_name, '')) ELSE TRIM(COALESCE({$table}.last_name, '')) END)",
+            "LOWER(CASE WHEN ({$legacyInitial}) THEN TRIM(COALESCE({$table}.middle_name, '')) ELSE TRIM(COALESCE({$table}.first_name, '')) END)",
+            "LOWER(CASE WHEN ({$legacyInitial}) THEN TRIM(COALESCE({$table}.last_name, '')) ELSE TRIM(COALESCE({$table}.middle_name, '')) END)",
+        ];
     }
 
     public function transactions()

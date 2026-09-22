@@ -16,9 +16,12 @@
             const initial = first.match(/^(.*?)\s+([\p{L}]\.?)$/u);
             if (initial) [, first, middle] = initial;
         } else {
-            const initial = value.match(/^(.+?)\s+([\p{L}]\.?)\s+(.+)$/u);
-            if (initial) {
-                [, first, middle, last] = initial;
+            const surnameFirstWithInitial = value.match(/^(\S+)\s+(.+?)\s+([\p{L}]\.?)$/u);
+            const givenFirstWithInitial = value.match(/^(.+?)\s+([\p{L}]\.?)\s+(.+)$/u);
+            if (surnameFirstWithInitial) {
+                [, last, first, middle] = surnameFirstWithInitial;
+            } else if (givenFirstWithInitial) {
+                [, first, middle, last] = givenFirstWithInitial;
             } else {
                 const parts = value ? value.split(' ') : [];
                 first = parts.shift() || '';

@@ -25,13 +25,14 @@ class ClientListController extends Controller
     {
         $matchedClientId = $request->query('matched_client');
         $groupClientIds = $this->parseGroupClientIds($request);
+        $sort = $this->normalizeClientSort($request->input('sort'));
 
         $perPage = (int) $request->input('per_page', 10);
         if (!in_array($perPage, [10, 15, 25, 50, 100], true)) {
             $perPage = 10;
         }
 
-        $clients = Client::query()
+        $clientsQuery = Client::query()
             ->select([
                 'id', 'client_id', 'first_name', 'middle_name', 'last_name', 'suffix',
                 'age', 'birth_date', 'gender', 'civil_status',
@@ -92,24 +93,65 @@ class ClientListController extends Controller
                     $q->whereRaw('0 = 1');
                 }
             })
-            ->orderByRaw("LOWER(TRIM(COALESCE(last_name, ''))) ASC")
-            ->orderByRaw("LOWER(TRIM(COALESCE(first_name, ''))) ASC")
-            ->orderByRaw("LOWER(TRIM(COALESCE(middle_name, ''))) ASC")
-            ->orderBy('id', 'asc')
             ->when($matchedClientId, function ($query, $matchedClientId) {
                 $query->where('id', $matchedClientId);
             })
             ->when(!empty($groupClientIds), function ($query) use ($groupClientIds) {
                 $query->whereIn('id', $groupClientIds);
-            })
-            ->paginate($perPage)
+            });
+
+        $this->applyClientSort($clientsQuery, $sort);
+
+        $clients = $clientsQuery->paginate($perPage)
             ->withQueryString();
 
         $clientCities = Client::whereNotNull('city')->distinct()->orderBy('city')->pluck('city');
         $clientBarangays = Client::whereNotNull('barangay')->distinct()->orderBy('barangay')->pluck('barangay');
         $clientCivilStatuses = Client::whereNotNull('civil_status')->distinct()->orderBy('civil_status')->pluck('civil_status');
 
-        return view('pages.clients.clientList', compact('clients', 'matchedClientId', 'groupClientIds', 'clientCities', 'clientBarangays', 'clientCivilStatuses'));
+        return view('pages.clients.clientList', compact('clients', 'matchedClientId', 'groupClientIds', 'clientCities', 'clientBarangays', 'clientCivilStatuses', 'sort'));
+    }
+
+    private function normalizeClientSort(?string $sort): string
+    {
+        $validSorts = [
+            'name_asc', 'name_desc',
+            'clientid_asc', 'clientid_desc',
+            'gender_asc', 'gender_desc',
+            'age_asc', 'age_desc',
+            'contact_asc', 'contact_desc',
+            'address_asc', 'address_desc',
+        ];
+
+        return in_array($sort, $validSorts, true) ? $sort : 'name_asc';
+    }
+
+    private function applyClientSort(Builder $query, string $sort): void
+    {
+        $direction = str_ends_with($sort, '_desc') ? 'desc' : 'asc';
+
+        if (str_starts_with($sort, 'name_')) {
+            foreach (Client::listDisplaySortExpressions() as $expression) {
+                $query->orderByRaw("{$expression} {$direction}");
+            }
+        } else {
+            $column = match (true) {
+                str_starts_with($sort, 'clientid_') => 'client_id',
+                str_starts_with($sort, 'gender_') => 'gender',
+                str_starts_with($sort, 'age_') => 'age',
+                str_starts_with($sort, 'contact_') => 'contact',
+                str_starts_with($sort, 'address_') => 'address',
+                default => 'last_name',
+            };
+
+            if (in_array($column, ['client_id', 'gender', 'contact', 'address'], true)) {
+                $query->orderByRaw("LOWER(TRIM(COALESCE({$column}, ''))) {$direction}");
+            } else {
+                $query->orderBy($column, $direction);
+            }
+        }
+
+        $query->orderBy('id', $direction);
     }
 
     public function destroyWithoutTransactions(Request $request, ClientIdCompactor $compactor)

@@ -83,14 +83,13 @@ class TransactionEventsUndoTransferTest extends TestCase
             'subject_id' => $event->id,
         ]);
 
-        $this->get(route('transaction-events.records'))
-            ->assertOk()
-            ->assertDontSee('Jane Doe');
+        $recordsResponse = $this->get(route('transaction-events.records'))->assertOk();
+        $this->assertFalse($recordsResponse->viewData('events')->contains('id', $event->id));
 
         $this->get(route('transaction-events.index'))
             ->assertOk()
             ->assertSee('Jane Doe')
-            ->assertSee('<th data-column="status">Status</th>', false)
+            ->assertSee('data-column="status"', false)
             ->assertSee('data-event-status="'.$event->id.'">Pending</span>', false);
     }
 
@@ -134,6 +133,31 @@ class TransactionEventsUndoTransferTest extends TestCase
             'transferred_at' => null,
             'transferred_transaction_id' => null,
         ]);
+    }
+
+    public function test_single_undo_returns_json_for_an_in_place_page_update(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+        $transaction = TransactionHistory::create([
+            'transaction_id' => 'JSON-UNDO-1',
+            'transaction_date' => now(),
+            'category' => 'EVENTS',
+            'type' => 'TRANCH 1',
+        ]);
+        $event = TransactionEvent::create([
+            'full_name' => 'Ajax Undo',
+            'status' => 'Claimed',
+            'transferred_at' => now(),
+            'transferred_transaction_id' => $transaction->id,
+        ]);
+
+        $this->postJson(route('transaction-events.undo-transfer', $event))
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('event_id', $event->id);
+
+        $this->assertDatabaseMissing('transaction_history', ['id' => $transaction->id]);
+        $this->assertNull($event->fresh()->transferred_at);
     }
 
     public function test_undo_transfer_keeps_data_unchanged_when_the_linked_transaction_is_missing(): void

@@ -45,10 +45,7 @@ class TransactionEventsController extends Controller
             $query->whereIn('full_name', $duplicateFullNames);
         }
 
-        $sort = $this->normalizeEventSort(
-            $request->input('sort'),
-            $request->boolean('duplicate_names')
-        );
+        $sort = $this->normalizeEventSort($request->input('sort'));
         $this->applyEventSort($query, $sort);
 
         $perPage = (int) $request->input('per_page', 15);
@@ -108,13 +105,13 @@ class TransactionEventsController extends Controller
         ];
     }
 
-    private function normalizeEventSort(?string $sort, bool $isDuplicateNames = false): string
+    private function normalizeEventSort(?string $sort): string
     {
         if (in_array($sort, $this->validEventSorts(), true)) {
             return $sort;
         }
 
-        return $isDuplicateNames ? 'client_asc' : 'newest';
+        return 'client_asc';
     }
 
     /**
@@ -642,6 +639,11 @@ class TransactionEventsController extends Controller
             if ($exception instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface) {
                 throw $exception;
             }
+
+            if ($request->expectsJson()) {
+                return response()->json(['message' => $exception->getMessage()], 422);
+            }
+
             return redirect()->route($returnRoute, $request->query())
                 ->with('error', $exception->getMessage());
         }
@@ -653,8 +655,18 @@ class TransactionEventsController extends Controller
             $event
         );
 
-        return redirect()->route($returnRoute, $request->query())
-            ->with('success', 'Event and All Transactions status updated to '.$validated['status'].'.');
+        $message = 'Event and All Transactions status updated to '.$validated['status'].'.';
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'event_id' => (int) $event->id,
+                'status' => $validated['status'],
+                'message' => $message,
+            ]);
+        }
+
+        return redirect()->route($returnRoute, $request->query())->with('success', $message);
     }
 
     public function updateRecordStatusSelected(Request $request)
@@ -676,6 +688,7 @@ class TransactionEventsController extends Controller
 
         $updated = 0;
         $skipped = 0;
+        $processedIds = [];
 
         foreach ($ids as $id) {
             try {
@@ -695,8 +708,11 @@ class TransactionEventsController extends Controller
 
             if ($changed === null) {
                 $skipped++;
-            } elseif ($changed) {
-                $updated++;
+            } else {
+                $processedIds[] = (int) $id;
+                if ($changed) {
+                    $updated++;
+                }
             }
         }
 
@@ -714,6 +730,7 @@ class TransactionEventsController extends Controller
             'updated' => $updated,
             'skipped' => $skipped,
             'status' => $validated['status'],
+            'processed_ids' => $processedIds,
         ]);
     }
 
@@ -3016,6 +3033,7 @@ class TransactionEventsController extends Controller
             'transaction_category' => trim((string) ($record['transaction_category'] ?? '')),
             'transaction_type' => trim((string) ($record['transaction_type'] ?? '')),
             'event_date' => ($record['event_date'] ?? '') ?: null,
+            'imported_by' => auth()->user()?->name ?? 'System',
             'transferred_at' => null,
             'transferred_transaction_id' => null,
         ]);
@@ -3064,6 +3082,7 @@ class TransactionEventsController extends Controller
                 'events_transaction_type' => trim((string) ($record['transaction_type'] ?? '')) ?: null,
                 'status' => 'Pending',
                 'source' => 'import',
+                'clerk' => auth()->user()?->name ?? 'System',
                 'description' => 'Imported from event CSV/XLSX file.',
             ]);
 
@@ -3082,6 +3101,7 @@ class TransactionEventsController extends Controller
                 'transaction_category' => trim((string) ($record['transaction_category'] ?? '')),
                 'transaction_type' => trim((string) ($record['transaction_type'] ?? '')),
                 'event_date' => $parsedDate,
+                'imported_by' => auth()->user()?->name ?? 'System',
                 'transferred_at' => now(),
                 'transferred_transaction_id' => $transactionHistory->id,
             ]);
@@ -3230,6 +3250,7 @@ class TransactionEventsController extends Controller
             'events_transaction_type' => $event->transaction_type ?? '',
             'status' => $event->status,
             'source' => 'transfer',
+            'clerk' => $event->imported_by ?: (auth()->user()?->name ?? 'System'),
             'description' => 'Transferred from event record.',
         ]);
 
@@ -3284,10 +3305,20 @@ class TransactionEventsController extends Controller
         }
 
         if ($transaction === null) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'No transferred transaction was found for this event.'], 422);
+            }
+
             return $redirect->with('error', 'No transferred transaction was found for this event.');
         }
 
         if (TransactionRequirement::query()->where('transaction_id', $transaction->id)->exists()) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => 'This transfer cannot be undone because the transaction has uploaded requirements.',
+                ], 422);
+            }
+
             return $redirect->with('error', 'This transfer cannot be undone because the transaction has uploaded requirements.');
         }
 
@@ -3307,7 +3338,17 @@ class TransactionEventsController extends Controller
             'description' => 'Undid transfer for event and removed linked transaction.',
         ]);
 
-        return $redirect->with('success', 'Transfer undone. Transaction ' . $linkedTransactionId . ' was removed and the event is pending again.');
+        $message = 'Transfer undone. Transaction '.$linkedTransactionId.' was removed and the event is pending again.';
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'event_id' => (int) $event->id,
+                'message' => $message,
+            ]);
+        }
+
+        return $redirect->with('success', $message);
     }
 
     /**
@@ -3347,6 +3388,7 @@ class TransactionEventsController extends Controller
                 'events_transaction_type' => $event->transaction_type ?? '',
                 'status' => $event->status,
                 'source' => 'transfer-one',
+                'clerk' => $event->imported_by ?: (auth()->user()?->name ?? 'System'),
                 'description' => 'Transferred from event record.',
             ]);
 
@@ -3460,6 +3502,7 @@ class TransactionEventsController extends Controller
 
         $undone = 0;
         $skipped = 0;
+        $removedIds = [];
 
         foreach ($ids as $id) {
             $event = TransactionEvent::find($id);
@@ -3481,6 +3524,7 @@ class TransactionEventsController extends Controller
                     'transferred_at' => null,
                     'transferred_transaction_id' => null,
                 ]);
+                $removedIds[] = (int) $event->id;
                 $skipped++;
                 continue;
             }
@@ -3496,6 +3540,7 @@ class TransactionEventsController extends Controller
                 'transferred_at' => null,
                 'transferred_transaction_id' => null,
             ]);
+            $removedIds[] = (int) $event->id;
             $undone++;
         }
 
@@ -3512,6 +3557,7 @@ class TransactionEventsController extends Controller
             'success' => true,
             'undone' => $undone,
             'skipped' => $skipped,
+            'removed_ids' => $removedIds,
         ]);
     }
 
@@ -3624,13 +3670,19 @@ class TransactionEventsController extends Controller
             ->get();
     }
 
-    public function destroy(TransactionEvent $event)
+    public function destroy(Request $request, TransactionEvent $event)
     {
         if (auth()->user()?->role_name === 'Viewer') {
             abort(403, 'Viewer role is read-only.');
         }
 
         if ($event->transferred_at !== null) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => 'Event #'.$event->id.' is already transferred and cannot be deleted.',
+                ], 422);
+            }
+
             return redirect()->route('transaction-events.index')
                 ->with('error', 'Event #' . $event->id . ' is already transferred and cannot be deleted.');
         }
@@ -3649,8 +3701,18 @@ class TransactionEventsController extends Controller
             'properties' => ['event_id' => $eventId, 'full_name' => $fullName],
         ]);
 
-        return redirect()->route('transaction-events.index')
-            ->with('success', "Event #{$eventId} ({$fullName}) deleted successfully.");
+        $message = "Event #{$eventId} ({$fullName}) deleted successfully.";
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'count' => 1,
+                'deleted_ids' => [(int) $eventId],
+                'message' => $message,
+            ]);
+        }
+
+        return redirect()->route('transaction-events.index')->with('success', $message);
     }
 
     /**
@@ -3671,6 +3733,10 @@ class TransactionEventsController extends Controller
         $events = $this->resolveDeleteSelectedEvents($request);
 
         if ($events->isEmpty()) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'No matching pending events to delete.'], 422);
+            }
+
             return redirect()->route('transaction-events.index')
                 ->with('error', 'No matching pending events to delete.');
         }
@@ -3707,8 +3773,18 @@ class TransactionEventsController extends Controller
             ],
         ]);
 
-        return redirect()->route('transaction-events.index')
-            ->with('success', "Deleted {$count} pending event(s). This cannot be undone.");
+        $message = "Deleted {$count} pending event(s). This cannot be undone.";
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'count' => $count,
+                'deleted_ids' => array_map('intval', $ids),
+                'message' => $message,
+            ]);
+        }
+
+        return redirect()->route('transaction-events.index')->with('success', $message);
     }
 
     private const TRANSFER_SESSION_DIR = 'transfer-sessions';
@@ -3780,6 +3856,7 @@ class TransactionEventsController extends Controller
                 'events_transaction_type' => $event->transaction_type ?? '',
                 'status' => $event->status,
                 'source' => $forceNewClient ? 'transfer-one' : 'transfer',
+                'clerk' => $event->imported_by ?: (auth()->user()?->name ?? 'System'),
                 'description' => 'Transferred from event record.',
             ]);
 

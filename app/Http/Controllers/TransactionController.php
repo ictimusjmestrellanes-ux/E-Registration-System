@@ -171,11 +171,12 @@ class TransactionController extends Controller
     {
         if (in_array($sort, ['client_asc', 'client_desc'], true)) {
             $direction = $sort === 'client_asc' ? 'asc' : 'desc';
+            [$lastNameSort, $firstNameSort, $middleNameSort] = Client::listDisplaySortExpressions();
             $query->leftJoin('clients', 'clients.client_id', '=', 'transaction_history.client_id')
                 ->select('transaction_history.*')
-                ->orderByRaw("LOWER(clients.last_name) {$direction}")
-                ->orderByRaw("LOWER(clients.first_name) {$direction}")
-                ->orderByRaw("LOWER(clients.middle_name) {$direction}")
+                ->orderByRaw("{$lastNameSort} {$direction}")
+                ->orderByRaw("{$firstNameSort} {$direction}")
+                ->orderByRaw("{$middleNameSort} {$direction}")
                 ->orderByDesc('transaction_history.transaction_date')
                 ->orderByDesc('transaction_history.id');
 
@@ -428,7 +429,7 @@ class TransactionController extends Controller
             'source' => $transaction->source ?? 'E-Registration',
             'type' => $transaction->type_label,
             'category' => $transaction->category_label,
-            'clerk' => $transaction->clerk ?? auth()->user()->name ?? 'System',
+            'clerk' => $transaction->clerk ?: 'System',
             'signatory' => $transaction->signatory ?? 'N/A',
             'personnel_endorsed_to' => $transaction->personnel_endorsed_to ?? 'N/A',
             'responsible_office' => $transaction->responsible_office ?? 'N/A',

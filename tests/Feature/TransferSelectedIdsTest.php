@@ -69,43 +69,6 @@ class TransferSelectedIdsTest extends TestCase
         $this->assertEquals([$pending->id], $response->json('ids'));
     }
 
-    public function test_select_all_in_duplicate_names_filter_includes_every_page(): void
-    {
-        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
-
-        $duplicateIds = [];
-        for ($i = 0; $i < 16; $i++) {
-            $duplicateIds[] = $this->seedPending('Juan Dela Cruz')->id;
-        }
-        $unique = $this->seedPending('Maria Santos');
-
-        $this->get(route('transaction-events.index', [
-            'duplicate_names' => 1,
-            'per_page' => 15,
-        ]))->assertOk()
-            ->assertViewHas('events', fn ($events) => $events->total() === 16 && $events->count() === 15)
-            ->assertSee('const totalMatchingEvents = 16;', false);
-
-        $filtered = $this->postJson(route('transaction-events.transfer-selected.ids'), [
-            'select_all' => 1,
-            'duplicate_names' => 1,
-        ]);
-        $filtered->assertOk()->assertJsonPath('total', 16);
-        $this->assertEqualsCanonicalizing($duplicateIds, $filtered->json('ids'));
-
-        $prepare = $this->postJson(route('transaction-events.transfer-selected.prepare'), [
-            'select_all' => 1,
-            'duplicate_names' => 1,
-        ]);
-        $prepare->assertOk()->assertJsonPath('total', 16);
-
-        $all = $this->postJson(route('transaction-events.transfer-selected.ids'), [
-            'select_all' => 1,
-        ]);
-        $all->assertOk()->assertJsonPath('total', 17);
-        $this->assertEqualsCanonicalizing([...$duplicateIds, $unique->id], $all->json('ids'));
-    }
-
     public function test_ids_endpoint_requires_select_all(): void
     {
         $this->actingAs(User::factory()->create(['role_name' => 'Admin']));

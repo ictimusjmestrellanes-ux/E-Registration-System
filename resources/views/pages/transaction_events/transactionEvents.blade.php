@@ -90,8 +90,8 @@
                                     <i class="ri-download-line me-1"></i> Export XLSX
                                 </a>
                             @endunless
-                            <span class="badge bg-primary-subtle text-primary px-4 py-2">{{ $events->total() }}
-                                total</span>
+                            <span class="badge bg-primary-subtle text-primary px-4 py-2" id="eventTotalBadge"
+                                data-total="{{ $events->total() }}">{{ $events->total() }} total</span>
                         </div>
                     </div>
                     <div class="card-body">
@@ -414,13 +414,13 @@
                                                 @unless (auth()->user()?->role_name === 'Viewer')
                                                     <input type="checkbox" class="form-check-input"
                                                         id="selectAllTransactionEvents"
-                                                        aria-label="Select all matching transaction events"
+                                                        aria-label="Select all transaction events on this page"
                                                         title="Select all">
                                                 @endunless
                                             </div>
                                         </th>
                                         @php
-                                            $currentSort = $sort ?? request('sort', 'newest');
+                                            $currentSort = $sort ?? request('sort', 'client_asc');
                                         @endphp
                                         @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Full Name', 'asc' => 'client_asc', 'desc' => 'client_desc', 'current' => $currentSort, 'column' => 'full_name'])
                                         @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Age', 'asc' => 'age_asc', 'desc' => 'age_desc', 'current' => $currentSort, 'column' => 'age'])
@@ -441,7 +441,8 @@
                                         @php
                                             $isTransferred = !is_null($event->transferred_at);
                                         @endphp
-                                        <tr class="{{ $isTransferred ? 'table-secondary text-muted' : '' }}">
+                                        <tr class="{{ $isTransferred ? 'table-secondary text-muted' : '' }}"
+                                            data-event-id="{{ $event->id }}">
                                             <td class="text-center">
                                                 @unless (auth()->user()?->role_name === 'Viewer')
                                                     <input type="checkbox" class="form-check-input transaction-event-checkbox"
@@ -507,8 +508,9 @@
                                                         @if (feature_allowed('Delete Event'))
                                                             <form
                                                                 action="{{ route('transaction-events.delete', $event) }}"
-                                                                method="POST"
-                                                                onsubmit="return confirm('Delete this event ({{ $event->full_name }}) from the Import Events list? This cannot be undone.');">
+                                                                method="POST" class="transaction-delete-form"
+                                                                data-event-id="{{ $event->id }}"
+                                                                data-event-name="{{ $event->full_name }}">
                                                                 @csrf
                                                                 @method('DELETE')
                                                                 @if (feature_allowed('Delete Event'))
@@ -535,7 +537,7 @@
                             </table>
                         </div>
 
-                        <div class="d-flex justify-content-end mt-3">
+                        <div class="d-flex justify-content-end mt-3" id="eventPagination">
                             {{ $events->links('pagination::bootstrap-5') }}
                         </div>
                     </div>
@@ -618,6 +620,31 @@
                         <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal">Cancel</button>
                         <button type="button" class="btn btn-info px-4" id="confirmTransferOneByOneBtn">
                             <i class="ri-check-line me-1"></i> Continue
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Single Delete Confirmation Modal -->
+        <div class="modal fade" id="singleDeleteConfirmModal" tabindex="-1"
+            aria-labelledby="singleDeleteConfirmModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered modal-sm">
+                <div class="modal-content">
+                    <div class="modal-body text-center py-4">
+                        <div class="mb-3">
+                            <i class="ri-delete-bin-line text-danger" style="font-size: 3rem;"></i>
+                        </div>
+                        <p class="fs-5 fw-semibold mb-1" id="singleDeleteConfirmModalLabel">Confirm Delete</p>
+                        <p class="text-muted mb-0">
+                            Permanently delete <span class="fw-semibold" id="singleDeleteEventName"></span>?
+                            This cannot be undone.
+                        </p>
+                    </div>
+                    <div class="modal-footer border-0 justify-content-center gap-3 pt-0">
+                        <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-danger px-4" id="confirmSingleDeleteBtn">
+                            <i class="ri-delete-bin-line me-1"></i> Delete
                         </button>
                     </div>
                 </div>
@@ -1241,8 +1268,47 @@
             const bulkTransferCount = document.getElementById('bulkTransferCount');
             const confirmBulkTransferBtn = document.getElementById('confirmBulkTransferBtn');
             let selectedBulkTransferIds = [];
-            const totalMatchingEvents = @json($events->total());
+            let totalMatchingEvents = @json($events->total());
             let allPagesSelected = false;
+            const eventListTable = document.getElementById('eventListTable');
+            const eventTotalBadge = document.getElementById('eventTotalBadge');
+            const eventPagination = document.getElementById('eventPagination');
+
+            const removeImportEventRows = (eventIds, deletedTotal = eventIds.length) => {
+                const ids = [...new Set(eventIds.map(Number).filter((id) => id > 0))];
+                ids.forEach((eventId) => {
+                    const row = eventListTable?.querySelector(`tr[data-event-id="${eventId}"]`);
+                    const checkbox = row?.querySelector('.transaction-event-checkbox');
+                    const checkboxIndex = checkbox ? eventCheckboxes.indexOf(checkbox) : -1;
+                    if (checkboxIndex >= 0) {
+                        eventCheckboxes.splice(checkboxIndex, 1);
+                    }
+                    row?.remove();
+                });
+
+                totalMatchingEvents = Math.max(0, totalMatchingEvents - Math.max(0, Number(deletedTotal) || 0));
+                if (eventTotalBadge) {
+                    eventTotalBadge.dataset.total = String(totalMatchingEvents);
+                    eventTotalBadge.textContent = `${totalMatchingEvents} total`;
+                }
+                eventPagination?.classList.toggle('d-none', totalMatchingEvents === 0);
+                allPagesSelected = false;
+
+                const tbody = eventListTable?.querySelector('tbody');
+                if (tbody && !tbody.querySelector('tr[data-event-id]')) {
+                    const emptyRow = document.createElement('tr');
+                    emptyRow.innerHTML = `<td colspan="${eventListTable.tHead?.rows[0]?.cells.length || 1}" class="text-center text-muted py-5">No transaction events found.</td>`;
+                    tbody.replaceChildren(emptyRow);
+                }
+
+                if (selectAll) {
+                    selectAll.checked = false;
+                    selectAll.indeterminate = false;
+                }
+                if (typeof syncSelectAllState === 'function') {
+                    syncSelectAllState();
+                }
+            };
 
             if (selectAll) {
                 const enabledCheckboxes = () => eventCheckboxes.filter((checkbox) => !checkbox.disabled);
@@ -1364,6 +1430,80 @@
 
                 syncSelectAllState();
             }
+
+            const singleDeleteConfirmModalEl = document.getElementById('singleDeleteConfirmModal');
+            const singleDeleteEventName = document.getElementById('singleDeleteEventName');
+            const confirmSingleDeleteBtn = document.getElementById('confirmSingleDeleteBtn');
+            const singleDeleteConfirmModal = singleDeleteConfirmModalEl
+                ? bootstrap.Modal.getOrCreateInstance(singleDeleteConfirmModalEl)
+                : null;
+            let pendingSingleDeleteForm = null;
+
+            eventListTable?.addEventListener('submit', function(event) {
+                const form = event.target.closest('.transaction-delete-form');
+                if (!form) return;
+                event.preventDefault();
+
+                const eventId = parseInt(form.dataset.eventId || '0', 10);
+                if (eventId < 1 || !singleDeleteConfirmModal) return;
+
+                pendingSingleDeleteForm = form;
+                if (singleDeleteEventName) {
+                    singleDeleteEventName.textContent = form.dataset.eventName || `event #${eventId}`;
+                }
+                singleDeleteConfirmModal.show();
+            });
+
+            confirmSingleDeleteBtn?.addEventListener('click', async function() {
+                const form = pendingSingleDeleteForm;
+                if (!form) return;
+
+                const eventId = parseInt(form.dataset.eventId || '0', 10);
+                if (eventId < 1) return;
+
+                const button = form.querySelector('button[type="submit"]');
+                const originalHtml = button?.innerHTML || '';
+                const confirmOriginalHtml = confirmSingleDeleteBtn.innerHTML;
+                if (button) {
+                    button.disabled = true;
+                }
+                confirmSingleDeleteBtn.disabled = true;
+                confirmSingleDeleteBtn.innerHTML = '<i class="ri-loader-3-line ri-spin me-1"></i> Deleting...';
+
+                try {
+                    const response = await fetch(form.action, {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: { 'Accept': 'application/json' },
+                        body: new FormData(form),
+                    });
+                    const data = await parseApiResponse(response);
+                    if (!response.ok || !data.success) {
+                        throw new Error(data.message || 'The event could not be deleted.');
+                    }
+
+                    pendingSingleDeleteForm = null;
+                    singleDeleteConfirmModal.hide();
+                    removeImportEventRows(data.deleted_ids || [eventId], data.count || 1);
+                    new Message('imessage').show(data.message || 'Event deleted successfully.', 'success',
+                        'top-center');
+                } catch (error) {
+                    new Message('imessage').show(error.message || 'The event could not be deleted.', 'fail',
+                        'top-center');
+                } finally {
+                    if (button) {
+                        button.disabled = false;
+                        button.innerHTML = originalHtml;
+                    }
+                    confirmSingleDeleteBtn.disabled = false;
+                    confirmSingleDeleteBtn.innerHTML = confirmOriginalHtml;
+                }
+            });
+
+            singleDeleteConfirmModalEl?.addEventListener('hidden.bs.modal', function() {
+                pendingSingleDeleteForm = null;
+                if (singleDeleteEventName) singleDeleteEventName.textContent = '';
+            });
 
             // Shared select-all payload: select_all plus
             // every active list filter so the backend targets exactly the rows
@@ -1615,8 +1755,11 @@
                     bulkDeleteConfirmModal.show();
                 });
 
-                confirmBulkDeleteBtn.addEventListener('click', function() {
+                confirmBulkDeleteBtn.addEventListener('click', async function() {
+                    const originalHtml = confirmBulkDeleteBtn.innerHTML;
                     confirmBulkDeleteBtn.disabled = true;
+                    confirmBulkDeleteBtn.innerHTML =
+                        '<i class="ri-loader-3-line ri-spin me-1"></i> Deleting...';
 
                     // Reset previous payload.
                     bulkDeleteForm.querySelectorAll(
@@ -1629,6 +1772,7 @@
                     } else {
                         if (selectedBulkDeleteIds.length === 0) {
                             confirmBulkDeleteBtn.disabled = false;
+                            confirmBulkDeleteBtn.innerHTML = originalHtml;
                             return;
                         }
                         selectedBulkDeleteIds.forEach((id) => {
@@ -1640,8 +1784,29 @@
                         });
                     }
 
-                    bulkDeleteConfirmModal.hide();
-                    bulkDeleteForm.submit();
+                    try {
+                        const response = await fetch(bulkDeleteForm.action, {
+                            method: 'POST',
+                            credentials: 'same-origin',
+                            headers: { 'Accept': 'application/json' },
+                            body: new FormData(bulkDeleteForm),
+                        });
+                        const data = await parseApiResponse(response);
+                        if (!response.ok || !data.success) {
+                            throw new Error(data.message || 'The selected events could not be deleted.');
+                        }
+
+                        removeImportEventRows(data.deleted_ids || [], data.count || 0);
+                        bulkDeleteConfirmModal.hide();
+                        new Message('imessage').show(data.message || 'Selected events deleted.', 'success',
+                            'top-center');
+                    } catch (error) {
+                        confirmBulkDeleteBtn.disabled = false;
+                        new Message('imessage').show(error.message ||
+                            'The selected events could not be deleted.', 'fail', 'top-center');
+                    } finally {
+                        confirmBulkDeleteBtn.innerHTML = originalHtml;
+                    }
                 });
 
                 bulkDeleteConfirmModalEl.addEventListener('hidden.bs.modal', function() {

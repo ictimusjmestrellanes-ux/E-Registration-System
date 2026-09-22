@@ -25,7 +25,8 @@ class TransactionEventsImportTest extends TestCase
 
     public function test_import_skips_rows_with_out_of_range_age(): void
     {
-        $this->actingAs(User::factory()->create());
+        $importer = User::factory()->create(['name' => 'Import Clerk']);
+        $this->actingAs($importer);
 
         $csv = implode("\n", [
             'full_name,contact_no,address,age',
@@ -49,6 +50,7 @@ class TransactionEventsImportTest extends TestCase
         $this->assertDatabaseHas('transaction_history', [
             'category' => '',
             'type' => '',
+            'clerk' => 'Import Clerk',
         ]);
 
         // The imported row also lands in Event Records as a linked
@@ -58,11 +60,17 @@ class TransactionEventsImportTest extends TestCase
         $this->assertDatabaseHas('transaction_events', [
             'full_name' => 'JANE DOE',
             'transferred_transaction_id' => $history->id,
+            'imported_by' => 'Import Clerk',
         ]);
         $this->assertNotNull(TransactionEvent::firstOrFail()->transferred_at);
 
         $this->assertDatabaseCount('clients', 1);
-        $this->assertSame(30, Client::query()->firstOrFail()->age);
+        $client = Client::query()->firstOrFail();
+        $this->assertSame(30, $client->age);
+        $this->actingAs(User::factory()->create(['name' => 'History Viewer', 'role_name' => 'Admin']));
+        $this->get(route('clients.show', $client))
+            ->assertOk()
+            ->assertSee('Import Clerk');
         $this->assertNull(TransactionEvent::query()->where('full_name', 'RICARDO MONICIPYO')->first());
     }
 

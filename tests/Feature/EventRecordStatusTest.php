@@ -73,10 +73,27 @@ class EventRecordStatusTest extends TestCase
         $this->postJson(route('transaction-events.records.status-selected'), [
             'event_ids' => [$event->id],
             'status' => 'Unclaimed',
-        ])->assertOk()->assertJsonPath('updated', 1);
+        ])->assertOk()
+            ->assertJsonPath('updated', 1)
+            ->assertJsonPath('processed_ids.0', $event->id);
 
         $transactionsPage = $this->get(route('transactions.index'))->assertOk();
         $this->assertSame('Unclaimed', $transactionsPage->viewData('transactions')->first()->status);
+    }
+
+    public function test_single_tag_returns_json_for_an_in_place_page_update(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+        $event = $this->record();
+
+        $this->patchJson(route('transaction-events.records.status', $event), ['status' => 'Claimed'])
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('event_id', $event->id)
+            ->assertJsonPath('status', 'Claimed');
+
+        $this->assertSame('Claimed', $event->fresh()->status);
+        $this->assertSame('Claimed', $event->fresh()->transferredTransaction->status);
     }
 
     public function test_duplicate_tabs_can_tag_one_record_and_keep_the_current_page_and_filters(): void

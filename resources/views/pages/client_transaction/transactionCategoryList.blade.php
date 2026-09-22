@@ -112,8 +112,8 @@
                                     </div>
                                 </div>
 
-                                <div class="row g-3 mt-1 align-items-end">
-                                    <div class="col-12 d-flex gap-2 justify-content-end">
+                                <div class="row g-3 align-items-end">
+                                    <div class="d-flex gap-2 justify-content-end">
                                         <button type="submit" class="btn btn-sm btn-primary px-4" id="transactionDateApplyBtn">
                                             <i class="ri-filter-3-fill me-1"></i> Apply Filters
                                         </button>

@@ -28,6 +28,22 @@ class ImportClientReuseTest extends TestCase
         $this->assertDatabaseCount('clients', 1);
     }
 
+    public function test_import_splits_last_name_first_name_and_trailing_middle_initial(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+
+        $this->importCsv("ALDEA LORETO A.,09170000005,Brgy 5,40,,INDIGENT,BIGAY BIGAS SA MASA,TRANCH 1,2026-09-01\n");
+
+        $this->assertDatabaseHas('clients', [
+            'first_name' => 'LORETO',
+            'middle_name' => 'A.',
+            'last_name' => 'ALDEA',
+        ]);
+        $this->assertDatabaseHas('transaction_events', [
+            'full_name' => 'ALDEA LORETO A.',
+        ]);
+    }
+
     private function importCsv(string $body, array $extra = []): array
     {
         $file = UploadedFile::fake()->createWithContent('reuse.csv', self::HEADER . "\n" . $body);

@@ -203,13 +203,16 @@
                             <table id="clientListTable" class="table table-bordered table-hover align-middle mb-0">
                                 <thead class="table-light text-center">
                                     <tr>
-                                        <th>Client ID</th>
+                                        @php
+                                            $currentSort = $sort ?? request('sort', 'name_asc');
+                                        @endphp
+                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Client ID', 'asc' => 'clientid_asc', 'desc' => 'clientid_desc', 'current' => $currentSort, 'center' => true])
                                         <th>Photo</th>
-                                        <th>Full Name</th>
-                                        <th>Sex</th>
-                                        <th>Age</th>
-                                        <th>Contact</th>
-                                        <th>Address</th>
+                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Full Name', 'asc' => 'name_asc', 'desc' => 'name_desc', 'current' => $currentSort, 'center' => true])
+                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Sex', 'asc' => 'gender_asc', 'desc' => 'gender_desc', 'current' => $currentSort, 'center' => true])
+                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Age', 'asc' => 'age_asc', 'desc' => 'age_desc', 'current' => $currentSort, 'center' => true])
+                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Contact', 'asc' => 'contact_asc', 'desc' => 'contact_desc', 'current' => $currentSort, 'center' => true])
+                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Address', 'asc' => 'address_asc', 'desc' => 'address_desc', 'current' => $currentSort, 'center' => true])
                                         <th style="width:190px">Actions</th>
                                     </tr>
                                 </thead>

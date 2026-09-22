@@ -26,7 +26,8 @@
                 <p class="text-muted mb-0">List of transaction events that have been transferred to records.</p>
             </div>
             <div class="d-flex flex-wrap align-items-center gap-2">
-                <span class="badge bg-primary-subtle text-primary px-4 py-2">{{ $events->total() }} total</span>
+                <span class="badge bg-primary-subtle text-primary px-4 py-2" id="recordTotalBadge"
+                    data-total="{{ $events->total() }}">{{ $events->total() }} total</span>
             </div>
         </div>
 
@@ -416,7 +417,7 @@
                                 </thead>
                                 <tbody>
                                     @forelse ($events as $event)
-                                        <tr>
+                                        <tr data-event-id="{{ $event->id }}">
                                             @if (auth()->user()?->role_name !== 'Viewer')
                                                 <td class="text-center">
                                                     <input class="form-check-input event-select-checkbox" type="checkbox"
@@ -456,7 +457,8 @@
                                                     };
                                                 @endphp
                                                 <span
-                                                    class="badge bg-{{ $statusColor }}-subtle text-{{ $statusColor }} px-3 py-2">{{ $event->status }}</span>
+                                                    class="badge bg-{{ $statusColor }}-subtle text-{{ $statusColor }} px-3 py-2"
+                                                    data-event-status="{{ $event->id }}">{{ $event->status }}</span>
                                             </td>
                                             @if (auth()->user()?->role_name !== 'Viewer')
                                                 <td class="text-center" style="min-width: 160px">
@@ -474,6 +476,8 @@
                                                                     @foreach (\App\Models\TransactionEvent::STATUSES as $status)
                                                                         <li>
                                                                             <form
+                                                                                class="record-status-form"
+                                                                                data-event-id="{{ $event->id }}"
                                                                                 action="{{ route('transaction-events.records.status', array_merge(request()->query(), ['event' => $event->id])) }}"
                                                                                 method="POST">
                                                                                 @csrf
@@ -525,7 +529,7 @@
                             </table>
                         </div>
 
-                        <div class="d-flex justify-content-end mt-3">
+                        <div class="d-flex justify-content-end mt-3" id="recordPagination">
                             {{ $events->links('pagination::bootstrap-5') }}
                         </div>
                     </div>
@@ -803,9 +807,68 @@
             const eventSelectAll = document.getElementById('eventSelectAll');
             const undoSelectedBtn = document.getElementById('undoTransferSelectedBtn');
             const undoSelectedCount = document.getElementById('undoSelectedCount');
-            const totalMatchingEvents = @json($events->total());
+            let totalMatchingEvents = @json($events->total());
             const hasMorePages = @json($events->lastPage() > 1);
             let allPagesSelected = false;
+            const eventRecordsTable = document.getElementById('eventRecordsTable');
+            const recordTotalBadge = document.getElementById('recordTotalBadge');
+            const recordPagination = document.getElementById('recordPagination');
+            const activeStatusFilter = new URLSearchParams(window.location.search).get('status') || '';
+
+            const recordStatusColor = (status) => ({
+                Claimed: 'success',
+                Unclaimed: 'danger',
+                Pending: 'warning',
+            })[status] || 'warning';
+
+            const setEventRowStatus = (eventId, status) => {
+                const row = eventRecordsTable?.querySelector(`tr[data-event-id="${eventId}"]`);
+                if (!row) return;
+                const color = recordStatusColor(status);
+                const badge = row.querySelector('[data-event-status]');
+                if (badge) {
+                    badge.className = `badge bg-${color}-subtle text-${color} px-3 py-2`;
+                    badge.textContent = status;
+                }
+                row.querySelectorAll('.record-status-form button[name="status"]').forEach((button) => {
+                    button.classList.toggle('active', button.value === status);
+                });
+            };
+
+            const removeEventRows = (eventIds, removedTotal = eventIds.length) => {
+                const ids = [...new Set(eventIds.map(Number).filter((id) => id > 0))];
+                ids.forEach((eventId) => {
+                    eventRecordsTable?.querySelector(`tr[data-event-id="${eventId}"]`)?.remove();
+                });
+                totalMatchingEvents = Math.max(0, totalMatchingEvents - Math.max(0, Number(removedTotal) || 0));
+                if (recordTotalBadge) {
+                    recordTotalBadge.dataset.total = String(totalMatchingEvents);
+                    recordTotalBadge.textContent = `${totalMatchingEvents} total`;
+                }
+                recordPagination?.classList.toggle('d-none', totalMatchingEvents === 0);
+
+                const tbody = eventRecordsTable?.querySelector('tbody');
+                if (tbody && !tbody.querySelector('tr[data-event-id]')) {
+                    const emptyRow = document.createElement('tr');
+                    emptyRow.innerHTML = `<td colspan="${eventRecordsTable.tHead?.rows[0]?.cells.length || 1}" class="text-center text-muted py-5"><i class="ri-inbox-line fs-1 d-block mb-2"></i>No transferred event records found.</td>`;
+                    tbody.replaceChildren(emptyRow);
+                }
+            };
+
+            const applyEventStatus = (eventIds, status) => {
+                const ids = [...new Set(eventIds.map(Number).filter((id) => id > 0))];
+                if (activeStatusFilter && activeStatusFilter !== status) {
+                    removeEventRows(ids, ids.length);
+                    return;
+                }
+                ids.forEach((eventId) => setEventRowStatus(eventId, status));
+            };
+
+            window.EventRecordsUi = {
+                applyStatus: applyEventStatus,
+                removeEvents: removeEventRows,
+                clearSelection: () => clearAllUndoSelection(),
+            };
 
             const selectedEventCheckboxes = () => Array.from(document.querySelectorAll('.event-select-checkbox'));
 
@@ -951,6 +1014,45 @@
             });
             syncUndoSelection();
 
+            eventRecordsTable?.addEventListener('submit', async function(event) {
+                const form = event.target.closest('.record-status-form');
+                if (!form) return;
+                event.preventDefault();
+
+                const submitButton = event.submitter || form.querySelector('button[name="status"]');
+                const status = submitButton?.value || '';
+                const eventId = parseInt(form.dataset.eventId || '0', 10);
+                if (!status || eventId < 1) return;
+
+                const buttons = Array.from(form.querySelectorAll('button'));
+                buttons.forEach((button) => button.disabled = true);
+                const formData = new FormData(form);
+                formData.set('status', status);
+
+                try {
+                    const response = await fetch(form.action, {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: { 'Accept': 'application/json' },
+                        body: formData,
+                    });
+                    const data = await response.json().catch(() => ({}));
+                    if (!response.ok || !data.success) {
+                        throw new Error(data.message || 'The status could not be updated.');
+                    }
+
+                    applyEventStatus([eventId], data.status || status);
+                    clearAllUndoSelection();
+                    new Message('imessage').show(data.message || `Tagged as ${status}.`, 'success',
+                        'top-center');
+                } catch (error) {
+                    new Message('imessage').show(error.message || 'The status could not be updated.', 'fail',
+                        'top-center');
+                } finally {
+                    buttons.forEach((button) => button.disabled = false);
+                }
+            });
+
             const undoConfirmModalEl = document.getElementById('undoTransferConfirmModal');
             const undoConfirmCount = document.getElementById('undoTransferConfirmCount');
             const confirmUndoTransferBtn = document.getElementById('confirmUndoTransferBtn');
@@ -1095,6 +1197,7 @@
                     const CHUNK = 50;
                     let undone = 0;
                     let skipped = 0;
+                    let removedIds = [];
 
                     try {
                         for (let offset = 0; offset < ids.length; offset += CHUNK) {
@@ -1104,19 +1207,13 @@
                             );
                             undone += data.undone || 0;
                             skipped += data.skipped || 0;
+                            removedIds = removedIds.concat(data.removed_ids || []);
                         }
+                        removeEventRows(removedIds, removedIds.length);
+                        clearAllUndoSelection();
                         new Message('imessage').show(
-                            `Undone ${undone} transfer(s)${skipped > 0 ? `, skipped ${skipped}` : ''}. Opening Import Events...`,
+                            `Undone ${undone} transfer(s)${skipped > 0 ? `, skipped ${skipped}` : ''}.`,
                             'success', 'top-center');
-                        // Notify: queue so the undo result shows after redirect.
-                        if (window.ErsNotify) {
-                            window.ErsNotify.queue(
-                                `Undone ${undone} transfer(s)${skipped > 0 ? `, skipped ${skipped}` : ''}.`,
-                                'success');
-                        }
-                        setTimeout(function() {
-                            window.location.href = @json(route('transaction-events.index'));
-                        }, 1200);
                     } catch (error) {
                         confirmUndoTransferBtn.disabled = false;
                         syncUndoSelection();
@@ -1263,6 +1360,7 @@
                     const CHUNK = 50;
                     let updated = 0;
                     let skipped = 0;
+                    let processedIds = [];
 
                     try {
                         for (let offset = 0; offset < ids.length; offset += CHUNK) {
@@ -1295,19 +1393,13 @@
                             }
                             updated += data.updated || 0;
                             skipped += data.skipped || 0;
+                            processedIds = processedIds.concat(data.processed_ids || []);
                         }
+                        applyEventStatus(processedIds, status);
+                        clearAllUndoSelection();
                         new Message('imessage').show(
-                            `Tagged ${updated} record(s) as ${status}${skipped > 0 ? `, skipped ${skipped}` : ''}. Reloading...`,
+                            `Tagged ${updated} record(s) as ${status}${skipped > 0 ? `, skipped ${skipped}` : ''}.`,
                             'success', 'top-center');
-                        // Notify: queue so the tag result shows after reload.
-                        if (window.ErsNotify) {
-                            window.ErsNotify.queue(
-                                `Tagged ${updated} record(s) as ${status}${skipped > 0 ? `, skipped ${skipped}` : ''}.`,
-                                'success');
-                        }
-                        setTimeout(function() {
-                            window.location.reload();
-                        }, 1200);
                     } catch (error) {
                         confirmTagStatusBtn.disabled = false;
                         syncUndoSelection();

@@ -44,6 +44,48 @@ class BulkDeleteEventsTest extends TestCase
         $this->assertDatabaseHas('activity_logs', ['action' => 'events_bulk_deleted']);
     }
 
+    public function test_single_delete_returns_json_for_an_in_place_list_update(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+        $event = $this->seedPending('Ajax Single Delete');
+
+        $this->deleteJson(route('transaction-events.delete', $event))
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('count', 1)
+            ->assertJsonPath('deleted_ids.0', $event->id);
+
+        $this->assertDatabaseMissing('transaction_events', ['id' => $event->id]);
+    }
+
+    public function test_single_delete_uses_a_modal_confirmation(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+        $event = $this->seedPending('Modal Delete Event');
+
+        $this->get(route('transaction-events.index'))
+            ->assertOk()
+            ->assertSee('id="singleDeleteConfirmModal"', false)
+            ->assertSee('id="confirmSingleDeleteBtn"', false)
+            ->assertSee('data-event-name="'.$event->full_name.'"', false)
+            ->assertDontSee('window.confirm(', false);
+    }
+
+    public function test_bulk_delete_returns_deleted_ids_for_an_in_place_list_update(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+        $first = $this->seedPending('Ajax Bulk One');
+        $second = $this->seedPending('Ajax Bulk Two');
+
+        $response = $this->deleteJson(route('transaction-events.delete-selected'), [
+            'event_ids' => [$first->id, $second->id],
+        ])->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('count', 2);
+
+        $this->assertEqualsCanonicalizing([$first->id, $second->id], $response->json('deleted_ids'));
+    }
+
     public function test_delete_all_removes_filtered_population_across_pages(): void
     {
         $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
@@ -94,25 +136,6 @@ class BulkDeleteEventsTest extends TestCase
         $retry->assertRedirect(route('transaction-events.index'));
         $retry->assertSessionHas('error');
         $this->assertDatabaseHas('transaction_events', ['id' => $transferred->id]);
-    }
-
-    public function test_select_all_in_duplicate_names_filter_deletes_duplicate_rows(): void
-    {
-        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
-
-        $first = $this->seedPending('Juan Dela Cruz');
-        $second = $this->seedPending('Juan Dela Cruz');
-        $unique = $this->seedPending('Maria Santos');
-
-        $this->delete(route('transaction-events.delete-selected'), [
-            'select_all' => 1,
-            'duplicate_names' => 1,
-        ])->assertRedirect(route('transaction-events.index'))
-            ->assertSessionHas('success');
-
-        $this->assertDatabaseMissing('transaction_events', ['id' => $first->id]);
-        $this->assertDatabaseMissing('transaction_events', ['id' => $second->id]);
-        $this->assertDatabaseHas('transaction_events', ['id' => $unique->id]);
     }
 
     public function test_delete_selected_with_empty_selection_reports_error(): void

@@ -321,7 +321,7 @@
                                                 <td data-column="transaction_date">{{ $transaction->transaction_date->format('m/d/Y') }}</td>
                                                 <td data-column="source" class="text-uppercase">E-Registration</td>
                                                 <td data-column="category_type" class="text-uppercase">{{ $transaction->category ?? 'N/A' }}</td>
-                                                <td data-column="clerk" class="text-uppercase">{{ $transaction->clerk ?? auth()->user()->name ?? 'System' }}</td>
+                                                <td data-column="clerk" class="text-uppercase">{{ $transaction->clerk ?: 'System' }}</td>
                                                 <td data-column="client_category" class="text-uppercase">{{ filled($transaction->client_category) ? $transaction->client_category : ($client->sector ?? 'N/A') }}</td>
                                                 <td data-column="transaction_type" class="text-uppercase">{{ $transaction->type_label ?? 'N/A' }}</td>
                                                 {{-- <td data-column="events_transaction_type" class="text-uppercase">{{ $transaction->events_transaction_type ?: 'N/A' }}</td> --}}

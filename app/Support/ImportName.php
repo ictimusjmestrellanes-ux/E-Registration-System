@@ -20,6 +20,11 @@ class ImportName
                 $first = $match[1];
                 $middle = $match[2];
             }
+        } elseif (preg_match('/^(\S+)\s+(.+?)\s+([\p{L}]\.?)$/u', $value, $match)) {
+            // Some source files use "LASTNAME FIRSTNAME M.I." without a
+            // comma. Do not mistake the trailing middle initial for the
+            // surname (for example, "ALDEA LORETO A.").
+            [, $last, $first, $middle] = $match;
         } elseif (preg_match('/^(.+?)\s+([\p{L}]\.?)\s+(.+)$/u', $value, $match)) {
             [, $first, $middle, $last] = $match;
         } else {

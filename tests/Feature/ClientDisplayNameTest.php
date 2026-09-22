@@ -12,7 +12,7 @@ class ClientDisplayNameTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_client_list_and_details_show_last_first_and_full_middle_name(): void
+    public function test_client_list_and_details_show_last_first_full_middle_name_and_suffix(): void
     {
         $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
 
@@ -21,30 +21,31 @@ class ClientDisplayNameTest extends TestCase
             'first_name' => 'Juan',
             'middle_name' => 'Maria',
             'last_name' => 'Dela Cruz',
+            'suffix' => 'Jr.',
         ]);
 
-        $this->assertSame('DELA CRUZ, JUAN MARIA', $client->list_display_name);
+        $this->assertSame('DELA CRUZ, JUAN MARIA JR.', $client->list_display_name);
 
         $list = $this->get(route('client.list'))
             ->assertOk()
-            ->assertSee('data-client-name="DELA CRUZ, JUAN MARIA"', false);
-        $this->assertMatchesRegularExpression('/<td>\s*DELA CRUZ, JUAN MARIA\s*<\/td>/', $list->getContent());
+            ->assertSee('data-client-name="DELA CRUZ, JUAN MARIA JR."', false);
+        $this->assertMatchesRegularExpression('/<td>\s*DELA CRUZ, JUAN MARIA JR\.\s*<\/td>/', $list->getContent());
 
         $this->get(route('clients.show', $client))
             ->assertOk()
-            ->assertSee('<div class="fs-4 fw-bold">DELA CRUZ, JUAN MARIA</div>', false);
+            ->assertSee('<div class="fs-4 fw-bold">DELA CRUZ, JUAN MARIA JR.</div>', false);
 
         $this->get(route('client.list', ['search' => 'Dela Cruz, Juan Maria']))
             ->assertOk()
-            ->assertSee('DELA CRUZ, JUAN MARIA');
+            ->assertSee('DELA CRUZ, JUAN MARIA JR.');
 
         $this->get(route('client.list', ['search' => 'Dela Cruz, Juan M.']))
             ->assertOk()
-            ->assertSee('DELA CRUZ, JUAN MARIA');
+            ->assertSee('DELA CRUZ, JUAN MARIA JR.');
 
         $this->getJson(route('client.list.preview-without-transactions'))
             ->assertOk()
-            ->assertJsonPath('data.0.full_name', 'DELA CRUZ, JUAN MARIA');
+            ->assertJsonPath('data.0.full_name', 'DELA CRUZ, JUAN MARIA JR.');
     }
 
     public function test_single_letter_middle_name_is_shown_as_an_initial(): void
@@ -80,6 +81,28 @@ class ClientDisplayNameTest extends TestCase
         ]);
 
         $this->assertSame('REYES, ANA', $client->list_display_name);
+    }
+
+    public function test_legacy_client_with_middle_initial_in_last_name_displays_in_the_intended_order(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+
+        $client = Client::create([
+            'client_id' => '2600003',
+            'first_name' => 'ALDEA',
+            'middle_name' => 'LORETO',
+            'last_name' => 'A.',
+        ]);
+
+        $this->assertSame('ALDEA, LORETO A.', $client->list_display_name);
+
+        $this->get(route('client.list'))
+            ->assertOk()
+            ->assertSee('data-client-name="ALDEA, LORETO A."', false);
+
+        $this->get(route('clients.show', $client))
+            ->assertOk()
+            ->assertSee('<div class="fs-4 fw-bold">ALDEA, LORETO A.</div>', false);
     }
 
     public function test_search_finds_clients_using_names_copied_from_event_records(): void

@@ -22,6 +22,7 @@ class TransactionEvent extends Model
         'client_category',
         'sector',
         'status',
+        'imported_by',
         'transaction_category',
         'transaction_type',
         'event_date',

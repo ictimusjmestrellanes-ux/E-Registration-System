@@ -15,6 +15,12 @@ assert.equal(format('Maria Santos'), 'Santos, Maria');
 assert.equal(format('Juan Maria Santos'), 'Santos, Juan Maria');
 assert.equal(format('Santos, Juan Maria'), 'Santos, Juan Maria');
 assert.equal(format('Juan M Santos'), 'Santos, Juan M.');
+assert.equal(format('ALDEA LORETO A.'), 'ALDEA, LORETO A.');
+assert.equal(format('AUSAN BABY RHEA A'), 'AUSAN, BABY RHEA A.');
+assert.deepEqual(
+    JSON.parse(JSON.stringify(split('ALDEA LORETO A.'))),
+    { first: 'LORETO', middle: 'A.', last: 'ALDEA', suffix: '' }
+);
 assert.equal(format('Jose P. Mercado Jr.'), 'Mercado, Jose P. JR');
 assert.equal(format('Peña, José Ñ.'), 'Peña, José Ñ.');
 assert.equal(format('Prince'), 'Prince');

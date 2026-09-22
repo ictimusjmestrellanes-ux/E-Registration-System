@@ -29,7 +29,7 @@ class TransferReuseTest extends TestCase
 
     public function test_transfer_reuses_existing_client(): void
     {
-        $this->actingAs(User::factory()->create());
+        $this->actingAs(User::factory()->create(['name' => 'Transfer Clerk']));
 
         $client = Client::create([
             'client_id' => '2600001',
@@ -39,7 +39,7 @@ class TransferReuseTest extends TestCase
             'birth_date' => '1986-05-05',
             'sector' => 'INDIGENT',
         ]);
-        $event = $this->seedPendingEvent();
+        $event = $this->seedPendingEvent(['imported_by' => 'Original Import Clerk']);
 
         $response = $this->post(route('transaction-events.transfer', $event));
         $response->assertRedirect(route('transaction-events.records'));
@@ -49,6 +49,7 @@ class TransferReuseTest extends TestCase
         $this->assertDatabaseHas('transaction_history', [
             'client_id' => '2600001',
             'client_category' => 'INDIGENT',
+            'clerk' => 'Original Import Clerk',
         ]);
         $this->assertNotNull($event->fresh()->transferred_at);
         $this->assertNotNull($event->fresh()->transferred_transaction_id);

@@ -147,7 +147,7 @@
                                 <i class="bx bx-bell fs-22"></i>
                                 <span class="position-absolute topbar-badge fs-10 translate-middle badge rounded-pill bg-danger {{ ($navbarUnreadCount ?? 0) > 0 ? '' : 'd-none' }}" id="notificationUnreadBadge">{{ $navbarUnreadCount > 99 ? '99+' : ($navbarUnreadCount ?? 0) }}<span class="visually-hidden">unread messages</span></span>
                             </button>
-                            <div class="dropdown-menu dropdown-menu-lg dropdown-menu-end p-0" aria-labelledby="page-header-notifications-dropdown">
+                            <div class="dropdown-menu dropdown-menu-xl dropdown-menu-end p-0" aria-labelledby="page-header-notifications-dropdown">
 
                                 <div class="dropdown-head bg-primary bg-pattern rounded-top">
                                     <div class="p-3">

@@ -30,10 +30,13 @@
             const form = document.getElementById('undoSingleTransferForm');
             const confirmButton = document.getElementById('confirmSingleUndoTransferBtn');
             if (!modal || !form || !confirmButton) return;
+            const modalInstance = bootstrap.Modal.getOrCreateInstance(modal);
+            let currentEventId = 0;
 
             modal.addEventListener('show.bs.modal', function(event) {
                 const trigger = event.relatedTarget;
                 const undoUrl = trigger?.dataset.undoUrl || '';
+                currentEventId = parseInt(trigger?.dataset.eventId || '0', 10);
                 form.setAttribute('action', undoUrl || '#');
                 confirmButton.disabled = !undoUrl;
                 document.getElementById('undoSingleTransferEventId').textContent = trigger?.dataset.eventId || '';
@@ -43,6 +46,41 @@
             modal.addEventListener('hidden.bs.modal', function() {
                 form.setAttribute('action', '#');
                 confirmButton.disabled = true;
+                currentEventId = 0;
+            });
+
+            form.addEventListener('submit', async function(event) {
+                event.preventDefault();
+                if (currentEventId < 1 || form.action.endsWith('#')) return;
+
+                const eventId = currentEventId;
+                const originalHtml = confirmButton.innerHTML;
+                confirmButton.disabled = true;
+                confirmButton.innerHTML = '<i class="ri-loader-3-line ri-spin me-1"></i> Undoing...';
+
+                try {
+                    const response = await fetch(form.action, {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: { 'Accept': 'application/json' },
+                        body: new FormData(form),
+                    });
+                    const data = await response.json().catch(() => ({}));
+                    if (!response.ok || !data.success) {
+                        throw new Error(data.message || 'The transfer could not be undone.');
+                    }
+
+                    modalInstance.hide();
+                    window.EventRecordsUi?.removeEvents([eventId], 1);
+                    window.EventRecordsUi?.clearSelection();
+                    new Message('imessage').show(data.message || 'Transfer undone.', 'success', 'top-center');
+                } catch (error) {
+                    confirmButton.disabled = false;
+                    new Message('imessage').show(error.message || 'The transfer could not be undone.', 'fail',
+                        'top-center');
+                } finally {
+                    confirmButton.innerHTML = originalHtml;
+                }
             });
         });
     </script>

@@ -53,4 +53,32 @@ class EventDisplayNameTest extends TestCase
         $this->assertSame('Dela Cruz, Juan Carlos P.', ImportName::format('Juan Carlos P Dela Cruz'));
         $this->assertSame('Mercado, Jose P. JR', ImportName::format('Jose P. Mercado Jr.'));
     }
+
+    public function test_trailing_middle_initial_is_not_displayed_as_the_last_name(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+
+        $pending = TransactionEvent::create(['full_name' => 'ALDEA LORETO A.']);
+        $transferred = TransactionEvent::create([
+            'full_name' => 'AUSAN BABY RHEA A.',
+            'transferred_at' => now(),
+        ]);
+
+        $this->assertSame('ALDEA, LORETO A.', $pending->display_name);
+        $this->assertSame('AUSAN, BABY RHEA A.', $transferred->display_name);
+        $this->assertSame([
+            'first' => 'LORETO',
+            'middle' => 'A.',
+            'last' => 'ALDEA',
+            'suffix' => '',
+        ], ImportName::split('ALDEA LORETO A.'));
+
+        $this->get(route('transaction-events.index'))
+            ->assertOk()
+            ->assertSee('ALDEA, LORETO A.');
+
+        $this->get(route('transaction-events.records'))
+            ->assertOk()
+            ->assertSee('AUSAN, BABY RHEA A.');
+    }
 }
