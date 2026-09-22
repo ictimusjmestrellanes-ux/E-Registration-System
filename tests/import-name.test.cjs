@@ -17,6 +17,7 @@ assert.equal(format('Santos, Juan Maria'), 'Santos, Juan Maria');
 assert.equal(format('Juan M Santos'), 'Santos, Juan M.');
 assert.equal(format('ALDEA LORETO A.'), 'ALDEA, LORETO A.');
 assert.equal(format('AUSAN BABY RHEA A'), 'AUSAN, BABY RHEA A.');
+assert.equal(format('LEGASPI JOBILLEE ----'), 'LEGASPI, JOBILLEE ----');
 assert.deepEqual(
     JSON.parse(JSON.stringify(split('ALDEA LORETO A.'))),
     { first: 'LORETO', middle: 'A.', last: 'ALDEA', suffix: '' }

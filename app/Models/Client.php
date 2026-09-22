@@ -132,9 +132,15 @@ class Client extends Model
         // Older imports of "LASTNAME FIRSTNAME M.I." may have stored the
         // trailing initial as last_name. Present those existing records in
         // the intended order on both the client list and client details.
-        if ($middleName !== '' && preg_match('/^[\p{L}]\.?$/u', $lastName)) {
+        $lastNameIsInitial = preg_match('/^[\p{L}]\.?$/u', $lastName) === 1;
+        $lastNameIsPlaceholder = preg_match('/^-{2,}$/u', $lastName) === 1;
+        if ($middleName !== '' && ($lastNameIsInitial || $lastNameIsPlaceholder)) {
             [$lastName, $firstName, $middleName] = [$firstName, $middleName, $lastName];
         }
+
+        // Older split imports can retain the source comma in first_name.
+        $lastName = trim($lastName, " \t\n\r\0\x0B,");
+        $firstName = trim($firstName, " \t\n\r\0\x0B,");
 
         $middleDisplay = mb_strlen($middleName) === 1 ? $middleName . '.' : $middleName;
 
@@ -157,13 +163,16 @@ class Client extends Model
     public static function listDisplaySortExpressions(string $table = 'clients'): array
     {
         $lengthFunction = DB::connection()->getDriverName() === 'mysql' ? 'CHAR_LENGTH' : 'LENGTH';
-        $legacyInitial = "TRIM(COALESCE({$table}.middle_name, '')) <> ''"
-            ." AND {$lengthFunction}(REPLACE(TRIM(COALESCE({$table}.last_name, '')), '.', '')) = 1";
+        $lastName = "TRIM(COALESCE({$table}.last_name, ''))";
+        $legacyInitial = "{$lengthFunction}(REPLACE({$lastName}, '.', '')) = 1";
+        $legacyPlaceholder = "{$lastName} <> '' AND REPLACE({$lastName}, '-', '') = ''";
+        $legacyName = "TRIM(COALESCE({$table}.middle_name, '')) <> ''"
+            ." AND (({$legacyInitial}) OR ({$legacyPlaceholder}))";
 
         return [
-            "LOWER(CASE WHEN ({$legacyInitial}) THEN TRIM(COALESCE({$table}.first_name, '')) ELSE TRIM(COALESCE({$table}.last_name, '')) END)",
-            "LOWER(CASE WHEN ({$legacyInitial}) THEN TRIM(COALESCE({$table}.middle_name, '')) ELSE TRIM(COALESCE({$table}.first_name, '')) END)",
-            "LOWER(CASE WHEN ({$legacyInitial}) THEN TRIM(COALESCE({$table}.last_name, '')) ELSE TRIM(COALESCE({$table}.middle_name, '')) END)",
+            "LOWER(CASE WHEN ({$legacyName}) THEN TRIM(COALESCE({$table}.first_name, '')) ELSE TRIM(COALESCE({$table}.last_name, '')) END)",
+            "LOWER(CASE WHEN ({$legacyName}) THEN TRIM(COALESCE({$table}.middle_name, '')) ELSE TRIM(COALESCE({$table}.first_name, '')) END)",
+            "LOWER(CASE WHEN ({$legacyName}) THEN TRIM(COALESCE({$table}.last_name, '')) ELSE TRIM(COALESCE({$table}.middle_name, '')) END)",
         ];
     }
 

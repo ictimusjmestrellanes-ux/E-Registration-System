@@ -110,6 +110,29 @@ class ClientDisplayNameTest extends TestCase
             ->assertSee('<div class="fs-4 fw-bold">ALDEA, LORETO A.</div>', false);
     }
 
+    public function test_dash_placeholder_is_displayed_as_the_middle_name_not_the_last_name(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+
+        $client = Client::create([
+            'client_id' => '2626870',
+            'first_name' => 'LEGASPI,',
+            'middle_name' => 'JOBILLEE',
+            'last_name' => '----',
+        ]);
+
+        $this->assertSame('LEGASPI, JOBILLEE ----', $client->full_name);
+
+        $this->get(route('client.list'))
+            ->assertOk()
+            ->assertSee('data-client-name="LEGASPI, JOBILLEE ----"', false)
+            ->assertDontSee('data-client-name="----, LEGASPI, JOBILLEE"', false);
+
+        $this->get(route('clients.show', $client))
+            ->assertOk()
+            ->assertSee('<div class="fs-4 fw-bold">LEGASPI, JOBILLEE ----</div>', false);
+    }
+
     public function test_client_list_and_details_prefer_the_linked_event_record_full_name(): void
     {
         $this->actingAs(User::factory()->create(['role_name' => 'Admin']));

@@ -20,6 +20,10 @@ class ImportName
                 $first = $match[1];
                 $middle = $match[2];
             }
+        } elseif (preg_match('/^(\S+)\s+(.+?)\s+(-{2,})$/u', $value, $match)) {
+            // Some imports use dashes as an explicit missing-middle-name
+            // placeholder in "LASTNAME FIRSTNAME -----" records.
+            [, $last, $first, $middle] = $match;
         } elseif (preg_match('/^(\S+)\s+(.+?)\s+([\p{L}]\.?)$/u', $value, $match)) {
             // Some source files use "LASTNAME FIRSTNAME M.I." without a
             // comma. Do not mistake the trailing middle initial for the

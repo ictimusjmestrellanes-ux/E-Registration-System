@@ -77,4 +77,20 @@ class EventRecordNameSortTest extends TestCase
             'display_name_sort' => 'aldea, loreto a.',
         ]);
     }
+
+    public function test_dash_placeholder_backfill_does_not_sort_dashes_as_the_last_name(): void
+    {
+        $event = TransactionEvent::create(['full_name' => 'LEGASPI JOBILLEE ----']);
+        DB::table('transaction_events')->where('id', $event->id)->update([
+            'display_name_sort' => '----, legaspi jobillee',
+        ]);
+
+        $migration = require database_path('migrations/2026_09_22_000002_refresh_dash_placeholder_display_name_sort.php');
+        $migration->up();
+
+        $this->assertDatabaseHas('transaction_events', [
+            'id' => $event->id,
+            'display_name_sort' => 'legaspi, jobillee ----',
+        ]);
+    }
 }

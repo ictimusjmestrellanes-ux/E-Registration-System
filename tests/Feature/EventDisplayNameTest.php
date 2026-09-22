@@ -52,6 +52,7 @@ class EventDisplayNameTest extends TestCase
         $this->assertSame('Dela Cruz, Juan Carlos Maria', ImportName::format('Dela Cruz, Juan Carlos Maria'));
         $this->assertSame('Dela Cruz, Juan Carlos P.', ImportName::format('Juan Carlos P Dela Cruz'));
         $this->assertSame('Mercado, Jose P. JR', ImportName::format('Jose P. Mercado Jr.'));
+        $this->assertSame('LEGASPI, JOBILLEE ----', ImportName::format('LEGASPI JOBILLEE ----'));
     }
 
     public function test_trailing_middle_initial_is_not_displayed_as_the_last_name(): void
