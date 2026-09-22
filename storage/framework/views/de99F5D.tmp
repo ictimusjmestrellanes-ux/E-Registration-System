@@ -1,0 +1,23 @@
+<div class="dropdown w-100" id="<?php echo e($addressId); ?>">
+    <button class="btn btn-light border form-select text-start d-flex align-items-center justify-content-between"
+        type="button" id="<?php echo e($addressId); ?>Btn" data-bs-toggle="dropdown" data-bs-auto-close="outside"
+        aria-expanded="false" style="padding: .5rem .75rem;">
+        <span data-address-label>All addresses</span>
+    </button>
+    <div class="dropdown-menu w-100 p-2" aria-labelledby="<?php echo e($addressId); ?>Btn" style="max-height: 280px; overflow-y: auto;">
+        <div class="form-check mb-2">
+            <input class="form-check-input" type="checkbox" id="<?php echo e($addressId); ?>All" data-address-all>
+            <label class="form-check-label fw-semibold" for="<?php echo e($addressId); ?>All">All addresses</label>
+        </div>
+        <hr class="my-2">
+        <?php $__currentLoopData = $addresses; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $address): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+            <div class="form-check" data-address-option>
+                <input class="form-check-input" type="checkbox" name="address[]"
+                    id="<?php echo e($addressId); ?>_<?php echo e($loop->index); ?>" value="<?php echo e($address); ?>"
+                    <?php if(in_array($address, (array) request('address', []), true)): echo 'checked'; endif; ?>>
+                <label class="form-check-label" for="<?php echo e($addressId); ?>_<?php echo e($loop->index); ?>"><?php echo e($address); ?></label>
+            </div>
+        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+    </div>
+</div>
+<?php /**PATH C:\xampp\htdocs\E-Reg-System\resources\views/pages/transaction_events/partials/addressDropdown.blade.php ENDPATH**/ ?>

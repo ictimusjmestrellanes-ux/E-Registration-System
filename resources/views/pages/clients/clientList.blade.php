@@ -219,7 +219,8 @@
                                 <tbody class="text-center text-uppercase">
                                     @forelse ($clients as $client)
                                         @php
-                                            $clientName = $client->list_display_name;
+                                            $clientName = $client->latestLinkedEvent?->display_name
+                                                ?: $client->list_display_name;
                                             $clientPhoto = $client->photo_url ?: $defaultClientPhoto;
                                         @endphp
                                         <tr data-client-row="{{ $client->id }}"

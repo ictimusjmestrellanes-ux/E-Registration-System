@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Models\Client;
+use App\Models\TransactionEvent;
+use App\Models\TransactionHistory;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -80,5 +82,39 @@ class ClientListSortTest extends TestCase
         $byAddress = $this->get(route('client.list', ['sort' => 'address_desc']))
             ->assertOk()->viewData('clients');
         $this->assertSame(['2600002', '2600001'], $byAddress->pluck('client_id')->all());
+    }
+
+    public function test_client_list_alphabetizes_by_the_linked_event_record_name(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+
+        $clients = [
+            Client::create(['client_id' => '2600010', 'first_name' => 'Stored', 'last_name' => 'Zulu']),
+            Client::create(['client_id' => '2600011', 'first_name' => 'Stored', 'last_name' => 'Alpha']),
+        ];
+        $eventNames = ['AALA, ERNESTO ESTACIO JR', 'BETA, BEN C.'];
+
+        foreach ($clients as $index => $client) {
+            $history = TransactionHistory::create([
+                'client_id' => $client->client_id,
+                'transaction_id' => 'TX-EVENT-'.($index + 1),
+                'transaction_date' => '2026-09-01',
+                'category' => 'events',
+                'type' => 'Assistance',
+                'status' => 'Pending',
+            ]);
+            TransactionEvent::create([
+                'full_name' => $eventNames[$index],
+                'transferred_at' => now(),
+                'transferred_transaction_id' => $history->id,
+            ]);
+        }
+
+        $response = $this->get(route('client.list'))->assertOk();
+        $this->assertSame(
+            ['2600010', '2600011'],
+            $response->viewData('clients')->pluck('client_id')->all()
+        );
+        $response->assertSeeInOrder($eventNames);
     }
 }
