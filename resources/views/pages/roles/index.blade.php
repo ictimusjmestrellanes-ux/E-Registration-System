@@ -55,10 +55,6 @@
                                                 data-bs-target="#deleteRoleModal-{{ $role['id'] }}" title="Delete Role">
                                                 <i class="ri-delete-bin-line"></i>
                                             </button>
-                                        @else
-                                            <button type="button" class="btn btn-sm btn-soft-danger" disabled title="Not Allowed to Delete Role">
-                                                <i class="ri-delete-bin-line"></i>
-                                            </button>
                                         @endif
                                     @endif
                                     <div class="avatar-sm">

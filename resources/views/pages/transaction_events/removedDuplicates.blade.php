@@ -73,12 +73,6 @@
                                                                 onclick="return confirm('Restore this event back to duplicate review?');">
                                                                 <i class="ri-arrow-go-back-line me-1"></i> Undo Duplicate
                                                             </button>
-                                                        @else
-                                                            <button type="button" class="btn btn-sm btn-soft-warning"
-                                                                disabled>
-                                                                <i class="ri-arrow-go-back-line me-1"></i>Not Allowed to
-                                                                Undo Duplicate
-                                                            </button>
                                                         @endif
                                                     </form>
                                                 </td>

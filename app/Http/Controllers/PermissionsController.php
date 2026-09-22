@@ -25,6 +25,7 @@ class PermissionsController extends Controller
         ['feature' => 'Events Records Duplicates', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
         ['feature' => 'View Archive Files', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
         ['feature' => 'Import CSV', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
+        ['feature' => 'Export Events', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
         ['feature' => 'Download Template', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
         ['feature' => 'Edit User Roles', 'DSWD' => false, 'Staff' => false, 'Admin' => false, 'Super Admin' => true],
         ['feature' => 'Update User Status', 'DSWD' => false, 'Staff' => false, 'Admin' => false, 'Super Admin' => true],
@@ -54,6 +55,8 @@ class PermissionsController extends Controller
         ['feature' => 'Delete Clients Without Transactions', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
         ['feature' => 'Export Transaction Event Records', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
         ['feature' => 'Print Payroll Transaction PDF', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
+        ['feature' => 'Force Create Client', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
+        ['feature' => 'View Activity Logs', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true]
     ];
 
     /**

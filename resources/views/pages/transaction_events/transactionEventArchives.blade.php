@@ -68,11 +68,6 @@
                                                             class="btn btn-sm btn-primary">
                                                             <i class="ri-download-line me-1"></i> Download
                                                         </a>
-                                                    @else
-                                                        <a href="{{ $file['download_url'] }}"
-                                                            class="btn btn-sm btn-primary disabled" aria-disabled="true">
-                                                            <i class="ri-download-line me-1"></i>Not Allowed to Download
-                                                        </a>
                                                     @endif
                                                 </td>
                                             </tr>

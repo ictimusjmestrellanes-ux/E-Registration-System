@@ -341,11 +341,6 @@
                                     class="btn btn-sm btn-soft-secondary">
                                     <i class="ri-list-unordered me-1"></i> View All Removed
                                 </a>
-                            @else
-                                <a href="{{ route('transaction-events.removed-duplicates') }}"
-                                    class="btn btn-sm btn-soft-secondary disabled" aria-disabled="true">
-                                    <i class="ri-list-unordered me-1"></i>Not Allowed to View All Removed
-                                </a>
                             @endif
                         </div>
                         @forelse ($notDuplicates as $event)

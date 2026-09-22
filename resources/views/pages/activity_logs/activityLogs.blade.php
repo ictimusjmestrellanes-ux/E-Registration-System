@@ -21,9 +21,21 @@
                 str_contains($action, 'archive') => ['Archive', 'bg-warning-subtle text-warning', 'ri-archive-line'],
                 str_contains($action, 'restore') => ['Restore', 'bg-success-subtle text-success', 'ri-restart-line'],
                 str_contains($action, 'login') => ['Login', 'bg-success-subtle text-success', 'ri-login-box-line'],
-                str_contains($action, 'logout') => ['Logout', 'bg-secondary-subtle text-secondary', 'ri-logout-box-r-line'],
-                str_contains($action, 'fingerprint') => ['Fingerprint', 'bg-primary-subtle text-primary', 'ri-fingerprint-line'],
-                default => [ucfirst(str_replace('_', ' ', $action ?: 'Activity')), 'bg-light text-dark', 'ri-history-line'],
+                str_contains($action, 'logout') => [
+                    'Logout',
+                    'bg-secondary-subtle text-secondary',
+                    'ri-logout-box-r-line',
+                ],
+                str_contains($action, 'fingerprint') => [
+                    'Fingerprint',
+                    'bg-primary-subtle text-primary',
+                    'ri-fingerprint-line',
+                ],
+                default => [
+                    ucfirst(str_replace('_', ' ', $action ?: 'Activity')),
+                    'bg-light text-dark',
+                    'ri-history-line',
+                ],
             };
         };
 
@@ -32,35 +44,56 @@
                 return '<div class="text-center text-muted py-4">No activity logs found in this range.</div>';
             }
 
-            return $items->map(function ($activity) use ($actionMeta) {
-                [$label, $badgeClass, $icon] = $actionMeta($activity->action);
-                $subjectLabel = $activity->subject_type
-                    ? class_basename($activity->subject_type) . ($activity->subject_id ? ' #' . $activity->subject_id : '')
-                    : 'System';
-                $timeLabel = $activity->created_at?->setTimezone('Asia/Manila')->format('M d, Y h:i A') ?? '-';
-                $userName = $activity->user?->name ?? 'System';
+            return $items
+                ->map(function ($activity) use ($actionMeta) {
+                    [$label, $badgeClass, $icon] = $actionMeta($activity->action);
+                    $subjectLabel = $activity->subject_type
+                        ? class_basename($activity->subject_type) .
+                            ($activity->subject_id ? ' #' . $activity->subject_id : '')
+                        : 'System';
+                    $timeLabel = $activity->created_at?->setTimezone('Asia/Manila')->format('M d, Y h:i A') ?? '-';
+                    $userName = $activity->user?->name ?? 'System';
 
-                return '
+                    return '
                     <div class="activity-item d-flex gap-3">
                         <div class="activity-icon flex-shrink-0">
-                            <i class="' . $icon . '"></i>
+                            <i class="' .
+                        $icon .
+                        '"></i>
                         </div>
                         <div class="flex-grow-1">
                             <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
-                                <h6 class="mb-0">' . e($activity->description) . '</h6>
-                                <span class="badge rounded-pill ' . e($badgeClass) . '">' . e($label) . '</span>
+                                <h6 class="mb-0">' .
+                        e($activity->description) .
+                        '</h6>
+                                <span class="badge rounded-pill ' .
+                        e($badgeClass) .
+                        '">' .
+                        e($label) .
+                        '</span>
                             </div>
                             <div class="activity-meta text-muted">
-                                <span><i class="ri-user-3-line me-1"></i>' . e($userName) . '</span>
-                                <span><i class="ri-time-line me-1"></i>' . e($timeLabel) . '</span>
-                                <span><i class="ri-government-line me-1"></i>' . e($subjectLabel) . '</span>
-                                <span><i class="ri-global-line me-1"></i>' . e($activity->ip_address ?? 'Unknown IP') . '</span>
+                                <span><i class="ri-user-3-line me-1"></i>' .
+                        e($userName) .
+                        '</span>
+                                <span><i class="ri-time-line me-1"></i>' .
+                        e($timeLabel) .
+                        '</span>
+                                <span><i class="ri-government-line me-1"></i>' .
+                        e($subjectLabel) .
+                        '</span>
+                                <span><i class="ri-global-line me-1"></i>' .
+                        e($activity->ip_address ?? 'Unknown IP') .
+                        '</span>
                             </div>
-                            ' . view('pages.activity_logs.details', ['activity' => $activity])->render() . '
+                            ' .
+                        view('pages.activity_logs.details', ['activity' => $activity])->render() .
+                        '
                         </div>
                     </div>
                 ';
-            })->implode('');
+                })
+                ->implode('');
         };
     @endphp
 
@@ -94,7 +127,7 @@
             z-index: 0;
         }
 
-        .activity-hero > * {
+        .activity-hero>* {
             position: relative;
             z-index: 2;
         }
@@ -132,7 +165,7 @@
             border: 1px solid rgba(65, 81, 163, 0.12);
             border-radius: 14px;
             padding: 1rem;
-            background: linear-gradient(180deg, rgba(255,255,255,0.9), rgba(248,250,255,1));
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(248, 250, 255, 1));
         }
 
         .activity-item {
@@ -143,7 +176,7 @@
             background: var(--vz-card-bg, #fff);
         }
 
-        .activity-item + .activity-item {
+        .activity-item+.activity-item {
             margin-top: 0.85rem;
         }
 
@@ -205,11 +238,15 @@
             <div class="d-flex flex-column flex-md-row align-items-md-end justify-content-between gap-3 mt-4">
                 <ul class="nav nav-pills activity-hero-tabs gap-2" role="tablist">
                     <li class="nav-item">
-                        <a class="nav-link {{ !request()->hasAny(['period', 'action', 'search', 'page']) ? 'active' : '' }}" data-bs-toggle="tab" href="#overview-tab" role="tab">Overview</a>
+                        <a class="nav-link {{ !request()->hasAny(['period', 'action', 'search', 'page']) ? 'active' : '' }}"
+                            data-bs-toggle="tab" href="#overview-tab" role="tab">Overview</a>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link {{ request()->hasAny(['period', 'action', 'search', 'page']) ? 'active' : '' }}" data-bs-toggle="tab" href="#activities-tab" role="tab">Activities</a>
-                    </li>
+                    @if (feature_allowed('View Activity Logs'))
+                        <li class="nav-item">
+                            <a class="nav-link {{ request()->hasAny(['period', 'action', 'search', 'page']) ? 'active' : '' }}"
+                                data-bs-toggle="tab" href="#activities-tab" role="tab">Activities</a>
+                        </li>
+                    @endif
                 </ul>
                 <div class="d-flex flex-wrap gap-2">
                     <div class="badge rounded-pill bg-light text-primary px-3 py-2">{{ $totalLogs }} total logs</div>
@@ -219,7 +256,8 @@
         </div>
 
         <div class="tab-content">
-            <div class="tab-pane fade {{ !request()->hasAny(['period', 'action', 'search', 'page']) ? 'show active' : '' }}" id="overview-tab" role="tabpanel">
+            <div class="tab-pane fade {{ !request()->hasAny(['period', 'action', 'search', 'page']) ? 'show active' : '' }}"
+                id="overview-tab" role="tabpanel">
                 <div class="row g-4">
                     <div class="col-xxl-3">
                         <div class="card activity-summary-card shadow-sm h-100">
@@ -252,7 +290,8 @@
                                             </tr>
                                             <tr>
                                                 <th class="ps-0" scope="row">Joining Date :</th>
-                                                <td class="text-muted">{{ $user?->created_at?->format('d M Y') ?? '-' }}</td>
+                                                <td class="text-muted">{{ $user?->created_at?->format('d M Y') ?? '-' }}
+                                                </td>
                                             </tr>
                                         </tbody>
                                     </table>
@@ -266,22 +305,88 @@
                             <div class="card-header align-items-center d-flex">
                                 <h4 class="card-title mb-0 me-2">Recent Activity</h4>
                                 <div class="flex-shrink-0 ms-auto">
-                                    <ul class="nav justify-content-end nav-tabs-custom rounded card-header-tabs border-bottom-0 activity-tabs" role="tablist">
+                                    <ul class="nav justify-content-end nav-tabs-custom rounded card-header-tabs border-bottom-0 activity-tabs"
+                                        role="tablist">
                                         <li class="nav-item">
-                                            <a class="nav-link active" data-bs-toggle="tab" href="#today-tab" role="tab">Today</a>
+                                            <a class="nav-link active" data-bs-toggle="tab" href="#all-tab"
+                                                role="tab">All</a>
                                         </li>
                                         <li class="nav-item">
-                                            <a class="nav-link" data-bs-toggle="tab" href="#weekly-tab" role="tab">Weekly</a>
+                                            <a class="nav-link" data-bs-toggle="tab" href="#today-tab" role="tab">Today</a>
                                         </li>
                                         <li class="nav-item">
-                                            <a class="nav-link" data-bs-toggle="tab" href="#monthly-tab" role="tab">Monthly</a>
+                                            <a class="nav-link" data-bs-toggle="tab" href="#weekly-tab"
+                                                role="tab">Weekly</a>
+                                        </li>
+                                        <li class="nav-item">
+                                            <a class="nav-link" data-bs-toggle="tab" href="#monthly-tab"
+                                                role="tab">Monthly</a>
                                         </li>
                                     </ul>
                                 </div>
                             </div>
                             <div class="card-body">
+                                <form method="GET" action="{{ route('activity.logs') }}" class="mb-4">
+                                    <div class="row g-3 align-items-end">
+                                        <div class="{{ $overviewUsers->isNotEmpty() ? 'col-lg-4' : 'col-lg-5' }} col-md-6">
+                                            <label class="form-label fw-semibold small text-muted">Search</label>
+                                            <div class="input-group">
+                                                <span class="input-group-text"><i class="ri-search-line"></i></span>
+                                                <input type="text" name="overview_search" class="form-control"
+                                                    placeholder="Search activity, user, or IP..."
+                                                    value="{{ $overviewSearch }}">
+                                            </div>
+                                        </div>
+                                        @if ($overviewUsers->isNotEmpty())
+                                            <div class="col-lg-3 col-md-6">
+                                                <label class="form-label fw-semibold small text-muted">User</label>
+                                                <select name="overview_user" class="form-select">
+                                                    <option value="">All Users</option>
+                                                    @foreach ($overviewUsers as $overviewUser)
+                                                        <option value="{{ $overviewUser->id }}"
+                                                            {{ $overviewUserId === (string) $overviewUser->id ? 'selected' : '' }}>
+                                                            {{ $overviewUser->name }}
+                                                        </option>
+                                                    @endforeach
+                                                </select>
+                                            </div>
+                                        @endif
+                                        <div class="col-lg-3 col-md-6">
+                                            <label class="form-label fw-semibold small text-muted">Action Type</label>
+                                            <select name="overview_action" class="form-select">
+                                                <option value="">All Actions</option>
+                                                @foreach ($overviewActions as $overviewActionOption)
+                                                    <option value="{{ $overviewActionOption }}"
+                                                        {{ $overviewAction === $overviewActionOption ? 'selected' : '' }}>
+                                                        {{ ucfirst(str_replace('_', ' ', $overviewActionOption)) }}
+                                                    </option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                        <div class="col-lg-2 col-md-6 d-flex gap-2">
+                                            <button type="submit" class="btn btn-primary flex-grow-1">
+                                                <i class="ri-filter-3-line me-1"></i>Filter
+                                            </button>
+                                            <a href="{{ route('activity.logs') }}" class="btn btn-outline-secondary"
+                                                title="Reset overview filters">
+                                                <i class="ri-refresh-line"></i>
+                                            </a>
+                                        </div>
+                                    </div>
+                                </form>
+
                                 <div class="tab-content text-muted">
-                                    <div class="tab-pane fade show active" id="today-tab" role="tabpanel">
+                                    <div class="tab-pane fade show active" id="all-tab" role="tabpanel">
+                                        {!! $renderActivityList($allActivities) !!}
+
+                                        @if ($allActivities->hasPages())
+                                            <div class="d-flex justify-content-end mt-3">
+                                                {{ $allActivities->links('pagination::bootstrap-5') }}
+                                            </div>
+                                        @endif
+                                    </div>
+                                    <div class="tab-pane fade "
+                                        id="today-tab" role="tabpanel">
                                         {!! $renderActivityList($todayActivities) !!}
                                     </div>
                                     <div class="tab-pane fade" id="weekly-tab" role="tabpanel">
@@ -297,7 +402,8 @@
                 </div>
             </div>
 
-            <div class="tab-pane fade {{ request()->hasAny(['period', 'action', 'search', 'page']) ? 'show active' : '' }}" id="activities-tab" role="tabpanel">
+            <div class="tab-pane fade {{ request()->hasAny(['period', 'action', 'search', 'page']) ? 'show active' : '' }}"
+                id="activities-tab" role="tabpanel">
                 <div class="card shadow-sm">
                     <div class="card-body">
                         <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
@@ -306,7 +412,8 @@
                                 <p class="text-muted mb-0">Filter and search through system actions.</p>
                             </div>
                             <div class="badge rounded-pill bg-primary-subtle text-primary px-3 py-2">
-                                Showing {{ $activities->firstItem() ?? 0 }} - {{ $activities->lastItem() ?? 0 }} of {{ $filteredTotal }}
+                                Showing {{ $activities->firstItem() ?? 0 }} - {{ $activities->lastItem() ?? 0 }} of
+                                {{ $filteredTotal }}
                             </div>
                         </div>
 
@@ -316,7 +423,8 @@
                                     <label class="form-label fw-semibold small text-muted">Search</label>
                                     <div class="input-group">
                                         <span class="input-group-text"><i class="ri-search-line"></i></span>
-                                        <input type="text" name="search" class="form-control" placeholder="Search description, action, IP..." value="{{ $search }}">
+                                        <input type="text" name="search" class="form-control"
+                                            placeholder="Search description, action, IP..." value="{{ $search }}">
                                     </div>
                                 </div>
                                 <div class="col-md-3">
@@ -324,16 +432,26 @@
                                     <select name="period" class="form-select">
                                         <option value="all" {{ $period === 'all' ? 'selected' : '' }}>All Time</option>
                                         <option value="today" {{ $period === 'today' ? 'selected' : '' }}>Today</option>
-                                        <option value="this_week" {{ $period === 'this_week' ? 'selected' : '' }}>This Week</option>
-                                        <option value="this_month" {{ $period === 'this_month' ? 'selected' : '' }}>This Month</option>
-                                        <option value="7days" {{ $period === '7days' ? 'selected' : '' }}>Past 7 Days</option>
-                                        <option value="14days" {{ $period === '14days' ? 'selected' : '' }}>Past 14 Days</option>
-                                        <option value="30days" {{ $period === '30days' ? 'selected' : '' }}>Past 30 Days</option>
-                                        <option value="3months" {{ $period === '3months' ? 'selected' : '' }}>Past 3 Months</option>
-                                        <option value="6months" {{ $period === '6months' ? 'selected' : '' }}>Past 6 Months</option>
-                                        <option value="1year" {{ $period === '1year' ? 'selected' : '' }}>Past 1 Year</option>
-                                        <option value="2years" {{ $period === '2years' ? 'selected' : '' }}>Past 2 Years</option>
-                                        <option value="3years" {{ $period === '3years' ? 'selected' : '' }}>Past 3 Years</option>
+                                        <option value="this_week" {{ $period === 'this_week' ? 'selected' : '' }}>This
+                                            Week</option>
+                                        <option value="this_month" {{ $period === 'this_month' ? 'selected' : '' }}>This
+                                            Month</option>
+                                        <option value="7days" {{ $period === '7days' ? 'selected' : '' }}>Past 7 Days
+                                        </option>
+                                        <option value="14days" {{ $period === '14days' ? 'selected' : '' }}>Past 14 Days
+                                        </option>
+                                        <option value="30days" {{ $period === '30days' ? 'selected' : '' }}>Past 30 Days
+                                        </option>
+                                        <option value="3months" {{ $period === '3months' ? 'selected' : '' }}>Past 3
+                                            Months</option>
+                                        <option value="6months" {{ $period === '6months' ? 'selected' : '' }}>Past 6
+                                            Months</option>
+                                        <option value="1year" {{ $period === '1year' ? 'selected' : '' }}>Past 1 Year
+                                        </option>
+                                        <option value="2years" {{ $period === '2years' ? 'selected' : '' }}>Past 2 Years
+                                        </option>
+                                        <option value="3years" {{ $period === '3years' ? 'selected' : '' }}>Past 3 Years
+                                        </option>
                                     </select>
                                 </div>
                                 <div class="col-md-3">
@@ -341,7 +459,8 @@
                                     <select name="action" class="form-select">
                                         <option value="">All Actions</option>
                                         @foreach ($uniqueActions as $act)
-                                            <option value="{{ $act }}" {{ $actionFilter === $act ? 'selected' : '' }}>
+                                            <option value="{{ $act }}"
+                                                {{ $actionFilter === $act ? 'selected' : '' }}>
                                                 {{ ucfirst(str_replace('_', ' ', $act)) }}
                                             </option>
                                         @endforeach
@@ -351,7 +470,8 @@
                                     <button type="submit" class="btn btn-primary flex-grow-1">
                                         <i class="ri-filter-3-line me-1"></i>Filter
                                     </button>
-                                    <a href="{{ route('activity.logs') }}" class="btn btn-outline-secondary" title="Reset">
+                                    <a href="{{ route('activity.logs') }}" class="btn btn-outline-secondary"
+                                        title="Reset">
                                         <i class="ri-refresh-line"></i>
                                     </a>
                                 </div>
@@ -375,24 +495,33 @@
                                         @php
                                             [$label, $badgeClass] = $actionMeta($activity->action);
                                             $subjectLabel = $activity->subject_type
-                                                ? class_basename($activity->subject_type) . ($activity->subject_id ? ' #' . $activity->subject_id : '')
+                                                ? class_basename($activity->subject_type) .
+                                                    ($activity->subject_id ? ' #' . $activity->subject_id : '')
                                                 : '-';
                                         @endphp
                                         <tr>
                                             <td>
-                                                <div class="fw-semibold">{{ $activity->created_at?->setTimezone('Asia/Manila')->format('M d, Y') }}</div>
-                                                <div class="text-muted small">{{ $activity->created_at?->setTimezone('Asia/Manila')->format('h:i A') }}</div>
+                                                <div class="fw-semibold">
+                                                    {{ $activity->created_at?->setTimezone('Asia/Manila')->format('M d, Y') }}
+                                                </div>
+                                                <div class="text-muted small">
+                                                    {{ $activity->created_at?->setTimezone('Asia/Manila')->format('h:i A') }}
+                                                </div>
                                             </td>
                                             <td>
                                                 <div class="fw-semibold">{{ $activity->user?->name ?? 'System' }}</div>
-                                                <div class="text-muted small">{{ $activity->user?->email ?? 'No linked user' }}</div>
+                                                <div class="text-muted small">
+                                                    {{ $activity->user?->email ?? 'No linked user' }}</div>
                                             </td>
                                             <td>
-                                                <span class="badge rounded-pill {{ $badgeClass }} px-3 py-2">{{ $label }}</span>
+                                                <span
+                                                    class="badge rounded-pill {{ $badgeClass }} px-3 py-2">{{ $label }}</span>
                                             </td>
                                             <td>
                                                 {{ $activity->description }}
-                                                @include('pages.activity_logs.details', ['activity' => $activity])
+                                                @include('pages.activity_logs.details', [
+                                                    'activity' => $activity,
+                                                ])
                                             </td>
                                             <td>{{ $subjectLabel }}</td>
                                             <td>{{ $activity->ip_address ?? '-' }}</td>
@@ -401,7 +530,8 @@
                                         <tr>
                                             <td colspan="6" class="text-center text-muted py-5">
                                                 @if ($search || $period !== 'all' || $actionFilter)
-                                                    No activity logs match your filters. <a href="{{ route('activity.logs') }}">Clear filters</a>
+                                                    No activity logs match your filters. <a
+                                                        href="{{ route('activity.logs') }}">Clear filters</a>
                                                 @else
                                                     No activity logs found yet.
                                                 @endif

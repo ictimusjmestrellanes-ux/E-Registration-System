@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\ActivityLog;
+use App\Models\User;
 use Illuminate\Http\Request;
 
 class ActivityLogsController extends Controller
@@ -22,6 +23,48 @@ class ActivityLogsController extends Controller
         if ($viewOwnOnly) {
             $baseQuery->where('user_id', auth()->id());
         }
+
+        $overviewActions = (clone $baseQuery)
+            ->reorder()
+            ->distinct()
+            ->pluck('action')
+            ->filter()
+            ->sort()
+            ->values();
+        $overviewUsers = $viewOwnOnly
+            ? collect()
+            : User::query()
+                ->whereIn('id', (clone $baseQuery)->reorder()->whereNotNull('user_id')->distinct()->pluck('user_id'))
+                ->orderBy('name')
+                ->get(['id', 'name', 'email']);
+
+        $overviewSearch = trim((string) $request->input('overview_search', ''));
+        $overviewAction = (string) $request->input('overview_action', '');
+        $overviewUserId = $viewOwnOnly ? '' : (string) $request->input('overview_user', '');
+
+        if ($overviewAction !== '') {
+            $baseQuery->where('action', $overviewAction);
+        }
+
+        if ($overviewUserId !== '') {
+            $baseQuery->where('user_id', $overviewUserId);
+        }
+
+        if ($overviewSearch !== '') {
+            $baseQuery->where(function ($query) use ($overviewSearch) {
+                $query->where('description', 'like', "%{$overviewSearch}%")
+                    ->orWhere('action', 'like', "%{$overviewSearch}%")
+                    ->orWhere('ip_address', 'like', "%{$overviewSearch}%")
+                    ->orWhereHas('user', function ($userQuery) use ($overviewSearch) {
+                        $userQuery->where('name', 'like', "%{$overviewSearch}%")
+                            ->orWhere('email', 'like', "%{$overviewSearch}%");
+                    });
+            });
+        }
+
+        $allActivities = (clone $baseQuery)
+            ->paginate(10, ['*'], 'overview_page')
+            ->withQueryString();
 
         $monthStart = $manilaNow->copy()->startOfMonth()->setTimezone('UTC');
         $monthEnd = $manilaNow->copy()->endOfMonth()->setTimezone('UTC');
@@ -117,6 +160,12 @@ class ActivityLogsController extends Controller
 
         return view('pages.activity_logs.activityLogs', compact(
             'activities',
+            'allActivities',
+            'overviewActions',
+            'overviewUsers',
+            'overviewSearch',
+            'overviewAction',
+            'overviewUserId',
             'todayActivities',
             'weeklyActivities',
             'monthlyActivities',

@@ -67,28 +67,20 @@
                                     <a href="{{ route('transaction-events.template') }}" class="btn btn-soft-primary btn-sm">
                                         <i class="ri-download-2-line me-1"></i> Excel Template
                                     </a>
-                                @else
-                                    <button type="button" class="btn btn-soft-primary btn-sm" disabled
-                                        title="You do not have permission to download the Excel template.">
-                                        <i class="ri-download-2-line me-1"></i> Not Allowed to Download Template
-                                    </button>
                                 @endif
                                 @if (feature_allowed('Import CSV'))
                                     <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal"
                                         data-bs-target="#importModal">
                                         <i class="ri-upload-2-line me-1"></i> Import CSV/XLSX
                                     </button>
-                                @else
-                                    <button type="button" class="btn btn-primary btn-sm" disabled
-                                        title="You do not have permission to import CSV files.">
-                                        <i class="ri-upload-2-line me-1"></i> Not Allowed to Import CSV
-                                    </button>
                                 @endif
-                                <a href="{{ route('transaction-events.export', request()->query()) }}"
-                                    class="btn btn-sm btn-soft-success text-nowrap"
-                                    title="Export the currently filtered pending events to Excel">
-                                    <i class="ri-download-line me-1"></i> Export XLSX
-                                </a>
+                                @if (feature_allowed('Export Events'))
+                                    <a href="{{ route('transaction-events.export', request()->query()) }}"
+                                        class="btn btn-sm btn-soft-success text-nowrap"
+                                        title="Export the currently filtered pending events to Excel">
+                                        <i class="ri-download-line me-1"></i> Export XLSX
+                                    </a>
+                                @endif
                             @endunless
                             <span class="badge bg-primary-subtle text-primary px-4 py-2" id="eventTotalBadge"
                                 data-total="{{ $events->total() }}">{{ $events->total() }} total</span>
@@ -208,7 +200,8 @@
                                             <div class="dropdown-menu w-100" id="eventClientCategoryDropdown"
                                                 style="max-height: 260px; overflow-y: auto;">
                                                 <div class="p-2">
-                                                    <input type="search" class="form-control form-control-sm mb-2" placeholder="Search client categories..." autocomplete="off">
+                                                    <input type="search" class="form-control form-control-sm mb-2"
+                                                        placeholder="Search client categories..." autocomplete="off">
                                                     <div class="form-check mb-2">
                                                         <input class="form-check-input" type="checkbox"
                                                             id="eventClientCategoryAll" value="">
@@ -227,7 +220,8 @@
                                                                 $clientCategory,
                                                             );
                                                         @endphp
-                                                        <div class="form-check" data-option-row data-option-label="{{ strtolower($clientCategory) }}">
+                                                        <div class="form-check" data-option-row
+                                                            data-option-label="{{ strtolower($clientCategory) }}">
                                                             <input class="form-check-input event-client-category-checkbox"
                                                                 type="checkbox"
                                                                 id="eventClientCategory_{{ $loop->index }}"
@@ -239,12 +233,13 @@
                                                             </label>
                                                         </div>
                                                     @endforeach
-                                                    <div class="text-muted small px-1 py-2 d-none" data-dropdown-empty>No matches found.</div>
+                                                    <div class="text-muted small px-1 py-2 d-none" data-dropdown-empty>No
+                                                        matches found.</div>
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
-                                    
+
                                     <div class="col-12 col-md-6 col-xl-2">
                                         <label for="eventTransactionCategory"
                                             class="form-label fw-semibold text-uppercase small">Transaction
@@ -266,7 +261,8 @@
                                             </button>
                                             <div class="dropdown-menu w-100" id="eventTypeFilterDropdown">
                                                 <div class="p-2">
-                                                    <input type="search" class="form-control form-control-sm mb-2" placeholder="Search types..." autocomplete="off">
+                                                    <input type="search" class="form-control form-control-sm mb-2"
+                                                        placeholder="Search types..." autocomplete="off">
                                                     <div class="form-check mb-2">
                                                         <input class="form-check-input" type="checkbox"
                                                             id="eventTypeFilterAll" value="">
@@ -283,7 +279,8 @@
                                                             )->filter();
                                                             $isChecked = $selectedTypes->contains($txType);
                                                         @endphp
-                                                        <div class="form-check" data-option-row data-option-label="{{ strtolower($txType) }}">
+                                                        <div class="form-check" data-option-row
+                                                            data-option-label="{{ strtolower($txType) }}">
                                                             <input class="form-check-input event-type-checkbox"
                                                                 type="checkbox" id="eventTypeFilter_{{ $loop->index }}"
                                                                 value="{{ $txType }}"
@@ -294,7 +291,8 @@
                                                             </label>
                                                         </div>
                                                     @endforeach
-                                                    <div class="text-muted small px-1 py-2 d-none" data-dropdown-empty>No matches found.</div>
+                                                    <div class="text-muted small px-1 py-2 d-none" data-dropdown-empty>No
+                                                        matches found.</div>
                                                 </div>
                                             </div>
                                         </div>
@@ -362,25 +360,21 @@
                                         class="text-muted"> Apply an action to the selected transaction events. </small>
                                 </div>
                             </div> {{-- Right: Bulk Actions --}}
-                            <div
-                                class="     ">
+                            <div class="     ">
                                 @unless (auth()->user()?->role_name === 'Viewer') {{-- Transfer Actions --}}
                                     @if (feature_allowed('Transfer Selected'))
                                         <button type="button"
                                             class="btn btn-success btn-sm d-inline-flex align-items-center justify-content-center gap-1 px-3"
                                             id="bulkTransferBtn" disabled title="Transfer all selected events"> <i
                                                 class="ri-exchange-box-line"></i> <span>Transfer Selected</span> </button>
+                                    @endif
+                                    @if (feature_allowed('Force Create Client'))
                                         <button type="button"
                                             class="btn btn-primary btn-sm d-inline-flex align-items-center justify-content-center gap-1 px-3"
-                                            id="transferOneByOneBtn" disabled
+                                            id="bulkForceCreateBtn" disabled
                                             title="Create a new client for each selected event in batches of up to 500. Select All includes matching events across pages.">
-                                            <i class="ri-exchange-line"></i> <span>Force Create Client</span> </button>
-                                    @else
-                                        <button type="button"
-                                            class="btn btn-light border btn-sm text-muted d-inline-flex align-items-center
-                                            justify-content-center gap-1 px-3"
-                                            disabled title="You do not have permission to transfer selected events.">
-                                            <i class="ri-lock-line"></i> <span>Transfer Not Allowed</span> </button>
+                                            <i class="ri-exchange-line"></i> <span>Force Create Client</span>
+                                        </button>
                                     @endif
                                     {{-- Delete Action --}}
                                     @if (feature_allowed('Delete Event'))
@@ -390,11 +384,6 @@
                                             title="Delete selected events. This action cannot be undone."> <i
                                                 class="ri-delete-bin-line"></i> <span>Delete Selected</span>
                                         </button>
-                                    @else
-                                        <button type="button"
-                                            class="btn btn-light border btn-sm text-muted d-inline-flex align-items-center justify-content-center gap-1 px-3"
-                                            disabled title="You do not have permission to delete events."> <i
-                                                class="ri-lock-line"></i> <span>Delete Not Allowed</span> </button>
                                     @endif
                                 @endunless
                                 {{-- Clear Selection --}}
@@ -422,17 +411,84 @@
                                         @php
                                             $currentSort = $sort ?? request('sort', 'client_asc');
                                         @endphp
-                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Full Name', 'asc' => 'client_asc', 'desc' => 'client_desc', 'current' => $currentSort, 'column' => 'full_name'])
-                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Age', 'asc' => 'age_asc', 'desc' => 'age_desc', 'current' => $currentSort, 'column' => 'age'])
-                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Birth Date', 'asc' => 'birth_asc', 'desc' => 'birth_desc', 'current' => $currentSort, 'column' => 'birth_date'])
-                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Contact No.', 'asc' => 'contact_asc', 'desc' => 'contact_desc', 'current' => $currentSort, 'column' => 'contact_no'])
-                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Address', 'asc' => 'address_asc', 'desc' => 'address_desc', 'current' => $currentSort, 'column' => 'address'])
-                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Client Category', 'asc' => 'clientcat_asc', 'desc' => 'clientcat_desc', 'current' => $currentSort, 'column' => 'client_category'])
-                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Transaction Category', 'asc' => 'category_asc', 'desc' => 'category_desc', 'current' => $currentSort, 'column' => 'transaction_category'])
-                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Transaction Type', 'asc' => 'type_asc', 'desc' => 'type_desc', 'current' => $currentSort, 'column' => 'transaction_type'])
-                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Event Date', 'asc' => 'eventdate_asc', 'desc' => 'eventdate_desc', 'current' => $currentSort, 'column' => 'event_date'])
-                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Imported', 'asc' => 'imported_asc', 'desc' => 'imported_desc', 'current' => $currentSort, 'column' => 'created_at', 'style' => 'width: 160px;'])
-                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Status', 'asc' => 'status_asc', 'desc' => 'status_desc', 'current' => $currentSort, 'column' => 'status'])
+                                        @include('pages.transaction_events.partials.sortableHeader', [
+                                            'label' => 'Full Name',
+                                            'asc' => 'client_asc',
+                                            'desc' => 'client_desc',
+                                            'current' => $currentSort,
+                                            'column' => 'full_name',
+                                        ])
+                                        @include('pages.transaction_events.partials.sortableHeader', [
+                                            'label' => 'Age',
+                                            'asc' => 'age_asc',
+                                            'desc' => 'age_desc',
+                                            'current' => $currentSort,
+                                            'column' => 'age',
+                                        ])
+                                        @include('pages.transaction_events.partials.sortableHeader', [
+                                            'label' => 'Birth Date',
+                                            'asc' => 'birth_asc',
+                                            'desc' => 'birth_desc',
+                                            'current' => $currentSort,
+                                            'column' => 'birth_date',
+                                        ])
+                                        @include('pages.transaction_events.partials.sortableHeader', [
+                                            'label' => 'Contact No.',
+                                            'asc' => 'contact_asc',
+                                            'desc' => 'contact_desc',
+                                            'current' => $currentSort,
+                                            'column' => 'contact_no',
+                                        ])
+                                        @include('pages.transaction_events.partials.sortableHeader', [
+                                            'label' => 'Address',
+                                            'asc' => 'address_asc',
+                                            'desc' => 'address_desc',
+                                            'current' => $currentSort,
+                                            'column' => 'address',
+                                        ])
+                                        @include('pages.transaction_events.partials.sortableHeader', [
+                                            'label' => 'Client Category',
+                                            'asc' => 'clientcat_asc',
+                                            'desc' => 'clientcat_desc',
+                                            'current' => $currentSort,
+                                            'column' => 'client_category',
+                                        ])
+                                        @include('pages.transaction_events.partials.sortableHeader', [
+                                            'label' => 'Transaction Category',
+                                            'asc' => 'category_asc',
+                                            'desc' => 'category_desc',
+                                            'current' => $currentSort,
+                                            'column' => 'transaction_category',
+                                        ])
+                                        @include('pages.transaction_events.partials.sortableHeader', [
+                                            'label' => 'Transaction Type',
+                                            'asc' => 'type_asc',
+                                            'desc' => 'type_desc',
+                                            'current' => $currentSort,
+                                            'column' => 'transaction_type',
+                                        ])
+                                        @include('pages.transaction_events.partials.sortableHeader', [
+                                            'label' => 'Event Date',
+                                            'asc' => 'eventdate_asc',
+                                            'desc' => 'eventdate_desc',
+                                            'current' => $currentSort,
+                                            'column' => 'event_date',
+                                        ])
+                                        @include('pages.transaction_events.partials.sortableHeader', [
+                                            'label' => 'Imported',
+                                            'asc' => 'imported_asc',
+                                            'desc' => 'imported_desc',
+                                            'current' => $currentSort,
+                                            'column' => 'created_at',
+                                            'style' => 'width: 160px;',
+                                        ])
+                                        @include('pages.transaction_events.partials.sortableHeader', [
+                                            'label' => 'Status',
+                                            'asc' => 'status_asc',
+                                            'desc' => 'status_desc',
+                                            'current' => $currentSort,
+                                            'column' => 'status',
+                                        ])
                                         <th style="width: 200px; text-align: center;">Action</th>
                                     </tr>
                                 </thead>
@@ -468,7 +524,8 @@
                                             <td data-column="event_date">
                                                 {{ optional($event->event_date)->format('M d, Y') ?? '-' }}</td>
                                             <td data-column="created_at">
-                                                {{ optional($event->created_at)->timezone('Asia/Manila')->format('M d, Y H:i:s') }}</td>
+                                                {{ optional($event->created_at)->timezone('Asia/Manila')->format('M d, Y H:i:s') }}
+                                            </td>
                                             <td data-column="status" class="text-center">
                                                 @php
                                                     $statusColor = match ($event->status) {
@@ -495,13 +552,6 @@
                                                                     {{ empty($event->transaction_category) && empty($event->transaction_type) ? 'disabled' : '' }}
                                                                     title="{{ empty($event->transaction_category) && empty($event->transaction_type) ? 'No transaction category or type to transfer' : 'Transfer to transaction' }}">
                                                                     <i class="ri-exchange-line"></i> Transfer
-                                                                </button>
-                                                            @else
-                                                                <button type="button" class="btn btn-sm btn-soft-success"
-                                                                    disabled
-                                                                    title="You do not have permission to transfer this event.">
-                                                                    <i class="ri-exchange-line"></i> Not Allowed to
-                                                                    Transfer
                                                                 </button>
                                                             @endif
                                                         </form>
@@ -609,12 +659,14 @@
                         <div class="mb-3">
                             <i class="ri-exchange-line text-info" style="font-size: 3rem;"></i>
                         </div>
-                        <p class="fs-5 fw-semibold mb-1" id="transferOneByOneConfirmModalLabel">Confirm Force Create Client</p>
+                        <p class="fs-5 fw-semibold mb-1" id="transferOneByOneConfirmModalLabel">Confirm Force Create
+                            Client</p>
                         <p class="text-muted mb-0">
                             Create <span class="fw-semibold" id="transferOneByOneCount">0</span>
                             selected event(s) in batches of up to 500?
                         </p>
-                        <p class="text-muted small mt-2 mb-0">Each event creates a new client and a linked transaction, even if a matching client already exists.</p>
+                        <p class="text-muted small mt-2 mb-0">Each event creates a new client and a linked transaction,
+                            even if a matching client already exists.</p>
                     </div>
                     <div class="modal-footer border-0 justify-content-center gap-3 pt-0">
                         <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal">Cancel</button>
@@ -1297,7 +1349,8 @@
                 const tbody = eventListTable?.querySelector('tbody');
                 if (tbody && !tbody.querySelector('tr[data-event-id]')) {
                     const emptyRow = document.createElement('tr');
-                    emptyRow.innerHTML = `<td colspan="${eventListTable.tHead?.rows[0]?.cells.length || 1}" class="text-center text-muted py-5">No transaction events found.</td>`;
+                    emptyRow.innerHTML =
+                        `<td colspan="${eventListTable.tHead?.rows[0]?.cells.length || 1}" class="text-center text-muted py-5">No transaction events found.</td>`;
                     tbody.replaceChildren(emptyRow);
                 }
 
@@ -1369,7 +1422,8 @@
                 var syncSelectAllState = () => {
                     const selectable = enabledCheckboxes();
                     const checkedCount = selectable.filter((checkbox) => checkbox.checked).length;
-                    const checkedRows = eventCheckboxes.filter((checkbox) => checkbox.checked && !checkbox.disabled);
+                    const checkedRows = eventCheckboxes.filter((checkbox) => checkbox.checked && !checkbox
+                        .disabled);
                     if (allPagesSelected) {
                         selectAll.checked = true;
                         selectAll.indeterminate = false;
@@ -1434,9 +1488,9 @@
             const singleDeleteConfirmModalEl = document.getElementById('singleDeleteConfirmModal');
             const singleDeleteEventName = document.getElementById('singleDeleteEventName');
             const confirmSingleDeleteBtn = document.getElementById('confirmSingleDeleteBtn');
-            const singleDeleteConfirmModal = singleDeleteConfirmModalEl
-                ? bootstrap.Modal.getOrCreateInstance(singleDeleteConfirmModalEl)
-                : null;
+            const singleDeleteConfirmModal = singleDeleteConfirmModalEl ?
+                bootstrap.Modal.getOrCreateInstance(singleDeleteConfirmModalEl) :
+                null;
             let pendingSingleDeleteForm = null;
 
             eventListTable?.addEventListener('submit', function(event) {
@@ -1468,13 +1522,16 @@
                     button.disabled = true;
                 }
                 confirmSingleDeleteBtn.disabled = true;
-                confirmSingleDeleteBtn.innerHTML = '<i class="ri-loader-3-line ri-spin me-1"></i> Deleting...';
+                confirmSingleDeleteBtn.innerHTML =
+                    '<i class="ri-loader-3-line ri-spin me-1"></i> Deleting...';
 
                 try {
                     const response = await fetch(form.action, {
                         method: 'POST',
                         credentials: 'same-origin',
-                        headers: { 'Accept': 'application/json' },
+                        headers: {
+                            'Accept': 'application/json'
+                        },
                         body: new FormData(form),
                     });
                     const data = await parseApiResponse(response);
@@ -1485,10 +1542,12 @@
                     pendingSingleDeleteForm = null;
                     singleDeleteConfirmModal.hide();
                     removeImportEventRows(data.deleted_ids || [eventId], data.count || 1);
-                    new Message('imessage').show(data.message || 'Event deleted successfully.', 'success',
+                    new Message('imessage').show(data.message || 'Event deleted successfully.',
+                        'success',
                         'top-center');
                 } catch (error) {
-                    new Message('imessage').show(error.message || 'The event could not be deleted.', 'fail',
+                    new Message('imessage').show(error.message || 'The event could not be deleted.',
+                        'fail',
                         'top-center');
                 } finally {
                     if (button) {
@@ -1788,17 +1847,21 @@
                         const response = await fetch(bulkDeleteForm.action, {
                             method: 'POST',
                             credentials: 'same-origin',
-                            headers: { 'Accept': 'application/json' },
+                            headers: {
+                                'Accept': 'application/json'
+                            },
                             body: new FormData(bulkDeleteForm),
                         });
                         const data = await parseApiResponse(response);
                         if (!response.ok || !data.success) {
-                            throw new Error(data.message || 'The selected events could not be deleted.');
+                            throw new Error(data.message ||
+                                'The selected events could not be deleted.');
                         }
 
                         removeImportEventRows(data.deleted_ids || [], data.count || 0);
                         bulkDeleteConfirmModal.hide();
-                        new Message('imessage').show(data.message || 'Selected events deleted.', 'success',
+                        new Message('imessage').show(data.message || 'Selected events deleted.',
+                            'success',
                             'top-center');
                     } catch (error) {
                         confirmBulkDeleteBtn.disabled = false;
@@ -2015,7 +2078,8 @@
                             const next = Math.min(offset + chunkSize, total);
                             setProgress(
                                 (offset / total) * 100,
-                                'Creating clients ' + (offset + 1) + ' - ' + next + ' of ' + total + '...'
+                                'Creating clients ' + (offset + 1) + ' - ' + next + ' of ' + total +
+                                '...'
                             );
                             const chunk = await postTransferStep(
                                 '{{ route('transaction-events.transfer-selected.process') }}', {
@@ -2832,7 +2896,8 @@
                     // Notify: import done (import data / force create all / update matching).
                     const importMsg = finishData.message ||
                         `Successfully imported ${finishData.imported ?? finishData.created ?? 0} event(s).` +
-                        ((finishData.skipped ?? 0) > 0 ? ` Skipped ${finishData.skipped} invalid row(s).` : '');
+                        ((finishData.skipped ?? 0) > 0 ? ` Skipped ${finishData.skipped} invalid row(s).` :
+                            '');
                     if (window.ErsNotify) {
                         window.ErsNotify.queue(importMsg, finishData.type || 'success');
                     }
@@ -2910,7 +2975,7 @@
                     ['importDuplicatePrevious', () => duplicatePage - 1],
                     ['importDuplicateNext', () => duplicatePage + 1],
                     ['importDuplicateLast', () => Math.ceil(duplicateRows.length / Number(duplicatePageSize
-                    .value))],
+                        .value))],
                 ]) {
                 document.getElementById(id).addEventListener('click', function() {
                     duplicatePage = page();
