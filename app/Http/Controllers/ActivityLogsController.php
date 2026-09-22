@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\ActivityLog;
-use App\Models\User;
 use Illuminate\Http\Request;
 
 class ActivityLogsController extends Controller
@@ -19,10 +18,10 @@ class ActivityLogsController extends Controller
         $manilaNow = now($timezone);
         $viewOwnOnly = !in_array(auth()->user()->role_name, ['Admin', 'Super Admin']);
 
-        $baseQuery = ActivityLog::with('user')->latest()->orderByDesc('id');
-        if ($viewOwnOnly) {
-            $baseQuery->where('user_id', auth()->id());
-        }
+        $baseQuery = ActivityLog::with('user')
+            ->where('user_id', auth()->id())
+            ->latest()
+            ->orderByDesc('id');
 
         $overviewActions = (clone $baseQuery)
             ->reorder()
@@ -31,23 +30,11 @@ class ActivityLogsController extends Controller
             ->filter()
             ->sort()
             ->values();
-        $overviewUsers = $viewOwnOnly
-            ? collect()
-            : User::query()
-                ->whereIn('id', (clone $baseQuery)->reorder()->whereNotNull('user_id')->distinct()->pluck('user_id'))
-                ->orderBy('name')
-                ->get(['id', 'name', 'email']);
-
         $overviewSearch = trim((string) $request->input('overview_search', ''));
         $overviewAction = (string) $request->input('overview_action', '');
-        $overviewUserId = $viewOwnOnly ? '' : (string) $request->input('overview_user', '');
 
         if ($overviewAction !== '') {
             $baseQuery->where('action', $overviewAction);
-        }
-
-        if ($overviewUserId !== '') {
-            $baseQuery->where('user_id', $overviewUserId);
         }
 
         if ($overviewSearch !== '') {
@@ -162,10 +149,8 @@ class ActivityLogsController extends Controller
             'activities',
             'allActivities',
             'overviewActions',
-            'overviewUsers',
             'overviewSearch',
             'overviewAction',
-            'overviewUserId',
             'todayActivities',
             'weeklyActivities',
             'monthlyActivities',

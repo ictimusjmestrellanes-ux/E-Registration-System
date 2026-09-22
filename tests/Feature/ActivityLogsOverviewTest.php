@@ -66,23 +66,20 @@ class ActivityLogsOverviewTest extends TestCase
             });
     }
 
-    public function test_admin_can_filter_overview_by_user(): void
+    public function test_admin_overview_only_shows_their_own_logs(): void
     {
         $admin = User::factory()->create(['role_name' => 'Admin']);
-        $firstUser = User::factory()->create(['role_name' => 'Staff']);
-        $secondUser = User::factory()->create(['role_name' => 'Staff']);
-        $this->createLog($firstUser, 'First user activity', 1);
-        $this->createLog($secondUser, 'Second user activity', 2);
+        $staff = User::factory()->create(['role_name' => 'Staff']);
+        $this->createLog($admin, 'Admin activity', 1);
+        $this->createLog($staff, 'Staff activity', 2);
 
-        $response = $this->actingAs($admin)->get(route('activity.logs', [
-            'overview_user' => $firstUser->id,
-        ]));
+        $response = $this->actingAs($admin)->get(route('activity.logs'));
 
         $response->assertOk()
-            ->assertSee('name="overview_user"', false)
-            ->assertViewHas('allActivities', function ($activities) use ($firstUser) {
+            ->assertDontSee('name="overview_user"', false)
+            ->assertViewHas('allActivities', function ($activities) use ($admin) {
                 return $activities->total() === 1
-                    && $activities->first()->user_id === $firstUser->id;
+                    && $activities->first()->user_id === $admin->id;
             });
     }
 }

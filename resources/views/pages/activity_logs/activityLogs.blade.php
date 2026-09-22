@@ -328,30 +328,16 @@
                             <div class="card-body">
                                 <form method="GET" action="{{ route('activity.logs') }}" class="mb-4">
                                     <div class="row g-3 align-items-end">
-                                        <div class="{{ $overviewUsers->isNotEmpty() ? 'col-lg-4' : 'col-lg-5' }} col-md-6">
+                                        <div class="col-lg-6 col-md-6">
                                             <label class="form-label fw-semibold small text-muted">Search</label>
                                             <div class="input-group">
                                                 <span class="input-group-text"><i class="ri-search-line"></i></span>
                                                 <input type="text" name="overview_search" class="form-control"
-                                                    placeholder="Search activity, user, or IP..."
+                                                    placeholder="Search activity or IP..."
                                                     value="{{ $overviewSearch }}">
                                             </div>
                                         </div>
-                                        @if ($overviewUsers->isNotEmpty())
-                                            <div class="col-lg-3 col-md-6">
-                                                <label class="form-label fw-semibold small text-muted">User</label>
-                                                <select name="overview_user" class="form-select">
-                                                    <option value="">All Users</option>
-                                                    @foreach ($overviewUsers as $overviewUser)
-                                                        <option value="{{ $overviewUser->id }}"
-                                                            {{ $overviewUserId === (string) $overviewUser->id ? 'selected' : '' }}>
-                                                            {{ $overviewUser->name }}
-                                                        </option>
-                                                    @endforeach
-                                                </select>
-                                            </div>
-                                        @endif
-                                        <div class="col-lg-3 col-md-6">
+                                        <div class="col-lg-4 col-md-6">
                                             <label class="form-label fw-semibold small text-muted">Action Type</label>
                                             <select name="overview_action" class="form-select">
                                                 <option value="">All Actions</option>
