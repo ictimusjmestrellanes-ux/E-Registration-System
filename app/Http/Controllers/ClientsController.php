@@ -112,8 +112,6 @@ class ClientsController extends Controller
 
     public function show(Client $client)
     {
-        $client->load('latestLinkedEvent');
-
         $perPage = in_array((int) request()->query('per_page', 5), [5, 10, 15, 20, 25], true)
             ? (int) request()->query('per_page', 5)
             : 5;

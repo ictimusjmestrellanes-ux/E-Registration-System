@@ -4,7 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasOneThrough;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -115,15 +114,15 @@ class Client extends Model
 
     public function getFullNameAttribute(): string
     {
-        return mb_strtoupper(trim(implode(' ', array_filter([
-            $this->first_name,
-            $this->middle_name,
-            $this->last_name,
-            $this->suffix,
-        ]))));
+        return $this->formatDisplayName();
     }
 
     public function getListDisplayNameAttribute(): string
+    {
+        return $this->full_name;
+    }
+
+    private function formatDisplayName(): string
     {
         $lastName = trim((string) $this->last_name);
         $firstName = trim((string) $this->first_name);
@@ -165,23 +164,6 @@ class Client extends Model
             "LOWER(CASE WHEN ({$legacyInitial}) THEN TRIM(COALESCE({$table}.middle_name, '')) ELSE TRIM(COALESCE({$table}.first_name, '')) END)",
             "LOWER(CASE WHEN ({$legacyInitial}) THEN TRIM(COALESCE({$table}.last_name, '')) ELSE TRIM(COALESCE({$table}.middle_name, '')) END)",
         ];
-    }
-
-    /**
-     * Most recently transferred Event Record linked through this client's
-     * transaction history. Its full_name is the authoritative display name
-     * for imported clients.
-     */
-    public function latestLinkedEvent(): HasOneThrough
-    {
-        return $this->hasOneThrough(
-            TransactionEvent::class,
-            TransactionHistory::class,
-            'client_id',
-            'transferred_transaction_id',
-            'client_id',
-            'id'
-        )->latestOfMany();
     }
 
     public function transactions()

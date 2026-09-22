@@ -27,8 +27,7 @@
         $defaultFingerprint = asset('assets/images/fingerprint.png');
         $clientPhoto = $client->photo_url ?: $defaultClientPhoto;
         $clientFingerprint = $client->fingerprint_url ?: $defaultFingerprint;
-        $fullName = $client->latestLinkedEvent?->display_name
-            ?: ($client->list_display_name ?: 'Client');
+        $fullName = $client->full_name ?: 'Client';
         $registrationDate = strtoupper(optional($client->created_at)->format('m/d/Y') ?? '-');
         $birthDate = strtoupper(optional($client->birth_date)->format('m/d/Y') ?? '-');
         $age = filled($client->age) ? strtoupper($client->age . ' yrs. old') : '-';
