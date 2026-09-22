@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Client;
 use App\Models\TransactionEvent;
+use App\Models\TransactionHistory;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -107,6 +108,46 @@ class ClientDisplayNameTest extends TestCase
         $this->get(route('clients.show', $client))
             ->assertOk()
             ->assertSee('<div class="fs-4 fw-bold">ALDEA, LORETO A.</div>', false);
+    }
+
+    public function test_client_list_and_details_prefer_the_linked_event_record_full_name(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+
+        $client = Client::create([
+            'client_id' => '2611172',
+            'first_name' => 'AALA',
+            'middle_name' => 'ERNESTO',
+            'last_name' => 'ESTACIO',
+            'suffix' => 'JR',
+        ]);
+        $history = TransactionHistory::create([
+            'client_id' => $client->client_id,
+            'transaction_id' => '2611172-26-0001',
+            'transaction_date' => '2026-09-01',
+            'category' => 'events',
+            'type' => 'Assistance',
+            'status' => 'Pending',
+        ]);
+        TransactionEvent::create([
+            'full_name' => 'AALA, ERNESTO ESTACIO JR',
+            'transferred_at' => now(),
+            'transferred_transaction_id' => $history->id,
+        ]);
+
+        $this->get(route('client.list'))
+            ->assertOk()
+            ->assertSee('data-client-name="AALA, ERNESTO ESTACIO JR"', false)
+            ->assertDontSee('data-client-name="ESTACIO, AALA ERNESTO JR"', false);
+
+        $this->get(route('client.list', ['search' => 'AALA, ERNESTO ESTACIO JR']))
+            ->assertOk()
+            ->assertSee('data-client-row="'.$client->id.'"', false);
+
+        $this->get(route('clients.show', $client))
+            ->assertOk()
+            ->assertSee('<div class="fs-4 fw-bold">AALA, ERNESTO ESTACIO JR</div>', false)
+            ->assertDontSee('<div class="fs-4 fw-bold">ESTACIO, AALA ERNESTO JR</div>', false);
     }
 
     public function test_search_finds_clients_using_names_copied_from_event_records(): void

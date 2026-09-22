@@ -33,6 +33,7 @@ class ClientListController extends Controller
         }
 
         $clientsQuery = Client::query()
+            ->with('latestLinkedEvent')
             ->select([
                 'id', 'client_id', 'first_name', 'middle_name', 'last_name', 'suffix',
                 'age', 'birth_date', 'gender', 'civil_status',
@@ -54,7 +55,19 @@ class ClientListController extends Controller
                 $q->where(function ($sub) use ($keyword, $nameExpression, $formattedNameExpression) {
                     $sub->whereRaw("{$nameExpression} LIKE ?", ["%{$keyword}%"])
                         ->orWhereRaw("{$formattedNameExpression} LIKE ?", ['%' . rtrim($keyword, '.') . '%'])
-                        ->orWhereRaw('LOWER(client_id) LIKE ?', ["%{$keyword}%"]);
+                        ->orWhereRaw('LOWER(client_id) LIKE ?', ["%{$keyword}%"])
+                        ->orWhereExists(function ($eventQuery) use ($keyword) {
+                            $eventQuery->selectRaw('1')
+                                ->from('transaction_events')
+                                ->join('transaction_history', 'transaction_history.id', '=', 'transaction_events.transferred_transaction_id')
+                                ->whereColumn('transaction_history.client_id', 'clients.client_id')
+                                ->whereNotNull('transaction_events.transferred_at')
+                                ->where(function ($eventNameQuery) use ($keyword) {
+                                    $eventNameQuery
+                                        ->whereRaw('LOWER(transaction_events.full_name) LIKE ?', ["%{$keyword}%"])
+                                        ->orWhereRaw('LOWER(transaction_events.display_name_sort) LIKE ?', ["%{$keyword}%"]);
+                                });
+                        });
 
                     if (str_contains($keyword, ',')) {
                         [$lastName, $givenNames] = array_map('trim', explode(',', $keyword, 2));
@@ -131,9 +144,17 @@ class ClientListController extends Controller
         $direction = str_ends_with($sort, '_desc') ? 'desc' : 'asc';
 
         if (str_starts_with($sort, 'name_')) {
-            foreach (Client::listDisplaySortExpressions() as $expression) {
-                $query->orderByRaw("{$expression} {$direction}");
-            }
+            [$lastName, $firstName, $middleName] = Client::listDisplaySortExpressions();
+            $latestEventName = '(SELECT transaction_events.display_name_sort'
+                .' FROM transaction_events'
+                .' INNER JOIN transaction_history ON transaction_history.id = transaction_events.transferred_transaction_id'
+                .' WHERE transaction_history.client_id = clients.client_id'
+                .' AND transaction_events.transferred_at IS NOT NULL'
+                .' ORDER BY transaction_events.id DESC LIMIT 1)';
+
+            $query->orderByRaw("COALESCE({$latestEventName}, {$lastName}) {$direction}")
+                ->orderByRaw("{$firstName} {$direction}")
+                ->orderByRaw("{$middleName} {$direction}");
         } else {
             $column = match (true) {
                 str_starts_with($sort, 'clientid_') => 'client_id',
