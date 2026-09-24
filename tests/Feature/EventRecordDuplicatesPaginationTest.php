@@ -11,6 +11,79 @@ class EventRecordDuplicatesPaginationTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_transferred_duplicate_can_be_moved_to_not_a_duplicate_review_and_restored(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+        $record = [
+            'full_name' => 'Review Me',
+            'client_category' => 'PWD',
+            'transaction_category' => 'EVENTS',
+            'transaction_type' => 'TYPE-A',
+            'event_date' => '2026-09-20',
+            'transferred_at' => '2026-09-20 12:00:00',
+            'not_duplicate' => false,
+        ];
+        $eventId = DB::table('transaction_events')->insertGetId($record);
+        $secondEventId = DB::table('transaction_events')->insertGetId($record);
+        $unselectedEventId = DB::table('transaction_events')->insertGetId($record);
+
+        $this->get(route('transaction-events.records-duplicates'))
+            ->assertOk()
+            ->assertSee('Not a Duplicate')
+            ->assertSee('Not a Duplicate Review')
+            ->assertSee('notDuplicateGroupModal')
+            ->assertSee('Select All')
+            ->assertSee('Tag Selected as Not a Duplicate');
+
+        $this->post(route('transaction-events.group-not-duplicate'), [
+            'event_ids' => [$eventId, $secondEventId],
+        ])
+            ->assertRedirect();
+        foreach ([$eventId, $secondEventId] as $reviewedId) {
+            $this->assertDatabaseHas('transaction_events', [
+                'id' => $reviewedId,
+                'not_duplicate' => true,
+            ]);
+        }
+        $this->assertDatabaseHas('transaction_events', [
+            'id' => $unselectedEventId,
+            'not_duplicate' => false,
+        ]);
+
+        $records = $this->get(route('transaction-events.records'))
+            ->assertOk()
+            ->assertSee('Not a Duplicate');
+        $this->assertMatchesRegularExpression(
+            '/data-event-status="'.$eventId.'">Pending<\/span>/',
+            $records->getContent()
+        );
+
+        $duplicates = $this->get(route('transaction-events.records-duplicates'))->assertOk();
+        $this->assertSame(0, $duplicates->viewData('exactRecordsTotal'));
+        $this->assertSame(0, $duplicates->viewData('likelyRecordsTotal'));
+        $this->assertSame(0, $duplicates->viewData('similarRecordsTotal'));
+
+        $review = $this->get(route('transaction-events.removed-duplicates'))
+            ->assertOk()
+            ->assertSee('Not a Duplicate Review')
+            ->assertSee('Review Me')
+            ->assertSee('Undo Review')
+            ->assertSee('undoReviewGroupModal')
+            ->assertSee('Confirm Undo Review');
+        $this->assertSame(1, $review->viewData('groups')->total());
+        $this->assertCount(2, $review->viewData('groups')->first()['events']);
+
+        $this->post(route('transaction-events.group-reset-duplicate'), [
+            'event_ids' => [$eventId, $secondEventId],
+        ])->assertRedirect();
+        foreach ([$eventId, $secondEventId] as $restoredId) {
+            $this->assertDatabaseHas('transaction_events', [
+                'id' => $restoredId,
+                'not_duplicate' => false,
+            ]);
+        }
+    }
+
     public function test_client_duplicate_sets_stay_together_and_records_are_not_repeated(): void
     {
         $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
@@ -40,6 +113,39 @@ class EventRecordDuplicatesPaginationTest extends TestCase
                 $this->assertCount(1, $group['events']->pluck('full_name')->unique());
             }
         }
+    }
+
+    public function test_not_duplicate_review_uses_status_badge_colors(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+
+        foreach (['Claimed', 'Pending', 'Unclaimed'] as $index => $status) {
+            DB::table('transaction_events')->insert([
+                'full_name' => 'Reviewed Person '.$index,
+                'status' => $status,
+                'transferred_at' => '2026-09-20 12:00:00',
+                'not_duplicate' => true,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
+        $content = $this->get(route('transaction-events.removed-duplicates'))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertMatchesRegularExpression(
+            '/badge bg-success-subtle text-success[^>]*>\s*Claimed\s*<\/span>/',
+            $content
+        );
+        $this->assertMatchesRegularExpression(
+            '/badge bg-warning-subtle text-warning[^>]*>\s*Pending\s*<\/span>/',
+            $content
+        );
+        $this->assertMatchesRegularExpression(
+            '/badge bg-danger-subtle text-danger[^>]*>\s*Unclaimed\s*<\/span>/',
+            $content
+        );
     }
 
     public function test_status_filter_applies_to_counts_and_members_in_every_duplicate_tab(): void

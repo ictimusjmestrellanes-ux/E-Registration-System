@@ -13,6 +13,19 @@ class TransferOneByOneTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_import_events_binds_force_create_button_to_select_all_logic(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+        TransactionEvent::create(['full_name' => 'Selectable Person']);
+
+        $response = $this->get(route('transaction-events.index'));
+
+        $response->assertOk()
+            ->assertSee('id="bulkForceCreateBtn"', false)
+            ->assertSee("document.getElementById('bulkForceCreateBtn')", false)
+            ->assertDontSee("document.getElementById('transferOneByOneBtn')", false);
+    }
+
     public function test_each_one_by_one_transfer_creates_a_fresh_client_and_linked_transaction(): void
     {
         $this->actingAs(User::factory()->create(['role_name' => 'Admin']));

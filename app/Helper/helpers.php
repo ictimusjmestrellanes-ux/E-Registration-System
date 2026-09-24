@@ -93,11 +93,11 @@ function feature_route_map(): array
         'View Client' => ['clients/*'],
         'Restore Archive' => ['archive/*/restore'],
         'View Removed Duplicates' => ['transaction-events/removed-duplicates'],
-        'Reset Duplicate Review' => ['transaction-events/*/reset-duplicate'],
+        'Reset Duplicate Review' => ['transaction-events/*/reset-duplicate', 'transaction-events/group-reset-duplicate'],
         'Download Archive' => ['transaction-events/archives/*'],
         'Undo Transfer' => ['transaction-events/*/undo-transfer'],
         'Transfer Event' => ['transaction-events/*/transfer'],
-        'Mark Not Duplicate' => ['transaction-events/*/not-duplicate'],
+        'Mark Not Duplicate' => ['transaction-events/*/not-duplicate', 'transaction-events/group-not-duplicate'],
         'Duplicate Review' => ['transaction-events/duplicate-review'],
         'Preview Import' => ['transaction-events/import/prepare'],
     ];

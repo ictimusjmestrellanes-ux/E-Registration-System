@@ -146,6 +146,7 @@ Route::group(['namespace' => 'App\Http\Controllers'], function () {
 
         // Static POST routes (must be declared before {event} wildcard routes)
         Route::post('transaction-events/group-not-duplicate', [TransactionEventsController::class, 'markGroupNotDuplicate'])->name('transaction-events.group-not-duplicate');
+        Route::post('transaction-events/group-reset-duplicate', [TransactionEventsController::class, 'resetNotDuplicateGroup'])->name('transaction-events.group-reset-duplicate');
         Route::post('transaction-events/preview', [TransactionEventsController::class, 'preview'])->name('transaction-events.preview');
         Route::post('transaction-events/import/diagnose', [TransactionEventsController::class, 'diagnoseImportFile'])->name('transaction-events.import.diagnose');
         Route::post('transaction-events/import/check-duplicates', [TransactionEventsController::class, 'importDuplicatesCheck'])->name('transaction-events.import.check-duplicates');
@@ -153,6 +154,8 @@ Route::group(['namespace' => 'App\Http\Controllers'], function () {
         Route::post('transaction-events/import/process', [TransactionEventsController::class, 'processImportChunk'])->name('transaction-events.import.process');
         Route::post('transaction-events/import/finish', [TransactionEventsController::class, 'finishImport'])->name('transaction-events.import.finish');
         Route::post('transaction-events/import', [TransactionEventsController::class, 'import'])->name('transaction-events.import');
+        Route::get('transaction-events/clients/search', [TransactionEventsController::class, 'searchTransferClients'])->name('transaction-events.clients.search');
+        Route::post('transaction-events/transfer-to-client', [TransactionEventsController::class, 'transferToSelectedClient'])->name('transaction-events.transfer-to-client');
         Route::post('transaction-events/transfer-selected', [TransactionEventsController::class, 'transferSelected'])->name('transaction-events.transfer-selected');
         Route::post('transaction-events/transfer-selected/ids', [TransactionEventsController::class, 'transferSelectedIds'])->name('transaction-events.transfer-selected.ids');
         Route::post('transaction-events/transfer-one', [TransactionEventsController::class, 'transferOne'])->name('transaction-events.transfer-one');

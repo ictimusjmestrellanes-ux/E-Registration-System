@@ -92,6 +92,89 @@ class ImportClientReuseTest extends TestCase
         ]);
     }
 
+    public function test_import_anyway_reuses_client_when_full_name_and_sector_match(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+
+        Client::create([
+            'client_id' => '2600001',
+            'first_name' => 'Juan',
+            'middle_name' => 'Dela',
+            'last_name' => 'Cruz',
+            'birth_date' => '1980-01-01',
+            'sector' => 'INDIGENT',
+        ]);
+
+        // Birth date differs, but Import Anyway intentionally identifies the
+        // destination client using Full Name + Sector.
+        $result = $this->importCsv(
+            "juan dela cruz,09170000001,Brgy 1,40,1990-01-01, indigent ,BIGAY BIGAS SA MASA,TRANCH 1,2026-09-01\n"
+        );
+
+        $this->assertSame(1, $result['imported']);
+        $this->assertDatabaseCount('clients', 1);
+        $this->assertDatabaseHas('transaction_history', [
+            'client_id' => '2600001',
+            'client_category' => 'indigent',
+        ]);
+    }
+
+    public function test_import_anyway_registers_new_client_when_sector_does_not_match(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+
+        Client::create([
+            'client_id' => '2600001',
+            'first_name' => 'Juan',
+            'middle_name' => 'Dela',
+            'last_name' => 'Cruz',
+            'sector' => 'INDIGENT',
+        ]);
+
+        $result = $this->importCsv(
+            "Juan Dela Cruz,09170000002,Brgy 2,40,,LUPON,BIGAY BIGAS SA MASA,TRANCH 1,2026-09-01\n"
+        );
+
+        $this->assertSame(1, $result['imported']);
+        $this->assertDatabaseCount('clients', 2);
+        $newClient = Client::where('sector', 'LUPON')->firstOrFail();
+        $this->assertNotSame('2600001', $newClient->client_id);
+        $this->assertDatabaseHas('transaction_history', [
+            'client_id' => $newClient->client_id,
+            'client_category' => 'LUPON',
+        ]);
+        $this->assertDatabaseMissing('transaction_history', ['client_id' => '2600001']);
+    }
+
+    public function test_duplicate_check_uses_full_name_and_sector_together(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+
+        Client::create([
+            'client_id' => '2600001',
+            'first_name' => 'Juan',
+            'middle_name' => 'Dela',
+            'last_name' => 'Cruz',
+            'sector' => 'INDIGENT',
+        ]);
+
+        $differentSector = UploadedFile::fake()->createWithContent(
+            'different-sector.csv',
+            self::HEADER . "\nJuan Dela Cruz,09170000001,Brgy 1,40,,LUPON,BIGAY BIGAS SA MASA,TRANCH 1,2026-09-01\n"
+        );
+        $this->postJson(route('transaction-events.import.check-duplicates'), ['csv_file' => $differentSector])
+            ->assertOk()
+            ->assertJsonPath('duplicates_count', 0);
+
+        $matchingSector = UploadedFile::fake()->createWithContent(
+            'matching-sector.csv',
+            self::HEADER . "\nJuan Dela Cruz,09170000001,Brgy 1,40,,indigent,BIGAY BIGAS SA MASA,TRANCH 1,2026-09-01\n"
+        );
+        $this->postJson(route('transaction-events.import.check-duplicates'), ['csv_file' => $matchingSector])
+            ->assertOk()
+            ->assertJsonPath('duplicates_count', 1);
+    }
+
     public function test_confirm_import_registers_unknown_client_and_transfers(): void
     {
         $this->actingAs(User::factory()->create(['role_name' => 'Admin']));

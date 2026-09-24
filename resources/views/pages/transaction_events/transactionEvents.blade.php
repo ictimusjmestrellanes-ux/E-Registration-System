@@ -368,6 +368,14 @@
                                             id="bulkTransferBtn" disabled title="Transfer all selected events"> <i
                                                 class="ri-exchange-box-line"></i> <span>Transfer Selected</span> </button>
                                     @endif
+                                    @if (feature_allowed('Transfer to Client'))
+                                        <button type="button"
+                                            class="btn btn-success btn-sm d-inline-flex align-items-center justify-content-center gap-1 px-3"
+                                            id="bulkTransferToClientBtn" disabled
+                                            title="Choose the exact Client ID that will receive the selected events">
+                                            <i class="ri-user-search-line"></i> <span>Transfer to Client</span>
+                                        </button>
+                                    @endif
                                     @if (feature_allowed('Force Create Client'))
                                         <button type="button"
                                             class="btn btn-primary btn-sm d-inline-flex align-items-center justify-content-center gap-1 px-3"
@@ -650,6 +658,66 @@
             </div>
         </div>
 
+        <!-- Transfer selected Import Events to an exact Client ID -->
+        <div class="modal fade" id="transferToClientModal" tabindex="-1" aria-labelledby="transferToClientModalLabel"
+            aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered modal-xl modal-fullscreen-lg-down">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <div>
+                            <h5 class="modal-title" id="transferToClientModalLabel">Transfer to a Client</h5>
+                            <div class="small text-muted">Choose the exact Client ID that should receive the selected
+                                Import Event transactions.</div>
+                        </div>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-info py-2">
+                            <strong id="transferToClientEventCount">0</strong> selected event(s) will be transferred to
+                            one client. Each event creates its own transaction-history entry.
+                        </div>
+                        <label for="transferClientSearch" class="form-label fw-semibold">Find Client</label>
+                        <div class="input-group mb-2">
+                            <span class="input-group-text"><i class="ri-search-line"></i></span>
+                            <input type="search" class="form-control" id="transferClientSearch"
+                                placeholder="Search Client ID, full name, sector, birth date, contact, or address"
+                                autocomplete="off">
+                        </div>
+                        <div class="small text-muted mb-3">Verify the Client ID and identifying details before selecting
+                            a record.</div>
+
+                        <div id="transferClientSearchStatus" class="text-center text-muted py-4">Start typing to search
+                            the Client List.</div>
+                        <div class="table-responsive d-none" id="transferClientResultsWrap"
+                            style="max-height: 340px; overflow-y: auto;">
+                            <table class="table table-sm table-bordered table-hover align-middle mb-0">
+                                <thead class="table-light sticky-top">
+                                    <tr>
+                                        <th style="width: 70px;">Select</th>
+                                        <th>Client ID</th>
+                                        <th>Full Name</th>
+                                        <th>Sector</th>
+                                        <th>Birth Date</th>
+                                        <th>Contact</th>
+                                        <th>Address</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="transferClientResults"></tbody>
+                            </table>
+                        </div>
+
+                        <div class="alert alert-success d-none mt-3 mb-0" id="selectedTransferClientSummary"></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-success" id="confirmTransferToClientBtn" disabled>
+                            <i class="ri-exchange-line me-1"></i> Transfer to Selected Client
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Force Create Client Confirmation Modal -->
         <div class="modal fade" id="transferOneByOneConfirmModal" tabindex="-1"
             aria-labelledby="transferOneByOneConfirmModalLabel" aria-hidden="true">
@@ -882,7 +950,7 @@
                                 <thead class="table-light">
                                     <tr>
                                         <th>Full Name</th>
-                                        <th>Client Category</th>
+                                        <th>Sector</th>
                                         <th>Transaction Category</th>
                                         <th>Transaction Type</th>
                                         <th>Event Date</th>
@@ -923,9 +991,12 @@
                             This option never creates clients, Import Events, or transaction history.
                             Address and birth date do not affect matching.
                             Repeated matching rows are marked Claimed only once.</div>
-                        <div class="small text-muted mt-2">“Import Anyway” adds a transaction to the history of each
-                            matching client. It registers clients who are not yet in the Client List and adds their
-                            transactions too. Every valid row, including repeated rows, is imported.</div>
+                        <div class="small text-muted mt-2">“Import Anyway” matches clients using both
+                            <strong>Full Name</strong> and <strong>Sector</strong> (the imported
+                            <code>client_category</code>). A matching row is transferred to that client's history.
+                            If both details do not match an existing client, a new client is registered. Every valid
+                            row, including repeated rows with the same details, is imported.
+                        </div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal">Cancel</button>
@@ -1314,7 +1385,8 @@
             let selectedTransferForm = null;
 
             const bulkTransferBtn = document.getElementById('bulkTransferBtn');
-            const transferOneByOneBtn = document.getElementById('transferOneByOneBtn');
+            const bulkTransferToClientBtn = document.getElementById('bulkTransferToClientBtn');
+            const bulkForceCreateBtn = document.getElementById('bulkForceCreateBtn');
             const bulkTransferForm = document.getElementById('bulkTransferForm');
             const bulkTransferConfirmModalEl = document.getElementById('bulkTransferConfirmModal');
             const bulkTransferCount = document.getElementById('bulkTransferCount');
@@ -1436,12 +1508,18 @@
                     if (bulkTransferBtn) {
                         bulkTransferBtn.disabled = !allPagesSelected && checkedRows.length === 0;
                     }
+                    if (bulkTransferToClientBtn) {
+                        bulkTransferToClientBtn.disabled = allPagesSelected || checkedRows.length === 0;
+                        bulkTransferToClientBtn.title = allPagesSelected ?
+                            'Choose specific events (up to 100) before transferring them to one Client ID.' :
+                            'Choose the exact Client ID that will receive the selected events';
+                    }
                     const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
                     if (bulkDeleteBtn) {
                         bulkDeleteBtn.disabled = !allPagesSelected && checkedRows.length === 0;
                     }
-                    if (transferOneByOneBtn) {
-                        transferOneByOneBtn.disabled = !allPagesSelected && checkedRows.length === 0;
+                    if (bulkForceCreateBtn) {
+                        bulkForceCreateBtn.disabled = !allPagesSelected && checkedRows.length === 0;
                     }
 
                     if (allPagesSelected) {
@@ -1783,6 +1861,209 @@
                 });
             }
 
+            // ----- Transfer selected Import Events to an exact Client ID -----
+            const transferToClientModalEl = document.getElementById('transferToClientModal');
+            const transferClientSearch = document.getElementById('transferClientSearch');
+            const transferClientSearchStatus = document.getElementById('transferClientSearchStatus');
+            const transferClientResultsWrap = document.getElementById('transferClientResultsWrap');
+            const transferClientResults = document.getElementById('transferClientResults');
+            const transferToClientEventCount = document.getElementById('transferToClientEventCount');
+            const selectedTransferClientSummary = document.getElementById('selectedTransferClientSummary');
+            const confirmTransferToClientBtn = document.getElementById('confirmTransferToClientBtn');
+            let pendingTransferToClientIds = [];
+            let selectedTransferClient = null;
+            let transferClientRows = [];
+            let transferClientSearchTimer = null;
+            let transferClientSearchController = null;
+
+            if (bulkTransferToClientBtn && transferToClientModalEl && transferClientSearch &&
+                transferClientResults && confirmTransferToClientBtn) {
+                const transferToClientModal = bootstrap.Modal.getOrCreateInstance(transferToClientModalEl);
+
+                const selectTransferClient = function(client) {
+                    selectedTransferClient = client;
+                    confirmTransferToClientBtn.disabled = !client;
+                    if (!client) {
+                        selectedTransferClientSummary.classList.add('d-none');
+                        selectedTransferClientSummary.innerHTML = '';
+                        return;
+                    }
+
+                    selectedTransferClientSummary.innerHTML =
+                        '<strong>Selected:</strong> ' + escapeHtml(client.client_id) + ' — ' +
+                        escapeHtml(client.full_name) + ' · Sector: ' + escapeHtml(client.sector || '-') +
+                        ' · Birth date: ' + escapeHtml(client.birth_date || '-');
+                    selectedTransferClientSummary.classList.remove('d-none');
+                };
+
+                const renderTransferClients = function(clients) {
+                    transferClientRows = Array.isArray(clients) ? clients : [];
+                    transferClientResults.innerHTML = '';
+
+                    if (transferClientRows.length === 0) {
+                        transferClientResultsWrap.classList.add('d-none');
+                        transferClientSearchStatus.textContent = 'No clients matched this search.';
+                        transferClientSearchStatus.classList.remove('d-none');
+                        return;
+                    }
+
+                    transferClientRows.forEach(function(client, index) {
+                        const tr = document.createElement('tr');
+                        tr.style.cursor = 'pointer';
+                        tr.innerHTML = `
+                            <td class="text-center">
+                                <input class="form-check-input transfer-client-choice" type="radio"
+                                    name="transfer_client_choice" value="${escapeHtml(client.client_id)}"
+                                    data-client-index="${index}"
+                                    aria-label="Select client ${escapeHtml(client.client_id)}">
+                            </td>
+                            <td class="fw-semibold text-nowrap">${escapeHtml(client.client_id)}</td>
+                            <td class="fw-semibold">${escapeHtml(client.full_name || '-')}</td>
+                            <td>${escapeHtml(client.sector || '-')}</td>
+                            <td class="text-nowrap">${escapeHtml(client.birth_date || '-')}</td>
+                            <td>${escapeHtml(client.contact || '-')}</td>
+                            <td>${escapeHtml(client.address || '-')}</td>`;
+                        tr.addEventListener('click', function(event) {
+                            const radio = tr.querySelector('.transfer-client-choice');
+                            if (event.target !== radio) radio.checked = true;
+                            selectTransferClient(client);
+                        });
+                        transferClientResults.appendChild(tr);
+                    });
+
+                    transferClientSearchStatus.classList.add('d-none');
+                    transferClientResultsWrap.classList.remove('d-none');
+                };
+
+                const loadTransferClients = async function(search) {
+                    transferClientSearchController?.abort();
+                    transferClientSearchController = new AbortController();
+                    transferClientResultsWrap.classList.add('d-none');
+                    transferClientSearchStatus.textContent = 'Searching Client List...';
+                    transferClientSearchStatus.classList.remove('d-none');
+
+                    try {
+                        const url = new URL(@json(route('transaction-events.clients.search')), window.location.origin);
+                        if (search.trim() !== '') url.searchParams.set('q', search.trim());
+                        const response = await fetch(url.toString(), {
+                            headers: {
+                                'Accept': 'application/json'
+                            },
+                            signal: transferClientSearchController.signal,
+                        });
+                        const data = await parseApiResponse(response);
+                        if (!response.ok || !data.success) {
+                            throw new Error(data.message || 'Unable to search the Client List.');
+                        }
+                        renderTransferClients(data.clients);
+                    } catch (error) {
+                        if (error.name === 'AbortError') return;
+                        transferClientResultsWrap.classList.add('d-none');
+                        transferClientSearchStatus.textContent = error.message ||
+                            'Unable to search the Client List.';
+                        transferClientSearchStatus.classList.remove('d-none');
+                    }
+                };
+
+                bulkTransferToClientBtn.addEventListener('click', function() {
+                    if (allPagesSelected) {
+                        new Message('imessage').show(
+                            'Choose specific events before assigning them to one Client ID.', 'fail',
+                            'top-center');
+                        return;
+                    }
+
+                    pendingTransferToClientIds = eventCheckboxes
+                        .filter((checkbox) => checkbox.checked && !checkbox.disabled)
+                        .map((checkbox) => Number(checkbox.value))
+                        .filter((id) => id > 0);
+
+                    if (pendingTransferToClientIds.length === 0) {
+                        new Message('imessage').show('Select at least one Import Event.', 'fail',
+                            'top-center');
+                        return;
+                    }
+
+                    if (pendingTransferToClientIds.length > 100) {
+                        new Message('imessage').show('Select no more than 100 events for one client.',
+                            'fail',
+                            'top-center');
+                        return;
+                    }
+
+                    transferToClientEventCount.textContent = pendingTransferToClientIds.length;
+                    transferClientSearch.value = '';
+                    selectTransferClient(null);
+                    transferToClientModal.show();
+                    loadTransferClients('');
+                });
+
+                transferClientSearch.addEventListener('input', function() {
+                    clearTimeout(transferClientSearchTimer);
+                    transferClientSearchTimer = setTimeout(() => loadTransferClients(this.value), 250);
+                });
+
+                transferToClientModalEl.addEventListener('shown.bs.modal', function() {
+                    transferClientSearch.focus();
+                });
+
+                confirmTransferToClientBtn.addEventListener('click', async function() {
+                    if (!selectedTransferClient || pendingTransferToClientIds.length === 0) return;
+
+                    const originalHtml = confirmTransferToClientBtn.innerHTML;
+                    confirmTransferToClientBtn.disabled = true;
+                    confirmTransferToClientBtn.innerHTML =
+                        '<i class="ri-loader-3-line ri-spin me-1"></i> Transferring...';
+
+                    try {
+                        const response = await fetch(@json(route('transaction-events.transfer-to-client')), {
+                            method: 'POST',
+                            headers: {
+                                'X-CSRF-TOKEN': document.querySelector(
+                                    'meta[name="csrf-token"]')?.content || '',
+                                'Accept': 'application/json',
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                event_ids: pendingTransferToClientIds,
+                                client_id: selectedTransferClient.client_id,
+                            }),
+                        });
+                        const data = await parseApiResponse(response);
+                        if (!response.ok || !data.success) {
+                            throw new Error(data.message ||
+                                'The selected events could not be transferred.');
+                        }
+
+                        transferToClientModal.hide();
+                        if (window.ErsNotify) window.ErsNotify.queue(data.message, 'success');
+                        new Message('imessage').show(data.message, 'success', 'top-center', 2500);
+                        setTimeout(function() {
+                            window.location.href = data.redirect ||
+                                @json(route('transaction-events.records'));
+                        }, 900);
+                    } catch (error) {
+                        confirmTransferToClientBtn.disabled = false;
+                        new Message('imessage').show(error.message ||
+                            'The selected events could not be transferred.', 'fail', 'top-center');
+                    } finally {
+                        confirmTransferToClientBtn.innerHTML = originalHtml;
+                    }
+                });
+
+                transferToClientModalEl.addEventListener('hidden.bs.modal', function() {
+                    transferClientSearchController?.abort();
+                    clearTimeout(transferClientSearchTimer);
+                    pendingTransferToClientIds = [];
+                    transferClientRows = [];
+                    transferClientResults.innerHTML = '';
+                    transferClientResultsWrap.classList.add('d-none');
+                    transferClientSearchStatus.textContent = 'Start typing to search the Client List.';
+                    transferClientSearchStatus.classList.remove('d-none');
+                    selectTransferClient(null);
+                });
+            }
+
             // ----- Bulk Delete Selected (checked rows or select-all population) -----
             const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
             const bulkDeleteForm = document.getElementById('bulkDeleteForm');
@@ -1916,25 +2197,25 @@
             const confirmTransferOneByOneBtn = document.getElementById('confirmTransferOneByOneBtn');
             let pendingOneByOneIds = [];
 
-            if (transferOneByOneBtn && transferOneByOneConfirmModalEl && confirmTransferOneByOneBtn) {
+            if (bulkForceCreateBtn && transferOneByOneConfirmModalEl && confirmTransferOneByOneBtn) {
                 const transferOneByOneConfirmModal = bootstrap.Modal.getOrCreateInstance(
                     transferOneByOneConfirmModalEl);
 
-                transferOneByOneBtn.addEventListener('click', async function() {
+                bulkForceCreateBtn.addEventListener('click', async function() {
                     if (allPagesSelected) {
                         // Select All covers every matching event across pages, not
                         // just this page's checkboxes: resolve the full id list.
-                        transferOneByOneBtn.disabled = true;
+                        bulkForceCreateBtn.disabled = true;
                         try {
                             pendingOneByOneIds = await resolveOneByOneIds();
                         } catch (error) {
-                            transferOneByOneBtn.disabled = false;
+                            bulkForceCreateBtn.disabled = false;
                             new Message('imessage').show(error.message ||
                                 'Could not resolve matching events.', 'fail',
                                 'top-center');
                             return;
                         }
-                        transferOneByOneBtn.disabled = false;
+                        bulkForceCreateBtn.disabled = false;
                     } else {
                         pendingOneByOneIds = eventCheckboxes
                             .filter((checkbox) => checkbox.checked && !checkbox.disabled)
@@ -2041,7 +2322,7 @@
                     const progressModal = progressModalEl ?
                         bootstrap.Modal.getOrCreateInstance(progressModalEl) : null;
 
-                    transferOneByOneBtn.disabled = true;
+                    bulkForceCreateBtn.disabled = true;
                     if (progressModal) {
                         progressModal.show();
                     }
@@ -2111,7 +2392,7 @@
                         if (progressModal) {
                             progressModal.hide();
                         }
-                        transferOneByOneBtn.disabled = false;
+                        bulkForceCreateBtn.disabled = false;
                         new Message('imessage').show(error.message || 'Create failed.', 'fail',
                             'top-center');
                     }
@@ -2141,6 +2422,7 @@
             const previewSkippedRows = document.getElementById('previewSkippedRows');
             const previewSkippedSection = document.getElementById('previewSkippedSection');
             const previewSkippedBody = document.getElementById('previewSkippedBody');
+            let importCheckToken = null;
 
             if (!importModalEl || !previewModalEl || !csvFileVisible || !previewBtn || !confirmBtn) {
                 return;
@@ -2151,6 +2433,7 @@
 
             // Sync visible file input to hidden one
             csvFileVisible.addEventListener('change', function() {
+                importCheckToken = null;
                 if (this.files.length > 0) {
                     const dt = new DataTransfer();
                     dt.items.add(this.files[0]);
@@ -2645,7 +2928,8 @@
                 reader.readAsText(file);
             });
 
-            const runImport = async function(eventsOnly = false, forceDirect = false, updateExisting = false) {
+            const runImport = async function(eventsOnly = false, forceDirect = false, updateExisting = false,
+                checkToken = null) {
                 if (csvFileHidden.files.length === 0) {
                     return;
                 }
@@ -2712,7 +2996,11 @@
 
                 try {
                     const prepareForm = new FormData();
-                    prepareForm.append('csv_file', file);
+                    if (checkToken) {
+                        prepareForm.append('check_token', checkToken);
+                    } else {
+                        prepareForm.append('csv_file', file);
+                    }
                     prepareForm.append('events_only', eventsOnly ? '1' : '0');
                     prepareForm.append('force_direct', forceDirect ? '1' : '0');
                     prepareForm.append('update_existing', updateExisting ? '1' : '0');
@@ -2727,6 +3015,9 @@
 
                     if (!prepareRes.ok || !prepareData.success) {
                         throw new Error(prepareData.message || 'Failed to prepare the import.');
+                    }
+                    if (checkToken === importCheckToken) {
+                        importCheckToken = null;
                     }
 
                     const total = prepareData.total;
@@ -2807,7 +3098,7 @@
 
                     // Status updates lock matching event/history rows, so keep
                     // Update Matching Records requests small and predictable.
-                    const CHUNK_SIZE = updateExisting ? 100 : 500;
+                    const CHUNK_SIZE = Number(prepareData.chunk_size || (updateExisting ? 100 : 1000));
                     let offset = 0;
 
                     while (offset < total) {
@@ -3010,6 +3301,7 @@
                     if (!res.ok || !data.success) {
                         throw new Error(data.message || 'Duplicate check failed.');
                     }
+                    importCheckToken = data.check_token || null;
 
                     if ((data.duplicates_count ?? 0) > 0) {
                         duplicateRows = data.duplicates || [];
@@ -3023,7 +3315,7 @@
                         return; // Wait for the user to cancel or continue importing.
                     }
 
-                    await runImport();
+                    await runImport(false, false, false, importCheckToken);
                 } catch (error) {
                     new Message('imessage').show(error.message || 'Duplicate check failed.', 'fail',
                         'top-center');
@@ -3033,12 +3325,12 @@
 
             document.getElementById('importDuplicateContinueBtn')?.addEventListener('click', function() {
                 bootstrap.Modal.getInstance(document.getElementById('importDuplicateModal'))?.hide();
-                runImport();
+                runImport(false, false, false, importCheckToken);
             });
 
             document.getElementById('importDuplicateUpdateBtn')?.addEventListener('click', function() {
                 bootstrap.Modal.getInstance(document.getElementById('importDuplicateModal'))?.hide();
-                runImport(true, false, true);
+                runImport(true, false, true, importCheckToken);
             });
 
             // "Force Create All" in Review Import Data: skip the duplicate

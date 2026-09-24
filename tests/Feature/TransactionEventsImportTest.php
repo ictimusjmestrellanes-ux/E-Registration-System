@@ -127,7 +127,7 @@ class TransactionEventsImportTest extends TestCase
         ]);
     }
 
-    public function test_import_does_not_create_duplicate_client_for_same_full_name_and_birth_date(): void
+    public function test_import_does_not_create_duplicate_client_for_same_full_name_and_sector(): void
     {
         $this->actingAs(User::factory()->create());
 
@@ -136,6 +136,7 @@ class TransactionEventsImportTest extends TestCase
             'first_name' => 'JANE',
             'last_name' => 'DOE',
             'birth_date' => '1996-01-01',
+            'sector' => 'PWD',
         ]);
 
         $csv = implode("\n", [

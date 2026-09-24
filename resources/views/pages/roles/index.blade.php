@@ -39,39 +39,65 @@
         @endif
 
         <div class="row">
-            @foreach ($roles as $role)
-                <div class="col-md-4 col-lg-3">
-                    <div class="card">
-                        <div class="card-body">
-                            <div class="d-flex align-items-center justify-content-between mb-3">
-                                <div>
-                                    <h5 class="mb-0">{{ $role['name'] }}</h5>
-                                    <p class="text-muted mb-0">Role</p>
-                                </div>
-                                <div class="d-flex align-items-center gap-2">
-                                    @if ($canManage)
-                                        @if (feature_allowed('Delete Roles'))
-                                            <button type="button" class="btn btn-sm btn-soft-danger" data-bs-toggle="modal"
-                                                data-bs-target="#deleteRoleModal-{{ $role['id'] }}" title="Delete Role">
-                                                <i class="ri-delete-bin-line"></i>
-                                            </button>
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-hover align-middle mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Role</th>
+                                        <th class="text-center" style="width: 220px;">Assigned Users</th>
+                                        @if ($canManage)
+                                            <th class="text-center" style="width: 140px;">Actions</th>
                                         @endif
-                                    @endif
-                                    <div class="avatar-sm">
-                                        <div class="avatar-title bg-primary-subtle text-primary rounded fs-4">
-                                            <i class="ri-shield-user-line"></i>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="d-flex align-items-center justify-content-between">
-                                <span class="text-muted">Assigned Users</span>
-                                <h4 class="mb-0">{{ $role['users_count'] }}</h4>
-                            </div>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @forelse ($roles as $role)
+                                        <tr>
+                                            <td>
+                                                <div class="d-flex align-items-center gap-3">
+                                                    <div class="avatar-sm flex-shrink-0">
+                                                        <div
+                                                            class="avatar-title bg-primary-subtle text-primary rounded fs-4">
+                                                            <i class="ri-shield-user-line"></i>
+                                                        </div>
+                                                    </div>
+                                                    <span class="fw-semibold">{{ $role['name'] }}</span>
+                                                </div>
+                                            </td>
+                                            <td class="text-center">
+                                                <span class="badge bg-primary-subtle text-primary fs-13 px-3 py-2">
+                                                    {{ $role['users_count'] }}
+                                                </span>
+                                            </td>
+                                            @if ($canManage)
+                                                <td class="text-center">
+                                                    @if (feature_allowed('Delete Roles'))
+                                                        <button type="button" class="btn btn-sm btn-soft-danger"
+                                                            data-bs-toggle="modal"
+                                                            data-bs-target="#deleteRoleModal-{{ $role['id'] }}"
+                                                            title="Delete Role">
+                                                            <i class="ri-delete-bin-line align-bottom"></i> Delete
+                                                        </button>
+                                                    @endif
+                                                </td>
+                                            @endif
+                                        </tr>
+                                    @empty
+                                        <tr>
+                                            <td colspan="{{ $canManage ? 3 : 2 }}" class="text-center text-muted py-5">
+                                                No roles found.
+                                            </td>
+                                        </tr>
+                                    @endforelse
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
-            @endforeach
+            </div>
         </div>
     </div>
 

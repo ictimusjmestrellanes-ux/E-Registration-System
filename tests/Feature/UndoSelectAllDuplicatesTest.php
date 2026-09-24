@@ -64,7 +64,7 @@ class UndoSelectAllDuplicatesTest extends TestCase
         $this->assertNotContains($dupB->id, $response->json('ids'));
     }
 
-    public function test_select_all_without_flag_keeps_previous_behavior(): void
+    public function test_select_all_without_exclusion_includes_and_can_undo_duplicates(): void
     {
         $this->actingAs(User::factory()->create());
 
@@ -78,6 +78,14 @@ class UndoSelectAllDuplicatesTest extends TestCase
         $response->assertOk();
         $response->assertJsonPath('total', 2);
         $this->assertEqualsCanonicalizing([$dupA->id, $dupB->id], $response->json('ids'));
+
+        $undo = $this->postJson(route('transaction-events.undo-transfer-selected'), [
+            'event_ids' => [$dupA->id, $dupB->id],
+        ]);
+
+        $undo->assertOk()->assertJsonPath('undone', 2);
+        $this->assertNull($dupA->fresh()->transferred_at);
+        $this->assertNull($dupB->fresh()->transferred_at);
     }
 
     public function test_rows_differing_in_any_of_the_five_fields_are_not_duplicates(): void
@@ -101,7 +109,7 @@ class UndoSelectAllDuplicatesTest extends TestCase
         );
     }
 
-    public function test_records_page_marks_duplicate_rows_for_select_all(): void
+    public function test_records_page_allows_duplicate_rows_to_be_selected(): void
     {
         $this->actingAs(User::factory()->create());
 
@@ -112,8 +120,41 @@ class UndoSelectAllDuplicatesTest extends TestCase
         $response = $this->get(route('transaction-events.records', ['per_page' => 100]));
 
         $response->assertOk();
-        $response->assertSee('data-duplicate="1"', false);
+        $response->assertDontSee('data-duplicate="1"', false);
         $response->assertSee('value="'.$dupA->id.'"', false);
         $response->assertSee('value="'.$unique->id.'"', false);
+    }
+
+    public function test_reviewed_not_duplicate_record_is_selectable_even_when_unresolved_matches_remain(): void
+    {
+        $this->actingAs(User::factory()->create());
+
+        $unresolvedA = $this->seedTransferred('T-0001', 'Juan Dela Cruz');
+        $unresolvedB = $this->seedTransferred('T-0002', 'Juan Dela Cruz');
+        $reviewed = $this->seedTransferred('T-0003', 'Juan Dela Cruz');
+        $reviewed->update(['not_duplicate' => true]);
+
+        $recordsResponse = $this->get(route('transaction-events.records', ['per_page' => 100]));
+
+        $recordsResponse->assertOk();
+        $recordsResponse->assertSee('value="'.$unresolvedA->id.'"', false);
+        $recordsResponse->assertSee('value="'.$unresolvedB->id.'"', false);
+        $recordsResponse->assertSee('value="'.$reviewed->id.'"', false);
+
+        $idsResponse = $this->postJson(route('transaction-events.undo-transfer-selected.ids'), [
+            'select_all' => 1,
+            'exclude_duplicates' => 1,
+        ]);
+
+        $idsResponse->assertOk();
+        $this->assertSame([$reviewed->id], $idsResponse->json('ids'));
+
+        $undoResponse = $this->postJson(route('transaction-events.undo-transfer-selected'), [
+            'event_ids' => [$reviewed->id],
+        ]);
+
+        $undoResponse->assertOk();
+        $undoResponse->assertJsonPath('undone', 1);
+        $this->assertNull($reviewed->fresh()->transferred_at);
     }
 }

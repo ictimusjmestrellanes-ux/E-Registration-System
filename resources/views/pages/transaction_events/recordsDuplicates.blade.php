@@ -20,9 +20,18 @@
                                 <h4 class="mb-1">Duplicate Events Records</h4>
                                 <p class="text-muted mb-0">Review duplicate records grouped by client. Each client appears once per tab, with each matching record listed once.</p>
                             </div>
-                            <a href="{{ route('transaction-events.records') }}" class="btn btn-outline-secondary btn-sm">
-                                <i class="ri-arrow-left-line me-1"></i> Back to Event Records
-                            </a>
+                            <div class="d-flex flex-wrap gap-2">
+                                @if (feature_allowed('View Removed Duplicates'))
+                                    <a href="{{ route('transaction-events.removed-duplicates') }}"
+                                        class="btn btn-soft-warning btn-sm">
+                                        <i class="ri-file-list-3-line me-1"></i> Not a Duplicate Review
+                                    </a>
+                                @endif
+                                <a href="{{ route('transaction-events.records') }}"
+                                    class="btn btn-outline-primary btn-sm">
+                                    <i class="ri-arrow-left-line me-1"></i> Back to Event Records
+                                </a>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -43,11 +52,15 @@
 
                             $renderGroup = function ($group, $tab) {
                                 $first = $group['events']->first();
+                                $groupIds = $group['events']->pluck('id')->values();
                                 $out = '<div class="border rounded-4 p-3 mb-3">';
                                 $out .= '<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">';
                                 $out .= '<div>';
                                 $out .= '<h6 class="mb-0">' . e($first->full_name) . ' (' . e($first->transferredTransaction?->transaction_id ?? '-') . ') <span class="badge bg-danger-subtle text-danger ms-1">' .  (int) $group['total'] . ' records</span></h6>';
                                 $out .= '</div>';
+                                if (auth()->user()?->role_name !== 'Viewer') {
+                                    $out .= '<button type="button" class="btn btn-sm btn-outline-success text-nowrap" data-bs-toggle="modal" data-bs-target="#notDuplicateGroupModal" data-event-ids="' . e($groupIds->implode(',')) . '" data-group-name="' . e($first->full_name) . '" data-record-count="' . (int) $groupIds->count() . '"><i class="ri-check-line me-1"></i> Not a duplicate</button>';
+                                }
                                 $out .= '</div>';
                                 $out .= '<div class="table-responsive">';
                                 $out .= '<table class="table table-sm table-hover align-middle mb-0">';
@@ -59,7 +72,13 @@
                                 $out .= '</tr></thead><tbody>';
                                 foreach ($group['events'] as $event) {
                                     $txId = $event->transferredTransaction?->transaction_id ?? '-';
-                                    $out .= '<tr>';
+                                    $eventSummary = implode(' · ', array_filter([
+                                        $txId !== '-' ? $txId : null,
+                                        optional($event->event_date)->format('M d, Y'),
+                                        $event->transaction_category,
+                                        $event->transaction_type,
+                                    ]));
+                                    $out .= '<tr data-event-id="' . (int) $event->id . '" data-event-name="' . e($event->full_name) . '" data-event-summary="' . e($eventSummary) . '">';
                                     $out .= '<td>' . e($event->id) . '</td>';
                                     $out .= '<td class="fw-semibold">' . e($txId) . '</td>';
                                     $out .= '<td class="fw-semibold">' . e($event->full_name) . '</td>';
@@ -101,11 +120,11 @@
                                         date range.</div>
                                 </div>
                                 <div class="d-flex flex-wrap gap-2 align-items-center">
-                                    <button type="button" class="btn btn-sm btn-outline-primary" id="dupFiltersToggleBtn">
+                                    <button type="button" class="btn btn-sm btn-primary" id="dupFiltersToggleBtn">
                                         Show Filters <i class="ri-arrow-down-s-line ms-1"></i>
                                     </button>
                                     <a href="{{ route('transaction-events.records-duplicates') }}"
-                                        class="btn btn-sm btn-soft-secondary">Reset</a>
+                                        class="btn btn-sm btn-soft-primary">Reset</a>
                                     <select class="form-select form-select-sm w-auto" id="dupPerPageSelect"
                                         aria-label="Groups per page" title="Groups per page">
                                         @foreach ([10, 15, 25, 50, 100] as $size)
@@ -398,6 +417,54 @@
         </div>
     </div>
 
+    @if (auth()->user()?->role_name !== 'Viewer')
+        <div class="modal fade" id="notDuplicateGroupModal" tabindex="-1"
+            aria-labelledby="notDuplicateGroupModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <form action="{{ route('transaction-events.group-not-duplicate') }}" method="POST"
+                        id="notDuplicateGroupForm">
+                        @csrf
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="notDuplicateGroupModalLabel">
+                                <i class="ri-check-double-line text-success me-1"></i> Mark as Not a Duplicate
+                            </h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"
+                                aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p class="mb-3">Select the Event Records for
+                                <strong id="notDuplicateGroupName"></strong> to tag as not duplicates.</p>
+                            <div class="d-flex align-items-center justify-content-between border rounded-3 px-3 py-2 mb-2">
+                                <div class="form-check mb-0">
+                                    <input class="form-check-input" type="checkbox" id="notDuplicateSelectAll" checked>
+                                    <label class="form-check-label fw-semibold" for="notDuplicateSelectAll">
+                                        Select All
+                                    </label>
+                                </div>
+                                <span class="badge bg-success-subtle text-success">
+                                    <span id="notDuplicateSelectedCount">0</span> selected
+                                </span>
+                            </div>
+                            <div id="notDuplicateRecordChoices" class="border rounded-3 p-2"
+                                style="max-height: 300px; overflow-y: auto;"></div>
+                            <div class="alert alert-warning-subtle mt-3 mb-0">
+                                Selected records will be removed from Duplicate Event Records and stored in Not a
+                                Duplicate Review.
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-success" id="confirmNotDuplicateGroupBtn">
+                                <i class="ri-check-line me-1"></i> Tag Selected as Not a Duplicate
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    @endif
+
     @if (auth()->user()?->role_name !== 'Viewer' && feature_allowed('Undo Transfer'))
         @include('pages.transaction_events.partials.undoSingleTransferModal')
     @endif
@@ -406,6 +473,70 @@
 @push('scripts')
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            const notDuplicateModal = document.getElementById('notDuplicateGroupModal');
+            const notDuplicateSelectAll = document.getElementById('notDuplicateSelectAll');
+            const notDuplicateChoices = document.getElementById('notDuplicateRecordChoices');
+            const notDuplicateSelectedCount = document.getElementById('notDuplicateSelectedCount');
+            const confirmNotDuplicateBtn = document.getElementById('confirmNotDuplicateGroupBtn');
+
+            const syncNotDuplicateSelection = function() {
+                const boxes = Array.from(notDuplicateChoices?.querySelectorAll('[data-not-duplicate-choice]') || []);
+                const selected = boxes.filter(box => box.checked);
+                if (notDuplicateSelectedCount) notDuplicateSelectedCount.textContent = selected.length;
+                if (confirmNotDuplicateBtn) confirmNotDuplicateBtn.disabled = selected.length === 0;
+                if (notDuplicateSelectAll) {
+                    notDuplicateSelectAll.checked = boxes.length > 0 && selected.length === boxes.length;
+                    notDuplicateSelectAll.indeterminate = selected.length > 0 && selected.length < boxes.length;
+                }
+            };
+
+            notDuplicateModal?.addEventListener('show.bs.modal', function(event) {
+                const trigger = event.relatedTarget;
+                const ids = String(trigger?.dataset.eventIds || '').split(',').filter(Boolean);
+                document.getElementById('notDuplicateGroupName').textContent =
+                    trigger?.dataset.groupName || 'this client';
+
+                const groupCard = trigger?.closest('.border.rounded-4');
+                const eventRows = Array.from(groupCard?.querySelectorAll('tr[data-event-id]') || []);
+                const rowsById = new Map(eventRows.map(row => [String(row.dataset.eventId), row]));
+                notDuplicateChoices.replaceChildren(...ids.map(id => {
+                    const row = rowsById.get(String(id));
+                    const wrapper = document.createElement('label');
+                    wrapper.className = 'd-flex align-items-start gap-2 rounded-2 px-2 py-2 mb-1 bg-light';
+
+                    const input = document.createElement('input');
+                    input.type = 'checkbox';
+                    input.name = 'event_ids[]';
+                    input.value = id;
+                    input.checked = true;
+                    input.className = 'form-check-input mt-1';
+                    input.setAttribute('data-not-duplicate-choice', '');
+                    input.addEventListener('change', syncNotDuplicateSelection);
+
+                    const details = document.createElement('span');
+                    details.className = 'small';
+                    const name = document.createElement('span');
+                    name.className = 'fw-semibold d-block';
+                    name.textContent = row?.dataset.eventName || ('Event #' + id);
+                    const summary = document.createElement('span');
+                    summary.className = 'text-muted';
+                    summary.textContent = '#' + id + (row?.dataset.eventSummary ? ' · ' + row.dataset.eventSummary : '');
+                    details.append(name, summary);
+                    wrapper.append(input, details);
+
+                    return wrapper;
+                }));
+                if (notDuplicateSelectAll) notDuplicateSelectAll.checked = true;
+                syncNotDuplicateSelection();
+            });
+
+            notDuplicateSelectAll?.addEventListener('change', function() {
+                notDuplicateChoices?.querySelectorAll('[data-not-duplicate-choice]').forEach(box => {
+                    box.checked = this.checked;
+                });
+                syncNotDuplicateSelection();
+            });
+
             document.querySelectorAll('[data-client-count]').forEach(tab => {
                 tab.addEventListener('shown.bs.tab', () => {
                     document.getElementById('duplicateClientCount').textContent = `${tab.dataset.clientCount} client group(s) in this tab`;

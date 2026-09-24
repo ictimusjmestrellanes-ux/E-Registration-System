@@ -81,6 +81,54 @@ class EventRecordStatusTest extends TestCase
         $this->assertSame('Unclaimed', $transactionsPage->viewData('transactions')->first()->status);
     }
 
+    public function test_not_duplicate_is_a_review_tag_in_the_records_list(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+        $event = $this->record();
+        $other = TransactionEvent::create([
+            'full_name' => 'Maria Reyes',
+            'status' => 'Claimed',
+            'transferred_at' => now(),
+        ]);
+
+        $this->get(route('transaction-events.records'))
+            ->assertOk()
+            ->assertSee('Tag as Not a Duplicate')
+            ->assertSee('<option value="Not a Duplicate"', false);
+
+        $this->patchJson(route('transaction-events.records.status', $event), [
+            'status' => 'Not a Duplicate',
+        ])->assertOk()
+            ->assertJsonPath('status', 'Not a Duplicate');
+
+        $this->assertTrue($event->fresh()->not_duplicate);
+        $this->assertSame('Pending', $event->fresh()->status);
+        $this->assertSame('Pending', $event->fresh()->transferredTransaction->status);
+
+        $this->postJson(route('transaction-events.records.status-selected'), [
+            'event_ids' => [$event->id, $other->id],
+            'status' => 'Not a Duplicate',
+        ])->assertOk()
+            ->assertJsonPath('updated', 1)
+            ->assertJsonCount(2, 'processed_ids');
+
+        $this->assertTrue($other->fresh()->not_duplicate);
+        $this->assertSame('Claimed', $other->fresh()->status);
+
+        $filtered = $this->get(route('transaction-events.records', [
+            'status' => 'Not a Duplicate',
+        ]))->assertOk()->assertSee('Not a Duplicate');
+        $this->assertSame(2, $filtered->viewData('events')->total());
+        $this->assertMatchesRegularExpression(
+            '/data-event-status="'.$event->id.'">Pending<\/span>/',
+            $filtered->getContent()
+        );
+        $this->assertMatchesRegularExpression(
+            '/data-event-status="'.$other->id.'">Claimed<\/span>/',
+            $filtered->getContent()
+        );
+    }
+
     public function test_single_tag_returns_json_for_an_in_place_page_update(): void
     {
         $this->actingAs(User::factory()->create(['role_name' => 'Admin']));

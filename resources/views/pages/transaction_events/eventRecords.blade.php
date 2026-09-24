@@ -147,7 +147,8 @@
                                         <div class="input-group">
                                             <span class="input-group-text"><i class="ri-search-line"></i></span>
                                             <input type="text" class="form-control" id="recordKeywordInput"
-                                                name="search" placeholder="Full name or transaction ID" value="{{ request('search') }}">
+                                                name="search" placeholder="Full name or transaction ID"
+                                                value="{{ request('search') }}">
                                         </div>
                                     </div>
                                     {{-- <div class="col-12 col-md-2 col-xl-2">
@@ -173,7 +174,9 @@
                                     <div class="col-12 col-md-6 col-xl-2">
                                         <label for="recordAddressFilterBtn"
                                             class="form-label fw-semibold text-uppercase small">Address</label>
-                                        @include('pages.transaction_events.partials.addressDropdown', ['addressId' => 'recordAddressFilter'])
+                                        @include('pages.transaction_events.partials.addressDropdown', [
+                                            'addressId' => 'recordAddressFilter',
+                                        ])
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
                                         <label class="form-label fw-semibold text-uppercase small">Client Category</label>
@@ -188,7 +191,8 @@
                                             <div class="dropdown-menu w-100" id="recordClientCategoryDropdown"
                                                 style="max-height: 260px; overflow-y: auto;">
                                                 <div class="p-2">
-                                                    <input type="search" class="form-control form-control-sm mb-2" placeholder="Search client categories..." autocomplete="off">
+                                                    <input type="search" class="form-control form-control-sm mb-2"
+                                                        placeholder="Search client categories..." autocomplete="off">
                                                     <div class="form-check mb-2">
                                                         <input class="form-check-input" type="checkbox"
                                                             id="recordClientCategoryAll" value="">
@@ -207,7 +211,8 @@
                                                                 $clientCategory,
                                                             );
                                                         @endphp
-                                                        <div class="form-check" data-option-row data-option-label="{{ strtolower($clientCategory) }}">
+                                                        <div class="form-check" data-option-row
+                                                            data-option-label="{{ strtolower($clientCategory) }}">
                                                             <input class="form-check-input record-client-category-checkbox"
                                                                 type="checkbox"
                                                                 id="recordClientCategory_{{ $loop->index }}"
@@ -219,12 +224,13 @@
                                                             </label>
                                                         </div>
                                                     @endforeach
-                                                    <div class="text-muted small px-1 py-2 d-none" data-dropdown-empty>No matches found.</div>
+                                                    <div class="text-muted small px-1 py-2 d-none" data-dropdown-empty>No
+                                                        matches found.</div>
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
-                                    
+
                                     <div class="col-12 col-md-6 col-xl-2">
                                         <label for="recordCategoryFilter"
                                             class="form-label fw-semibold text-uppercase small">Transaction
@@ -246,7 +252,8 @@
                                             </button>
                                             <div class="dropdown-menu w-100" id="recordTypeFilterDropdown">
                                                 <div class="p-2">
-                                                    <input type="search" class="form-control form-control-sm mb-2" placeholder="Search types..." autocomplete="off">
+                                                    <input type="search" class="form-control form-control-sm mb-2"
+                                                        placeholder="Search types..." autocomplete="off">
                                                     <div class="form-check mb-2">
                                                         <input class="form-check-input" type="checkbox"
                                                             id="recordTypeFilterAll" value="">
@@ -263,7 +270,8 @@
                                                             )->filter();
                                                             $isChecked = $selectedTypes->contains($type);
                                                         @endphp
-                                                        <div class="form-check" data-option-row data-option-label="{{ strtolower($type) }}">
+                                                        <div class="form-check" data-option-row
+                                                            data-option-label="{{ strtolower($type) }}">
                                                             <input class="form-check-input record-type-checkbox"
                                                                 type="checkbox" id="recordTypeFilter_{{ $loop->index }}"
                                                                 value="{{ $type }}"
@@ -274,7 +282,8 @@
                                                             </label>
                                                         </div>
                                                     @endforeach
-                                                    <div class="text-muted small px-1 py-2 d-none" data-dropdown-empty>No matches found.</div>
+                                                    <div class="text-muted small px-1 py-2 d-none" data-dropdown-empty>No
+                                                        matches found.</div>
                                                 </div>
                                             </div>
                                         </div>
@@ -313,6 +322,8 @@
                                                 <option value="{{ $status }}" @selected(request('status') === $status)>
                                                     {{ $status }}</option>
                                             @endforeach
+                                            <option value="Not a Duplicate" @selected(request('status') === 'Not a Duplicate')>
+                                                Not a Duplicate</option>
                                         </select>
                                     </div>
                                     <div class="col-6 col-xl-2 d-flex gap-2 justify-content-end">
@@ -338,16 +349,18 @@
                         @if (auth()->user()?->role_name !== 'Viewer')
                             <div id="selectAllUndoBar"
                                 class="alert alert-info border-0 shadow-sm d-none align-items-center justify-content-between gap-3 mb-3 px-3 py-2"
-                                role="alert"> 
+                                role="alert">
                                 {{-- Left side: Info --}}
                                 <div class="d-flex align-items-center gap-2 flex-grow-1">
                                     <div class="lh-sm">
-                                        <div class="fw-semibold text-dark" id="selectAllUndoText"></div> <small
-                                            class="text-muted"> Select the records you want to restore to their previous
+                                        @if (feature_allowed('Undo Transfer'))
+                                            <div class="fw-semibold text-dark" id="selectAllUndoText"></div>
+                                        @endif
+                                        <small class="text-muted"> Select the records you want to restore to their previous
                                             transfer. </small>
                                     </div>
-                                </div> 
-                                {{-- Right side: Actions --}} 
+                                </div>
+                                {{-- Right side: Actions --}}
                                 <div class="d-flex align-items-center flex-wrap gap-2 ms-auto">
                                     @if (feature_allowed('Tag Transaction Event Record Status'))
                                         <div class="dropdown">
@@ -357,8 +370,7 @@
                                                 disabled title="Select at least 5 records (or Select All) to bulk tag">
                                                 <i class="ri-price-tag-3-line"></i> <span>Tag Selected</span>
                                             </button>
-                                            <ul class="dropdown-menu dropdown-menu-end"
-                                                aria-labelledby="tagSelectedBtn">
+                                            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="tagSelectedBtn">
                                                 @foreach (\App\Models\TransactionEvent::STATUSES as $status)
                                                     <li>
                                                         <button type="button" class="dropdown-item tag-selected-option"
@@ -367,6 +379,12 @@
                                                         </button>
                                                     </li>
                                                 @endforeach
+                                                <li>
+                                                    <button type="button" class="dropdown-item tag-selected-option"
+                                                        data-status="Not a Duplicate">
+                                                        Tag as Not a Duplicate
+                                                    </button>
+                                                </li>
                                             </ul>
                                         </div>
                                     @endif
@@ -398,18 +416,93 @@
                                         @php
                                             $currentSort = $sort ?? request('sort', 'client_asc');
                                         @endphp
-                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Transaction ID', 'asc' => 'txid_asc', 'desc' => 'txid_desc', 'current' => $currentSort, 'column' => 'transaction_id'])
-                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Full Name', 'asc' => 'client_asc', 'desc' => 'client_desc', 'current' => $currentSort, 'column' => 'full_name'])
-                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Age', 'asc' => 'age_asc', 'desc' => 'age_desc', 'current' => $currentSort, 'column' => 'age'])
-                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Birth Date', 'asc' => 'birth_asc', 'desc' => 'birth_desc', 'current' => $currentSort, 'column' => 'birth_date'])
-                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Contact No.', 'asc' => 'contact_asc', 'desc' => 'contact_desc', 'current' => $currentSort, 'column' => 'contact'])
-                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Address', 'asc' => 'address_asc', 'desc' => 'address_desc', 'current' => $currentSort, 'column' => 'address'])
-                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Client Category', 'asc' => 'clientcat_asc', 'desc' => 'clientcat_desc', 'current' => $currentSort, 'column' => 'client_category'])
-                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Transaction Category', 'asc' => 'category_asc', 'desc' => 'category_desc', 'current' => $currentSort, 'column' => 'transaction_category'])
-                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Transaction Type', 'asc' => 'type_asc', 'desc' => 'type_desc', 'current' => $currentSort, 'column' => 'transaction_type'])
-                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Event Date', 'asc' => 'eventdate_asc', 'desc' => 'eventdate_desc', 'current' => $currentSort, 'column' => 'event_date'])
-                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Transferred At', 'asc' => 'transferred_asc', 'desc' => 'transferred_desc', 'current' => $currentSort, 'column' => 'transferred_at', 'style' => 'width: 160px;'])
-                                        @include('pages.transaction_events.partials.sortableHeader', ['label' => 'Status', 'asc' => 'status_asc', 'desc' => 'status_desc', 'current' => $currentSort, 'column' => 'status', 'style' => 'width: 120px;', 'center' => true])
+                                        @include('pages.transaction_events.partials.sortableHeader', [
+                                            'label' => 'Transaction ID',
+                                            'asc' => 'txid_asc',
+                                            'desc' => 'txid_desc',
+                                            'current' => $currentSort,
+                                            'column' => 'transaction_id',
+                                        ])
+                                        @include('pages.transaction_events.partials.sortableHeader', [
+                                            'label' => 'Full Name',
+                                            'asc' => 'client_asc',
+                                            'desc' => 'client_desc',
+                                            'current' => $currentSort,
+                                            'column' => 'full_name',
+                                        ])
+                                        @include('pages.transaction_events.partials.sortableHeader', [
+                                            'label' => 'Age',
+                                            'asc' => 'age_asc',
+                                            'desc' => 'age_desc',
+                                            'current' => $currentSort,
+                                            'column' => 'age',
+                                        ])
+                                        @include('pages.transaction_events.partials.sortableHeader', [
+                                            'label' => 'Birth Date',
+                                            'asc' => 'birth_asc',
+                                            'desc' => 'birth_desc',
+                                            'current' => $currentSort,
+                                            'column' => 'birth_date',
+                                        ])
+                                        @include('pages.transaction_events.partials.sortableHeader', [
+                                            'label' => 'Contact No.',
+                                            'asc' => 'contact_asc',
+                                            'desc' => 'contact_desc',
+                                            'current' => $currentSort,
+                                            'column' => 'contact',
+                                        ])
+                                        @include('pages.transaction_events.partials.sortableHeader', [
+                                            'label' => 'Address',
+                                            'asc' => 'address_asc',
+                                            'desc' => 'address_desc',
+                                            'current' => $currentSort,
+                                            'column' => 'address',
+                                        ])
+                                        @include('pages.transaction_events.partials.sortableHeader', [
+                                            'label' => 'Client Category',
+                                            'asc' => 'clientcat_asc',
+                                            'desc' => 'clientcat_desc',
+                                            'current' => $currentSort,
+                                            'column' => 'client_category',
+                                        ])
+                                        @include('pages.transaction_events.partials.sortableHeader', [
+                                            'label' => 'Transaction Category',
+                                            'asc' => 'category_asc',
+                                            'desc' => 'category_desc',
+                                            'current' => $currentSort,
+                                            'column' => 'transaction_category',
+                                        ])
+                                        @include('pages.transaction_events.partials.sortableHeader', [
+                                            'label' => 'Transaction Type',
+                                            'asc' => 'type_asc',
+                                            'desc' => 'type_desc',
+                                            'current' => $currentSort,
+                                            'column' => 'transaction_type',
+                                        ])
+                                        @include('pages.transaction_events.partials.sortableHeader', [
+                                            'label' => 'Event Date',
+                                            'asc' => 'eventdate_asc',
+                                            'desc' => 'eventdate_desc',
+                                            'current' => $currentSort,
+                                            'column' => 'event_date',
+                                        ])
+                                        @include('pages.transaction_events.partials.sortableHeader', [
+                                            'label' => 'Transferred At',
+                                            'asc' => 'transferred_asc',
+                                            'desc' => 'transferred_desc',
+                                            'current' => $currentSort,
+                                            'column' => 'transferred_at',
+                                            'style' => 'width: 160px;',
+                                        ])
+                                        @include('pages.transaction_events.partials.sortableHeader', [
+                                            'label' => 'Status',
+                                            'asc' => 'status_asc',
+                                            'desc' => 'status_desc',
+                                            'current' => $currentSort,
+                                            'column' => 'status',
+                                            'style' => 'width: 120px;',
+                                            'center' => true,
+                                        ])
                                         @if (auth()->user()?->role_name !== 'Viewer')
                                             <th style="width: 140px;" class="text-center">Action</th>
                                         @endif
@@ -417,20 +510,20 @@
                                 </thead>
                                 <tbody>
                                     @forelse ($events as $event)
-                                        <tr data-event-id="{{ $event->id }}">
+                                        <tr data-event-id="{{ $event->id }}"
+                                            data-base-status="{{ $event->status }}"
+                                            data-not-duplicate="{{ $event->not_duplicate ? '1' : '0' }}">
                                             @if (auth()->user()?->role_name !== 'Viewer')
                                                 <td class="text-center">
                                                     <input class="form-check-input event-select-checkbox" type="checkbox"
                                                         value="{{ $event->id }}"
-                                                        @if (in_array($event->id, $duplicateRecordIds ?? [], true)) data-duplicate="1" disabled
-                                                            title="Duplicate record (same full name, client category, transaction category, transaction type and event date) - excluded from Select All. Resolve it in View Duplicate Records."
-                                                        @else
-                                                            title="Select event #{{ $event->id }}" @endif>
+                                                        title="Select event #{{ $event->id }}">
                                                 </td>
                                             @endif
                                             <td data-column="transaction_id" class="fw-semibold" style="width: 150px">
                                                 {{ $event->transferredTransaction?->transaction_id ?? '-' }}</td>
-                                            <td data-column="full_name" class="fw-semibold" title="{{ $event->full_name }}">{{ $event->display_name }}</td>
+                                            <td data-column="full_name" class="fw-semibold"
+                                                title="{{ $event->full_name }}">{{ $event->display_name }}</td>
                                             <td data-column="age">{{ $event->age ?? '-' }}</td>
                                             <td data-column="birth_date">
                                                 {{ optional($event->birth_date)->format('M d, Y') ?? '-' }}</td>
@@ -462,7 +555,8 @@
                                             </td>
                                             @if (auth()->user()?->role_name !== 'Viewer')
                                                 <td class="text-center" style="min-width: 160px">
-                                                    <div class="d-flex flex-nowrap align-items-center justify-content-center gap-2">
+                                                    <div
+                                                        class="d-flex flex-nowrap align-items-center justify-content-center gap-2">
                                                         @if (feature_allowed('Tag Transaction Event Record Status'))
                                                             <div class="dropdown">
                                                                 <button type="button"
@@ -475,8 +569,7 @@
                                                                 <ul class="dropdown-menu dropdown-menu-end">
                                                                     @foreach (\App\Models\TransactionEvent::STATUSES as $status)
                                                                         <li>
-                                                                            <form
-                                                                                class="record-status-form"
+                                                                            <form class="record-status-form"
                                                                                 data-event-id="{{ $event->id }}"
                                                                                 action="{{ route('transaction-events.records.status', array_merge(request()->query(), ['event' => $event->id])) }}"
                                                                                 method="POST">
@@ -490,17 +583,33 @@
                                                                             </form>
                                                                         </li>
                                                                     @endforeach
+                                                                    <li>
+                                                                        <form class="record-status-form"
+                                                                            data-event-id="{{ $event->id }}"
+                                                                            action="{{ route('transaction-events.records.status', array_merge(request()->query(), ['event' => $event->id])) }}"
+                                                                            method="POST">
+                                                                            @csrf
+                                                                            @method('PATCH')
+                                                                            <button type="submit" name="status"
+                                                                                value="Not a Duplicate"
+                                                                                class="dropdown-item {{ $event->not_duplicate ? 'active' : '' }}">
+                                                                                Tag as Not a Duplicate
+                                                                            </button>
+                                                                        </form>
+                                                                    </li>
                                                                 </ul>
                                                             </div>
                                                         @endif
                                                         @if (feature_allowed('Undo Transfer'))
                                                             <button type="button"
                                                                 class="btn btn-sm btn-soft-warning d-inline-flex align-items-center justify-content-center gap-1 text-nowrap flex-shrink-0"
-                                                                data-bs-toggle="modal" data-bs-target="#undoSingleTransferModal"
+                                                                data-bs-toggle="modal"
+                                                                data-bs-target="#undoSingleTransferModal"
                                                                 data-undo-url="{{ route('transaction-events.undo-transfer', $event) }}"
                                                                 data-event-id="{{ $event->id }}"
                                                                 data-event-name="{{ $event->full_name }}">
-                                                                <i class="ri-arrow-go-back-line" aria-hidden="true"></i> Undo Transfer
+                                                                <i class="ri-arrow-go-back-line" aria-hidden="true"></i>
+                                                                Undo Transfer
                                                             </button>
                                                         @endif
                                                         @if (feature_allowed('Edit Transaction Event Record'))
@@ -697,7 +806,11 @@
                 }, 5000);
             });
 
-            @include('pages.transaction_events.partials.addressTypeFilter', ['addressId' => 'recordAddressFilter', 'typeSelector' => '.record-type-checkbox', 'allTypesId' => 'recordTypeFilterAll'])
+            @include('pages.transaction_events.partials.addressTypeFilter', [
+                'addressId' => 'recordAddressFilter',
+                'typeSelector' => '.record-type-checkbox',
+                'allTypesId' => 'recordTypeFilterAll',
+            ])
             const editModal = document.getElementById('editRecordModal');
             const editForm = document.getElementById('editRecordForm');
             if (editModal && editForm) {
@@ -824,14 +937,24 @@
             const setEventRowStatus = (eventId, status) => {
                 const row = eventRecordsTable?.querySelector(`tr[data-event-id="${eventId}"]`);
                 if (!row) return;
-                const color = recordStatusColor(status);
+                if (status === 'Not a Duplicate') {
+                    row.dataset.notDuplicate = '1';
+                } else {
+                    row.dataset.baseStatus = status;
+                }
+                // "Not a Duplicate" is a review flag, not an event status.
+                // Keep the original Pending/Claimed/Unclaimed badge visible.
+                const displayStatus = row.dataset.baseStatus || status;
+                const color = recordStatusColor(displayStatus);
                 const badge = row.querySelector('[data-event-status]');
                 if (badge) {
                     badge.className = `badge bg-${color}-subtle text-${color} px-3 py-2`;
-                    badge.textContent = status;
+                    badge.textContent = displayStatus;
                 }
                 row.querySelectorAll('.record-status-form button[name="status"]').forEach((button) => {
-                    button.classList.toggle('active', button.value === status);
+                    const isActive = button.value === 'Not a Duplicate' ?
+                        row.dataset.notDuplicate === '1' : button.value === row.dataset.baseStatus;
+                    button.classList.toggle('active', isActive);
                 });
             };
 
@@ -850,14 +973,16 @@
                 const tbody = eventRecordsTable?.querySelector('tbody');
                 if (tbody && !tbody.querySelector('tr[data-event-id]')) {
                     const emptyRow = document.createElement('tr');
-                    emptyRow.innerHTML = `<td colspan="${eventRecordsTable.tHead?.rows[0]?.cells.length || 1}" class="text-center text-muted py-5"><i class="ri-inbox-line fs-1 d-block mb-2"></i>No transferred event records found.</td>`;
+                    emptyRow.innerHTML =
+                        `<td colspan="${eventRecordsTable.tHead?.rows[0]?.cells.length || 1}" class="text-center text-muted py-5"><i class="ri-inbox-line fs-1 d-block mb-2"></i>No transferred event records found.</td>`;
                     tbody.replaceChildren(emptyRow);
                 }
             };
 
             const applyEventStatus = (eventIds, status) => {
                 const ids = [...new Set(eventIds.map(Number).filter((id) => id > 0))];
-                if (activeStatusFilter && activeStatusFilter !== status) {
+                if (status !== 'Not a Duplicate' && activeStatusFilter &&
+                    activeStatusFilter !== 'Not a Duplicate' && activeStatusFilter !== status) {
                     removeEventRows(ids, ids.length);
                     return;
                 }
@@ -923,9 +1048,8 @@
 
             undoClearBtn?.addEventListener('click', clearAllUndoSelection);
 
-            // Duplicate records (same 5-field key) are never auto-checked.
-            const selectableEventCheckboxes = () => selectedEventCheckboxes()
-                .filter((b) => !b.dataset.duplicate);
+            // Every visible event can be selected, including duplicates.
+            const selectableEventCheckboxes = () => selectedEventCheckboxes();
 
             const syncUndoSelection = () => {
                 const boxes = selectedEventCheckboxes();
@@ -977,8 +1101,7 @@
             };
 
             eventSelectAll?.addEventListener('change', function() {
-                // Duplicates stay unchecked: only non-duplicate rows on this
-                // page are checked, even when Select All is used.
+                // Select every record on the page, including duplicates.
                 selectableEventCheckboxes().forEach((b) => {
                     b.checked = eventSelectAll.checked;
                 });
@@ -989,7 +1112,7 @@
                         allPagesSelected = true;
                         showUndoBarAllSelected();
                     } else if (selectableEventCheckboxes().length === 0) {
-                        // Single page with only duplicates: nothing to select.
+                        // The current page has no event records.
                         eventSelectAll.checked = false;
                         allPagesSelected = false;
                         hideUndoBar();
@@ -1033,7 +1156,9 @@
                     const response = await fetch(form.action, {
                         method: 'POST',
                         credentials: 'same-origin',
-                        headers: { 'Accept': 'application/json' },
+                        headers: {
+                            'Accept': 'application/json'
+                        },
                         body: formData,
                     });
                     const data = await response.json().catch(() => ({}));
@@ -1046,7 +1171,8 @@
                     new Message('imessage').show(data.message || `Tagged as ${status}.`, 'success',
                         'top-center');
                 } catch (error) {
-                    new Message('imessage').show(error.message || 'The status could not be updated.', 'fail',
+                    new Message('imessage').show(error.message || 'The status could not be updated.',
+                        'fail',
                         'top-center');
                 } finally {
                     buttons.forEach((button) => button.disabled = false);
@@ -1096,23 +1222,20 @@
 
                 const resolveUndoIds = async (onResolving) => {
                     if (!allPagesSelected) {
-                        // Duplicates are disabled in the UI, but filter again
-                        // here so a duplicate can never slip into bulk undo.
                         return selectedEventCheckboxes()
-                            .filter((b) => b.checked && !b.dataset.duplicate)
+                            .filter((b) => b.checked)
                             .map((b) => parseInt(b.value, 10))
                             .filter((id) => id > 0);
                     }
                     // Resolve every id matching the current list filters.
-                    // Duplicates (same full name, client category, transaction
-                    // category, transaction type and event date) are excluded.
+                    // Resolve every matching record across all pages, including duplicates.
                     if (onResolving) {
                         onResolving();
                     }
                     const params = new URLSearchParams(window.location.search);
                     const payload = {
                         select_all: 1,
-                        exclude_duplicates: 1
+                        exclude_duplicates: 0
                     };
                     ['search', 'contact', 'age_from', 'age_to', 'date_from', 'date_to',
                         'event_date_from', 'event_date_to', 'status'
@@ -1124,7 +1247,8 @@
                     });
 
                     // Handle filters which can have multiple values
-                    ['address', 'client_category', 'transaction_category', 'transaction_type'].forEach((name) => {
+                    ['address', 'client_category', 'transaction_category', 'transaction_type'].forEach((
+                        name) => {
                         const values = Array.from(params.entries())
                             .filter(([key]) => key === name || key.startsWith(name + '['))
                             .map(([, value]) => value);
@@ -1269,7 +1393,8 @@
                             payload[name] = value;
                         }
                     });
-                    ['address', 'client_category', 'transaction_category', 'transaction_type'].forEach((name) => {
+                    ['address', 'client_category', 'transaction_category', 'transaction_type'].forEach((
+                        name) => {
                         const values = Array.from(params.entries())
                             .filter(([key]) => key === name || key.startsWith(name + '['))
                             .map(([, value]) => value);
@@ -1629,5 +1754,7 @@
                 syncRecordClientCategoryVisibility);
         });
     </script>
-    <script src="{{ asset('js/event-record-filter-search.js') }}?v={{ filemtime(public_path('js/event-record-filter-search.js')) }}"></script>
+    <script
+        src="{{ asset('js/event-record-filter-search.js') }}?v={{ filemtime(public_path('js/event-record-filter-search.js')) }}">
+    </script>
 @endpush

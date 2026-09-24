@@ -56,7 +56,8 @@ class PermissionsController extends Controller
         ['feature' => 'Export Transaction Event Records', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
         ['feature' => 'Print Payroll Transaction PDF', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
         ['feature' => 'Force Create Client', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
-        ['feature' => 'View Activity Logs', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true]
+        ['feature' => 'View Activity Logs', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
+        ['feature' => 'Transfer to Client', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true]
     ];
 
     /**

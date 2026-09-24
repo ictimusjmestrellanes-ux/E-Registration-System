@@ -25,7 +25,7 @@
             <div class="col-12">
                 <div class="card">
                     <div class="card-body">
-                        <div class="border rounded-4 p-3 mb-3" id="userFiltersCard">
+                        <div class="border rounded-4 p-3 mb-1" id="userFiltersCard">
                             <div class="d-flex flex-wrap gap-3 align-items-start justify-content-between">
                                 <div>
                                     <div class="fw-bold fs-5">Filter Users</div>
@@ -38,8 +38,7 @@
                                         Show Filters <i class="ri-arrow-down-s-line ms-1"></i>
                                     </button>
                                     @if ($activeUserFilters)
-                                        <a href="{{ route('users.index') }}"
-                                            class="btn btn-sm btn-soft-primary">Reset</a>
+                                        <a href="{{ route('users.index') }}" class="btn btn-sm btn-soft-primary">Reset</a>
                                     @endif
                                 </div>
                             </div>
@@ -52,8 +51,8 @@
                                             class="form-label fw-semibold text-uppercase small">Name Search</label>
                                         <div class="input-group">
                                             <span class="input-group-text"><i class="ri-search-line"></i></span>
-                                            <input type="text" class="form-control" id="userKeywordInput"
-                                                name="search" placeholder="Full name" value="{{ $search }}">
+                                            <input type="text" class="form-control" id="userKeywordInput" name="search"
+                                                placeholder="Full name" value="{{ $search }}">
                                         </div>
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-3">
@@ -90,8 +89,7 @@
                                 </div>
                             </form>
                         </div>
-                    </div>
-                        <div class="table-responsive">
+                        <div class="table-responsive mt-3">
                             <table class="table table-bordered table-hover align-middle mb-0">
                                 <thead class="table-light">
                                     <tr>
@@ -150,8 +148,7 @@
                                                                 @csrf
                                                                 @method('PUT')
                                                                 <input type="hidden" name="status" value="Inactive">
-                                                                <button type="submit"
-                                                                    class="btn btn-sm btn-soft-danger">
+                                                                <button type="submit" class="btn btn-sm btn-soft-danger">
                                                                     <i class="ri-user-unfollow-line align-bottom"></i>
                                                                     Deactivate
                                                                 </button>
@@ -162,8 +159,7 @@
                                                                 @csrf
                                                                 @method('PUT')
                                                                 <input type="hidden" name="status" value="Active">
-                                                                <button type="submit"
-                                                                    class="btn btn-sm btn-soft-success">
+                                                                <button type="submit" class="btn btn-sm btn-soft-success">
                                                                     <i class="ri-user-follow-line align-bottom"></i>
                                                                     Activate
                                                                 </button>
@@ -176,7 +172,8 @@
 
                                     @empty
                                         <tr>
-                                            <td colspan="{{ $canEditRole ? 6 : 5 }}" class="text-center text-muted py-5">No
+                                            <td colspan="{{ $canEditRole ? 6 : 5 }}" class="text-center text-muted py-5">
+                                                No
                                                 users found.</td>
                                         </tr>
                                     @endforelse
@@ -188,46 +185,45 @@
                             {{ $users->links() }}
                         </div>
                     </div>
+                </div>
 
-                    @if ($canEditRole)
-                        @foreach ($users as $user)
-                            <div class="modal fade" id="editRoleModal-{{ $user->id }}" tabindex="-1"
-                                aria-hidden="true">
-                                <div class="modal-dialog modal-dialog-centered">
-                                    <div class="modal-content">
-                                        <form method="POST" action="{{ route('users.updateRole', $user) }}">
-                                            @csrf
-                                            @method('PUT')
-                                            <div class="modal-header">
-                                                <h5 class="modal-title">Edit Role - {{ $user->name }}</h5>
-                                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                @if ($canEditRole)
+                    @foreach ($users as $user)
+                        <div class="modal fade" id="editRoleModal-{{ $user->id }}" tabindex="-1"
+                            aria-hidden="true">
+                            <div class="modal-dialog modal-dialog-centered">
+                                <div class="modal-content">
+                                    <form method="POST" action="{{ route('users.updateRole', $user) }}">
+                                        @csrf
+                                        @method('PUT')
+                                        <div class="modal-header">
+                                            <h5 class="modal-title">Edit Role - {{ $user->name }}</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <div class="mb-3">
+                                                <label for="role_name-{{ $user->id }}"
+                                                    class="form-label">Role</label>
+                                                <select class="form-select" id="role_name-{{ $user->id }}"
+                                                    name="role_name">
+                                                    @foreach ($roles as $role)
+                                                        <option value="{{ $role }}" @selected($user->role_name === $role)>
+                                                            {{ $role }}</option>
+                                                    @endforeach
+                                                </select>
                                             </div>
-                                            <div class="modal-body">
-                                                <div class="mb-3">
-                                                    <label for="role_name-{{ $user->id }}"
-                                                        class="form-label">Role</label>
-                                                    <select class="form-select" id="role_name-{{ $user->id }}"
-                                                        name="role_name">
-                                                        @foreach ($roles as $role)
-                                                            <option value="{{ $role }}"
-                                                                @selected($user->role_name === $role)>{{ $role }}</option>
-                                                        @endforeach
-                                                    </select>
-                                                </div>
-                                            </div>
-                                            <div class="modal-footer">
-                                                <button type="button" class="btn btn-sm btn-light"
-                                                    data-bs-dismiss="modal">Cancel</button>
-                                                <button type="submit" class="btn btn-sm btn-primary">Update Role</button>
-                                            </div>
-                                        </form>
-                                    </div>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-sm btn-light"
+                                                data-bs-dismiss="modal">Cancel</button>
+                                            <button type="submit" class="btn btn-sm btn-primary">Update Role</button>
+                                        </div>
+                                    </form>
                                 </div>
                             </div>
-                        @endforeach
-                    @endif
-
-                </div>
+                        </div>
+                    @endforeach
+                @endif
             </div>
         </div>
     </div>

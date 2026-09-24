@@ -349,6 +349,6 @@ class ImportUpdateExistingTest extends TestCase
         $this->assertDatabaseCount('transaction_history', 0);
         $this->get(route('transaction-events.index'))->assertOk()
             ->assertSee('Update Matching Records')
-            ->assertSee('const CHUNK_SIZE = updateExisting ? 100 : 500;', false);
+            ->assertSee('const CHUNK_SIZE = Number(prepareData.chunk_size || (updateExisting ? 100 : 1000));', false);
     }
 }

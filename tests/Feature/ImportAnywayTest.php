@@ -8,6 +8,7 @@ use App\Models\TransactionHistory;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -36,7 +37,8 @@ class ImportAnywayTest extends TestCase
         $this->prepareUser();
         $this->postJson(route('transaction-events.import.check-duplicates'), ['csv_file' => $this->file()])
             ->assertOk()->assertJsonPath('duplicates_count', 2)->assertJsonPath('total_rows', 3)
-            ->assertJsonPath('duplicates.0.full_name', 'Dela Cruz, Juan P.');
+            ->assertJsonPath('duplicates.0.full_name', 'Dela Cruz, Juan P.')
+            ->assertJson(fn ($json) => $json->whereType('check_token', 'string')->etc());
         $this->assertDatabaseCount('clients', 1);
         $this->assertDatabaseCount('transaction_events', 0);
         $this->assertDatabaseCount('transaction_history', 0);
@@ -73,9 +75,66 @@ class ImportAnywayTest extends TestCase
         $this->prepareUser();
         $html = $this->get(route('transaction-events.index'))->assertOk()->getContent();
         $this->assertMatchesRegularExpression(
-            "/importDuplicateContinueBtn'\)\?\.addEventListener\('click', function\(\) \{.{0,220}runImport\(\);/s",
+            "/importDuplicateContinueBtn'\)\?\.addEventListener\('click', function\(\) \{.{0,260}runImport\(false, false, false, importCheckToken\);/s",
             $html
         );
+    }
+
+    public function test_confirm_check_payload_is_reused_once_without_uploading_the_file_again(): void
+    {
+        $this->prepareUser();
+
+        $check = $this->postJson(route('transaction-events.import.check-duplicates'), [
+            'csv_file' => $this->file(),
+        ])->assertOk();
+        $checkToken = $check->json('check_token');
+
+        $prepared = $this->postJson(route('transaction-events.import.prepare'), [
+            'check_token' => $checkToken,
+        ])->assertOk()
+            ->assertJsonPath('total', 3)
+            ->assertJsonPath('chunk_size', 1000);
+
+        $this->assertNotEmpty($prepared->json('token'));
+        $this->postJson(route('transaction-events.import.prepare'), [
+            'check_token' => $checkToken,
+        ])->assertUnprocessable()
+            ->assertJsonPath('success', false);
+    }
+
+    public function test_normal_import_processes_a_large_chunk_with_batched_database_writes(): void
+    {
+        $this->prepareUser();
+        $rows = array_fill(0, 120, '"Dela Cruz, Juan P.",09170000001,,Food,Rice,2026-09-01');
+        $file = UploadedFile::fake()->createWithContent(
+            'fast.csv',
+            "full_name,contact_no,birth_date,transaction_category,transaction_type,event_date\n".
+            implode("\n", $rows)
+        );
+        $token = $this->postJson(route('transaction-events.import.prepare'), [
+            'csv_file' => $file,
+        ])->assertOk()
+            ->assertJsonPath('chunk_size', 1000)
+            ->json('token');
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $this->postJson(route('transaction-events.import.process'), [
+            'token' => $token,
+            'offset' => 0,
+            'limit' => 1000,
+        ])->assertOk()
+            ->assertJsonPath('imported', 120)
+            ->assertJsonPath('failed', 0)
+            ->assertJsonPath('done', true);
+        $queryCount = count(DB::getQueryLog());
+        DB::disableQueryLog();
+
+        $this->assertLessThan(30, $queryCount, 'The normal import should use batched writes, not per-row inserts.');
+        $this->assertDatabaseCount('clients', 1);
+        $this->assertDatabaseCount('transaction_history', 120);
+        $this->assertDatabaseCount('transaction_events', 120);
+        $this->assertSame(120, TransactionEvent::whereNotNull('transferred_transaction_id')->count());
     }
 
     private function assertTransferredFile(): void
