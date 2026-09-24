@@ -21,7 +21,8 @@
 
         @foreach (['success' => 'success', 'error' => 'danger'] as $message => $color)
             @if (session($message))
-                <div class="alert alert-{{ $color }} alert-dismissible fade show" role="alert">
+                <div class="alert alert-{{ $color }} alert-dismissible fade show not-duplicate-review-flash-alert"
+                    role="alert" data-auto-dismiss-ms="5000">
                     {{ session($message) }}
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                 </div>
@@ -33,7 +34,7 @@
                 <div class="card">
                     <div class="card-body">
                         <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
-                            <span class="badge bg-warning-subtle text-warning fs-13">
+                            <span class="badge bg-secondary-subtle text-secondary fs-13 px-3 py-2">
                                 {{ $groups->total() }} reviewed client group(s)
                             </span>
                             <select class="form-select form-select-sm w-auto" id="reviewPerPage"
@@ -51,11 +52,12 @@
                                 $first = $group['events']->first();
                                 $groupIds = $group['events']->pluck('id')->values();
                             @endphp
-                            <div class="border rounded-4 p-3 mb-3">
+                            <div class="border rounded-4 p-3 mb-0">
                                 <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
-                                    <h6 class="mb-0">
+                                    <h6 class="mb-0 fw-semibold">
                                         {{ $first->full_name }}
-                                        <span class="badge bg-warning-subtle text-warning ms-1">
+                                        <span style="font-weight: 700;">( {{ $first->transferredTransaction?->transaction_id ?? '-' }} )</span>
+                                        <span class="badge bg-danger-subtle text-danger ms-1">
                                             {{ $group['total'] }} records
                                         </span>
                                     </h6>
@@ -65,7 +67,7 @@
                                             {{ optional($group['reviewed_at'])->timezone('Asia/Manila')->format('M d, Y H:i:s') }}
                                         </span>
                                         @if (auth()->user()?->role_name !== 'Viewer' && feature_allowed('Reset Duplicate Review'))
-                                            <button type="button" class="btn btn-sm btn-outline-warning text-nowrap"
+                                            <button type="button" class="btn btn-sm btn-warning text-nowrap"
                                                 data-bs-toggle="modal" data-bs-target="#undoReviewGroupModal"
                                                 data-event-ids="{{ $groupIds->implode(',') }}"
                                                 data-group-name="{{ $first->full_name }}"
@@ -184,6 +186,13 @@
 
 @push('scripts')
     <script>
+        document.querySelectorAll('.not-duplicate-review-flash-alert').forEach(alertElement => {
+            const delay = Number(alertElement.dataset.autoDismissMs) || 5000;
+            window.setTimeout(() => {
+                bootstrap.Alert.getOrCreateInstance(alertElement).close();
+            }, delay);
+        });
+
         const undoReviewModal = document.getElementById('undoReviewGroupModal');
         undoReviewModal?.addEventListener('show.bs.modal', function(event) {
             const trigger = event.relatedTarget;

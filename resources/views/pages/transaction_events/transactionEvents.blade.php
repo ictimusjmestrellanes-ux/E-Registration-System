@@ -876,7 +876,8 @@
                                 over a name to
                                 see the original. For names without a comma, verify the name order in your
                                 file before importing.</p>
-                            <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                            <div class="table-responsive" id="previewTableWrap"
+                                style="max-height: 400px; overflow-y: auto;">
                                 <table class="table table-bordered table-hover align-middle mb-0">
                                     <thead class="table-light" style="position: sticky; top: 0;">
                                         <tr>
@@ -895,6 +896,21 @@
                                     </thead>
                                     <tbody id="previewTableBody"></tbody>
                                 </table>
+                            </div>
+                            <div id="previewPaginationWrap"
+                                class="d-none align-items-center justify-content-between flex-wrap gap-2 mt-3">
+                                <small class="text-muted" id="previewPaginationInfo"></small>
+                                <div class="d-flex align-items-center gap-2">
+                                    <label for="previewPerPage" class="small text-muted mb-0">Rows per page</label>
+                                    <select class="form-select form-select-sm" id="previewPerPage" style="width: auto;">
+                                        @foreach ([10, 25, 50, 100] as $size)
+                                            <option value="{{ $size }}">{{ $size }}</option>
+                                        @endforeach
+                                    </select>
+                                    <nav aria-label="Review Import Data pages">
+                                        <ul class="pagination pagination-sm mb-0" id="previewPagination"></ul>
+                                    </nav>
+                                </div>
                             </div>
                             <div id="previewSkippedSection" class="d-none mt-3">
                                 <h6 class="text-danger mb-2">Skipped Rows</h6>
@@ -2422,6 +2438,13 @@
             const previewSkippedRows = document.getElementById('previewSkippedRows');
             const previewSkippedSection = document.getElementById('previewSkippedSection');
             const previewSkippedBody = document.getElementById('previewSkippedBody');
+            const previewTableWrap = document.getElementById('previewTableWrap');
+            const previewPaginationWrap = document.getElementById('previewPaginationWrap');
+            const previewPaginationInfo = document.getElementById('previewPaginationInfo');
+            const previewPagination = document.getElementById('previewPagination');
+            const previewPerPage = document.getElementById('previewPerPage');
+            let previewRows = [];
+            let previewCurrentPage = 1;
             let importCheckToken = null;
 
             if (!importModalEl || !previewModalEl || !csvFileVisible || !previewBtn || !confirmBtn) {
@@ -2430,6 +2453,95 @@
 
             const importModal = bootstrap.Modal.getOrCreateInstance(importModalEl);
             const previewModal = bootstrap.Modal.getOrCreateInstance(previewModalEl);
+
+            const previewPageSize = () => Math.max(1, Number(previewPerPage?.value) || 10);
+
+            const previewPageButton = (label, page, disabled = false, active = false) => `
+                <li class="page-item${disabled ? ' disabled' : ''}${active ? ' active' : ''}">
+                    <button type="button" class="page-link" data-preview-page="${page}"
+                        ${disabled ? 'disabled' : ''}>${label}</button>
+                </li>`;
+
+            const renderPreviewPagination = (totalPages) => {
+                if (!previewPagination) return;
+
+                let firstPage = Math.max(1, previewCurrentPage - 2);
+                let lastPage = Math.min(totalPages, firstPage + 4);
+                firstPage = Math.max(1, lastPage - 4);
+
+                let paginationHtml = previewPageButton('&laquo;', previewCurrentPage - 1,
+                    previewCurrentPage === 1);
+                for (let page = firstPage; page <= lastPage; page++) {
+                    paginationHtml += previewPageButton(String(page), page, false,
+                        page === previewCurrentPage);
+                }
+                paginationHtml += previewPageButton('&raquo;', previewCurrentPage + 1,
+                    previewCurrentPage === totalPages);
+                previewPagination.innerHTML = paginationHtml;
+            };
+
+            const renderPreviewPage = () => {
+                const total = previewRows.length;
+                previewTableBody.innerHTML = '';
+
+                if (total === 0) {
+                    previewTableBody.innerHTML =
+                        '<tr><td colspan="11" class="text-center text-muted py-4">No valid rows found in the file.</td></tr>';
+                    previewPaginationWrap?.classList.add('d-none');
+                    previewPaginationWrap?.classList.remove('d-flex');
+                    return;
+                }
+
+                const pageSize = previewPageSize();
+                const totalPages = Math.max(1, Math.ceil(total / pageSize));
+                previewCurrentPage = Math.min(Math.max(1, previewCurrentPage), totalPages);
+                const start = (previewCurrentPage - 1) * pageSize;
+                const end = Math.min(start + pageSize, total);
+
+                previewRows.slice(start, end).forEach(function(row, index) {
+                    const tr = document.createElement('tr');
+                    const statusBadge = row.duplicate ?
+                        '<span class="badge bg-warning-subtle text-warning">Duplicate</span>' :
+                        '<span class="badge bg-success-subtle text-success">New</span>';
+
+                    tr.innerHTML = `
+                        <td>${start + index + 1}</td>
+                        <td class="fw-semibold" title="${escapeHtml(row.full_name)}">${escapeHtml(ImportName.format(row.full_name))}</td>
+                        <td>${statusBadge}</td>
+                        <td>${escapeHtml(row.age ?? '-')}</td>
+                        <td>${escapeHtml(row.birth_date || '-')}</td>
+                        <td>${escapeHtml(row.client_category || '-')}</td>
+                        <td>${escapeHtml(row.transaction_category || '-')}</td>
+                        <td>${escapeHtml(row.transaction_type || '-')}</td>
+                        <td>${escapeHtml(row.event_date || '-')}</td>
+                        <td>${escapeHtml(row.contact_no || '-')}</td>
+                        <td>${escapeHtml(row.address || '-')}</td>
+                    `;
+                    previewTableBody.appendChild(tr);
+                });
+
+                if (previewPaginationInfo) {
+                    previewPaginationInfo.textContent =
+                        `Showing ${start + 1}-${end} of ${total.toLocaleString()} valid rows`;
+                }
+                previewPaginationWrap?.classList.remove('d-none');
+                previewPaginationWrap?.classList.add('d-flex');
+                renderPreviewPagination(totalPages);
+            };
+
+            previewPagination?.addEventListener('click', function(event) {
+                const button = event.target.closest('[data-preview-page]');
+                if (!button || button.disabled) return;
+                previewCurrentPage = Number(button.dataset.previewPage) || 1;
+                renderPreviewPage();
+                if (previewTableWrap) previewTableWrap.scrollTop = 0;
+            });
+
+            previewPerPage?.addEventListener('change', function() {
+                previewCurrentPage = 1;
+                renderPreviewPage();
+                if (previewTableWrap) previewTableWrap.scrollTop = 0;
+            });
 
             // Sync visible file input to hidden one
             csvFileVisible.addEventListener('change', function() {
@@ -2786,6 +2898,10 @@
                 previewTableBody.innerHTML = '';
                 previewSkippedBody.innerHTML = '';
                 previewSkippedSection.classList.add('d-none');
+                previewRows = [];
+                previewCurrentPage = 1;
+                previewPaginationWrap?.classList.add('d-none');
+                previewPaginationWrap?.classList.remove('d-flex');
                 document.getElementById('previewLoadingText').textContent = isExcel ?
                     'Parsing Excel file...' :
                     'Parsing CSV file...';
@@ -2801,9 +2917,7 @@
                         throw new Error(result.error);
                     }
 
-                    previewTotalRows.textContent = result.total_rows > 100 ?
-                        `${result.total_rows.toLocaleString()} (showing first ${result.preview_rows.length})` :
-                        result.total_rows.toLocaleString();
+                    previewTotalRows.textContent = result.total_rows.toLocaleString();
                     previewSkippedRows.textContent = result.skipped_rows.length.toLocaleString();
 
                     // Show detected columns
@@ -2816,32 +2930,9 @@
                         previewColumnsDiv.style.display = 'block';
                     }
 
-                    if (result.preview_rows.length > 0) {
-                        result.preview_rows.forEach(function(row, index) {
-                            const tr = document.createElement('tr');
-                            const statusBadge = row.duplicate ?
-                                '<span class="badge bg-warning-subtle text-warning">Duplicate</span>' :
-                                '<span class="badge bg-success-subtle text-success">New</span>';
-
-                            tr.innerHTML = `
-                                <td>${index + 1}</td>
-                                <td class="fw-semibold" title="${escapeHtml(row.full_name)}">${escapeHtml(ImportName.format(row.full_name))}</td>
-                                <td>${statusBadge}</td>
-                                <td>${escapeHtml(row.age ?? '-')}</td>
-                                <td>${escapeHtml(row.birth_date || '-')}</td>
-                                <td>${escapeHtml(row.client_category || '-')}</td>
-                                <td>${escapeHtml(row.transaction_category || '-')}</td>
-                                <td>${escapeHtml(row.transaction_type || '-')}</td>
-                                <td>${escapeHtml(row.event_date || '-')}</td>
-                                <td>${escapeHtml(row.contact_no || '-')}</td>
-                                <td>${escapeHtml(row.address || '-')}</td>
-                            `;
-                            previewTableBody.appendChild(tr);
-                        });
-                    } else {
-                        previewTableBody.innerHTML =
-                            '<tr><td colspan="11" class="text-center text-muted py-4">No valid rows found in the file.</td></tr>';
-                    }
+                    previewRows = Array.isArray(result.rows) ? result.rows : (result.preview_rows || []);
+                    previewCurrentPage = 1;
+                    renderPreviewPage();
 
                     if (result.skipped_rows.length > 0) {
                         result.skipped_rows.slice(0, 50).forEach(function(row) {
@@ -3342,6 +3433,11 @@
 
             previewModalEl.addEventListener('hidden.bs.modal', function() {
                 previewTableBody.innerHTML = '';
+                previewSkippedBody.innerHTML = '';
+                previewRows = [];
+                previewCurrentPage = 1;
+                previewPaginationWrap?.classList.add('d-none');
+                previewPaginationWrap?.classList.remove('d-flex');
                 previewLoading.classList.remove('d-none');
                 previewContent.classList.add('d-none');
                 previewError.classList.add('d-none');

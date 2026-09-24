@@ -11,6 +11,30 @@ class EventRecordDuplicatesPaginationTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_duplicate_records_flash_message_closes_after_five_seconds(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+
+        $this->withSession(['success' => 'Review saved.'])
+            ->get(route('transaction-events.records-duplicates'))
+            ->assertOk()
+            ->assertSee('duplicate-records-flash-alert', false)
+            ->assertSee('data-auto-dismiss-ms="5000"', false)
+            ->assertSee('bootstrap.Alert.getOrCreateInstance(alertElement).close()', false);
+    }
+
+    public function test_not_duplicate_review_flash_message_closes_after_five_seconds(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+
+        $this->withSession(['success' => 'Review restored.'])
+            ->get(route('transaction-events.removed-duplicates'))
+            ->assertOk()
+            ->assertSee('not-duplicate-review-flash-alert', false)
+            ->assertSee('data-auto-dismiss-ms="5000"', false)
+            ->assertSee('bootstrap.Alert.getOrCreateInstance(alertElement).close()', false);
+    }
+
     public function test_transferred_duplicate_can_be_moved_to_not_a_duplicate_review_and_restored(): void
     {
         $this->actingAs(User::factory()->create(['role_name' => 'Admin']));

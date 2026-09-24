@@ -80,6 +80,22 @@ class ImportAnywayTest extends TestCase
         );
     }
 
+    public function test_review_import_data_has_client_side_pagination_for_all_valid_rows(): void
+    {
+        $this->prepareUser();
+
+        $html = $this->get(route('transaction-events.index'))->assertOk()->getContent();
+
+        $this->assertStringContainsString('id="previewPaginationWrap"', $html);
+        $this->assertStringContainsString('id="previewPerPage"', $html);
+        $this->assertStringContainsString('id="previewPagination"', $html);
+        $this->assertStringContainsString(
+            'previewRows = Array.isArray(result.rows) ? result.rows : (result.preview_rows || [])',
+            $html
+        );
+        $this->assertStringContainsString('previewRows.slice(start, end)', $html);
+    }
+
     public function test_confirm_check_payload_is_reused_once_without_uploading_the_file_again(): void
     {
         $this->prepareUser();

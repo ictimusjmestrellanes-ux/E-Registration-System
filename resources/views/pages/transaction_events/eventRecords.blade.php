@@ -390,7 +390,7 @@
                                     @endif
                                     @if (feature_allowed('Undo Transfer'))
                                         <button type="button"
-                                            class="btn btn-sm btn-warning d-inline-flex align-items-center gap-1 px-3"
+                                            class="btn btn-sm btn-warning d-inline-flex align-items-center gap-1 px-3 fw-semibold"
                                             id="undoTransferSelectedBtn" disabled
                                             title="Undo transfer for the selected records"> <i
                                                 class="ri-arrow-go-back-line"></i> <span>Undo Transfer</span> </button>
@@ -602,7 +602,7 @@
                                                         @endif
                                                         @if (feature_allowed('Undo Transfer'))
                                                             <button type="button"
-                                                                class="btn btn-sm btn-soft-warning d-inline-flex align-items-center justify-content-center gap-1 text-nowrap flex-shrink-0"
+                                                                class="btn btn-sm btn-outline-warning d-inline-flex align-items-center justify-content-center gap-1 text-nowrap flex-shrink-0 fw-semibold"
                                                                 data-bs-toggle="modal"
                                                                 data-bs-target="#undoSingleTransferModal"
                                                                 data-undo-url="{{ route('transaction-events.undo-transfer', $event) }}"

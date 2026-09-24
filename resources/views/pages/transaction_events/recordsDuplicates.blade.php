@@ -5,7 +5,8 @@
     <div class="container-fluid">
         @foreach (['success' => 'success', 'error' => 'danger'] as $message => $color)
             @if (session($message))
-                <div class="alert alert-{{ $color }} alert-dismissible fade show" role="alert">
+                <div class="alert alert-{{ $color }} alert-dismissible fade show duplicate-records-flash-alert"
+                    role="alert" data-auto-dismiss-ms="5000">
                     {{ session($message) }}
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                 </div>
@@ -23,7 +24,7 @@
                             <div class="d-flex flex-wrap gap-2">
                                 @if (feature_allowed('View Removed Duplicates'))
                                     <a href="{{ route('transaction-events.removed-duplicates') }}"
-                                        class="btn btn-soft-warning btn-sm">
+                                        class="btn btn-warning btn-sm">
                                         <i class="ri-file-list-3-line me-1"></i> Not a Duplicate Review
                                     </a>
                                 @endif
@@ -473,6 +474,13 @@
 @push('scripts')
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('.duplicate-records-flash-alert').forEach(alertElement => {
+                const delay = Number(alertElement.dataset.autoDismissMs) || 5000;
+                window.setTimeout(() => {
+                    bootstrap.Alert.getOrCreateInstance(alertElement).close();
+                }, delay);
+            });
+
             const notDuplicateModal = document.getElementById('notDuplicateGroupModal');
             const notDuplicateSelectAll = document.getElementById('notDuplicateSelectAll');
             const notDuplicateChoices = document.getElementById('notDuplicateRecordChoices');
