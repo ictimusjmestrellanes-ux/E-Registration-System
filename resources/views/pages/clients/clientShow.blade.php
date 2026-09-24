@@ -327,7 +327,7 @@
                                                 <td data-column="transaction_type" class="text-uppercase">{{ $transaction->type_label ?? 'N/A' }}</td>
                                                 {{-- <td data-column="events_transaction_type" class="text-uppercase">{{ $transaction->events_transaction_type ?: 'N/A' }}</td> --}}
                                                 <td data-column="status">
-                                                    <span class="badge bg-{{ $txStatusColor }}-subtle text-{{ $txStatusColor }}">{{ $txStatus }}</span>
+                                                    <span class="badge bg-{{ $txStatusColor }}-subtle text-{{ $txStatusColor }} py-2 px-3">{{ $txStatus }}</span>
                                                 </td>
                                                 <td data-column="actions_taken">{{ $transaction->actions_taken ?? 'N/A' }}</td>
                                                 <td data-column="remarks">{{ $transaction->remarks ?? 'N/A' }}</td>

@@ -14,8 +14,8 @@
                     Pending. The client record will remain. Transfers with uploaded requirements cannot be undone.</p>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-soft-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="submit" class="btn btn-warning" id="confirmSingleUndoTransferBtn" disabled>
+                <button type="button" class="btn btn-sm btn-soft-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-sm btn-warning" id="confirmSingleUndoTransferBtn" disabled>
                     Undo Transfer
                 </button>
             </div>

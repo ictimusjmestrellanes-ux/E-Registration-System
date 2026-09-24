@@ -53,57 +53,65 @@ class DuplicateReviewController extends Controller
             )->all(), $groups);
         });
 
-        $groups = $this->hydrateDuplicateGroups($groups);
+        // Keep the warm path lightweight. The cache stores membership IDs, so
+        // only validate those IDs here; full client rows are loaded after the
+        // three tabs have been filtered and paginated.
+        $groups = $this->normalizeDuplicateGroupIds($groups);
 
         $exactGroups = $groups['exact'];
         $likelyGroups = $groups['likely'];
         $similarGroups = $groups['similar'];
 
         $perPage = $this->duplicateClientPerPage($request);
-        $exact = $this->filterDuplicateClientGroups($request, $exactGroups, 'exact_page', $perPage, 'exact-tab');
-        $likely = $this->filterDuplicateClientGroups($request, $likelyGroups, 'likely_page', $perPage, 'likely-tab');
-        $similar = $this->filterDuplicateClientGroups($request, $similarGroups, 'similar_page', $perPage, 'similar-tab');
+        $allIds = collect($groups)->flatten()->unique()->values();
+        $matchingIds = $this->matchingDuplicateClientIds($request, $allIds);
+
+        $results = [
+            'exact' => $this->paginateDuplicateClientGroups($request, $exactGroups, $matchingIds, 'exact_page', $perPage, 'exact-tab'),
+            'likely' => $this->paginateDuplicateClientGroups($request, $likelyGroups, $matchingIds, 'likely_page', $perPage, 'likely-tab'),
+            'similar' => $this->paginateDuplicateClientGroups($request, $similarGroups, $matchingIds, 'similar_page', $perPage, 'similar-tab'),
+        ];
+        $results = $this->hydrateVisibleDuplicateGroups($results);
 
         return view('pages.duplicates.index', array_merge(
-            $this->duplicateClientFilterOptions($exactGroups, $likelyGroups, $similarGroups),
+            $this->duplicateClientFilterOptions($allIds),
             [
-                'exactGroups' => $exact['paginator'],
-                'exactGroupsTotal' => $exact['total'],
-                'exactRecordsTotal' => $exact['records'],
-                'likelyGroups' => $likely['paginator'],
-                'likelyGroupsTotal' => $likely['total'],
-                'likelyRecordsTotal' => $likely['records'],
-                'similarGroups' => $similar['paginator'],
-                'similarGroupsTotal' => $similar['total'],
-                'similarRecordsTotal' => $similar['records'],
+                'exactGroups' => $results['exact']['paginator'],
+                'exactGroupsTotal' => $results['exact']['total'],
+                'exactRecordsTotal' => $results['exact']['records'],
+                'likelyGroups' => $results['likely']['paginator'],
+                'likelyGroupsTotal' => $results['likely']['total'],
+                'likelyRecordsTotal' => $results['likely']['records'],
+                'similarGroups' => $results['similar']['paginator'],
+                'similarGroupsTotal' => $results['similar']['total'],
+                'similarRecordsTotal' => $results['similar']['records'],
                 'perPage' => $perPage,
             ]
         ));
     }
 
     /**
-     * Load each cached client once, using bounded queries on large datasets.
+     * Remove stale IDs from cached groups without hydrating full models.
      */
-    private function hydrateDuplicateGroups(array $groups): array
+    private function normalizeDuplicateGroupIds(array $groups): array
     {
         $ids = collect($groups)->flatten()->unique()->values();
-        $clients = collect();
-        foreach ($ids->chunk(1000) as $chunk) {
-            foreach (Client::query()->select([
-                'id', 'client_id', 'first_name', 'middle_name', 'last_name', 'suffix',
-                'age', 'birth_date', 'gender', 'civil_status', 'sector',
-                'email', 'contact', 'contact_2', 'address',
-                'province', 'city', 'barangay', 'photo_path', 'created_at',
-            ])->whereIn('id', $chunk->all())->get() as $client) {
-                $clients->put($client->id, $client);
+        $existing = [];
+        foreach ($ids->chunk($this->duplicateClientQueryChunkSize()) as $chunk) {
+            foreach (Client::query()->whereIn('id', $chunk->all())->pluck('id') as $id) {
+                $existing[(int) $id] = true;
             }
         }
 
-        return array_map(fn ($category) => collect($category)->map(function ($memberIds) use ($clients) {
-            $members = collect($memberIds)->map(fn ($id) => $clients->get($id))->filter()->values();
-
-            return $this->groupPayload($members);
-        })->filter(fn ($group) => $group['total'] > 1)->values(), $groups);
+        return array_map(fn ($category) => collect($category)
+            ->map(fn ($memberIds) => collect($memberIds)
+                ->map(fn ($id) => (int) $id)
+                ->filter(fn ($id) => isset($existing[$id]))
+                ->unique()
+                ->values()
+                ->all())
+            ->filter(fn ($memberIds) => count($memberIds) > 1)
+            ->values(), $groups);
     }
 
     /**
@@ -502,13 +510,12 @@ class DuplicateReviewController extends Controller
     }
 
     /**
-     * Filter cached duplicate-client groups (a group is kept when ANY member
-     * matches ALL active filters) and paginate the result for one tab with a
-     * numbered LengthAwarePaginator (own page query param + tab fragment).
+     * Load the small set of columns needed for active filters and return an ID
+     * lookup. With no filters, no client detail rows are loaded at this stage.
      *
-     * @return array{paginator: LengthAwarePaginator, total: int, records: int}
+     * @return array<int, true>|null
      */
-    private function filterDuplicateClientGroups(Request $request, Collection $groups, string $pageParam, int $perPage, string $fragment): array
+    private function matchingDuplicateClientIds(Request $request, Collection $ids): ?array
     {
         $keyword = strtolower(trim((string) $request->input('search', '')));
         $gender = strtolower(trim((string) $request->input('gender', '')));
@@ -518,61 +525,85 @@ class DuplicateReviewController extends Controller
         $dateFrom = trim((string) $request->input('date_from', ''));
         $dateTo = trim((string) $request->input('date_to', ''));
 
-        $memberMatches = function ($c) use ($keyword, $gender, $civilStatus, $city, $barangay, $dateFrom, $dateTo) {
-            if ($keyword !== '') {
-                $haystack = strtolower(implode(' ', [
-                    $c->first_name ?? '',
-                    $c->middle_name ?? '',
-                    $c->last_name ?? '',
-                    $c->suffix ?? '',
-                    $c->client_id ?? '',
-                    $c->email ?? '',
-                    $c->contact ?? '',
-                    $c->contact_2 ?? '',
-                    $c->address ?? '',
-                    $c->barangay ?? '',
-                    $c->city ?? '',
-                    $c->province ?? '',
-                    $c->sector ?? '',
-                    $c->gender ?? '',
-                    $c->civil_status ?? '',
-                    $c->birth_date?->format('Y-m-d') ?? '',
-                    $c->birth_date?->format('M d, Y') ?? '',
-                    $c->id ?? '',
-                ]));
-                if (! str_contains($haystack, $keyword)) {
-                    return false;
-                }
-            }
-            if ($gender !== '' && strtolower(trim((string) ($c->gender ?? ''))) !== $gender) {
-                return false;
-            }
-            if ($civilStatus !== '' && strtolower(trim((string) ($c->civil_status ?? ''))) !== $civilStatus) {
-                return false;
-            }
-            if ($city !== '' && strtolower(trim((string) ($c->city ?? ''))) !== $city) {
-                return false;
-            }
-            if ($barangay !== '' && strtolower(trim((string) ($c->barangay ?? ''))) !== $barangay) {
-                return false;
-            }
-            $createdAt = $c->created_at?->format('Y-m-d') ?? '';
-            if ($dateFrom !== '' && ($createdAt === '' || $createdAt < $dateFrom)) {
-                return false;
-            }
-            if ($dateTo !== '' && ($createdAt === '' || $createdAt > $dateTo)) {
-                return false;
-            }
-
-            return true;
-        };
-
         $hasFilters = $keyword !== '' || $gender !== '' || $civilStatus !== ''
             || $city !== '' || $barangay !== '' || $dateFrom !== '' || $dateTo !== '';
+        if (! $hasFilters || $ids->isEmpty()) {
+            return $hasFilters ? [] : null;
+        }
 
-        $filtered = $hasFilters
-            ? $groups->filter(fn ($g) => collect($g['clients'] ?? [])->contains($memberMatches))->values()
-            : $groups->values();
+        $matches = [];
+        foreach ($ids->chunk($this->duplicateClientQueryChunkSize()) as $chunk) {
+            $clients = Client::query()->select([
+                'id', 'client_id', 'first_name', 'middle_name', 'last_name', 'suffix',
+                'birth_date', 'gender', 'civil_status', 'sector', 'email', 'contact',
+                'contact_2', 'address', 'province', 'city', 'barangay', 'created_at',
+            ])->whereIn('id', $chunk->all())->get();
+
+            foreach ($clients as $client) {
+                if ($keyword !== '') {
+                    $haystack = strtolower(implode(' ', [
+                        $client->first_name ?? '', $client->middle_name ?? '',
+                        $client->last_name ?? '', $client->suffix ?? '',
+                        $client->client_id ?? '', $client->email ?? '',
+                        $client->contact ?? '', $client->contact_2 ?? '',
+                        $client->address ?? '', $client->barangay ?? '',
+                        $client->city ?? '', $client->province ?? '',
+                        $client->sector ?? '', $client->gender ?? '',
+                        $client->civil_status ?? '',
+                        $client->birth_date?->format('Y-m-d') ?? '',
+                        $client->birth_date?->format('M d, Y') ?? '',
+                        $client->id,
+                    ]));
+                    if (! str_contains($haystack, $keyword)) {
+                        continue;
+                    }
+                }
+                if ($gender !== '' && strtolower(trim((string) $client->gender)) !== $gender) {
+                    continue;
+                }
+                if ($civilStatus !== '' && strtolower(trim((string) $client->civil_status)) !== $civilStatus) {
+                    continue;
+                }
+                if ($city !== '' && strtolower(trim((string) $client->city)) !== $city) {
+                    continue;
+                }
+                if ($barangay !== '' && strtolower(trim((string) $client->barangay)) !== $barangay) {
+                    continue;
+                }
+                $createdAt = $client->created_at?->format('Y-m-d') ?? '';
+                if ($dateFrom !== '' && ($createdAt === '' || $createdAt < $dateFrom)) {
+                    continue;
+                }
+                if ($dateTo !== '' && ($createdAt === '' || $createdAt > $dateTo)) {
+                    continue;
+                }
+
+                $matches[(int) $client->id] = true;
+            }
+        }
+
+        return $matches;
+    }
+
+    /**
+     * Filter lightweight membership groups and paginate before hydration.
+     *
+     * @param array<int, true>|null $matchingIds
+     * @return array{paginator: LengthAwarePaginator, total: int, records: int}
+     */
+    private function paginateDuplicateClientGroups(
+        Request $request,
+        Collection $groups,
+        ?array $matchingIds,
+        string $pageParam,
+        int $perPage,
+        string $fragment
+    ): array {
+        $filtered = $matchingIds === null
+            ? $groups->values()
+            : $groups->filter(fn ($memberIds) => collect($memberIds)
+                ->contains(fn ($id) => isset($matchingIds[(int) $id])))
+                ->values();
 
         $total = $filtered->count();
         $pages = max(1, (int) ceil($total / $perPage));
@@ -585,59 +616,110 @@ class DuplicateReviewController extends Controller
             $page,
             ['path' => $request->url(), 'pageName' => $pageParam]
         );
-        $paginator = $paginator->withQueryString()->fragment($fragment);
 
         return [
-            'paginator' => $paginator,
+            'paginator' => $paginator->withQueryString()->fragment($fragment),
             'total' => $total,
-            'records' => $filtered->sum('total'),
+            'records' => $filtered->sum(fn ($memberIds) => count($memberIds)),
         ];
     }
 
     /**
-     * Distinct dropdown options built from cached groups' members.
+     * Hydrate only the groups visible on the current page of each tab.
+     *
+     * @param array<string, array{paginator: LengthAwarePaginator, total: int, records: int}> $results
+     */
+    private function hydrateVisibleDuplicateGroups(array $results): array
+    {
+        $ids = collect($results)
+            ->flatMap(fn ($result) => $result['paginator']->getCollection()->flatten())
+            ->unique()
+            ->values();
+
+        $clients = collect();
+        foreach ($ids->chunk($this->duplicateClientQueryChunkSize()) as $chunk) {
+            foreach (Client::query()->select([
+                'id', 'client_id', 'first_name', 'middle_name', 'last_name', 'suffix',
+                'age', 'birth_date', 'gender', 'civil_status', 'sector',
+                'email', 'contact', 'contact_2', 'address',
+                'province', 'city', 'barangay', 'photo_path', 'created_at',
+            ])->whereIn('id', $chunk->all())->get() as $client) {
+                $clients->put((int) $client->id, $client);
+            }
+        }
+
+        foreach ($results as &$result) {
+            $hydrated = $result['paginator']->getCollection()->map(function ($memberIds) use ($clients) {
+                $members = collect($memberIds)
+                    ->map(fn ($id) => $clients->get((int) $id))
+                    ->filter()
+                    ->values();
+
+                return $this->groupPayload($members);
+            })->filter(fn ($group) => $group['total'] > 1)->values();
+
+            $result['paginator']->setCollection($hydrated);
+        }
+        unset($result);
+
+        return $results;
+    }
+
+    /**
+     * Cache dropdown values separately from full client models. Client model
+     * events invalidate this lightweight cache together with group membership.
      *
      * @return array{filterGenders: array, filterCivilStatuses: array, filterCities: array, filterBarangays: array}
      */
-    private function duplicateClientFilterOptions(Collection ...$allGroups): array
+    private function duplicateClientFilterOptions(Collection $ids): array
     {
-        $genders = [];
-        $civilStatuses = [];
-        $cities = [];
-        $barangays = [];
-        foreach ($allGroups as $groups) {
-            foreach ($groups as $g) {
-                foreach ($g['clients'] ?? [] as $c) {
-                    $gender = trim((string) ($c->gender ?? ''));
-                    $civilStatus = trim((string) ($c->civil_status ?? ''));
-                    $city = trim((string) ($c->city ?? ''));
-                    $barangay = trim((string) ($c->barangay ?? ''));
-                    if ($gender !== '') {
-                        $genders[strtolower($gender)] = $gender;
-                    }
-                    if ($civilStatus !== '') {
-                        $civilStatuses[strtolower($civilStatus)] = $civilStatus;
-                    }
-                    if ($city !== '') {
-                        $cities[strtolower($city)] = $city;
-                    }
-                    if ($barangay !== '') {
-                        $barangays[strtolower($barangay)] = $barangay;
+        if ($ids->isEmpty()) {
+            return [
+                'filterGenders' => [],
+                'filterCivilStatuses' => [],
+                'filterCities' => [],
+                'filterBarangays' => [],
+            ];
+        }
+
+        $cacheKey = 'duplicate_clients_filter_options_v1';
+
+        return Cache::remember($cacheKey, now()->addSeconds(self::DUPLICATE_CLIENTS_CACHE_TTL), function () use ($ids) {
+            $values = [
+                'gender' => [],
+                'civil_status' => [],
+                'city' => [],
+                'barangay' => [],
+            ];
+
+            foreach ($ids->chunk($this->duplicateClientQueryChunkSize()) as $chunk) {
+                $rows = Client::query()
+                    ->select(['gender', 'civil_status', 'city', 'barangay'])
+                    ->whereIn('id', $chunk->all())
+                    ->get();
+
+                foreach ($rows as $row) {
+                    foreach (array_keys($values) as $field) {
+                        $value = trim((string) $row->{$field});
+                        if ($value !== '') {
+                            $values[$field][strtolower($value)] = $value;
+                        }
                     }
                 }
             }
-        }
-        asort($genders);
-        asort($civilStatuses);
-        asort($cities);
-        asort($barangays);
 
-        return [
-            'filterGenders' => array_values($genders),
-            'filterCivilStatuses' => array_values($civilStatuses),
-            'filterCities' => array_values($cities),
-            'filterBarangays' => array_values($barangays),
-        ];
+            foreach ($values as &$items) {
+                natcasesort($items);
+            }
+            unset($items);
+
+            return [
+                'filterGenders' => array_values($values['gender']),
+                'filterCivilStatuses' => array_values($values['civil_status']),
+                'filterCities' => array_values($values['city']),
+                'filterBarangays' => array_values($values['barangay']),
+            ];
+        });
     }
 
     private function duplicateClientPerPage(Request $request): int
@@ -645,6 +727,13 @@ class DuplicateReviewController extends Controller
         $perPage = (int) $request->input('per_page', 10);
 
         return in_array($perPage, [10, 15, 25, 50, 100], true) ? $perPage : 10;
+    }
+
+    private function duplicateClientQueryChunkSize(): int
+    {
+        // SQLite has a low placeholder limit in tests. MySQL can safely use a
+        // larger batch, reducing round trips on production-sized client lists.
+        return DB::connection()->getDriverName() === 'sqlite' ? 900 : 5000;
     }
 
     private function groupClientsByKey(array $keys, string $keyExpr): \Illuminate\Support\Collection

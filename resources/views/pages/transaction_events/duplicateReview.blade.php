@@ -5,7 +5,10 @@
         $exactCount = $exactRecordsTotal ?? $exactGroups->sum('total');
         $likelyCount = $likelyRecordsTotal ?? $likelyGroups->sum('total');
         $similarCount = $similarRecordsTotal ?? $similarGroups->sum('total');
-        $totalGroups = ($exactGroupsTotal ?? $exactGroups->count()) + ($likelyGroupsTotal ?? $likelyGroups->count()) + ($similarGroupsTotal ?? $similarGroups->count());
+        $totalGroups =
+            ($exactGroupsTotal ?? $exactGroups->count()) +
+            ($likelyGroupsTotal ?? $likelyGroups->count()) +
+            ($similarGroupsTotal ?? $similarGroups->count());
         $totalDuplicates = $exactCount + $likelyCount + $similarCount;
 
         $isTransferred = fn($event) => !is_null($event->transferred_at);
@@ -16,16 +19,27 @@
             $out = '<div class="border rounded-4 p-3 mb-3">';
             $out .= '<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">';
             $out .= '<div>';
-            $out .= '<h6 class="mb-0">' . e($first->full_name) . ' (' . e($first->transferredTransaction?->transaction_id ?? '-') . ')';
+            $out .=
+                '<h6 class="mb-0">' .
+                e($first->full_name) .
+                ' (' .
+                e($first->transferredTransaction?->transaction_id ?? '-') .
+                ')';
             $out .=
                 ' <span class="badge bg-danger-subtle text-danger ms-1">' . $group['total'] . ' records</span></h6>';
             $out .= ' &middot; Earliest record: ' . e(optional($group['created_at'])->format('M d, Y')) . '</p>';
             $out .= '</div>';
             if (auth()->user()?->role_name !== 'Viewer') {
-                $out .= '<form action="' . e(route('transaction-events.group-not-duplicate')) . '" method="POST" class="d-inline" onsubmit="return confirm(\'Mark all ' . $group['total'] . ' record(s) in this group as Not a Duplicate? They will be removed from Duplicate Review.\');">';
+                $out .=
+                    '<form action="' .
+                    e(route('transaction-events.group-not-duplicate')) .
+                    '" method="POST" class="d-inline" onsubmit="return confirm(\'Mark all ' .
+                    $group['total'] .
+                    ' record(s) in this group as Not a Duplicate? They will be removed from Duplicate Review.\');">';
                 $out .= csrf_field();
                 $out .= '<input type="hidden" name="event_ids" value="' . e($groupIds) . '">';
-                $out .= '<button type="submit" class="btn btn-sm btn-soft-warning"><i class="ri-close-circle-line me-1"></i>Not a Duplicate (Group)</button>';
+                $out .=
+                    '<button type="submit" class="btn btn-sm btn-soft-warning"><i class="ri-close-circle-line me-1"></i>Not a Duplicate (Group)</button>';
                 $out .= '</form>';
             }
             $out .= '</div>';
@@ -57,8 +71,14 @@
                     'Unclaimed' => 'warning',
                     default => 'secondary',
                 };
-                $out .= '<span class="badge bg-' . $statusColor . '-subtle text-' . $statusColor . '">'
-                    . e($event->status) . '</span>';
+                $out .=
+                    '<span class="badge bg-' .
+                    $statusColor .
+                    '-subtle text-' .
+                    $statusColor .
+                    '">' .
+                    e($event->status) .
+                    '</span>';
                 if ($transferred) {
                     $out .= '<div class="small text-muted">Transferred</div>';
                 }
@@ -94,8 +114,7 @@
             $out .= '</tbody></table></div></div>';
             return $out;
         };
-
-                        @endphp
+    @endphp
     <div class="container-fluid">
         <div class="row">
             <div class="col-12">
@@ -108,10 +127,7 @@
                                 </p>
                             </div>
                             <div class="d-flex gap-2">
-                                <span class="badge bg-primary-subtle text-primary fs-13">{{ $totalGroups }} group(s)</span>
-                                <span class="badge bg-danger-subtle text-danger fs-13">{{ $totalDuplicates }}
-                                    record(s)</span>
-                                <a href="{{ route('transaction-events.index') }}" class="btn btn-outline-secondary btn-sm">
+                                <a href="{{ route('transaction-events.index') }}" class="btn btn-outline-primary btn-sm">
                                     <i class="ri-arrow-left-line me-1"></i> Back to Events
                                 </a>
                             </div>
@@ -154,16 +170,16 @@
                                         date range.</div>
                                 </div>
                                 <div class="d-flex flex-wrap gap-2 align-items-center">
-                                    <button type="button" class="btn btn-sm btn-outline-primary" id="dupFiltersToggleBtn">
+                                    <button type="button" class="btn btn-sm btn-primary" id="dupFiltersToggleBtn">
                                         Show Filters <i class="ri-arrow-down-s-line ms-1"></i>
                                     </button>
                                     <a href="{{ route('transaction-events.duplicate-review') }}"
-                                        class="btn btn-sm btn-soft-secondary">Reset</a>
+                                        class="btn btn-sm btn-soft-primary">Reset</a>
                                     <select class="form-select form-select-sm w-auto" id="dupPerPageSelect"
                                         aria-label="Groups per page" title="Groups per page">
                                         @foreach ([10, 15, 25, 50, 100] as $size)
                                             <option value="{{ $size }}"
-                                                {{ ($perPage ?? 25) == $size ? 'selected' : '' }}>
+                                                {{ ($perPage ?? 10) == $size ? 'selected' : '' }}>
                                                 {{ $size }} / page</option>
                                         @endforeach
                                     </select>
@@ -179,56 +195,65 @@
                                         <div class="input-group">
                                             <span class="input-group-text"><i class="ri-search-line"></i></span>
                                             <input type="text" class="form-control" id="dupKeywordInput" name="search"
-                                                placeholder="Name, category, type, date..."
-                                                value="{{ request('search') }}">
+                                                placeholder="Name, category, type, date..." value="{{ request('search') }}">
                                         </div>
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
                                         <label class="form-label fw-semibold text-uppercase small">Client Category</label>
-                                        @include('pages.transaction_events.partials.multiSelectSearchDropdown', [
-                                            'dropdownId' => 'dupClientCategory',
-                                            'fieldName' => 'client_category',
-                                            'options' => $filterClientCategories ?? [],
-                                            'allLabel' => 'All client categories',
-                                            'searchPlaceholder' => 'Search client categories...',
-                                        ])
+                                        @include(
+                                            'pages.transaction_events.partials.multiSelectSearchDropdown',
+                                            [
+                                                'dropdownId' => 'dupClientCategory',
+                                                'fieldName' => 'client_category',
+                                                'options' => $filterClientCategories ?? [],
+                                                'allLabel' => 'All client categories',
+                                                'searchPlaceholder' => 'Search client categories...',
+                                            ]
+                                        )
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
-                                        <label class="form-label fw-semibold text-uppercase small">Transaction Category</label>
-                                        @include('pages.transaction_events.partials.multiSelectSearchDropdown', [
-                                            'dropdownId' => 'dupTransactionCategory',
-                                            'fieldName' => 'transaction_category',
-                                            'options' => $filterTransactionCategories ?? [],
-                                            'allLabel' => 'All categories',
-                                            'searchPlaceholder' => 'Search categories...',
-                                        ])
+                                        <label class="form-label fw-semibold text-uppercase small">Transaction
+                                            Category</label>
+                                        @include(
+                                            'pages.transaction_events.partials.multiSelectSearchDropdown',
+                                            [
+                                                'dropdownId' => 'dupTransactionCategory',
+                                                'fieldName' => 'transaction_category',
+                                                'options' => $filterTransactionCategories ?? [],
+                                                'allLabel' => 'All categories',
+                                                'searchPlaceholder' => 'Search categories...',
+                                            ]
+                                        )
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
                                         <label class="form-label fw-semibold text-uppercase small">Transaction Type</label>
-                                        @include('pages.transaction_events.partials.multiSelectSearchDropdown', [
-                                            'dropdownId' => 'dupTransactionType',
-                                            'fieldName' => 'transaction_type',
-                                            'options' => $filterTransactionTypes ?? [],
-                                            'allLabel' => 'All types',
-                                            'searchPlaceholder' => 'Search types...',
-                                        ])
+                                        @include(
+                                            'pages.transaction_events.partials.multiSelectSearchDropdown',
+                                            [
+                                                'dropdownId' => 'dupTransactionType',
+                                                'fieldName' => 'transaction_type',
+                                                'options' => $filterTransactionTypes ?? [],
+                                                'allLabel' => 'All types',
+                                                'searchPlaceholder' => 'Search types...',
+                                            ]
+                                        )
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
-                                        <label for="dupDateFrom"
-                                            class="form-label fw-semibold text-uppercase small">Date From</label>
+                                        <label for="dupDateFrom" class="form-label fw-semibold text-uppercase small">Date
+                                            From</label>
                                         <input type="date" class="form-control" id="dupDateFrom" name="date_from"
                                             value="{{ request('date_from') }}">
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
-                                        <label for="dupDateTo"
-                                            class="form-label fw-semibold text-uppercase small">Date To</label>
+                                        <label for="dupDateTo" class="form-label fw-semibold text-uppercase small">Date
+                                            To</label>
                                         <input type="date" class="form-control" id="dupDateTo" name="date_to"
                                             value="{{ request('date_to') }}">
                                     </div>
                                 </div>
 
                                 <div class="row g-3 align-items-end">
-                                    <div class="col-6 d-flex gap-2 justify-content-end">
+                                    <div class="col-12 d-flex gap-2 justify-content-end">
                                         <button type="submit" class="btn btn-sm btn-primary px-4">
                                             <i class="ri-filter-3-fill me-1"></i> Apply Filters
                                         </button>
@@ -245,7 +270,8 @@
                             <li class="nav-item">
                                 <a class="nav-link active" data-bs-toggle="tab" href="#exact-tab" role="tab">
                                     Exact Match
-                                    <span class="badge bg-danger-subtle text-danger ms-1">{{ $exactGroupsTotal ?? $exactGroups->count() }}</span>
+                                    <span
+                                        class="badge bg-danger-subtle text-danger ms-1">{{ $exactGroupsTotal ?? $exactGroups->count() }}</span>
                                 </a>
                             </li>
                             <li class="nav-item">
@@ -258,16 +284,24 @@
                             <li class="nav-item">
                                 <a class="nav-link" data-bs-toggle="tab" href="#similar-tab" role="tab">
                                     Similar Spelling
-                                    <span class="badge bg-info-subtle text-info ms-1">{{ $similarGroupsTotal ?? $similarGroups->count() }}</span>
+                                    <span
+                                        class="badge bg-info-subtle text-info ms-1">{{ $similarGroupsTotal ?? $similarGroups->count() }}</span>
                                 </a>
                             </li>
                         </ul>
 
                         <div class="tab-content">
                             <div class="tab-pane fade show active" id="exact-tab" role="tabpanel">
+                                <span class="badge bg-primary-subtle text-primary fs-13">{{ $totalGroups }}
+                                    group(s)</span>
+                                <span class="badge bg-danger-subtle text-danger fs-13">{{ $totalDuplicates }}
+                                    record(s)</span>
                                 <div class="alert alert-danger-subtle d-flex align-items-center mb-3 py-2" role="alert">
                                     <i class="ri-error-warning-line fs-4 me-2"></i>
-                                    <div class="small">Same <strong>Full Name</strong>, <strong>Client Category</strong>, <strong>Transaction Category</strong>, <strong>Transaction Type</strong>, and <strong>Event Date</strong>. High confidence duplicates.</div>
+                                    <div class="small">Same <strong>Full Name</strong>, <strong>Client Category</strong>,
+                                        <strong>Transaction Category</strong>, <strong>Transaction Type</strong>, and
+                                        <strong>Event Date</strong>. High confidence duplicates.
+                                    </div>
                                 </div>
                                 @forelse ($exactGroups as $group)
                                     {!! $renderGroup($group) !!}
@@ -279,18 +313,27 @@
                                 @endforelse
                                 @if ($exactGroups->total() > 0)
                                     <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between mt-3">
-                                        <div class="small text-muted">Showing {{ $exactGroups->firstItem() }}–{{ $exactGroups->lastItem() }} of {{ $exactGroups->total() }} groups</div>
+                                        <div class="small text-muted">Showing
+                                            {{ $exactGroups->firstItem() }}–{{ $exactGroups->lastItem() }} of
+                                            {{ $exactGroups->total() }} groups</div>
                                         {{ $exactGroups->links('pagination::bootstrap-5') }}
                                     </div>
                                 @endif
                             </div>
 
                             <div class="tab-pane fade" id="likely-tab" role="tabpanel">
-                                <div class="alert alert-warning-subtle d-flex align-items-center mb-3 py-2" role="alert">
+                                <span class="badge bg-primary-subtle text-primary fs-13">{{ $totalGroups }}
+                                    group(s)</span>
+                                <span class="badge bg-danger-subtle text-danger fs-13">{{ $totalDuplicates }}
+                                    record(s)</span>
+                                <div class="alert alert-warning-subtle d-flex align-items-center mb-3 py-2"
+                                    role="alert">
                                     <i class="ri-alert-line fs-4 me-2"></i>
                                     <div class="small">
                                         Same <strong>Full Name</strong> plus at least one of:
-                                        Event Date + Transaction Category, Event Date + Transaction Type, Transaction Category + Transaction Type, Event Date only, Transaction Type only, or Transaction Category only.
+                                        Event Date + Transaction Category, Event Date + Transaction Type, Transaction
+                                        Category + Transaction Type, Event Date only, Transaction Type only, or Transaction
+                                        Category only.
                                         Review before acting.
                                     </div>
                                 </div>
@@ -304,13 +347,19 @@
                                 @endforelse
                                 @if ($likelyGroups->total() > 0)
                                     <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between mt-3">
-                                        <div class="small text-muted">Showing {{ $likelyGroups->firstItem() }}–{{ $likelyGroups->lastItem() }} of {{ $likelyGroups->total() }} groups</div>
+                                        <div class="small text-muted">Showing
+                                            {{ $likelyGroups->firstItem() }}–{{ $likelyGroups->lastItem() }} of
+                                            {{ $likelyGroups->total() }} groups</div>
                                         {{ $likelyGroups->links('pagination::bootstrap-5') }}
                                     </div>
                                 @endif
                             </div>
 
                             <div class="tab-pane fade" id="similar-tab" role="tabpanel">
+                                <span class="badge bg-primary-subtle text-primary fs-13">{{ $totalGroups }}
+                                    group(s)</span>
+                                <span class="badge bg-danger-subtle text-danger fs-13">{{ $totalDuplicates }}
+                                    record(s)</span>
                                 <div class="alert alert-info-subtle d-flex align-items-center mb-3 py-2" role="alert">
                                     <i class="ri-information-line fs-4 me-2"></i>
                                     <div class="small">Possible-similar name spelling (e.g. Maria/Marie, Jon/John). Verify
@@ -326,14 +375,16 @@
                                 @endforelse
                                 @if ($similarGroups->total() > 0)
                                     <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between mt-3">
-                                        <div class="small text-muted">Showing {{ $similarGroups->firstItem() }}–{{ $similarGroups->lastItem() }} of {{ $similarGroups->total() }} groups</div>
+                                        <div class="small text-muted">Showing
+                                            {{ $similarGroups->firstItem() }}–{{ $similarGroups->lastItem() }} of
+                                            {{ $similarGroups->total() }} groups</div>
                                         {{ $similarGroups->links('pagination::bootstrap-5') }}
                                     </div>
                                 @endif
                             </div>
                         </div>
 
-                        <hr class="my-4">
+                        {{-- <hr class="my-4">
                         <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
                             <h6 class="mb-0">Reviewed as Not a Duplicate</h6>
                             @if (feature_allowed('View Removed Duplicates'))
@@ -352,8 +403,8 @@
                                         {{ optional($event->birth_date)->format('M d, Y') ?? 'No birth date' }}</span>
                                 </div>
                                 @if (auth()->user()?->role_name !== 'Viewer')
-                                    <form action="{{ route('transaction-events.reset-duplicate', $event) }}" method="POST"
-                                        class="m-0">
+                                    <form action="{{ route('transaction-events.reset-duplicate', $event) }}"
+                                        method="POST" class="m-0">
                                         @csrf
                                         <button type="submit" class="btn btn-sm btn-soft-warning">
                                             <i class="ri-arrow-go-back-line me-1"></i> Undo
@@ -363,7 +414,7 @@
                             </div>
                         @empty
                             <p class="text-muted small mb-0">No events marked as not a duplicate yet.</p>
-                        @endforelse
+                        @endforelse --}}
                     </div>
                 </div>
             </div>
@@ -394,7 +445,8 @@
             document.getElementById('dupPerPageSelect')?.addEventListener('change', function() {
                 const url = new URL(window.location.href);
                 url.searchParams.set('per_page', this.value);
-                ['exact_page', 'likely_page', 'similar_page', 'page'].forEach((k) => url.searchParams.delete(k));
+                ['exact_page', 'likely_page', 'similar_page', 'page'].forEach((k) => url.searchParams
+                    .delete(k));
                 window.location.href = url.toString();
             });
             const initialHash = window.location.hash;

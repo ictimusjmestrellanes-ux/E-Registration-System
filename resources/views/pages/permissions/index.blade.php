@@ -96,7 +96,7 @@
                                                             data-bs-toggle="modal"
                                                             data-bs-target="#deletePermissionModal-{{ str_replace(' ', '-', $permission['feature']) }}"
                                                             title="Delete Permission">
-                                                            <i class="ri-delete-bin-line"></i>
+                                                            <i class="ri-delete-bin-line"></i> Delete
                                                         </button>
                                                     @endif
                                                 </td>

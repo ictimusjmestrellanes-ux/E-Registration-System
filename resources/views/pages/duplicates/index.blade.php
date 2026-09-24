@@ -15,7 +15,7 @@
         $out .= '<div>';
         $out .= '<span class="badge bg-danger-subtle text-danger ms-1">' . $group['total'] . ' records</span>';
         $out .= '</div>';
-            $out .= '<a href="' . e(route('client.list', ['client_ids' => $group['clients']->pluck('id')->implode(',')])) . '" class="btn btn-sm btn-outline-secondary">View in Client List</a>';
+            $out .= '<a href="' . e(route('client.list', ['client_ids' => $group['clients']->pluck('id')->implode(',')])) . '" class="btn btn-sm btn-outline-primary">View in Client List</a>';
         $out .= '</div>';
         $out .= '<div class="table-responsive">';
         $out .= '<table class="table table-sm table-hover align-middle mb-0">';
@@ -49,7 +49,7 @@
                                 <h4 class="mb-1">Duplicate Clients Review</h4>
                                 <p class="text-muted mb-0">Review potential duplicate client records before taking action.</p>
                             </div>
-                            <a href="{{ route('client.list') }}" class="btn btn-outline-secondary btn-sm">
+                            <a href="{{ route('client.list') }}" class="btn btn-outline-primary btn-sm">
                                 <i class="ri-arrow-left-line me-1"></i> Back to Client List
                             </a>
                         </div>
@@ -70,11 +70,11 @@
                                         location, and created date range.</div>
                                 </div>
                                 <div class="d-flex flex-wrap gap-2 align-items-center">
-                                    <button type="button" class="btn btn-sm btn-outline-primary" id="dupFiltersToggleBtn">
+                                    <button type="button" class="btn btn-sm btn-primary" id="dupFiltersToggleBtn">
                                         Show Filters <i class="ri-arrow-down-s-line ms-1"></i>
                                     </button>
                                     <a href="{{ route('duplicate.review') }}"
-                                        class="btn btn-sm btn-soft-secondary">Reset</a>
+                                        class="btn btn-sm btn-soft-primary">Reset</a>
                                     <select class="form-select form-select-sm w-auto" id="dupPerPageSelect"
                                         aria-label="Groups per page" title="Groups per page">
                                         @foreach ([10, 15, 25, 50, 100] as $size)

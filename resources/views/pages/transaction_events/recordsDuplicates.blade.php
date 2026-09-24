@@ -24,7 +24,7 @@
                             <div class="d-flex flex-wrap gap-2">
                                 @if (feature_allowed('View Removed Duplicates'))
                                     <a href="{{ route('transaction-events.removed-duplicates') }}"
-                                        class="btn btn-warning btn-sm">
+                                        class="btn btn-warning btn-sm fw-semibold">
                                         <i class="ri-file-list-3-line me-1"></i> Not a Duplicate Review
                                     </a>
                                 @endif
@@ -52,26 +52,50 @@
                             $similarCount = $similarRecordsTotal ?? $similarGroups->sum('total');
 
                             $renderGroup = function ($group, $tab) {
-                                $first = $group['events']->first();
-                                $groupIds = $group['events']->pluck('id')->values();
+                                $events = $group['events']->sort(function ($left, $right) {
+                                    $nameOrder = strnatcasecmp(trim((string) $left->full_name), trim((string) $right->full_name));
+
+                                    return $nameOrder !== 0 ? $nameOrder : ($left->id <=> $right->id);
+                                })->values();
+                                $first = $events->first();
+                                $groupIds = $events->pluck('id')->values();
                                 $out = '<div class="border rounded-4 p-3 mb-3">';
                                 $out .= '<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">';
                                 $out .= '<div>';
-                                $out .= '<h6 class="mb-0">' . e($first->full_name) . ' (' . e($first->transferredTransaction?->transaction_id ?? '-') . ') <span class="badge bg-danger-subtle text-danger ms-1">' .  (int) $group['total'] . ' records</span></h6>';
+                                $out .= '<h6 class="mb-0 fw-semibold">' . e($first->full_name) . ' - <span class="fw-bold"> Transaction ID: ' . e($first->transferredTransaction?->transaction_id ?? '-') . ' </span> <span class="badge bg-danger-subtle text-danger ms-1">' .  (int) $group['total'] . ' records</span></h6>';
                                 $out .= '</div>';
                                 if (auth()->user()?->role_name !== 'Viewer') {
                                     $out .= '<button type="button" class="btn btn-sm btn-outline-success text-nowrap" data-bs-toggle="modal" data-bs-target="#notDuplicateGroupModal" data-event-ids="' . e($groupIds->implode(',')) . '" data-group-name="' . e($first->full_name) . '" data-record-count="' . (int) $groupIds->count() . '"><i class="ri-check-line me-1"></i> Not a duplicate</button>';
                                 }
                                 $out .= '</div>';
                                 $out .= '<div class="table-responsive">';
-                                $out .= '<table class="table table-sm table-hover align-middle mb-0">';
+                                $out .= '<table class="table table-sm table-hover align-middle mb-0 duplicate-group-table">';
                                 $out .= '<thead class="table-light"><tr>';
-                                $out .= '<th>ID</th><th>Transaction ID</th><th>Full Name</th><th>Age</th><th>Birth Date</th><th>Contact No.</th><th>Client Category</th><th>Transaction Category</th><th>Transaction Type</th><th>Event Date</th><th>Status</th>';
+                                $sortableHeaders = [
+                                    ['label' => 'ID', 'type' => 'number'],
+                                    ['label' => 'Transaction ID', 'type' => 'text'],
+                                    ['label' => 'Full Name', 'type' => 'text'],
+                                    ['label' => 'Age', 'type' => 'number'],
+                                    ['label' => 'Birth Date', 'type' => 'date'],
+                                    ['label' => 'Contact No.', 'type' => 'text'],
+                                    ['label' => 'Client Category', 'type' => 'text'],
+                                    ['label' => 'Transaction Category', 'type' => 'text'],
+                                    ['label' => 'Transaction Type', 'type' => 'text'],
+                                    ['label' => 'Event Date', 'type' => 'date'],
+                                    ['label' => 'Status', 'type' => 'text'],
+                                ];
+                                foreach ($sortableHeaders as $column => $header) {
+                                    $isDefaultSort = $column === 2;
+                                    $out .= '<th scope="col"' . ($isDefaultSort ? ' aria-sort="ascending"' : '') . '>';
+                                    $out .= '<button type="button" class="btn btn-link btn-sm p-0 text-body fw-semibold text-decoration-none d-inline-flex align-items-center gap-1 text-nowrap" data-duplicate-sort data-sort-column="' . $column . '" data-sort-type="' . $header['type'] . '" data-sort-direction="' . ($isDefaultSort ? 'asc' : '') . '" aria-label="Sort by ' . e($header['label']) . ' ' . ($isDefaultSort ? 'descending' : 'ascending') . '">';
+                                    $out .= e($header['label']) . '<i class="' . ($isDefaultSort ? 'ri-arrow-up-line text-primary' : 'ri-arrow-up-down-line text-muted') . '" aria-hidden="true"></i>';
+                                    $out .= '</button></th>';
+                                }
                                 if (auth()->user()?->role_name !== 'Viewer') {
                                     $out .= '<th class="text-center">Action</th>';
                                 }
                                 $out .= '</tr></thead><tbody>';
-                                foreach ($group['events'] as $event) {
+                                foreach ($events as $event) {
                                     $txId = $event->transferredTransaction?->transaction_id ?? '-';
                                     $eventSummary = implode(' · ', array_filter([
                                         $txId !== '-' ? $txId : null,
@@ -80,28 +104,28 @@
                                         $event->transaction_type,
                                     ]));
                                     $out .= '<tr data-event-id="' . (int) $event->id . '" data-event-name="' . e($event->full_name) . '" data-event-summary="' . e($eventSummary) . '">';
-                                    $out .= '<td>' . e($event->id) . '</td>';
-                                    $out .= '<td class="fw-semibold">' . e($txId) . '</td>';
-                                    $out .= '<td class="fw-semibold">' . e($event->full_name) . '</td>';
-                                    $out .= '<td>' . e($event->age ?? '-') . '</td>';
-                                    $out .= '<td>' . e(optional($event->birth_date)->format('M d, Y') ?? '-') . '</td>';
-                                    $out .= '<td>' . e($event->contact_no ?: '-') . '</td>';
-                                    $out .= '<td class="small">' . e($event->client_category ?? '-') . '</td>';
-                                    $out .= '<td class="small">' . e($event->transaction_category ?? '-') . '</td>';
-                                    $out .= '<td class="small">' . e($event->transaction_type ?? '-') . '</td>';
-                                    $out .= '<td>' . e(optional($event->event_date)->format('M d, Y') ?? '-') . '</td>';
+                                    $out .= '<td data-sort-value="' . e($event->id) . '">' . e($event->id) . '</td>';
+                                    $out .= '<td class="fw-semibold" data-sort-value="' . e($txId) . '">' . e($txId) . '</td>';
+                                    $out .= '<td class="fw-semibold" data-sort-value="' . e($event->full_name) . '">' . e($event->full_name) . '</td>';
+                                    $out .= '<td data-sort-value="' . e($event->age ?? '') . '">' . e($event->age ?? '-') . '</td>';
+                                    $out .= '<td data-sort-value="' . e(optional($event->birth_date)->format('Y-m-d') ?? '') . '">' . e(optional($event->birth_date)->format('M d, Y') ?? '-') . '</td>';
+                                    $out .= '<td data-sort-value="' . e($event->contact_no ?: '') . '">' . e($event->contact_no ?: '-') . '</td>';
+                                    $out .= '<td class="small" data-sort-value="' . e($event->client_category ?? '') . '">' . e($event->client_category ?? '-') . '</td>';
+                                    $out .= '<td class="small" data-sort-value="' . e($event->transaction_category ?? '') . '">' . e($event->transaction_category ?? '-') . '</td>';
+                                    $out .= '<td class="small" data-sort-value="' . e($event->transaction_type ?? '') . '">' . e($event->transaction_type ?? '-') . '</td>';
+                                    $out .= '<td data-sort-value="' . e(optional($event->event_date)->format('Y-m-d') ?? '') . '">' . e(optional($event->event_date)->format('M d, Y') ?? '-') . '</td>';
                                     $statusColor = match ($event->status) {
                                         'Claimed' => 'success',
                                         'Unclaimed' => 'danger',
                                         default => 'warning',
                                     };
-                                    $out .= '<td><span class="badge bg-' . $statusColor . '-subtle text-' . $statusColor . '">' . e($event->status) . '</span></td>';
+                                    $out .= '<td data-sort-value="' . e($event->status ?? '') . '"><span class="py-2 px-3 badge bg-' . $statusColor . '-subtle text-' . $statusColor . '">' . e($event->status) . '</span></td>';
                                     if (auth()->user()?->role_name !== 'Viewer') {
                                         $out .= '<td class="text-center text-nowrap">';
                                         $out .= view('pages.transaction_events.partials.duplicateStatusAction', ['event' => $event, 'tab' => $tab])->render();
                                         if (feature_allowed('Undo Transfer')) {
                                             $undoUrl = route('transaction-events.undo-transfer', array_merge(request()->query(), ['event' => $event, 'duplicate_tab' => $tab]));
-                                            $out .= '<button type="button" class="btn btn-sm btn-soft-warning" data-bs-toggle="modal" data-bs-target="#undoSingleTransferModal" data-undo-url="' . e($undoUrl) . '" data-event-id="' . (int) $event->id . '" data-event-name="' . e($event->full_name) . '" title="Undo transfer"><i class="ri-arrow-go-back-line me-1"></i> Undo Transfer</button>';
+                                            $out .= '<button type="button" class="btn btn-sm btn-outline-warning fw-semibold" data-bs-toggle="modal" data-bs-target="#undoSingleTransferModal" data-undo-url="' . e($undoUrl) . '" data-event-id="' . (int) $event->id . '" data-event-name="' . e($event->full_name) . '" title="Undo transfer"><i class="ri-arrow-go-back-line me-1"></i> Undo Transfer</button>';
                                         }
                                         $out .= '</td>';
                                     }
@@ -434,30 +458,18 @@
                                 aria-label="Close"></button>
                         </div>
                         <div class="modal-body">
-                            <p class="mb-3">Select the Event Records for
-                                <strong id="notDuplicateGroupName"></strong> to tag as not duplicates.</p>
-                            <div class="d-flex align-items-center justify-content-between border rounded-3 px-3 py-2 mb-2">
-                                <div class="form-check mb-0">
-                                    <input class="form-check-input" type="checkbox" id="notDuplicateSelectAll" checked>
-                                    <label class="form-check-label fw-semibold" for="notDuplicateSelectAll">
-                                        Select All
-                                    </label>
-                                </div>
-                                <span class="badge bg-success-subtle text-success">
-                                    <span id="notDuplicateSelectedCount">0</span> selected
-                                </span>
-                            </div>
-                            <div id="notDuplicateRecordChoices" class="border rounded-3 p-2"
-                                style="max-height: 300px; overflow-y: auto;"></div>
-                            <div class="alert alert-warning-subtle mt-3 mb-0">
-                                Selected records will be removed from Duplicate Event Records and stored in Not a
-                                Duplicate Review.
+                            <div id="notDuplicateGroupInputs"></div>
+                            <p class="mb-3">Mark the entire duplicate group for
+                                <strong id="notDuplicateGroupName"></strong> as not a duplicate?</p>
+                            <div class="alert alert-warning-subtle mb-0">
+                                All <strong id="notDuplicateGroupCount">0</strong> records in this group will be
+                                removed from Duplicate Event Records and stored in Not a Duplicate Review.
                             </div>
                         </div>
                         <div class="modal-footer">
-                            <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-                            <button type="submit" class="btn btn-success" id="confirmNotDuplicateGroupBtn">
-                                <i class="ri-check-line me-1"></i> Tag Selected as Not a Duplicate
+                            <button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-sm btn-success">
+                                <i class="ri-check-line me-1"></i> Confirm Not a Duplicate
                             </button>
                         </div>
                     </form>
@@ -481,68 +493,94 @@
                 }, delay);
             });
 
-            const notDuplicateModal = document.getElementById('notDuplicateGroupModal');
-            const notDuplicateSelectAll = document.getElementById('notDuplicateSelectAll');
-            const notDuplicateChoices = document.getElementById('notDuplicateRecordChoices');
-            const notDuplicateSelectedCount = document.getElementById('notDuplicateSelectedCount');
-            const confirmNotDuplicateBtn = document.getElementById('confirmNotDuplicateGroupBtn');
+            const duplicateSortCollator = new Intl.Collator(undefined, {
+                numeric: true,
+                sensitivity: 'base',
+            });
 
-            const syncNotDuplicateSelection = function() {
-                const boxes = Array.from(notDuplicateChoices?.querySelectorAll('[data-not-duplicate-choice]') || []);
-                const selected = boxes.filter(box => box.checked);
-                if (notDuplicateSelectedCount) notDuplicateSelectedCount.textContent = selected.length;
-                if (confirmNotDuplicateBtn) confirmNotDuplicateBtn.disabled = selected.length === 0;
-                if (notDuplicateSelectAll) {
-                    notDuplicateSelectAll.checked = boxes.length > 0 && selected.length === boxes.length;
-                    notDuplicateSelectAll.indeterminate = selected.length > 0 && selected.length < boxes.length;
-                }
-            };
+            document.addEventListener('click', function(event) {
+                    const sortButton = event.target.closest('[data-duplicate-sort]');
+                    if (!sortButton) return;
+
+                    const table = sortButton.closest('.duplicate-group-table');
+                    const tbody = table?.tBodies[0];
+                    if (!tbody) return;
+
+                    const column = Number(sortButton.dataset.sortColumn);
+                    const type = sortButton.dataset.sortType || 'text';
+                    const direction = sortButton.dataset.sortDirection === 'asc' ? 'desc' : 'asc';
+                    const rows = Array.from(tbody.rows);
+
+                    const valueFor = row => {
+                        const rawValue = row.cells[column]?.dataset.sortValue?.trim() ?? '';
+                        if (rawValue === '') return null;
+                        if (type === 'number') {
+                            const numberValue = Number(rawValue);
+                            return Number.isNaN(numberValue) ? null : numberValue;
+                        }
+                        if (type === 'date') {
+                            const dateValue = Date.parse(rawValue);
+                            return Number.isNaN(dateValue) ? null : dateValue;
+                        }
+                        return rawValue;
+                    };
+
+                    rows
+                        .map((row, originalIndex) => ({ row, originalIndex, value: valueFor(row) }))
+                        .sort((left, right) => {
+                            if (left.value === null && right.value === null) {
+                                return left.originalIndex - right.originalIndex;
+                            }
+                            if (left.value === null) return 1;
+                            if (right.value === null) return -1;
+
+                            const comparison = type === 'text'
+                                ? duplicateSortCollator.compare(left.value, right.value)
+                                : left.value - right.value;
+                            return comparison === 0
+                                ? left.originalIndex - right.originalIndex
+                                : (direction === 'asc' ? comparison : -comparison);
+                        })
+                        .forEach(item => tbody.appendChild(item.row));
+
+                    table.querySelectorAll('[data-duplicate-sort]').forEach(button => {
+                        button.dataset.sortDirection = '';
+                        button.closest('th')?.removeAttribute('aria-sort');
+                        const icon = button.querySelector('i');
+                        if (icon) icon.className = 'ri-arrow-up-down-line text-muted';
+                        button.setAttribute('aria-label', `Sort by ${button.textContent.trim()} ascending`);
+                    });
+
+                    sortButton.dataset.sortDirection = direction;
+                    sortButton.closest('th')?.setAttribute('aria-sort', direction === 'asc' ? 'ascending' : 'descending');
+                    const activeIcon = sortButton.querySelector('i');
+                    if (activeIcon) {
+                        activeIcon.className = direction === 'asc'
+                            ? 'ri-arrow-up-line text-primary'
+                            : 'ri-arrow-down-line text-primary';
+                    }
+                    sortButton.setAttribute('aria-label',
+                        `Sort by ${sortButton.textContent.trim()} ${direction === 'asc' ? 'descending' : 'ascending'}`);
+            });
+
+            const notDuplicateModal = document.getElementById('notDuplicateGroupModal');
 
             notDuplicateModal?.addEventListener('show.bs.modal', function(event) {
                 const trigger = event.relatedTarget;
                 const ids = String(trigger?.dataset.eventIds || '').split(',').filter(Boolean);
                 document.getElementById('notDuplicateGroupName').textContent =
                     trigger?.dataset.groupName || 'this client';
+                document.getElementById('notDuplicateGroupCount').textContent =
+                    trigger?.dataset.recordCount || ids.length;
 
-                const groupCard = trigger?.closest('.border.rounded-4');
-                const eventRows = Array.from(groupCard?.querySelectorAll('tr[data-event-id]') || []);
-                const rowsById = new Map(eventRows.map(row => [String(row.dataset.eventId), row]));
-                notDuplicateChoices.replaceChildren(...ids.map(id => {
-                    const row = rowsById.get(String(id));
-                    const wrapper = document.createElement('label');
-                    wrapper.className = 'd-flex align-items-start gap-2 rounded-2 px-2 py-2 mb-1 bg-light';
-
+                const inputs = document.getElementById('notDuplicateGroupInputs');
+                inputs.replaceChildren(...ids.map(id => {
                     const input = document.createElement('input');
-                    input.type = 'checkbox';
+                    input.type = 'hidden';
                     input.name = 'event_ids[]';
                     input.value = id;
-                    input.checked = true;
-                    input.className = 'form-check-input mt-1';
-                    input.setAttribute('data-not-duplicate-choice', '');
-                    input.addEventListener('change', syncNotDuplicateSelection);
-
-                    const details = document.createElement('span');
-                    details.className = 'small';
-                    const name = document.createElement('span');
-                    name.className = 'fw-semibold d-block';
-                    name.textContent = row?.dataset.eventName || ('Event #' + id);
-                    const summary = document.createElement('span');
-                    summary.className = 'text-muted';
-                    summary.textContent = '#' + id + (row?.dataset.eventSummary ? ' · ' + row.dataset.eventSummary : '');
-                    details.append(name, summary);
-                    wrapper.append(input, details);
-
-                    return wrapper;
+                    return input;
                 }));
-                if (notDuplicateSelectAll) notDuplicateSelectAll.checked = true;
-                syncNotDuplicateSelection();
-            });
-
-            notDuplicateSelectAll?.addEventListener('change', function() {
-                notDuplicateChoices?.querySelectorAll('[data-not-duplicate-choice]').forEach(box => {
-                    box.checked = this.checked;
-                });
-                syncNotDuplicateSelection();
             });
 
             document.querySelectorAll('[data-client-count]').forEach(tab => {

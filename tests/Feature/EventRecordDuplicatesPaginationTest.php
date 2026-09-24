@@ -23,6 +23,34 @@ class EventRecordDuplicatesPaginationTest extends TestCase
             ->assertSee('bootstrap.Alert.getOrCreateInstance(alertElement).close()', false);
     }
 
+    public function test_records_inside_each_duplicate_group_have_sortable_columns(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+
+        foreach ([31, 24] as $age) {
+            DB::table('transaction_events')->insert([
+                'full_name' => 'Sortable Person',
+                'age' => $age,
+                'client_category' => 'PWD',
+                'transaction_category' => 'EVENTS',
+                'transaction_type' => 'TYPE-A',
+                'event_date' => '2026-09-20',
+                'transferred_at' => '2026-09-20 12:00:00',
+            ]);
+        }
+
+        $this->get(route('transaction-events.records-duplicates'))
+            ->assertOk()
+            ->assertSee('duplicate-group-table', false)
+            ->assertSee('data-duplicate-sort', false)
+            ->assertSee('data-sort-type="number"', false)
+            ->assertSee('data-sort-type="date"', false)
+            ->assertSee('data-sort-column="2" data-sort-type="text" data-sort-direction="asc"', false)
+            ->assertSee('aria-sort="ascending"', false)
+            ->assertSee('data-sort-value="2026-09-20"', false)
+            ->assertSee('duplicateSortCollator', false);
+    }
+
     public function test_not_duplicate_review_flash_message_closes_after_five_seconds(): void
     {
         $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
@@ -33,6 +61,86 @@ class EventRecordDuplicatesPaginationTest extends TestCase
             ->assertSee('not-duplicate-review-flash-alert', false)
             ->assertSee('data-auto-dismiss-ms="5000"', false)
             ->assertSee('bootstrap.Alert.getOrCreateInstance(alertElement).close()', false);
+    }
+
+    public function test_not_duplicate_review_has_sortable_group_columns(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+
+        foreach (['2026-09-22', '2026-09-20'] as $eventDate) {
+            DB::table('transaction_events')->insert([
+                'full_name' => 'Reviewed Sortable Person',
+                'birth_date' => '1990-01-01',
+                'client_category' => 'PWD',
+                'transaction_category' => 'EVENTS',
+                'transaction_type' => 'TYPE-A',
+                'event_date' => $eventDate,
+                'status' => 'Pending',
+                'transferred_at' => '2026-09-22 12:00:00',
+                'not_duplicate' => true,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
+        $this->get(route('transaction-events.removed-duplicates'))
+            ->assertOk()
+            ->assertSee('not-duplicate-group-table', false)
+            ->assertSee('data-not-duplicate-sort', false)
+            ->assertSee('data-sort-type="number"', false)
+            ->assertSee('data-sort-type="date"', false)
+            ->assertSee('data-sort-column="2"', false)
+            ->assertSee('data-sort-type="text"', false)
+            ->assertSee('data-sort-direction="asc"', false)
+            ->assertSee('notDuplicateSortCollator', false);
+    }
+
+    public function test_not_duplicate_review_filters_match_duplicate_records_filters(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+
+        foreach ([
+            ['name' => 'Alpha Reviewed', 'client' => 'PWD', 'category' => 'EVENTS', 'type' => 'TYPE-A', 'status' => 'Claimed', 'date' => '2026-09-20'],
+            ['name' => 'Beta Reviewed', 'client' => 'SENIOR', 'category' => 'OTHER', 'type' => 'TYPE-B', 'status' => 'Pending', 'date' => '2026-08-10'],
+        ] as $group) {
+            foreach ([1, 2] as $copy) {
+                DB::table('transaction_events')->insert([
+                    'full_name' => $group['name'],
+                    'client_category' => $group['client'],
+                    'transaction_category' => $group['category'],
+                    'transaction_type' => $group['type'],
+                    'status' => $group['status'],
+                    'event_date' => $group['date'],
+                    'transferred_at' => '2026-09-22 12:00:00',
+                    'not_duplicate' => true,
+                    'created_at' => now(),
+                    'updated_at' => now()->addSeconds($copy),
+                ]);
+            }
+        }
+
+        $response = $this->get(route('transaction-events.removed-duplicates', [
+            'search' => 'Alpha',
+            'client_category' => ['PWD'],
+            'transaction_category' => ['EVENTS'],
+            'transaction_type' => ['TYPE-A'],
+            'status' => 'Claimed',
+            'date_from' => '2026-09-01',
+            'date_to' => '2026-09-30',
+        ]))->assertOk()
+            ->assertSee('Filter Reviewed Records')
+            ->assertSee('Filtered groups are shown below.')
+            ->assertSee('Alpha Reviewed')
+            ->assertDontSee('Beta Reviewed');
+
+        $groups = $response->viewData('groups');
+        $this->assertSame(1, $groups->total());
+        $this->assertCount(2, $groups->first()['events']);
+        $this->assertStringContainsString('search=Alpha', $groups->url(2));
+        $this->assertStringContainsString('status=Claimed', $groups->url(2));
+        $this->assertContains('PWD', $response->viewData('filterClientCategories'));
+        $this->assertContains('OTHER', $response->viewData('filterTransactionCategories'));
+        $this->assertContains('TYPE-B', $response->viewData('filterTransactionTypes'));
     }
 
     public function test_transferred_duplicate_can_be_moved_to_not_a_duplicate_review_and_restored(): void
@@ -49,30 +157,31 @@ class EventRecordDuplicatesPaginationTest extends TestCase
         ];
         $eventId = DB::table('transaction_events')->insertGetId($record);
         $secondEventId = DB::table('transaction_events')->insertGetId($record);
-        $unselectedEventId = DB::table('transaction_events')->insertGetId($record);
+        $thirdEventId = DB::table('transaction_events')->insertGetId($record);
+        $groupIds = [$eventId, $secondEventId, $thirdEventId];
 
         $this->get(route('transaction-events.records-duplicates'))
             ->assertOk()
             ->assertSee('Not a Duplicate')
             ->assertSee('Not a Duplicate Review')
             ->assertSee('notDuplicateGroupModal')
-            ->assertSee('Select All')
-            ->assertSee('Tag Selected as Not a Duplicate');
+            ->assertSee('notDuplicateGroupInputs')
+            ->assertSee('Mark the entire duplicate group')
+            ->assertSee('Confirm Not a Duplicate')
+            ->assertDontSee('notDuplicateSelectAll')
+            ->assertDontSee('data-not-duplicate-choice')
+            ->assertDontSee('Tag Selected as Not a Duplicate');
 
         $this->post(route('transaction-events.group-not-duplicate'), [
-            'event_ids' => [$eventId, $secondEventId],
+            'event_ids' => $groupIds,
         ])
             ->assertRedirect();
-        foreach ([$eventId, $secondEventId] as $reviewedId) {
+        foreach ($groupIds as $reviewedId) {
             $this->assertDatabaseHas('transaction_events', [
                 'id' => $reviewedId,
                 'not_duplicate' => true,
             ]);
         }
-        $this->assertDatabaseHas('transaction_events', [
-            'id' => $unselectedEventId,
-            'not_duplicate' => false,
-        ]);
 
         $records = $this->get(route('transaction-events.records'))
             ->assertOk()
@@ -95,12 +204,12 @@ class EventRecordDuplicatesPaginationTest extends TestCase
             ->assertSee('undoReviewGroupModal')
             ->assertSee('Confirm Undo Review');
         $this->assertSame(1, $review->viewData('groups')->total());
-        $this->assertCount(2, $review->viewData('groups')->first()['events']);
+        $this->assertCount(3, $review->viewData('groups')->first()['events']);
 
         $this->post(route('transaction-events.group-reset-duplicate'), [
-            'event_ids' => [$eventId, $secondEventId],
+            'event_ids' => $groupIds,
         ])->assertRedirect();
-        foreach ([$eventId, $secondEventId] as $restoredId) {
+        foreach ($groupIds as $restoredId) {
             $this->assertDatabaseHas('transaction_events', [
                 'id' => $restoredId,
                 'not_duplicate' => false,

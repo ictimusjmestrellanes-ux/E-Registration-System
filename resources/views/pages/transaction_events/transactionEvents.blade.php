@@ -2056,7 +2056,7 @@
                         new Message('imessage').show(data.message, 'success', 'top-center', 2500);
                         setTimeout(function() {
                             window.location.href = data.redirect ||
-                                @json(route('transaction-events.records'));
+                                @json(route('transaction-events.index'));
                         }, 900);
                     } catch (error) {
                         confirmTransferToClientBtn.disabled = false;

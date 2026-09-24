@@ -1,10 +1,9 @@
-@extends('layouts.master')
-@section('title', 'ERS | Users')
-@section('content')
-    @php $canEditRole = in_array(auth()->user()?->role_name, ['Admin', 'Super Admin']); @endphp
-    @php
+<?php $__env->startSection('title', 'ERS | Users'); ?>
+<?php $__env->startSection('content'); ?>
+    <?php $canEditRole = in_array(auth()->user()?->role_name, ['Admin', 'Super Admin']); ?>
+    <?php
         $activeUserFilters = request()->anyFilled(['search', 'role', 'status']);
-    @endphp
+    ?>
     <div class="container-fluid">
         <div class="row">
             <div class="col-12">
@@ -37,14 +36,14 @@
                                         id="userFiltersToggleBtn">
                                         Show Filters <i class="ri-arrow-down-s-line ms-1"></i>
                                     </button>
-                                    @if ($activeUserFilters)
-                                        <a href="{{ route('users.index') }}" class="btn btn-sm btn-soft-primary">Reset</a>
-                                    @endif
+                                    <?php if($activeUserFilters): ?>
+                                        <a href="<?php echo e(route('users.index')); ?>" class="btn btn-sm btn-soft-primary">Reset</a>
+                                    <?php endif; ?>
                                 </div>
                             </div>
 
-                            <form method="GET" action="{{ route('users.index') }}" id="userFiltersForm"
-                                class="{{ $activeUserFilters ? '' : 'd-none' }}">
+                            <form method="GET" action="<?php echo e(route('users.index')); ?>" id="userFiltersForm"
+                                class="<?php echo e($activeUserFilters ? '' : 'd-none'); ?>">
                                 <div class="row g-3 mt-1 align-items-end">
                                     <div class="col-12 col-xl-4">
                                         <label for="userKeywordInput"
@@ -52,7 +51,7 @@
                                         <div class="input-group">
                                             <span class="input-group-text"><i class="ri-search-line"></i></span>
                                             <input type="text" class="form-control" id="userKeywordInput" name="search"
-                                                placeholder="Full name" value="{{ $search }}">
+                                                placeholder="Full name" value="<?php echo e($search); ?>">
                                         </div>
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-3">
@@ -60,10 +59,10 @@
                                             class="form-label fw-semibold text-uppercase small">Role</label>
                                         <select class="form-select" id="userRoleFilter" name="role">
                                             <option value="">All roles</option>
-                                            @foreach ($roles as $role)
-                                                <option value="{{ $role }}" @selected($selectedRole === $role)>
-                                                    {{ $role }}</option>
-                                            @endforeach
+                                            <?php $__currentLoopData = $roles; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $role): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                                <option value="<?php echo e($role); ?>" <?php if($selectedRole === $role): echo 'selected'; endif; ?>>
+                                                    <?php echo e($role); ?></option>
+                                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                         </select>
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-3">
@@ -71,9 +70,9 @@
                                             class="form-label fw-semibold text-uppercase small">Status</label>
                                         <select class="form-select" id="userStatusFilter" name="status">
                                             <option value="">All statuses</option>
-                                            <option value="Active" @selected(($selectedStatus ?? '') === 'Active')>Active
+                                            <option value="Active" <?php if(($selectedStatus ?? '') === 'Active'): echo 'selected'; endif; ?>>Active
                                             </option>
-                                            <option value="Inactive" @selected(($selectedStatus ?? '') === 'Inactive')>Inactive
+                                            <option value="Inactive" <?php if(($selectedStatus ?? '') === 'Inactive'): echo 'selected'; endif; ?>>Inactive
                                             </option>
                                         </select>
                                     </div>
@@ -85,7 +84,8 @@
                                 </div>
 
                                 <div class="small mt-2">
-                                    {{ $activeUserFilters ? 'Filtered users are shown below.' : 'Showing all users.' }}
+                                    <?php echo e($activeUserFilters ? 'Filtered users are shown below.' : 'Showing all users.'); ?>
+
                                 </div>
                             </form>
                         </div>
@@ -98,117 +98,118 @@
                                         <th>Status</th>
                                         <th>Provider</th>
                                         <th>Last Login</th>
-                                        @if ($canEditRole)
+                                        <?php if($canEditRole): ?>
                                             <th class="text-center">Actions</th>
-                                        @endif
+                                        <?php endif; ?>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    @forelse ($users as $user)
+                                    <?php $__empty_1 = true; $__currentLoopData = $users; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $user): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
                                         <tr>
                                             <td>
                                                 <div class="d-flex align-items-center">
-                                                    <img src="{{ $user->avatar_url }}" alt="{{ $user->name ?? 'User' }}"
+                                                    <img src="<?php echo e($user->avatar_url); ?>" alt="<?php echo e($user->name ?? 'User'); ?>"
                                                         class="rounded-circle avatar-xs object-fit-cover me-2">
                                                     <div>
-                                                        <h6 class="mb-0">{{ strtoupper($user->name ?? 'User') }}</h6>
-                                                        <p class="text-muted mb-0">{{ strtoupper($user->email) }}</p>
+                                                        <h6 class="mb-0"><?php echo e(strtoupper($user->name ?? 'User')); ?></h6>
+                                                        <p class="text-muted mb-0"><?php echo e(strtoupper($user->email)); ?></p>
                                                     </div>
                                                 </div>
                                             </td>
                                             <td class="text-center">
-                                                <span class="badge bg-primary-subtle text-primary py-2 px-3">{{ $user->role_name ?? '-' }}</span>
+                                                <span class="badge bg-primary-subtle text-primary py-2 px-3"><?php echo e($user->role_name ?? '-'); ?></span>
                                             </td>
                                             <td class="text-center">
-                                                @if ($user->status === 'Active')
+                                                <?php if($user->status === 'Active'): ?>
                                                     <span class="badge bg-success-subtle text-success py-2 px-3">Active</span>
-                                                @else
+                                                <?php else: ?>
                                                     <span
-                                                        class="badge bg-secondary-subtle text-secondary py-2 px-3">{{ $user->status ?? 'Inactive' }}</span>
-                                                @endif
+                                                        class="badge bg-secondary-subtle text-secondary py-2 px-3"><?php echo e($user->status ?? 'Inactive'); ?></span>
+                                                <?php endif; ?>
                                             </td>
-                                            <td class="text-center"><span class="badge bg-info-subtle text-info py-2 px-3">{{ ucfirst($user->auth_provider ?? 'local') }}</span></td>
-                                            <td>{{ $user->last_login ?? '-' }}</td>
-                                            @if ($canEditRole)
+                                            <td class="text-center"><span class="badge bg-info-subtle text-info py-2 px-3"><?php echo e(ucfirst($user->auth_provider ?? 'local')); ?></span></td>
+                                            <td><?php echo e($user->last_login ?? '-'); ?></td>
+                                            <?php if($canEditRole): ?>
                                                 <td class="text-center">
-                                                    @if (feature_allowed('Edit User Roles'))
+                                                    <?php if(feature_allowed('Edit User Roles')): ?>
                                                         <button type="button" class="btn btn-sm btn-soft-primary"
                                                             data-bs-toggle="modal"
-                                                            data-bs-target="#editRoleModal-{{ $user->id }}">
+                                                            data-bs-target="#editRoleModal-<?php echo e($user->id); ?>">
                                                             <i class="ri-edit-box-line align-bottom"></i> Edit Role
                                                         </button>
-                                                    @endif
+                                                    <?php endif; ?>
 
-                                                    @if (feature_allowed('Update User Status'))
-                                                        @if ($user->status === 'Active')
+                                                    <?php if(feature_allowed('Update User Status')): ?>
+                                                        <?php if($user->status === 'Active'): ?>
                                                             <form method="POST" class="d-inline"
-                                                                action="{{ route('users.updateStatus', $user) }}"
-                                                                onsubmit="return confirm('Deactivate {{ $user->name }}? This will prevent them from signing in.');">
-                                                                @csrf
-                                                                @method('PUT')
+                                                                action="<?php echo e(route('users.updateStatus', $user)); ?>"
+                                                                onsubmit="return confirm('Deactivate <?php echo e($user->name); ?>? This will prevent them from signing in.');">
+                                                                <?php echo csrf_field(); ?>
+                                                                <?php echo method_field('PUT'); ?>
                                                                 <input type="hidden" name="status" value="Inactive">
                                                                 <button type="submit" class="btn btn-sm btn-soft-danger">
                                                                     <i class="ri-user-unfollow-line align-bottom"></i>
                                                                     Deactivate
                                                                 </button>
                                                             </form>
-                                                        @else
+                                                        <?php else: ?>
                                                             <form method="POST" class="d-inline"
-                                                                action="{{ route('users.updateStatus', $user) }}">
-                                                                @csrf
-                                                                @method('PUT')
+                                                                action="<?php echo e(route('users.updateStatus', $user)); ?>">
+                                                                <?php echo csrf_field(); ?>
+                                                                <?php echo method_field('PUT'); ?>
                                                                 <input type="hidden" name="status" value="Active">
                                                                 <button type="submit" class="btn btn-sm btn-soft-success">
                                                                     <i class="ri-user-follow-line align-bottom"></i>
                                                                     Activate
                                                                 </button>
                                                             </form>
-                                                        @endif
-                                                    @endif
+                                                        <?php endif; ?>
+                                                    <?php endif; ?>
                                                 </td>
-                                            @endif
+                                            <?php endif; ?>
                                         </tr>
 
-                                    @empty
+                                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                                         <tr>
-                                            <td colspan="{{ $canEditRole ? 6 : 5 }}" class="text-center text-muted py-5">
+                                            <td colspan="<?php echo e($canEditRole ? 6 : 5); ?>" class="text-center text-muted py-5">
                                                 No
                                                 users found.</td>
                                         </tr>
-                                    @endforelse
+                                    <?php endif; ?>
                                 </tbody>
                             </table>
                         </div>
 
                         <div class="mt-3">
-                            {{ $users->links() }}
+                            <?php echo e($users->links()); ?>
+
                         </div>
                     </div>
                 </div>
 
-                @if ($canEditRole)
-                    @foreach ($users as $user)
-                        <div class="modal fade" id="editRoleModal-{{ $user->id }}" tabindex="-1"
+                <?php if($canEditRole): ?>
+                    <?php $__currentLoopData = $users; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $user): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                        <div class="modal fade" id="editRoleModal-<?php echo e($user->id); ?>" tabindex="-1"
                             aria-hidden="true">
                             <div class="modal-dialog modal-dialog-centered">
                                 <div class="modal-content">
-                                    <form method="POST" action="{{ route('users.updateRole', $user) }}">
-                                        @csrf
-                                        @method('PUT')
+                                    <form method="POST" action="<?php echo e(route('users.updateRole', $user)); ?>">
+                                        <?php echo csrf_field(); ?>
+                                        <?php echo method_field('PUT'); ?>
                                         <div class="modal-header">
-                                            <h5 class="modal-title">Edit Role - {{ $user->name }}</h5>
+                                            <h5 class="modal-title">Edit Role - <?php echo e($user->name); ?></h5>
                                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                                         </div>
                                         <div class="modal-body">
                                             <div class="mb-3">
-                                                <label for="role_name-{{ $user->id }}"
+                                                <label for="role_name-<?php echo e($user->id); ?>"
                                                     class="form-label">Role</label>
-                                                <select class="form-select" id="role_name-{{ $user->id }}"
+                                                <select class="form-select" id="role_name-<?php echo e($user->id); ?>"
                                                     name="role_name">
-                                                    @foreach ($roles as $role)
-                                                        <option value="{{ $role }}" @selected($user->role_name === $role)>
-                                                            {{ $role }}</option>
-                                                    @endforeach
+                                                    <?php $__currentLoopData = $roles; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $role): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                                        <option value="<?php echo e($role); ?>" <?php if($user->role_name === $role): echo 'selected'; endif; ?>>
+                                                            <?php echo e($role); ?></option>
+                                                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                                 </select>
                                             </div>
                                         </div>
@@ -221,14 +222,14 @@
                                 </div>
                             </div>
                         </div>
-                    @endforeach
-                @endif
+                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                <?php endif; ?>
             </div>
         </div>
     </div>
-@endsection
+<?php $__env->stopSection(); ?>
 
-@push('scripts')
+<?php $__env->startPush('scripts'); ?>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             // ----- Filter Users card toggle (Event Records style) -----
@@ -248,9 +249,11 @@
             });
 
             // Auto-expand when filters are active.
-            @if ($activeUserFilters)
+            <?php if($activeUserFilters): ?>
                 setFiltersVisible(true);
-            @endif
+            <?php endif; ?>
         });
     </script>
-@endpush
+<?php $__env->stopPush(); ?>
+
+<?php echo $__env->make('layouts.master', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH C:\xampp\htdocs\E-Reg-System\resources\views/pages/users/index.blade.php ENDPATH**/ ?>

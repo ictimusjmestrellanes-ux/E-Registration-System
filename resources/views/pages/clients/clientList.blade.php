@@ -287,7 +287,7 @@
                                                             onsubmit="return confirm('Are you sure you want to archive this client?');">
                                                             @csrf
                                                             @if (feature_allowed('Archive Clients'))
-                                                                <button type="submit" class="btn btn-sm btn-soft-warning">
+                                                                <button type="submit" class="btn btn-sm btn-outline-warning">
                                                                     ARCHIVE
                                                                 </button>
                                                             @endif

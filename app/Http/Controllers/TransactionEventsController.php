@@ -57,9 +57,9 @@ class TransactionEventsController extends Controller
         $sort = $this->normalizeEventSort($request->input('sort'));
         $this->applyEventSort($query, $sort);
 
-        $perPage = (int) $request->input('per_page', 15);
-        if (! in_array($perPage, [15, 25, 50, 100], true)) {
-            $perPage = 15;
+        $perPage = (int) $request->input('per_page', 10);
+        if (! in_array($perPage, [10, 15, 25, 50, 100], true)) {
+            $perPage = 10;
         }
 
         $events = $query->paginate($perPage)->withQueryString();
@@ -1542,34 +1542,79 @@ class TransactionEventsController extends Controller
             $perPage = 10;
         }
 
-        // Exact match is: Same Lastname and Firstname + Client Category +
-        // Transaction Category + Transaction Type + Event Date.
-        // Exact Match and Full Name share the full-key aggregation.
-        $duplicateKeyRows = $this->recordDuplicateKeyRows($request);
-        [$exactGroups, $exactRecordsTotal] = $this->paginatedRecordDuplicateGroups($duplicateKeyRows, [
-            'exact' => ['event_date', 'client_category', 'transaction_category', 'transaction_type'],
-        ], $request, $perPage, 'exact_page');
-        [$likelyGroups, $likelyRecordsTotal] = $this->likelyRecordGroups($request, $perPage);
-        [$similarGroups, $similarRecordsTotal] = $this->paginatedRecordDuplicateGroups($duplicateKeyRows, [
-            'full_name' => [],
-        ], $request, $perPage, 'similar_page');
-        $exactGroupsTotal = $exactGroups->total();
-        $likelyGroupsTotal = $likelyGroups->total();
-        $similarGroupsTotal = $similarGroups->total();
+        $buildDuplicateData = function () use ($request, $perPage): array {
+            // Exact match is: Same Lastname and Firstname + Client Category +
+            // Transaction Category + Transaction Type + Event Date.
+            // Exact Match and Full Name share the full-key aggregation.
+            $duplicateKeyRows = $this->recordDuplicateKeyRows($request);
+            [$exactGroups, $exactRecordsTotal] = $this->paginatedRecordDuplicateGroups($duplicateKeyRows, [
+                'exact' => ['event_date', 'client_category', 'transaction_category', 'transaction_type'],
+            ], $request, $perPage, 'exact_page');
+            [$likelyGroups, $likelyRecordsTotal] = $this->likelyRecordGroups($request, $perPage);
+            [$similarGroups, $similarRecordsTotal] = $this->paginatedRecordDuplicateGroups($duplicateKeyRows, [
+                'full_name' => [],
+            ], $request, $perPage, 'similar_page');
 
-        $filterClientCategories = TransactionEvent::whereNotNull('transferred_at')->where('not_duplicate', false)
-            ->select('client_category')->distinct()->pluck('client_category')->filter()->sort()->values();
-        $filterTransactionCategories = TransactionEvent::whereNotNull('transferred_at')->where('not_duplicate', false)
-            ->select('transaction_category')->distinct()->pluck('transaction_category')->filter()->sort()->values();
-        $filterTransactionTypes = TransactionEvent::whereNotNull('transferred_at')->where('not_duplicate', false)
-            ->select('transaction_type')->distinct()->pluck('transaction_type')->filter()->sort()->values();
+            $filterBase = TransactionEvent::whereNotNull('transferred_at')->where('not_duplicate', false);
 
-        return view('pages.transaction_events.recordsDuplicates', compact(
-            'exactGroups', 'likelyGroups', 'similarGroups',
-            'exactRecordsTotal', 'likelyRecordsTotal', 'similarRecordsTotal',
-            'exactGroupsTotal', 'likelyGroupsTotal', 'similarGroupsTotal',
-            'filterClientCategories', 'filterTransactionCategories', 'filterTransactionTypes', 'perPage'
-        ));
+            return [
+                'exactGroups' => $exactGroups,
+                'likelyGroups' => $likelyGroups,
+                'similarGroups' => $similarGroups,
+                'exactRecordsTotal' => $exactRecordsTotal,
+                'likelyRecordsTotal' => $likelyRecordsTotal,
+                'similarRecordsTotal' => $similarRecordsTotal,
+                'exactGroupsTotal' => $exactGroups->total(),
+                'likelyGroupsTotal' => $likelyGroups->total(),
+                'similarGroupsTotal' => $similarGroups->total(),
+                'filterClientCategories' => (clone $filterBase)->select('client_category')->distinct()
+                    ->pluck('client_category')->filter()->sort()->values(),
+                'filterTransactionCategories' => (clone $filterBase)->select('transaction_category')->distinct()
+                    ->pluck('transaction_category')->filter()->sort()->values(),
+                'filterTransactionTypes' => (clone $filterBase)->select('transaction_type')->distinct()
+                    ->pluck('transaction_type')->filter()->sort()->values(),
+            ];
+        };
+
+        if (app()->environment('testing')) {
+            $duplicateData = $buildDuplicateData();
+        } else {
+            // A small signature query makes cached reloads cheap while ensuring
+            // imports, transfers, status edits, and duplicate reviews are shown
+            // immediately instead of waiting for the cache lifetime to expire.
+            $state = DB::table('transaction_events')->selectRaw(
+                'COUNT(*) as total, COALESCE(MAX(id), 0) as max_id, MAX(updated_at) as latest_update, '
+                .'SUM(CASE WHEN not_duplicate = 1 THEN 1 ELSE 0 END) as reviewed, '
+                .'SUM(CASE WHEN transferred_at IS NOT NULL THEN 1 ELSE 0 END) as transferred'
+            )->first();
+            $cacheFilters = [
+                'search' => trim((string) $request->input('search', '')),
+                'status' => (string) $request->input('status', ''),
+                'client_category' => $this->multiFilterValues($request, 'client_category'),
+                'transaction_category' => $this->multiFilterValues($request, 'transaction_category'),
+                'transaction_type' => $this->multiFilterValues($request, 'transaction_type'),
+                'date_from' => (string) $request->input('date_from', ''),
+                'date_to' => (string) $request->input('date_to', ''),
+                'per_page' => $perPage,
+                'exact_page' => max(1, (int) $request->input('exact_page', $request->input('page', 1))),
+                'likely_page' => max(1, (int) $request->input('likely_page', 1)),
+                'similar_page' => max(1, (int) $request->input('similar_page', 1)),
+            ];
+            sort($cacheFilters['client_category']);
+            sort($cacheFilters['transaction_category']);
+            sort($cacheFilters['transaction_type']);
+            $cacheKey = 'transaction-events:duplicate-records:v1:'.hash('sha256', json_encode([
+                'state' => $state,
+                'filters' => $cacheFilters,
+            ]));
+            $duplicateData = Cache::remember($cacheKey, now()->addMinutes(5), $buildDuplicateData);
+        }
+
+        foreach (['exactGroups', 'likelyGroups', 'similarGroups'] as $groupKey) {
+            $duplicateData[$groupKey]->withPath(url()->current());
+        }
+
+        return view('pages.transaction_events.recordsDuplicates', $duplicateData + compact('perPage'));
     }
     public function archives(Request $request)
     {
@@ -3921,7 +3966,7 @@ class TransactionEventsController extends Controller
             'skipped' => $result['skipped'],
             'event_ids' => $result['transferred_ids'],
             'client_id' => $client->client_id,
-            'redirect' => route('transaction-events.records'),
+            'redirect' => route('transaction-events.index'),
         ], $transferred > 0 ? 200 : 422);
     }
 
@@ -4212,25 +4257,63 @@ class TransactionEventsController extends Controller
             return redirect()->back()->with('error', 'No duplicate records were selected.');
         }
 
-        DB::transaction(function () use ($ids) {
-            TransactionEvent::whereIn('id', $ids)->lockForUpdate()->chunkById(200, function ($events) {
-                foreach ($events as $event) {
-                    $event->update(['not_duplicate' => true]);
-                }
-            });
-        });
+        $updated = DB::transaction(function () use ($ids, $request): int {
+            $events = TransactionEvent::whereIn('id', $ids)
+                ->where('not_duplicate', false)
+                ->lockForUpdate()
+                ->get(['id', 'full_name']);
 
-        return redirect()->back()->with('success', count($ids).' record(s) moved to Not a Duplicate Review.');
+            if ($events->isEmpty()) {
+                return 0;
+            }
+
+            $now = now();
+            TransactionEvent::whereKey($events->pluck('id')->all())->update([
+                'not_duplicate' => true,
+                'updated_at' => $now,
+            ]);
+
+            // The bulk update intentionally skips per-model events. Preserve
+            // the same per-record audit trail with one insert instead of an
+            // update and insert query for every event in the group.
+            if (auth()->check() && $request->route()) {
+                $auditRows = $events->map(fn (TransactionEvent $event) => [
+                    'user_id' => auth()->id(),
+                    'action' => 'transaction_event_updated',
+                    'subject_type' => 'TransactionEvent',
+                    'subject_id' => $event->id,
+                    'description' => 'Updated Transaction Event #'.$event->id.' ('.$event->full_name.').',
+                    'properties' => json_encode([
+                        'route' => $request->route()?->getName(),
+                        'before' => ['not_duplicate' => false],
+                        'after' => ['not_duplicate' => true],
+                        'changed_fields' => ['not_duplicate'],
+                    ], JSON_THROW_ON_ERROR),
+                    'ip_address' => $request->ip(),
+                    'user_agent' => $request->userAgent(),
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ])->all();
+                ActivityLog::insert($auditRows);
+            }
+
+            return $events->count();
+        });
+        TransactionHistory::flushDashboardCache();
+
+        return redirect()->back()->with('success', $updated.' record(s) moved to Not a Duplicate Review.');
     }
 
     public function removedDuplicates(Request $request)
     {
-        $perPage = (int) $request->input('per_page', 15);
+        $perPage = (int) $request->input('per_page', 10);
         if (!in_array($perPage, [10, 15, 25, 50, 100], true)) {
-            $perPage = 15;
+            $perPage = 10;
         }
 
-        $reviewedEvents = TransactionEvent::where('not_duplicate', true)
+        $reviewedQuery = TransactionEvent::where('not_duplicate', true);
+        $this->applyRecordDuplicatePrefilters($reviewedQuery, $request);
+        $reviewedEvents = $reviewedQuery
             ->with('transferredTransaction:id,transaction_id')
             ->orderByDesc('updated_at')
             ->get();
@@ -4269,7 +4352,17 @@ class TransactionEventsController extends Controller
             ]
         );
 
-        return view('pages.transaction_events.removedDuplicates', compact('groups', 'perPage'));
+        $filterBase = TransactionEvent::where('not_duplicate', true);
+        $filterClientCategories = (clone $filterBase)->select('client_category')->distinct()
+            ->pluck('client_category')->filter()->sort()->values();
+        $filterTransactionCategories = (clone $filterBase)->select('transaction_category')->distinct()
+            ->pluck('transaction_category')->filter()->sort()->values();
+        $filterTransactionTypes = (clone $filterBase)->select('transaction_type')->distinct()
+            ->pluck('transaction_type')->filter()->sort()->values();
+
+        return view('pages.transaction_events.removedDuplicates', compact(
+            'groups', 'perPage', 'filterClientCategories', 'filterTransactionCategories', 'filterTransactionTypes'
+        ));
     }
 
     /**

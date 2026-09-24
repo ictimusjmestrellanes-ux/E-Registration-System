@@ -91,7 +91,7 @@
                                         aria-label="Records per page" title="Records per page">
                                         @foreach ([10, 15, 25, 50, 100] as $size)
                                             <option value="{{ $size }}"
-                                                {{ request('per_page', 15) == $size ? 'selected' : '' }}>
+                                                {{ request('per_page', 10) == $size ? 'selected' : '' }}>
                                                 {{ $size }} / page
                                             </option>
                                         @endforeach
@@ -583,20 +583,6 @@
                                                                             </form>
                                                                         </li>
                                                                     @endforeach
-                                                                    <li>
-                                                                        <form class="record-status-form"
-                                                                            data-event-id="{{ $event->id }}"
-                                                                            action="{{ route('transaction-events.records.status', array_merge(request()->query(), ['event' => $event->id])) }}"
-                                                                            method="POST">
-                                                                            @csrf
-                                                                            @method('PATCH')
-                                                                            <button type="submit" name="status"
-                                                                                value="Not a Duplicate"
-                                                                                class="dropdown-item {{ $event->not_duplicate ? 'active' : '' }}">
-                                                                                Tag as Not a Duplicate
-                                                                            </button>
-                                                                        </form>
-                                                                    </li>
                                                                 </ul>
                                                             </div>
                                                         @endif
@@ -609,7 +595,7 @@
                                                                 data-event-id="{{ $event->id }}"
                                                                 data-event-name="{{ $event->full_name }}">
                                                                 <i class="ri-arrow-go-back-line" aria-hidden="true"></i>
-                                                                Undo Transfer
+                                                                Undo
                                                             </button>
                                                         @endif
                                                         @if (feature_allowed('Edit Transaction Event Record'))

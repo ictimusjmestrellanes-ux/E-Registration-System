@@ -202,10 +202,12 @@ class Client extends Model
     {
         static::saved(function () {
             Cache::forget('duplicate_clients_v2');
+            Cache::forget('duplicate_clients_filter_options_v1');
         });
 
         static::deleted(function () {
             Cache::forget('duplicate_clients_v2');
+            Cache::forget('duplicate_clients_filter_options_v1');
         });
 
         // Keep the dashboard's live-client total and registration trend in

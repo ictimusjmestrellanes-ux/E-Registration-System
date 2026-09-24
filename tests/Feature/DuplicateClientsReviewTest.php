@@ -57,6 +57,43 @@ class DuplicateClientsReviewTest extends TestCase
         $this->assertSame($cached, Cache::get('duplicate_clients_v2'));
     }
 
+    public function test_cached_reload_hydrates_only_visible_groups(): void
+    {
+        $memberships = [];
+        for ($group = 0; $group < 12; $group++) {
+            $memberships[$group] = [];
+            foreach ([0, 1] as $copy) {
+                $memberships[$group][] = Client::create([
+                    'client_id' => 'VISIBLE-'.$group.'-'.$copy,
+                    'first_name' => 'Visible '.$group,
+                    'last_name' => 'Client',
+                    'birth_date' => '1990-01-01',
+                ])->id;
+            }
+        }
+
+        Cache::put('duplicate_clients_v2', [
+            'exact' => $memberships,
+            'likely' => [],
+            'similar' => [],
+        ]);
+
+        DB::enableQueryLog();
+        DB::flushQueryLog();
+        $response = $this->get('/duplicate-review')->assertOk();
+        $detailQueries = collect(DB::getQueryLog())->filter(fn ($query) =>
+            str_contains($query['query'], '"client_id"')
+            && str_contains($query['query'], '"first_name"')
+            && str_contains($query['query'], 'from "clients"')
+        )->values();
+        DB::disableQueryLog();
+
+        $this->assertSame(12, $response->viewData('exactGroups')->total());
+        $this->assertCount(10, $response->viewData('exactGroups'));
+        $this->assertCount(1, $detailQueries, 'A cached reload should issue one detail query for visible records only.');
+        $this->assertCount(20, $detailQueries->first()['bindings']);
+    }
+
     public function test_client_changes_invalidate_membership_and_missing_clients_are_tolerated(): void
     {
         $client = Client::create(['client_id' => 'TEST-1', 'first_name' => 'Juan', 'last_name' => 'Cruz']);
@@ -66,8 +103,11 @@ class DuplicateClientsReviewTest extends TestCase
 
         $client->update(['first_name' => 'John']);
         $this->assertNull(Cache::get('duplicate_clients_v2'));
+        $this->assertNull(Cache::get('duplicate_clients_filter_options_v1'));
         Cache::put('duplicate_clients_v2', []);
+        Cache::put('duplicate_clients_filter_options_v1', ['filterCities' => ['Imus']]);
         $client->delete();
         $this->assertNull(Cache::get('duplicate_clients_v2'));
+        $this->assertNull(Cache::get('duplicate_clients_filter_options_v1'));
     }
 }

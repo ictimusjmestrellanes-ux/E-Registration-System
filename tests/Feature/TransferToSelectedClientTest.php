@@ -82,7 +82,8 @@ class TransferToSelectedClientTest extends TestCase
             ->assertJsonPath('success', true)
             ->assertJsonPath('transferred', 2)
             ->assertJsonPath('skipped', 0)
-            ->assertJsonPath('client_id', '2600002');
+            ->assertJsonPath('client_id', '2600002')
+            ->assertJsonPath('redirect', route('transaction-events.index'));
 
         $this->assertSame([$first->id, $second->id], $response->json('event_ids'));
         $this->assertDatabaseCount('transaction_history', 2);

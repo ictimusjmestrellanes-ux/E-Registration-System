@@ -70,14 +70,14 @@
         </div>
 
         <div class="row">
-            <div class="col-xxl-3">
+            <div class="col-xl-3">
                 <div class="card mt-n9 profile-settings-panel" style="height: 300px">
                     <div class="card-body p-4">
                         <div class="text-center">
                             @php
                                 $profileAvatar = auth()->user()?->avatar_url;
                             @endphp
-                            <div class="profile-user position-relative d-inline-block mx-auto  mb-4">
+                            <div class="profile-user position-relative d-inline-block mx-auto mb-4">
                                 <img src="{{ $profileAvatar }}" class="rounded-circle avatar-xl img-thumbnail user-profile-image material-shadow" alt="user-profile-image">
                                 <div class="avatar-xs p-0 rounded-circle profile-photo-edit">
                                     <input id="profile-img-file-input" name="avatar" type="file" class="profile-img-file-input" form="profile-update-form" accept="image/*">
@@ -89,6 +89,11 @@
                                 </div>
                             </div>
                             <h5 class="fs-16 mb-1">{{ auth()->user()->name ?? 'User' }}</h5>
+                            <p class="text-muted mb-0">{{ auth()->user()->email ?? 'No email provided' }}</p>
+                            @php
+                                $user = auth()->user();
+                            @endphp
+                            <span class="badge bg-primary py-2 px-3 fs-8">{{ $user->role_name ?? '-' }}</span>
                         </div>
                     </div>
                 </div>
