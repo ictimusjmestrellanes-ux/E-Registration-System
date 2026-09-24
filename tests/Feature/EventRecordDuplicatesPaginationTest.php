@@ -182,10 +182,16 @@ class EventRecordDuplicatesPaginationTest extends TestCase
                 'not_duplicate' => true,
             ]);
         }
+        $this->assertDatabaseHas('activity_logs', [
+            'action' => 'events_marked_not_duplicate',
+            'description' => '3 event record(s) marked as Not a Duplicate.',
+        ]);
+        $this->assertContains('events_marked_not_duplicate', \App\Models\ActivityLog::NOTIFICATION_ACTIONS);
 
         $records = $this->get(route('transaction-events.records'))
             ->assertOk()
-            ->assertSee('Not a Duplicate');
+            ->assertSee('Not a Duplicate')
+            ->assertSee('3 event record(s) marked as Not a Duplicate.');
         $this->assertMatchesRegularExpression(
             '/data-event-status="'.$eventId.'">Pending<\/span>/',
             $records->getContent()
@@ -215,6 +221,14 @@ class EventRecordDuplicatesPaginationTest extends TestCase
                 'not_duplicate' => false,
             ]);
         }
+        $this->assertDatabaseHas('activity_logs', [
+            'action' => 'events_not_duplicate_review_undone',
+            'description' => '3 event record(s) had their Not a Duplicate review undone.',
+        ]);
+        $this->assertContains('events_not_duplicate_review_undone', \App\Models\ActivityLog::NOTIFICATION_ACTIONS);
+        $this->get(route('transaction-events.removed-duplicates'))
+            ->assertOk()
+            ->assertSee('3 event record(s) had their Not a Duplicate review undone.');
     }
 
     public function test_client_duplicate_sets_stay_together_and_records_are_not_repeated(): void

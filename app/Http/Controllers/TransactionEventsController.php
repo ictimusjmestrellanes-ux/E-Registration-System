@@ -4232,15 +4232,37 @@ class TransactionEventsController extends Controller
             return redirect()->back()->with('error', 'No reviewed records were selected.');
         }
 
-        DB::transaction(function () use ($ids) {
-            TransactionEvent::whereIn('id', $ids)->lockForUpdate()->chunkById(200, function ($events) {
+        $restoredIds = [];
+        DB::transaction(function () use ($ids, &$restoredIds) {
+            TransactionEvent::whereIn('id', $ids)
+                ->where('not_duplicate', true)
+                ->lockForUpdate()
+                ->chunkById(200, function ($events) use (&$restoredIds) {
                 foreach ($events as $event) {
                     $event->update(['not_duplicate' => false]);
+                    $restoredIds[] = (int) $event->id;
                 }
             });
         });
 
-        return redirect()->back()->with('success', count($ids).' record(s) returned to duplicate checking.');
+        $restored = count($restoredIds);
+        if ($restored > 0) {
+            ActivityLog::create([
+                'user_id' => auth()->id(),
+                'action' => 'events_not_duplicate_review_undone',
+                'subject_type' => 'TransactionEvent',
+                'subject_id' => null,
+                'description' => $restored.' event record(s) had their Not a Duplicate review undone.',
+                'properties' => [
+                    'event_ids' => $restoredIds,
+                    'count' => $restored,
+                ],
+                'ip_address' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+            ]);
+        }
+
+        return redirect()->back()->with('success', $restored.' record(s) returned to duplicate checking.');
     }
 
     public function markGroupNotDuplicate(Request $request)
@@ -4257,14 +4279,14 @@ class TransactionEventsController extends Controller
             return redirect()->back()->with('error', 'No duplicate records were selected.');
         }
 
-        $updated = DB::transaction(function () use ($ids, $request): int {
+        $updatedIds = DB::transaction(function () use ($ids, $request): array {
             $events = TransactionEvent::whereIn('id', $ids)
                 ->where('not_duplicate', false)
                 ->lockForUpdate()
                 ->get(['id', 'full_name']);
 
             if ($events->isEmpty()) {
-                return 0;
+                return [];
             }
 
             $now = now();
@@ -4297,8 +4319,25 @@ class TransactionEventsController extends Controller
                 ActivityLog::insert($auditRows);
             }
 
-            return $events->count();
+            return $events->pluck('id')->map(fn ($id) => (int) $id)->all();
         });
+        $updated = count($updatedIds);
+
+        if ($updated > 0) {
+            ActivityLog::create([
+                'user_id' => auth()->id(),
+                'action' => 'events_marked_not_duplicate',
+                'subject_type' => 'TransactionEvent',
+                'subject_id' => null,
+                'description' => $updated.' event record(s) marked as Not a Duplicate.',
+                'properties' => [
+                    'event_ids' => $updatedIds,
+                    'count' => $updated,
+                ],
+                'ip_address' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+            ]);
+        }
         TransactionHistory::flushDashboardCache();
 
         return redirect()->back()->with('success', $updated.' record(s) moved to Not a Duplicate Review.');

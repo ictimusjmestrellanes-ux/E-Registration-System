@@ -37,6 +37,8 @@ class ActivityLog extends Model
         'events_force_created_all',
         'event_status_tagged',
         'events_status_tagged',
+        'events_marked_not_duplicate',
+        'events_not_duplicate_review_undone',
         'event_deleted',
         'events_bulk_deleted',
         'event_transfer_undone',
