@@ -22,6 +22,12 @@
                                 <p class="text-muted mb-0">Review duplicate records grouped by client. Each client appears once per tab, with each matching record listed once.</p>
                             </div>
                             <div class="d-flex flex-wrap gap-2">
+                                @if (auth()->user()?->role_name !== 'Viewer')
+                                    <a href="{{ route('transaction-events.records-duplicates.merge-clients.index') }}"
+                                        class="btn btn-primary btn-sm fw-semibold">
+                                        <i class="ri-history-line me-1"></i> Completed Merges
+                                    </a>
+                                @endif
                                 @if (feature_allowed('View Removed Duplicates'))
                                     <a href="{{ route('transaction-events.removed-duplicates') }}"
                                         class="btn btn-warning btn-sm fw-semibold">
@@ -59,20 +65,59 @@
                                 })->values();
                                 $first = $events->first();
                                 $groupIds = $events->pluck('id')->values();
+                                $linkedClients = $events
+                                    ->map(fn ($event) => $event->transferredTransaction?->client)
+                                    ->filter()
+                                    ->unique('id')
+                                    ->sort(function ($left, $right) {
+                                        $createdOrder = ($left->created_at?->getTimestamp() ?? PHP_INT_MAX)
+                                            <=> ($right->created_at?->getTimestamp() ?? PHP_INT_MAX);
+
+                                        return $createdOrder !== 0 ? $createdOrder : ($left->id <=> $right->id);
+                                    })
+                                    ->values();
+                                $oldestClient = $linkedClients->first();
+                                $newestClient = $linkedClients->last();
+                                $newerClientIds = $linkedClients->slice(1)->pluck('client_id')->values();
+                                $profileSummary = function ($client) {
+                                    if (!$client) {
+                                        return [];
+                                    }
+
+                                    return [
+                                        'name' => $client->full_name,
+                                        'birth_date' => $client->birth_date?->format('M d, Y') ?: '-',
+                                        'contact' => $client->contact ?: '-',
+                                        'address' => $client->address ?: '-',
+                                        'sector' => $client->sector ?: '-',
+                                    ];
+                                };
                                 $out = '<div class="border rounded-4 p-3 mb-3">';
                                 $out .= '<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">';
                                 $out .= '<div>';
                                 $out .= '<h6 class="mb-0 fw-semibold">' . e($first->full_name) . ' - <span class="fw-bold"> Transaction ID: ' . e($first->transferredTransaction?->transaction_id ?? '-') . ' </span> <span class="badge bg-danger-subtle text-danger ms-1">' .  (int) $group['total'] . ' records</span></h6>';
                                 $out .= '</div>';
                                 if (auth()->user()?->role_name !== 'Viewer') {
+                                    $out .= '<div class="d-flex flex-wrap gap-2">';
+                                    if ($linkedClients->count() > 1) {
+                                        $out .= '<button type="button" class="btn btn-sm btn-primary text-nowrap" data-bs-toggle="modal" data-bs-target="#mergeDuplicateClientsModal"'
+                                            . ' data-event-ids="' . e($groupIds->implode(',')) . '"'
+                                            . ' data-group-name="' . e($first->full_name) . '"'
+                                            . ' data-record-count="' . (int) $groupIds->count() . '"'
+                                            . ' data-target-client-id="' . e($oldestClient?->client_id ?? '') . '"'
+                                            . ' data-target-profile="' . e(json_encode($profileSummary($oldestClient))) . '"'
+                                            . ' data-source-client-ids="' . e($newerClientIds->implode(', ')) . '"'
+                                            . ' data-latest-profile="' . e(json_encode($profileSummary($newestClient))) . '">'
+                                            . '<i class="ri-git-merge-line me-1"></i> Merge to Oldest Client</button>';
+                                    }
                                     $out .= '<button type="button" class="btn btn-sm btn-outline-success text-nowrap" data-bs-toggle="modal" data-bs-target="#notDuplicateGroupModal" data-event-ids="' . e($groupIds->implode(',')) . '" data-group-name="' . e($first->full_name) . '" data-record-count="' . (int) $groupIds->count() . '"><i class="ri-check-line me-1"></i> Not a duplicate</button>';
+                                    $out .= '</div>';
                                 }
                                 $out .= '</div>';
                                 $out .= '<div class="table-responsive">';
                                 $out .= '<table class="table table-sm table-hover align-middle mb-0 duplicate-group-table">';
                                 $out .= '<thead class="table-light"><tr>';
                                 $sortableHeaders = [
-                                    ['label' => 'ID', 'type' => 'number'],
                                     ['label' => 'Transaction ID', 'type' => 'text'],
                                     ['label' => 'Full Name', 'type' => 'text'],
                                     ['label' => 'Age', 'type' => 'number'],
@@ -104,7 +149,6 @@
                                         $event->transaction_type,
                                     ]));
                                     $out .= '<tr data-event-id="' . (int) $event->id . '" data-event-name="' . e($event->full_name) . '" data-event-summary="' . e($eventSummary) . '">';
-                                    $out .= '<td data-sort-value="' . e($event->id) . '">' . e($event->id) . '</td>';
                                     $out .= '<td class="fw-semibold" data-sort-value="' . e($txId) . '">' . e($txId) . '</td>';
                                     $out .= '<td class="fw-semibold" data-sort-value="' . e($event->full_name) . '">' . e($event->full_name) . '</td>';
                                     $out .= '<td data-sort-value="' . e($event->age ?? '') . '">' . e($event->age ?? '-') . '</td>';
@@ -476,6 +520,85 @@
                 </div>
             </div>
         </div>
+
+        <div class="modal fade" id="mergeDuplicateClientsModal" tabindex="-1"
+            aria-labelledby="mergeDuplicateClientsModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+                <div class="modal-content">
+                    <form action="{{ route('transaction-events.records-duplicates.merge-clients') }}" method="POST"
+                        id="mergeDuplicateClientsForm">
+                        @csrf
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="mergeDuplicateClientsModalLabel">
+                                <i class="ri-git-merge-line text-primary me-1"></i> Merge to Oldest Client
+                            </h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"
+                                aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div id="mergeDuplicateClientInputs"></div>
+                            <p class="mb-3">
+                                Review and merge all <strong id="mergeDuplicateRecordCount">0</strong> records for
+                                <strong id="mergeDuplicateGroupName"></strong>.
+                            </p>
+
+                            <div class="alert alert-primary-subtle border-primary-subtle">
+                                <div class="fw-semibold mb-1">Client kept: <span id="mergeTargetClientId"></span></div>
+                                <div class="small">
+                                    Newer client profile(s) <strong id="mergeSourceClientIds"></strong> will be removed.
+                                </div>
+                            </div>
+
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-6">
+                                    <div class="border rounded-3 h-100 p-3">
+                                        <div class="text-uppercase text-muted small fw-semibold mb-2">
+                                            Current oldest profile
+                                        </div>
+                                        <dl class="row small mb-0" id="mergeOldestProfile"></dl>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="border border-primary-subtle bg-primary-subtle rounded-3 h-100 p-3">
+                                        <div class="text-uppercase text-primary small fw-semibold mb-2">
+                                            Newest available profile data
+                                        </div>
+                                        <dl class="row small mb-0" id="mergeNewestProfile"></dl>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <ol class="small ps-3 mb-3">
+                                <li class="mb-1">Keep the oldest client ID and copy newer non-empty profile values.</li>
+                                <li class="mb-1">Move and renumber every newer client transaction.</li>
+                                <li class="mb-1">Delete only the newer client profile(s).</li>
+                                <li>Preserve event transactions and exclude the group from Not a Duplicate Review.</li>
+                            </ol>
+
+                            <div class="alert alert-warning mb-3">
+                                This client-profile merge cannot be undone automatically.
+                            </div>
+
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" value="1"
+                                    id="confirmDuplicateClientMerge">
+                                <label class="form-check-label fw-semibold" for="confirmDuplicateClientMerge">
+                                    I reviewed this group and confirm the profiles belong to the same person.
+                                </label>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-sm btn-primary"
+                                id="confirmDuplicateClientMergeButton" disabled>
+                                <i class="ri-git-merge-line me-1"></i> Merge This Group
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
     @endif
 
     @if (auth()->user()?->role_name !== 'Viewer' && feature_allowed('Undo Transfer'))
@@ -581,6 +704,76 @@
                     input.value = id;
                     return input;
                 }));
+            });
+
+            const mergeClientsModal = document.getElementById('mergeDuplicateClientsModal');
+            const mergeConfirmation = document.getElementById('confirmDuplicateClientMerge');
+            const mergeSubmitButton = document.getElementById('confirmDuplicateClientMergeButton');
+            const mergeProfileLabels = {
+                name: 'Name',
+                birth_date: 'Birth date',
+                contact: 'Contact',
+                address: 'Address',
+                sector: 'Client category',
+            };
+            const renderMergeProfile = (containerId, profile) => {
+                const container = document.getElementById(containerId);
+                if (!container) return;
+                const nodes = [];
+                Object.entries(mergeProfileLabels).forEach(([field, label]) => {
+                    const term = document.createElement('dt');
+                    term.className = 'col-4 text-muted fw-normal';
+                    term.textContent = label;
+                    const detail = document.createElement('dd');
+                    detail.className = 'col-8 fw-semibold text-break';
+                    detail.textContent = profile?.[field] || '-';
+                    nodes.push(term, detail);
+                });
+                container.replaceChildren(...nodes);
+            };
+
+            mergeClientsModal?.addEventListener('show.bs.modal', function(event) {
+                const trigger = event.relatedTarget;
+                const ids = String(trigger?.dataset.eventIds || '').split(',').filter(Boolean);
+                const inputs = document.getElementById('mergeDuplicateClientInputs');
+                inputs?.replaceChildren(...ids.map(id => {
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = 'event_ids[]';
+                    input.value = id;
+                    return input;
+                }));
+
+                document.getElementById('mergeDuplicateGroupName').textContent =
+                    trigger?.dataset.groupName || 'this client';
+                document.getElementById('mergeDuplicateRecordCount').textContent =
+                    trigger?.dataset.recordCount || ids.length;
+                document.getElementById('mergeTargetClientId').textContent =
+                    trigger?.dataset.targetClientId || '-';
+                document.getElementById('mergeSourceClientIds').textContent =
+                    trigger?.dataset.sourceClientIds || '-';
+
+                const parseProfile = value => {
+                    try {
+                        return JSON.parse(value || '{}');
+                    } catch (error) {
+                        return {};
+                    }
+                };
+                renderMergeProfile('mergeOldestProfile', parseProfile(trigger?.dataset.targetProfile));
+                renderMergeProfile('mergeNewestProfile', parseProfile(trigger?.dataset.latestProfile));
+
+                if (mergeConfirmation) mergeConfirmation.checked = false;
+                if (mergeSubmitButton) mergeSubmitButton.disabled = true;
+            });
+
+            mergeConfirmation?.addEventListener('change', function() {
+                if (mergeSubmitButton) mergeSubmitButton.disabled = !this.checked;
+            });
+            document.getElementById('mergeDuplicateClientsForm')?.addEventListener('submit', function() {
+                if (!mergeSubmitButton) return;
+                mergeSubmitButton.disabled = true;
+                mergeSubmitButton.innerHTML = '<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span> Merging...';
             });
 
             document.querySelectorAll('[data-client-count]').forEach(tab => {

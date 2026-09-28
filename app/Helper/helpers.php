@@ -68,7 +68,10 @@ function feature_route_map(): array
         'Events' => ['transaction-events'],
         'Delete Event' => ['transaction-events/*/delete'],
         'Event Records' => ['transaction-events/records'],
-        'Events Records Duplicates' => ['transaction-events/records/duplicates'],
+        'Events Records Duplicates' => [
+            'transaction-events/records/duplicates',
+            'transaction-events/records/duplicates/merge-clients*',
+        ],
         'View Archive Files' => ['transaction-events/archives'],
         'Duplicate Clients Review' => ['duplicate-review'],
         'Events - Duplicate Review' => ['transaction-events/duplicate-review'],

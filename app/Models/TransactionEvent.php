@@ -29,6 +29,7 @@ class TransactionEvent extends Model
         'transferred_at',
         'transferred_transaction_id',
         'not_duplicate',
+        'duplicate_merged_at',
     ];
 
     protected $casts = [
@@ -38,6 +39,7 @@ class TransactionEvent extends Model
         'transferred_transaction_id' => 'integer',
         'age' => 'integer',
         'not_duplicate' => 'boolean',
+        'duplicate_merged_at' => 'datetime',
     ];
 
     protected $attributes = [

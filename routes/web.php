@@ -144,9 +144,11 @@ Route::group(['namespace' => 'App\Http\Controllers'], function () {
         Route::get('transaction-events/archives/{filename}', [TransactionEventsController::class, 'downloadArchive'])->name('transaction-events.archives.download');
         Route::get('transaction-events/template', [TransactionEventsController::class, 'downloadTemplate'])->name('transaction-events.template');
 
-        // Static POST routes (must be declared before {event} wildcard routes)
+        // Static action routes (must be declared before {event} wildcard routes)
+        Route::get('transaction-events/records/duplicates/merge-clients', [TransactionEventsController::class, 'duplicateEventClientMergeGroups'])->name('transaction-events.records-duplicates.merge-clients.index');
         Route::post('transaction-events/group-not-duplicate', [TransactionEventsController::class, 'markGroupNotDuplicate'])->name('transaction-events.group-not-duplicate');
         Route::post('transaction-events/group-reset-duplicate', [TransactionEventsController::class, 'resetNotDuplicateGroup'])->name('transaction-events.group-reset-duplicate');
+        Route::post('transaction-events/records/duplicates/merge-clients', [TransactionEventsController::class, 'mergeDuplicateEventClients'])->name('transaction-events.records-duplicates.merge-clients');
         Route::post('transaction-events/preview', [TransactionEventsController::class, 'preview'])->name('transaction-events.preview');
         Route::post('transaction-events/import/diagnose', [TransactionEventsController::class, 'diagnoseImportFile'])->name('transaction-events.import.diagnose');
         Route::post('transaction-events/import/check-duplicates', [TransactionEventsController::class, 'importDuplicatesCheck'])->name('transaction-events.import.check-duplicates');

@@ -245,7 +245,6 @@
                                 $first = $events->first();
                                 $groupIds = $events->pluck('id')->values();
                                 $sortableHeaders = [
-                                    ['label' => 'ID', 'type' => 'number'],
                                     ['label' => 'Transaction ID', 'type' => 'text'],
                                     ['label' => 'Full Name', 'type' => 'text'],
                                     ['label' => 'Birth Date', 'type' => 'date'],
@@ -310,7 +309,6 @@
                                         <tbody>
                                             @foreach ($events as $event)
                                                 <tr>
-                                                    <td data-sort-value="{{ $event->id }}">{{ $event->id }}</td>
                                                     <td class="fw-semibold"
                                                         data-sort-value="{{ $event->transferredTransaction?->transaction_id ?? '' }}">
                                                         {{ $event->transferredTransaction?->transaction_id ?? '-' }}

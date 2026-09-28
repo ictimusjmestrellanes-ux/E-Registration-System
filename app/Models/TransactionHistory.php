@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\Cache;
 
 class TransactionHistory extends Model
@@ -217,5 +218,16 @@ class TransactionHistory extends Model
     public function requirements()
     {
         return $this->hasMany(TransactionRequirement::class, 'transaction_id');
+    }
+
+    /**
+     * Client profile currently owning this transaction history row.
+     *
+     * The application uses the public client_id string (rather than the
+     * clients table primary key) to link transaction history to a client.
+     */
+    public function client(): BelongsTo
+    {
+        return $this->belongsTo(Client::class, 'client_id', 'client_id');
     }
 }

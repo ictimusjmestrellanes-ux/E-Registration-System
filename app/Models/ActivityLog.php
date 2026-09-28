@@ -39,6 +39,7 @@ class ActivityLog extends Model
         'events_status_tagged',
         'events_marked_not_duplicate',
         'events_not_duplicate_review_undone',
+        'duplicate_event_clients_merged',
         'event_deleted',
         'events_bulk_deleted',
         'event_transfer_undone',

@@ -1290,7 +1290,8 @@ class TransactionEventsController extends Controller
         $columns = ['event_date', 'client_category', 'transaction_category', 'transaction_type'];
         $query = DB::table('transaction_events')
             ->whereNotNull('transferred_at')
-            ->where('not_duplicate', false);
+            ->where('not_duplicate', false)
+            ->whereNull('duplicate_merged_at');
         $this->applyRecordDuplicatePrefilters($query, $request);
         $query->selectRaw($this->recordDuplicateNormalizedExpression('full_name').' as fullname');
         foreach ($columns as $column) {
@@ -1405,6 +1406,7 @@ class TransactionEventsController extends Controller
             }
             $query = TransactionEvent::query()->whereNotNull('transferred_at')
                 ->where('not_duplicate', false)
+                ->whereNull('duplicate_merged_at')
                 ->whereIn(DB::raw($this->recordDuplicateNormalizedExpression('full_name')), array_unique($fullnames))
                 ->select('transaction_events.*');
             $this->applyRecordDuplicatePrefilters($query, $request);
@@ -1412,7 +1414,7 @@ class TransactionEventsController extends Controller
                 $column = $field === 'fullname' ? 'full_name' : $field;
                 $query->selectRaw($this->recordDuplicateNormalizedExpression($column).' as duplicate_'.$field);
             }
-            $events = $query->with('transferredTransaction:id,transaction_id')
+            $events = $query->with('transferredTransaction:id,client_id,transaction_id')
                 ->orderByDesc('transaction_events.id')->get()
                 ->groupBy(function ($event) use ($fields, $memberGroups) {
                     $key = json_encode(array_map(fn ($field) => (string) $event->getAttribute('duplicate_'.$field), $fields));
@@ -1443,7 +1445,8 @@ class TransactionEventsController extends Controller
     {
         $base = DB::table('transaction_events')
             ->whereNotNull('transferred_at')
-            ->where('not_duplicate', false);
+            ->where('not_duplicate', false)
+            ->whereNull('duplicate_merged_at');
         $this->applyRecordDuplicatePrefilters($base, $request);
         $rows = $base->get(['id', 'full_name', 'event_date', 'transaction_category',
             'transaction_type', 'client_category']);
@@ -1516,7 +1519,7 @@ class TransactionEventsController extends Controller
         $page = max(1, (int) $request->input('likely_page', 1));
         $visible = $matches->forPage($page, $perPage)->values();
         $events = $visible->isEmpty() ? collect() : TransactionEvent::query()
-            ->with('transferredTransaction:id,transaction_id')
+            ->with('transferredTransaction:id,client_id,transaction_id')
             ->whereIn('id', $visible->flatMap(fn ($group) => $group['event_ids'])->all())
             ->get()->keyBy('id');
         $groups = $visible->map(fn ($group) => [
@@ -1555,7 +1558,9 @@ class TransactionEventsController extends Controller
                 'full_name' => [],
             ], $request, $perPage, 'similar_page');
 
-            $filterBase = TransactionEvent::whereNotNull('transferred_at')->where('not_duplicate', false);
+            $filterBase = TransactionEvent::whereNotNull('transferred_at')
+                ->where('not_duplicate', false)
+                ->whereNull('duplicate_merged_at');
 
             return [
                 'exactGroups' => $exactGroups,
@@ -1603,7 +1608,7 @@ class TransactionEventsController extends Controller
             sort($cacheFilters['client_category']);
             sort($cacheFilters['transaction_category']);
             sort($cacheFilters['transaction_type']);
-            $cacheKey = 'transaction-events:duplicate-records:v1:'.hash('sha256', json_encode([
+            $cacheKey = 'transaction-events:duplicate-records:v2:'.hash('sha256', json_encode([
                 'state' => $state,
                 'filters' => $cacheFilters,
             ]));
@@ -1614,7 +1619,51 @@ class TransactionEventsController extends Controller
             $duplicateData[$groupKey]->withPath(url()->current());
         }
 
+        $this->attachClientsToVisibleDuplicateEvents($duplicateData);
+
         return view('pages.transaction_events.recordsDuplicates', $duplicateData + compact('perPage'));
+    }
+
+    /**
+     * Hydrate every client shown on the three visible duplicate pages in one
+     * query. Keeping this separate from the cached duplicate payload prevents
+     * stale client details after a profile edit or merge.
+     */
+    private function attachClientsToVisibleDuplicateEvents(array $duplicateData): void
+    {
+        $events = collect(['exactGroups', 'likelyGroups', 'similarGroups'])
+            ->flatMap(function (string $key) use ($duplicateData) {
+                $paginator = $duplicateData[$key] ?? null;
+                $groups = $paginator instanceof LengthAwarePaginator
+                    ? $paginator->getCollection()
+                    : collect();
+
+                return $groups->flatMap(fn (array $group) => $group['events'] ?? collect());
+            })
+            ->unique('id')
+            ->values();
+
+        $clientIds = $events
+            ->map(fn (TransactionEvent $event) => $event->transferredTransaction?->client_id)
+            ->filter(fn ($clientId) => filled($clientId))
+            ->unique()
+            ->values();
+
+        if ($clientIds->isEmpty()) {
+            return;
+        }
+
+        $clients = Client::query()
+            ->whereIn('client_id', $clientIds->all())
+            ->get()
+            ->keyBy('client_id');
+
+        foreach ($events as $event) {
+            $transaction = $event->transferredTransaction;
+            if ($transaction) {
+                $transaction->setRelation('client', $clients->get($transaction->client_id));
+            }
+        }
     }
     public function archives(Request $request)
     {
@@ -3683,7 +3732,12 @@ class TransactionEventsController extends Controller
 
     private function nextTransactionIdForClient(string $clientId): string
     {
-        $year = now()->format('y');
+        return $this->nextTransactionIdForClientYear($clientId, now()->format('y'));
+    }
+
+    /** Allocate the next display transaction ID for one client and year. */
+    private function nextTransactionIdForClientYear(string $clientId, string $year): string
+    {
         $cacheKey = $clientId.'|'.$year;
         $pattern = $clientId . '-' . $year . '-';
 
@@ -4265,6 +4319,285 @@ class TransactionEventsController extends Controller
         return redirect()->back()->with('success', $restored.' record(s) returned to duplicate checking.');
     }
 
+    /** Show the completed duplicate-client merge history. */
+    public function duplicateEventClientMergeGroups(Request $request)
+    {
+        abort_if(
+            auth()->user()?->role_name === 'Viewer'
+                || ! feature_allowed('Events Records Duplicates'),
+            403
+        );
+
+        $perPage = (int) $request->input('per_page', 10);
+        if (! in_array($perPage, [10, 15, 25, 50, 100], true)) {
+            $perPage = 10;
+        }
+
+        $completedMerges = ActivityLog::query()
+            ->with('user:id,name')
+            ->where('action', 'duplicate_event_clients_merged')
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->paginate($perPage, ['*'], 'completed_page')
+            ->withQueryString();
+        $completedTargetIds = collect($completedMerges->items())
+            ->map(fn (ActivityLog $log) => $log->properties['target_client_id'] ?? null)
+            ->filter()
+            ->unique()
+            ->values();
+        $completedTargetClients = Client::query()
+            ->whereIn('client_id', $completedTargetIds->all())
+            ->get()
+            ->keyBy('client_id');
+
+        return view('pages.transaction_events.mergeDuplicateGroups', compact(
+            'perPage', 'completedMerges', 'completedTargetClients'
+        ));
+    }
+
+    /**
+     * Consolidate the client profiles linked to a visible duplicate-event
+     * group. The oldest client row remains the canonical profile; every newer
+     * nonblank profile value wins, all histories are moved and renumbered,
+     * and only the redundant client profiles are deleted.
+     */
+    public function mergeDuplicateEventClients(Request $request)
+    {
+        abort_if(
+            auth()->user()?->role_name === 'Viewer'
+                || ! feature_allowed('Events Records Duplicates'),
+            403
+        );
+
+        $validated = $request->validate([
+            'event_ids' => ['required', 'array', 'min:2', 'max:100'],
+            'event_ids.*' => ['required', 'integer', 'distinct', 'exists:transaction_events,id'],
+        ]);
+        $eventIds = collect($validated['event_ids'])->map(fn ($id) => (int) $id)->values();
+
+        $result = DB::transaction(function () use ($eventIds, $request): array {
+            $events = TransactionEvent::query()
+                ->whereKey($eventIds->all())
+                ->whereNotNull('transferred_at')
+                ->where('not_duplicate', false)
+                ->whereNull('duplicate_merged_at')
+                ->lockForUpdate()
+                ->get();
+
+            if ($events->count() !== $eventIds->count()) {
+                return ['error' => 'One or more duplicate records changed. Refresh the page and review the group again.'];
+            }
+
+            // Do not permit a crafted request to merge unrelated people. All
+            // duplicate tabs share surname + first given name as their minimum
+            // person identity rule (for example ALLAN and ALLAN R.).
+            $identityKeys = $events->map(function (TransactionEvent $event): string {
+                $name = $this->splitImportFullName((string) $event->full_name);
+                $normalize = static fn (string $value): string => mb_strtolower(
+                    preg_replace('/\s+/u', ' ', trim($value)) ?? trim($value)
+                );
+                $first = preg_split('/\s+/u', $normalize($name['first']), -1, PREG_SPLIT_NO_EMPTY)[0] ?? '';
+
+                return $normalize($name['last'])."\0".$first;
+            })->unique();
+
+            if ($identityKeys->count() !== 1 || str_replace("\0", '', (string) $identityKeys->first()) === '') {
+                return ['error' => 'These records do not identify the same client and cannot be merged.'];
+            }
+
+            $historyIds = $events->pluck('transferred_transaction_id')->filter()->unique()->values();
+            if ($historyIds->count() !== $events->count()) {
+                return ['error' => 'Every selected event must have its own linked transaction before clients can be merged.'];
+            }
+
+            $eventHistories = TransactionHistory::query()
+                ->whereKey($historyIds->all())
+                ->lockForUpdate()
+                ->get();
+            if ($eventHistories->count() !== $historyIds->count()
+                || $eventHistories->contains(fn (TransactionHistory $history) => blank($history->client_id))) {
+                return ['error' => 'A linked client or transaction is no longer available. Refresh and try again.'];
+            }
+
+            $clientIds = $eventHistories->pluck('client_id')->unique()->values();
+            if ($clientIds->count() < 2) {
+                return ['error' => 'These transactions already belong to one client. No client merge is needed.'];
+            }
+
+            $clients = Client::query()
+                ->whereIn('client_id', $clientIds->all())
+                ->lockForUpdate()
+                ->get()
+                ->sort(function (Client $left, Client $right): int {
+                    $createdOrder = ($left->created_at?->getTimestamp() ?? PHP_INT_MAX)
+                        <=> ($right->created_at?->getTimestamp() ?? PHP_INT_MAX);
+
+                    return $createdOrder !== 0 ? $createdOrder : ($left->id <=> $right->id);
+                })
+                ->values();
+
+            if ($clients->count() !== $clientIds->count()) {
+                return ['error' => 'A linked client was already removed. Refresh the duplicate list before merging.'];
+            }
+
+            $target = $clients->first();
+            $sources = $clients->slice(1)->values();
+            $sourceClientIds = $sources->pluck('client_id')->values();
+            $profileFields = [
+                'first_name', 'middle_name', 'last_name', 'suffix', 'age', 'birth_date',
+                'birthplace', 'education', 'course', 'sector', 'position_organization',
+                'gender', 'civil_status', 'email', 'contact', 'contact_2', 'address',
+                'province', 'city', 'barangay', 'photo_path', 'fingerprint_path',
+                'fingerprint_template',
+            ];
+
+            // Iterate oldest-to-newest so the newest meaningful value becomes
+            // authoritative while a blank newer value never erases good data.
+            $merged = $target->only($profileFields);
+            foreach ($sources as $source) {
+                foreach ($profileFields as $field) {
+                    $value = $source->getAttribute($field);
+                    if ($this->hasClientMergeValue($value)) {
+                        $merged[$field] = $value;
+                    }
+                }
+            }
+
+            $changedFields = [];
+            foreach ($merged as $field => $value) {
+                $target->setAttribute($field, $value);
+                if ($target->isDirty($field)) {
+                    $changedFields[] = $field;
+                }
+            }
+            if ($target->isDirty()) {
+                $target->save();
+            }
+
+            // Include legacy histories whose client_id was not backfilled but
+            // whose display ID still starts with the source client ID.
+            $histories = TransactionHistory::query()
+                ->where(function ($query) use ($sourceClientIds) {
+                    $query->whereIn('client_id', $sourceClientIds->all());
+                    foreach ($sourceClientIds as $sourceClientId) {
+                        $escaped = addcslashes((string) $sourceClientId, '\\%_');
+                        $query->orWhere('transaction_id', 'like', $escaped.'-%');
+                    }
+                })
+                ->orderBy('transaction_date')
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get();
+
+            $transactionIdChanges = [];
+            foreach ($histories as $history) {
+                $oldTransactionId = (string) $history->transaction_id;
+                $year = preg_match('/-(\d{2})-\d{4}$/', $oldTransactionId, $matches)
+                    ? $matches[1]
+                    : ($history->transaction_date?->format('y') ?? now()->format('y'));
+                $newTransactionId = $this->nextTransactionIdForClientYear((string) $target->client_id, $year);
+                $history->update([
+                    'client_id' => $target->client_id,
+                    'transaction_id' => $newTransactionId,
+                ]);
+                $transactionIdChanges[] = [
+                    'history_id' => (int) $history->id,
+                    'old' => $oldTransactionId,
+                    'new' => $newTransactionId,
+                ];
+            }
+
+            $sourcePrimaryKeys = $sources->pluck('id')->map(fn ($id) => (int) $id)->all();
+            foreach ($sources as $source) {
+                // Media paths copied onto the canonical client are deliberately
+                // retained; deleting a profile must not delete a shared file.
+                $source->delete();
+            }
+
+            // The selected records are now one resolved client group. Preserve
+            // the event rows for history, but keep confirmed merges separate
+            // from both active duplicates and the Not a Duplicate review queue.
+            $resolvedAt = now();
+            TransactionEvent::whereKey($events->pluck('id')->all())->update([
+                'not_duplicate' => false,
+                'duplicate_merged_at' => $resolvedAt,
+                'updated_at' => $resolvedAt,
+            ]);
+
+            // Bulk updates skip model-level auditing, so retain a per-record
+            // trail for the dedicated merged-group resolution state.
+            if (auth()->check() && $request->route()) {
+                $auditRows = $events->map(fn (TransactionEvent $event) => [
+                    'user_id' => auth()->id(),
+                    'action' => 'transaction_event_updated',
+                    'subject_type' => 'TransactionEvent',
+                    'subject_id' => $event->id,
+                    'description' => 'Updated Transaction Event #'.$event->id.' ('.$event->full_name.').',
+                    'properties' => json_encode([
+                        'route' => $request->route()?->getName(),
+                        'before' => ['duplicate_merged_at' => null],
+                        'after' => ['duplicate_merged_at' => $resolvedAt->toDateTimeString()],
+                        'changed_fields' => ['duplicate_merged_at'],
+                    ], JSON_THROW_ON_ERROR),
+                    'ip_address' => $request->ip(),
+                    'user_agent' => $request->userAgent(),
+                    'created_at' => $resolvedAt,
+                    'updated_at' => $resolvedAt,
+                ])->all();
+                ActivityLog::insert($auditRows);
+            }
+
+            $description = 'Merged '.count($sourcePrimaryKeys).' newer duplicate client profile(s) into oldest client '
+                .$target->client_id.', updated '.count($transactionIdChanges)
+                .' transaction ID(s), and removed the resolved group from Duplicate Event Records.';
+            app(\App\Services\ActivityLogger::class)->record(
+                'duplicate_event_clients_merged',
+                $description,
+                [
+                    'target_client_id' => $target->client_id,
+                    'target_client_primary_key' => (int) $target->id,
+                    'source_client_ids' => $sourceClientIds->all(),
+                    'source_client_primary_keys' => $sourcePrimaryKeys,
+                    'event_ids' => $eventIds->all(),
+                    'profile_fields_updated' => $changedFields,
+                    'transaction_id_changes' => $transactionIdChanges,
+                    'duplicate_group_removed' => true,
+                ],
+                $target
+            );
+
+            return [
+                'target' => $target,
+                'sources' => count($sourcePrimaryKeys),
+                'transactions' => count($transactionIdChanges),
+            ];
+        });
+
+        if (isset($result['error'])) {
+            return redirect()->back()->with('error', $result['error']);
+        }
+
+        TransactionHistory::flushDashboardCache();
+
+        return redirect()->route('transaction-events.records-duplicates')->with(
+            'success',
+            "Merged {$result['sources']} newer client profile(s) into oldest client "
+                .$result['target']->client_id.". Updated {$result['transactions']} transaction ID(s), removed the duplicate group without adding it to Not a Duplicate Review, and preserved every event transaction."
+        );
+    }
+
+    private function hasClientMergeValue(mixed $value): bool
+    {
+        if ($value === null) {
+            return false;
+        }
+        if (is_string($value)) {
+            return trim($value) !== '';
+        }
+
+        return true;
+    }
+
     public function markGroupNotDuplicate(Request $request)
     {
         $rawIds = $request->input('event_ids', []);
@@ -4350,7 +4683,8 @@ class TransactionEventsController extends Controller
             $perPage = 10;
         }
 
-        $reviewedQuery = TransactionEvent::where('not_duplicate', true);
+        $reviewedQuery = TransactionEvent::where('not_duplicate', true)
+            ->whereNull('duplicate_merged_at');
         $this->applyRecordDuplicatePrefilters($reviewedQuery, $request);
         $reviewedEvents = $reviewedQuery
             ->with('transferredTransaction:id,transaction_id')
@@ -4391,7 +4725,8 @@ class TransactionEventsController extends Controller
             ]
         );
 
-        $filterBase = TransactionEvent::where('not_duplicate', true);
+        $filterBase = TransactionEvent::where('not_duplicate', true)
+            ->whereNull('duplicate_merged_at');
         $filterClientCategories = (clone $filterBase)->select('client_category')->distinct()
             ->pluck('client_category')->filter()->sort()->values();
         $filterTransactionCategories = (clone $filterBase)->select('transaction_category')->distinct()
