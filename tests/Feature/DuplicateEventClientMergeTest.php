@@ -109,8 +109,6 @@ class DuplicateEventClientMergeTest extends TestCase
             ->assertSee('Contact No.')
             ->assertSee('profile_field_sources', false)
             ->assertSee('data-source-clients=', false)
-            ->assertSee('data-target-client-id="2600001"', false)
-            ->assertSee('data-source-client-ids="2600002"', false)
             ->assertSee('Newest complete address');
 
         $this->get(route('transaction-events.records-duplicates.merge-clients.index'))
@@ -122,11 +120,11 @@ class DuplicateEventClientMergeTest extends TestCase
         $this->post(route('transaction-events.records-duplicates.merge-clients'), [
             'event_ids' => [$oldEvent->id, $newEvent->id],
             'profile_field_sources' => [
-                'name' => 'newest',
+                'name' => '2600002',
                 'birth_date' => 'oldest',
-                'contact' => 'newest',
+                'contact' => '2600002',
                 'address' => 'oldest',
-                'sector' => 'newest',
+                'sector' => '2600002',
             ],
         ])->assertRedirect(route('transaction-events.records-duplicates'))->assertSessionHas('success');
 
@@ -178,13 +176,12 @@ class DuplicateEventClientMergeTest extends TestCase
         ]);
         $mergeLog = ActivityLog::where('action', 'duplicate_event_clients_merged')->latest('id')->firstOrFail();
         $this->assertSame([
-            'name' => 'newest',
+            'name' => '2600002',
             'birth_date' => 'oldest',
-            'contact' => 'newest',
+            'contact' => '2600002',
             'address' => 'oldest',
-            'sector' => 'newest',
+            'sector' => '2600002',
         ], $mergeLog->properties['profile_field_sources']);
-        $this->assertSame('2600002', $mergeLog->properties['newest_profile_client_id']);
         $this->assertContains('duplicate_event_clients_merged', ActivityLog::NOTIFICATION_ACTIONS);
 
         $this->get(route('transaction-events.records-duplicates.merge-clients.index'))
@@ -257,7 +254,6 @@ class DuplicateEventClientMergeTest extends TestCase
             'address' => 'oldest',
             'sector' => 'oldest',
         ], $mergeLog->properties['profile_field_sources']);
-        $this->assertSame('2600004', $mergeLog->properties['newest_profile_client_id']);
     }
 
     public function test_admin_can_merge_only_selected_newer_clients_and_leave_others_for_review(): void
@@ -303,9 +299,18 @@ class DuplicateEventClientMergeTest extends TestCase
         $this->post(route('transaction-events.records-duplicates.merge-clients'), [
             'event_ids' => $events->pluck('id')->all(),
             'source_client_ids' => ['2600021'],
+            'profile_field_sources' => ['name' => '2600022'],
+        ])->assertRedirect()->assertSessionHas('error');
+        $this->assertSame(3, Client::whereIn('client_id', $clients->pluck('client_id'))->count());
+
+        $this->post(route('transaction-events.records-duplicates.merge-clients'), [
+            'event_ids' => $events->pluck('id')->all(),
+            'source_client_ids' => ['2600021'],
+            'profile_field_sources' => ['name' => '2600021'],
         ])->assertRedirect(route('transaction-events.records-duplicates'))->assertSessionHas('success');
 
         $this->assertNotNull($clients[0]->fresh());
+        $this->assertSame('M', $clients[0]->fresh()->middle_name);
         $this->assertNull($clients[1]->fresh());
         $this->assertNotNull($clients[2]->fresh());
         $this->assertNull($events[0]->fresh()->duplicate_merged_at);

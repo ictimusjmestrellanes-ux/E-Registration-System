@@ -19,23 +19,27 @@
                         <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
                             <div>
                                 <h4 class="mb-1">Duplicate Events Records</h4>
-                                <p class="text-muted mb-0">Review duplicate records grouped by client. Each client appears once per tab, with each matching record listed once.</p>
+                                <p class="text-muted mb-0">Review duplicate records grouped by client. Each client appears
+                                    once per tab, with each matching record listed once.</p>
                             </div>
                             <div class="d-flex flex-wrap gap-2">
-                                @if (auth()->user()?->role_name !== 'Viewer')
-                                    <a href="{{ route('transaction-events.records-duplicates.merge-clients.index') }}"
-                                        class="btn btn-primary btn-sm fw-semibold">
-                                        <i class="ri-history-line me-1"></i> Completed Merges
-                                    </a>
+                                @if (feature_allowed('Completed Merges'))
+                                    @if (auth()->user()?->role_name !== 'Viewer')
+                                        <a href="{{ route('transaction-events.records-duplicates.merge-clients.index') }}"
+                                            class="btn btn-primary btn-sm fw-semibold">
+                                            <i class="ri-history-line me-1"></i> Completed Merges
+                                        </a>
+                                    @endif
                                 @endif
-                                @if (feature_allowed('View Removed Duplicates'))
-                                    <a href="{{ route('transaction-events.removed-duplicates') }}"
-                                        class="btn btn-warning btn-sm fw-semibold">
-                                        <i class="ri-file-list-3-line me-1"></i> Not a Duplicate Review
-                                    </a>
+                                @if (feature_allowed('Not a Duplicate Review'))
+                                    @if (feature_allowed('View Removed Duplicates'))
+                                        <a href="{{ route('transaction-events.removed-duplicates') }}"
+                                            class="btn btn-warning btn-sm fw-semibold">
+                                            <i class="ri-file-list-3-line me-1"></i> Not a Duplicate Review
+                                        </a>
+                                    @endif
                                 @endif
-                                <a href="{{ route('transaction-events.records') }}"
-                                    class="btn btn-outline-primary btn-sm">
+                                <a href="{{ route('transaction-events.records') }}" class="btn btn-outline-primary btn-sm">
                                     <i class="ri-arrow-left-line me-1"></i> Back to Event Records
                                 </a>
                             </div>
@@ -50,7 +54,14 @@
                 <div class="card">
                     <div class="card-body">
                         @php
-                            $activeTab = request('duplicate_tab', request()->has('similar_page') ? 'full_name' : (request()->has('likely_page') ? 'likely' : 'exact'));
+                            $activeTab = request(
+                                'duplicate_tab',
+                                request()->has('similar_page')
+                                    ? 'full_name'
+                                    : (request()->has('likely_page')
+                                        ? 'likely'
+                                        : 'exact'),
+                            );
                             $showLikely = $activeTab === 'likely';
                             $showFullName = $activeTab === 'full_name';
                             $exactCount = $exactRecordsTotal ?? $exactGroups->sum('total');
@@ -58,27 +69,31 @@
                             $similarCount = $similarRecordsTotal ?? $similarGroups->sum('total');
 
                             $renderGroup = function ($group, $tab) {
-                                $events = $group['events']->sort(function ($left, $right) {
-                                    $nameOrder = strnatcasecmp(trim((string) $left->full_name), trim((string) $right->full_name));
+                                $events = $group['events']
+                                    ->sort(function ($left, $right) {
+                                        $nameOrder = strnatcasecmp(
+                                            trim((string) $left->full_name),
+                                            trim((string) $right->full_name),
+                                        );
 
-                                    return $nameOrder !== 0 ? $nameOrder : ($left->id <=> $right->id);
-                                })->values();
+                                        return $nameOrder !== 0 ? $nameOrder : $left->id <=> $right->id;
+                                    })
+                                    ->values();
                                 $first = $events->first();
                                 $groupIds = $events->pluck('id')->values();
                                 $linkedClients = $events
-                                    ->map(fn ($event) => $event->transferredTransaction?->client)
+                                    ->map(fn($event) => $event->transferredTransaction?->client)
                                     ->filter()
                                     ->unique('id')
                                     ->sort(function ($left, $right) {
-                                        $createdOrder = ($left->created_at?->getTimestamp() ?? PHP_INT_MAX)
-                                            <=> ($right->created_at?->getTimestamp() ?? PHP_INT_MAX);
+                                        $createdOrder =
+                                            ($left->created_at?->getTimestamp() ?? PHP_INT_MAX) <=>
+                                            ($right->created_at?->getTimestamp() ?? PHP_INT_MAX);
 
-                                        return $createdOrder !== 0 ? $createdOrder : ($left->id <=> $right->id);
+                                        return $createdOrder !== 0 ? $createdOrder : $left->id <=> $right->id;
                                     })
                                     ->values();
                                 $oldestClient = $linkedClients->first();
-                                $newestClient = $linkedClients->last();
-                                $newerClientIds = $linkedClients->slice(1)->pluck('client_id')->values();
                                 $profileSummary = function ($client) {
                                     if (!$client) {
                                         return [];
@@ -92,39 +107,76 @@
                                         'sector' => $client->sector ?: '-',
                                     ];
                                 };
-                                $newerClients = $linkedClients->slice(1)->map(fn ($client) => [
-                                    'client_id' => (string) $client->client_id,
-                                    'name' => $client->full_name,
-                                    'record_count' => $events->filter(
-                                        fn ($event) => (string) $event->transferredTransaction?->client_id === (string) $client->client_id
-                                    )->count(),
-                                    'profile' => $profileSummary($client),
-                                ])->values();
+                                $newerClients = $linkedClients
+                                    ->slice(1)
+                                    ->map(
+                                        fn($client) => [
+                                            'client_id' => (string) $client->client_id,
+                                            'name' => $client->full_name,
+                                            'record_count' => $events
+                                                ->filter(
+                                                    fn($event) => (string) $event->transferredTransaction
+                                                        ?->client_id === (string) $client->client_id,
+                                                )
+                                                ->count(),
+                                            'profile' => $profileSummary($client),
+                                        ],
+                                    )
+                                    ->values();
                                 $out = '<div class="border rounded-4 p-3 mb-3">';
-                                $out .= '<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">';
+                                $out .=
+                                    '<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">';
                                 $out .= '<div>';
-                                $out .= '<h6 class="mb-0 fw-semibold">' . e($first->full_name) . ' - <span class="fw-bold"> Transaction ID: ' . e($first->transferredTransaction?->transaction_id ?? '-') . ' </span> <span class="badge bg-danger-subtle text-danger ms-1">' .  (int) $group['total'] . ' records</span></h6>';
+                                $out .=
+                                    '<h6 class="mb-0 fw-semibold">' .
+                                    e($first->full_name) .
+                                    ' - <span class="fw-bold"> Transaction ID: ' .
+                                    e($first->transferredTransaction?->transaction_id ?? '-') .
+                                    ' </span> <span class="badge bg-danger-subtle text-danger ms-1">' .
+                                    (int) $group['total'] .
+                                    ' records</span></h6>';
                                 $out .= '</div>';
                                 if (auth()->user()?->role_name !== 'Viewer') {
                                     $out .= '<div class="d-flex flex-wrap gap-2">';
-                                    if ($linkedClients->count() > 1) {
-                                        $out .= '<button type="button" class="btn btn-sm btn-primary text-nowrap" data-bs-toggle="modal" data-bs-target="#mergeDuplicateClientsModal"'
-                                            . ' data-event-ids="' . e($groupIds->implode(',')) . '"'
-                                            . ' data-group-name="' . e($first->full_name) . '"'
-                                            . ' data-record-count="' . (int) $groupIds->count() . '"'
-                                            . ' data-target-client-id="' . e($oldestClient?->client_id ?? '') . '"'
-                                            . ' data-target-profile="' . e(json_encode($profileSummary($oldestClient))) . '"'
-                                            . ' data-source-client-ids="' . e($newerClientIds->implode(', ')) . '"'
-                                            . ' data-source-clients="' . e(json_encode($newerClients)) . '"'
-                                            . ' data-latest-profile="' . e(json_encode($profileSummary($newestClient))) . '">'
-                                            . '<i class="ri-git-merge-line me-1"></i> Merge to Oldest Client</button>';
+                                    if (feature_allowed('Merge to Oldest Client')) {
+                                        if ($linkedClients->count() > 1) {
+                                            $out .=
+                                                '<button type="button" class="btn btn-sm btn-primary text-nowrap" data-bs-toggle="modal" data-bs-target="#mergeDuplicateClientsModal"' .
+                                                ' data-event-ids="' .
+                                                e($groupIds->implode(',')) .
+                                                '"' .
+                                                ' data-group-name="' .
+                                                e($first->full_name) .
+                                                '"' .
+                                                ' data-record-count="' .
+                                                (int) $groupIds->count() .
+                                                '"' .
+                                                ' data-target-profile="' .
+                                                e(json_encode($profileSummary($oldestClient))) .
+                                                '"' .
+                                                ' data-source-clients="' .
+                                                e(json_encode($newerClients)) .
+                                                '"' .
+                                                '>' .
+                                                '<i class="ri-git-merge-line me-1"></i> Merge to Oldest Client</button>';
+                                        }
                                     }
-                                    $out .= '<button type="button" class="btn btn-sm btn-outline-success text-nowrap" data-bs-toggle="modal" data-bs-target="#notDuplicateGroupModal" data-event-ids="' . e($groupIds->implode(',')) . '" data-group-name="' . e($first->full_name) . '" data-record-count="' . (int) $groupIds->count() . '"><i class="ri-check-line me-1"></i> Not a duplicate</button>';
+                                    if (feature_allowed('Not a duplicate')) {
+                                        $out .=
+                                            '<button type="button" class="btn btn-sm btn-outline-success text-nowrap" data-bs-toggle="modal" data-bs-target="#notDuplicateGroupModal" data-event-ids="' .
+                                            e($groupIds->implode(',')) .
+                                            '" data-group-name="' .
+                                            e($first->full_name) .
+                                            '" data-record-count="' .
+                                            (int) $groupIds->count() .
+                                            '"><i class="ri-check-line me-1"></i> Not a duplicate</button>';
+                                    }
                                     $out .= '</div>';
                                 }
                                 $out .= '</div>';
                                 $out .= '<div class="table-responsive">';
-                                $out .= '<table class="table table-sm table-hover align-middle mb-0 duplicate-group-table">';
+                                $out .=
+                                    '<table class="table table-sm table-hover align-middle mb-0 duplicate-group-table">';
                                 $out .= '<thead class="table-light"><tr>';
                                 $sortableHeaders = [
                                     ['label' => 'Transaction ID', 'type' => 'text'],
@@ -141,8 +193,25 @@
                                 foreach ($sortableHeaders as $column => $header) {
                                     $isDefaultSort = $column === 2;
                                     $out .= '<th scope="col"' . ($isDefaultSort ? ' aria-sort="ascending"' : '') . '>';
-                                    $out .= '<button type="button" class="btn btn-link btn-sm p-0 text-body fw-semibold text-decoration-none d-inline-flex align-items-center gap-1 text-nowrap" data-duplicate-sort data-sort-column="' . $column . '" data-sort-type="' . $header['type'] . '" data-sort-direction="' . ($isDefaultSort ? 'asc' : '') . '" aria-label="Sort by ' . e($header['label']) . ' ' . ($isDefaultSort ? 'descending' : 'ascending') . '">';
-                                    $out .= e($header['label']) . '<i class="' . ($isDefaultSort ? 'ri-arrow-up-line text-primary' : 'ri-arrow-up-down-line text-muted') . '" aria-hidden="true"></i>';
+                                    $out .=
+                                        '<button type="button" class="btn btn-link btn-sm p-0 text-body fw-semibold text-decoration-none d-inline-flex align-items-center gap-1 text-nowrap" data-duplicate-sort data-sort-column="' .
+                                        $column .
+                                        '" data-sort-type="' .
+                                        $header['type'] .
+                                        '" data-sort-direction="' .
+                                        ($isDefaultSort ? 'asc' : '') .
+                                        '" aria-label="Sort by ' .
+                                        e($header['label']) .
+                                        ' ' .
+                                        ($isDefaultSort ? 'descending' : 'ascending') .
+                                        '">';
+                                    $out .=
+                                        e($header['label']) .
+                                        '<i class="' .
+                                        ($isDefaultSort
+                                            ? 'ri-arrow-up-line text-primary'
+                                            : 'ri-arrow-up-down-line text-muted') .
+                                        '" aria-hidden="true"></i>';
                                     $out .= '</button></th>';
                                 }
                                 if (auth()->user()?->role_name !== 'Viewer') {
@@ -151,34 +220,114 @@
                                 $out .= '</tr></thead><tbody>';
                                 foreach ($events as $event) {
                                     $txId = $event->transferredTransaction?->transaction_id ?? '-';
-                                    $eventSummary = implode(' · ', array_filter([
-                                        $txId !== '-' ? $txId : null,
-                                        optional($event->event_date)->format('M d, Y'),
-                                        $event->transaction_category,
-                                        $event->transaction_type,
-                                    ]));
-                                    $out .= '<tr data-event-id="' . (int) $event->id . '" data-event-name="' . e($event->full_name) . '" data-event-summary="' . e($eventSummary) . '">';
-                                    $out .= '<td class="fw-semibold" data-sort-value="' . e($txId) . '">' . e($txId) . '</td>';
-                                    $out .= '<td class="fw-semibold" data-sort-value="' . e($event->full_name) . '">' . e($event->full_name) . '</td>';
-                                    $out .= '<td data-sort-value="' . e($event->age ?? '') . '">' . e($event->age ?? '-') . '</td>';
-                                    $out .= '<td data-sort-value="' . e(optional($event->birth_date)->format('Y-m-d') ?? '') . '">' . e(optional($event->birth_date)->format('M d, Y') ?? '-') . '</td>';
-                                    $out .= '<td data-sort-value="' . e($event->contact_no ?: '') . '">' . e($event->contact_no ?: '-') . '</td>';
-                                    $out .= '<td class="small" data-sort-value="' . e($event->client_category ?? '') . '">' . e($event->client_category ?? '-') . '</td>';
-                                    $out .= '<td class="small" data-sort-value="' . e($event->transaction_category ?? '') . '">' . e($event->transaction_category ?? '-') . '</td>';
-                                    $out .= '<td class="small" data-sort-value="' . e($event->transaction_type ?? '') . '">' . e($event->transaction_type ?? '-') . '</td>';
-                                    $out .= '<td data-sort-value="' . e(optional($event->event_date)->format('Y-m-d') ?? '') . '">' . e(optional($event->event_date)->format('M d, Y') ?? '-') . '</td>';
+                                    $eventSummary = implode(
+                                        ' · ',
+                                        array_filter([
+                                            $txId !== '-' ? $txId : null,
+                                            optional($event->event_date)->format('M d, Y'),
+                                            $event->transaction_category,
+                                            $event->transaction_type,
+                                        ]),
+                                    );
+                                    $out .=
+                                        '<tr data-event-id="' .
+                                        (int) $event->id .
+                                        '" data-event-name="' .
+                                        e($event->full_name) .
+                                        '" data-event-summary="' .
+                                        e($eventSummary) .
+                                        '">';
+                                    $out .=
+                                        '<td class="fw-semibold" data-sort-value="' .
+                                        e($txId) .
+                                        '">' .
+                                        e($txId) .
+                                        '</td>';
+                                    $out .=
+                                        '<td class="fw-semibold" data-sort-value="' .
+                                        e($event->full_name) .
+                                        '">' .
+                                        e($event->full_name) .
+                                        '</td>';
+                                    $out .=
+                                        '<td data-sort-value="' .
+                                        e($event->age ?? '') .
+                                        '">' .
+                                        e($event->age ?? '-') .
+                                        '</td>';
+                                    $out .=
+                                        '<td data-sort-value="' .
+                                        e(optional($event->birth_date)->format('Y-m-d') ?? '') .
+                                        '">' .
+                                        e(optional($event->birth_date)->format('M d, Y') ?? '-') .
+                                        '</td>';
+                                    $out .=
+                                        '<td data-sort-value="' .
+                                        e($event->contact_no ?: '') .
+                                        '">' .
+                                        e($event->contact_no ?: '-') .
+                                        '</td>';
+                                    $out .=
+                                        '<td class="small" data-sort-value="' .
+                                        e($event->client_category ?? '') .
+                                        '">' .
+                                        e($event->client_category ?? '-') .
+                                        '</td>';
+                                    $out .=
+                                        '<td class="small" data-sort-value="' .
+                                        e($event->transaction_category ?? '') .
+                                        '">' .
+                                        e($event->transaction_category ?? '-') .
+                                        '</td>';
+                                    $out .=
+                                        '<td class="small" data-sort-value="' .
+                                        e($event->transaction_type ?? '') .
+                                        '">' .
+                                        e($event->transaction_type ?? '-') .
+                                        '</td>';
+                                    $out .=
+                                        '<td data-sort-value="' .
+                                        e(optional($event->event_date)->format('Y-m-d') ?? '') .
+                                        '">' .
+                                        e(optional($event->event_date)->format('M d, Y') ?? '-') .
+                                        '</td>';
                                     $statusColor = match ($event->status) {
                                         'Claimed' => 'success',
                                         'Unclaimed' => 'danger',
                                         default => 'warning',
                                     };
-                                    $out .= '<td data-sort-value="' . e($event->status ?? '') . '"><span class="py-2 px-3 badge bg-' . $statusColor . '-subtle text-' . $statusColor . '">' . e($event->status) . '</span></td>';
+                                    $out .=
+                                        '<td data-sort-value="' .
+                                        e($event->status ?? '') .
+                                        '"><span class="py-2 px-3 badge bg-' .
+                                        $statusColor .
+                                        '-subtle text-' .
+                                        $statusColor .
+                                        '">' .
+                                        e($event->status) .
+                                        '</span></td>';
                                     if (auth()->user()?->role_name !== 'Viewer') {
                                         $out .= '<td class="text-center text-nowrap">';
-                                        $out .= view('pages.transaction_events.partials.duplicateStatusAction', ['event' => $event, 'tab' => $tab])->render();
+                                        $out .= view('pages.transaction_events.partials.duplicateStatusAction', [
+                                            'event' => $event,
+                                            'tab' => $tab,
+                                        ])->render();
                                         if (feature_allowed('Undo Transfer')) {
-                                            $undoUrl = route('transaction-events.undo-transfer', array_merge(request()->query(), ['event' => $event, 'duplicate_tab' => $tab]));
-                                            $out .= '<button type="button" class="btn btn-sm btn-outline-warning fw-semibold" data-bs-toggle="modal" data-bs-target="#undoSingleTransferModal" data-undo-url="' . e($undoUrl) . '" data-event-id="' . (int) $event->id . '" data-event-name="' . e($event->full_name) . '" title="Undo transfer"><i class="ri-arrow-go-back-line me-1"></i> Undo Transfer</button>';
+                                            $undoUrl = route(
+                                                'transaction-events.undo-transfer',
+                                                array_merge(request()->query(), [
+                                                    'event' => $event,
+                                                    'duplicate_tab' => $tab,
+                                                ]),
+                                            );
+                                            $out .=
+                                                '<button type="button" class="btn btn-sm btn-outline-warning fw-semibold" data-bs-toggle="modal" data-bs-target="#undoSingleTransferModal" data-undo-url="' .
+                                                e($undoUrl) .
+                                                '" data-event-id="' .
+                                                (int) $event->id .
+                                                '" data-event-name="' .
+                                                e($event->full_name) .
+                                                '" title="Undo transfer"><i class="ri-arrow-go-back-line me-1"></i> Undo Transfer</button>';
                                         }
                                         $out .= '</td>';
                                     }
@@ -187,7 +336,6 @@
                                 $out .= '</tbody></table></div></div>';
                                 return $out;
                             };
-
                         @endphp
 
                         <div class="border rounded-4 p-3 mb-4" id="dupFiltersCard">
@@ -241,7 +389,9 @@
                                             <div class="dropdown-menu w-100" id="dupClientCategoryDropdown"
                                                 style="max-height: 260px; overflow-y: auto;">
                                                 <div class="p-2">
-                                                    <input type="search" class="form-control form-control-sm mb-2" placeholder="Search client categories..." autocomplete="off" data-dropdown-search>
+                                                    <input type="search" class="form-control form-control-sm mb-2"
+                                                        placeholder="Search client categories..." autocomplete="off"
+                                                        data-dropdown-search>
                                                     <div class="form-check mb-2">
                                                         <input class="form-check-input" type="checkbox"
                                                             id="dupClientCategoryAll" value="">
@@ -251,12 +401,17 @@
                                                         </label>
                                                     </div>
                                                     <hr class="my-2">
-                                                    @foreach (($filterClientCategories ?? []) as $clientCategory)
+                                                    @foreach ($filterClientCategories ?? [] as $clientCategory)
                                                         @php
-                                                            $dupSelectedClientCategories = collect((array) request('client_category', []))->filter();
-                                                            $dupIsClientCategoryChecked = $dupSelectedClientCategories->contains($clientCategory);
+                                                            $dupSelectedClientCategories = collect(
+                                                                (array) request('client_category', []),
+                                                            )->filter();
+                                                            $dupIsClientCategoryChecked = $dupSelectedClientCategories->contains(
+                                                                $clientCategory,
+                                                            );
                                                         @endphp
-                                                        <div class="form-check" data-option-row data-option-label="{{ strtolower($clientCategory) }}">
+                                                        <div class="form-check" data-option-row
+                                                            data-option-label="{{ strtolower($clientCategory) }}">
                                                             <input class="form-check-input dup-client-category-checkbox"
                                                                 type="checkbox" id="dupClientCategory_{{ $loop->index }}"
                                                                 value="{{ $clientCategory }}"
@@ -267,13 +422,15 @@
                                                             </label>
                                                         </div>
                                                     @endforeach
-                                                    <div class="text-muted small px-1 py-2 d-none" data-dropdown-empty>No matches found.</div>
+                                                    <div class="text-muted small px-1 py-2 d-none" data-dropdown-empty>No
+                                                        matches found.</div>
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
-                                        <label class="form-label fw-semibold text-uppercase small">Transaction Category</label>
+                                        <label class="form-label fw-semibold text-uppercase small">Transaction
+                                            Category</label>
                                         <div class="dropdown w-100">
                                             <button
                                                 class="btn btn-light border form-select text-start d-flex align-items-center justify-content-between"
@@ -285,7 +442,9 @@
                                             <div class="dropdown-menu w-100" id="dupTransactionCategoryDropdown"
                                                 style="max-height: 260px; overflow-y: auto;">
                                                 <div class="p-2">
-                                                    <input type="search" class="form-control form-control-sm mb-2" placeholder="Search categories..." autocomplete="off" data-dropdown-search>
+                                                    <input type="search" class="form-control form-control-sm mb-2"
+                                                        placeholder="Search categories..." autocomplete="off"
+                                                        data-dropdown-search>
                                                     <div class="form-check mb-2">
                                                         <input class="form-check-input" type="checkbox"
                                                             id="dupTransactionCategoryAll" value="">
@@ -295,14 +454,21 @@
                                                         </label>
                                                     </div>
                                                     <hr class="my-2">
-                                                    @foreach (($filterTransactionCategories ?? []) as $transactionCategory)
+                                                    @foreach ($filterTransactionCategories ?? [] as $transactionCategory)
                                                         @php
-                                                            $dupSelectedTransactionCategories = collect((array) request('transaction_category', []))->filter();
-                                                            $dupIsTransactionCategoryChecked = $dupSelectedTransactionCategories->contains($transactionCategory);
+                                                            $dupSelectedTransactionCategories = collect(
+                                                                (array) request('transaction_category', []),
+                                                            )->filter();
+                                                            $dupIsTransactionCategoryChecked = $dupSelectedTransactionCategories->contains(
+                                                                $transactionCategory,
+                                                            );
                                                         @endphp
-                                                        <div class="form-check" data-option-row data-option-label="{{ strtolower($transactionCategory) }}">
-                                                            <input class="form-check-input dup-transaction-category-checkbox"
-                                                                type="checkbox" id="dupTransactionCategory_{{ $loop->index }}"
+                                                        <div class="form-check" data-option-row
+                                                            data-option-label="{{ strtolower($transactionCategory) }}">
+                                                            <input
+                                                                class="form-check-input dup-transaction-category-checkbox"
+                                                                type="checkbox"
+                                                                id="dupTransactionCategory_{{ $loop->index }}"
                                                                 value="{{ $transactionCategory }}"
                                                                 {{ $dupIsTransactionCategoryChecked ? 'checked' : '' }}>
                                                             <label class="form-check-label"
@@ -311,7 +477,8 @@
                                                             </label>
                                                         </div>
                                                     @endforeach
-                                                    <div class="text-muted small px-1 py-2 d-none" data-dropdown-empty>No matches found.</div>
+                                                    <div class="text-muted small px-1 py-2 d-none" data-dropdown-empty>No
+                                                        matches found.</div>
                                                 </div>
                                             </div>
                                         </div>
@@ -329,7 +496,9 @@
                                             <div class="dropdown-menu w-100" id="dupTransactionTypeDropdown"
                                                 style="max-height: 260px; overflow-y: auto;">
                                                 <div class="p-2">
-                                                    <input type="search" class="form-control form-control-sm mb-2" placeholder="Search types..." autocomplete="off" data-dropdown-search>
+                                                    <input type="search" class="form-control form-control-sm mb-2"
+                                                        placeholder="Search types..." autocomplete="off"
+                                                        data-dropdown-search>
                                                     <div class="form-check mb-2">
                                                         <input class="form-check-input" type="checkbox"
                                                             id="dupTransactionTypeAll" value="">
@@ -339,14 +508,20 @@
                                                         </label>
                                                     </div>
                                                     <hr class="my-2">
-                                                    @foreach (($filterTransactionTypes ?? []) as $transactionType)
+                                                    @foreach ($filterTransactionTypes ?? [] as $transactionType)
                                                         @php
-                                                            $dupSelectedTransactionTypes = collect((array) request('transaction_type', []))->filter();
-                                                            $dupIsTransactionTypeChecked = $dupSelectedTransactionTypes->contains($transactionType);
+                                                            $dupSelectedTransactionTypes = collect(
+                                                                (array) request('transaction_type', []),
+                                                            )->filter();
+                                                            $dupIsTransactionTypeChecked = $dupSelectedTransactionTypes->contains(
+                                                                $transactionType,
+                                                            );
                                                         @endphp
-                                                        <div class="form-check" data-option-row data-option-label="{{ strtolower($transactionType) }}">
+                                                        <div class="form-check" data-option-row
+                                                            data-option-label="{{ strtolower($transactionType) }}">
                                                             <input class="form-check-input dup-transaction-type-checkbox"
-                                                                type="checkbox" id="dupTransactionType_{{ $loop->index }}"
+                                                                type="checkbox"
+                                                                id="dupTransactionType_{{ $loop->index }}"
                                                                 value="{{ $transactionType }}"
                                                                 {{ $dupIsTransactionTypeChecked ? 'checked' : '' }}>
                                                             <label class="form-check-label"
@@ -355,29 +530,32 @@
                                                             </label>
                                                         </div>
                                                     @endforeach
-                                                    <div class="text-muted small px-1 py-2 d-none" data-dropdown-empty>No matches found.</div>
+                                                    <div class="text-muted small px-1 py-2 d-none" data-dropdown-empty>No
+                                                        matches found.</div>
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
-                                        <label for="dupStatusFilter" class="form-label fw-semibold text-uppercase small">Status</label>
+                                        <label for="dupStatusFilter"
+                                            class="form-label fw-semibold text-uppercase small">Status</label>
                                         <select class="form-select" id="dupStatusFilter" name="status">
                                             <option value="">All statuses</option>
                                             @foreach (\App\Models\TransactionEvent::STATUSES as $status)
-                                                <option value="{{ $status }}" @selected(request('status') === $status)>{{ $status }}</option>
+                                                <option value="{{ $status }}" @selected(request('status') === $status)>
+                                                    {{ $status }}</option>
                                             @endforeach
                                         </select>
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
-                                        <label for="dupDateFrom"
-                                            class="form-label fw-semibold text-uppercase small">Date From</label>
+                                        <label for="dupDateFrom" class="form-label fw-semibold text-uppercase small">Date
+                                            From</label>
                                         <input type="date" class="form-control" id="dupDateFrom" name="date_from"
                                             value="{{ request('date_from') }}">
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
-                                        <label for="dupDateTo"
-                                            class="form-label fw-semibold text-uppercase small">Date To</label>
+                                        <label for="dupDateTo" class="form-label fw-semibold text-uppercase small">Date
+                                            To</label>
                                         <input type="date" class="form-control" id="dupDateTo" name="date_to"
                                             value="{{ request('date_to') }}">
                                     </div>
@@ -399,35 +577,54 @@
 
                         <ul class="nav nav-tabs mb-4" role="tablist">
                             <li class="nav-item">
-                                <a class="nav-link {{ $showLikely || $showFullName ? '' : 'active' }}" data-bs-toggle="tab" href="#rexact-tab" role="tab" data-client-count="{{ $exactGroups->total() }}" data-record-count="{{ $exactCount }}">
+                                <a class="nav-link {{ $showLikely || $showFullName ? '' : 'active' }}"
+                                    data-bs-toggle="tab" href="#rexact-tab" role="tab"
+                                    data-client-count="{{ $exactGroups->total() }}"
+                                    data-record-count="{{ $exactCount }}">
                                     Exact Match
-                                    <span class="badge bg-danger-subtle text-danger ms-1">{{ $exactGroupsTotal ?? $exactGroups->count() }}</span>
+                                    <span
+                                        class="badge bg-danger-subtle text-danger ms-1">{{ $exactGroupsTotal ?? $exactGroups->count() }}</span>
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link {{ $showLikely ? 'active' : '' }}" data-bs-toggle="tab" href="#rlikely-tab" role="tab" data-client-count="{{ $likelyGroups->total() }}" data-record-count="{{ $likelyCount }}">
+                                <a class="nav-link {{ $showLikely ? 'active' : '' }}" data-bs-toggle="tab"
+                                    href="#rlikely-tab" role="tab" data-client-count="{{ $likelyGroups->total() }}"
+                                    data-record-count="{{ $likelyCount }}">
                                     Likely Match
-                                    <span class="badge bg-warning-subtle text-warning ms-1">{{ $likelyGroupsTotal ?? $likelyGroups->count() }}</span>
+                                    <span
+                                        class="badge bg-warning-subtle text-warning ms-1">{{ $likelyGroupsTotal ?? $likelyGroups->count() }}</span>
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link {{ $showFullName ? 'active' : '' }}" data-bs-toggle="tab" href="#rsimilar-tab" role="tab" data-client-count="{{ $similarGroups->total() }}" data-record-count="{{ $similarCount }}">
+                                <a class="nav-link {{ $showFullName ? 'active' : '' }}" data-bs-toggle="tab"
+                                    href="#rsimilar-tab" role="tab"
+                                    data-client-count="{{ $similarGroups->total() }}"
+                                    data-record-count="{{ $similarCount }}">
                                     Match Full Name
-                                    <span class="badge bg-info-subtle text-info ms-1">{{ $similarGroupsTotal ?? $similarGroups->count() }}</span>
+                                    <span
+                                        class="badge bg-info-subtle text-info ms-1">{{ $similarGroupsTotal ?? $similarGroups->count() }}</span>
                                 </a>
                             </li>
                         </ul>
 
                         <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
-                            <span id="duplicateClientCount" class="badge bg-primary-subtle text-primary fs-13">{{ $showLikely ? $likelyGroups->total() : ($showFullName ? $similarGroups->total() : $exactGroups->total()) }} client group(s) in this tab</span>
-                            <span id="duplicateRecordCount" class="badge bg-danger-subtle text-danger fs-13">{{ $showLikely ? $likelyCount : ($showFullName ? $similarCount : $exactCount) }} record(s) in this tab</span>
+                            <span id="duplicateClientCount"
+                                class="badge bg-primary-subtle text-primary fs-13">{{ $showLikely ? $likelyGroups->total() : ($showFullName ? $similarGroups->total() : $exactGroups->total()) }}
+                                client group(s) in this tab</span>
+                            <span id="duplicateRecordCount"
+                                class="badge bg-danger-subtle text-danger fs-13">{{ $showLikely ? $likelyCount : ($showFullName ? $similarCount : $exactCount) }}
+                                record(s) in this tab</span>
                         </div>
 
                         <div class="tab-content">
-                            <div class="tab-pane fade {{ $showLikely || $showFullName ? '' : 'show active' }}" id="rexact-tab" role="tabpanel">
+                            <div class="tab-pane fade {{ $showLikely || $showFullName ? '' : 'show active' }}"
+                                id="rexact-tab" role="tabpanel">
                                 <div class="alert alert-danger-subtle d-flex align-items-center mb-3 py-2" role="alert">
                                     <i class="ri-error-warning-line fs-4 me-2"></i>
-                                    <div class="small">Same <strong>Lastname and Firstname</strong>, <strong>Client Category</strong>, <strong>Transaction Category</strong>, <strong>Transaction Type</strong>, and <strong>Event Date</strong>. High confidence duplicates.</div>
+                                    <div class="small">Same <strong>Lastname and Firstname</strong>, <strong>Client
+                                            Category</strong>, <strong>Transaction Category</strong>, <strong>Transaction
+                                            Type</strong>, and <strong>Event Date</strong>. High confidence duplicates.
+                                    </div>
                                 </div>
                                 @forelse ($exactGroups as $group)
                                     {!! $renderGroup($group, 'exact') !!}
@@ -439,17 +636,31 @@
                                 @endforelse
                                 @if ($exactGroups->total() > 0)
                                     <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between mt-3">
-                                        <div class="small text-muted">Showing {{ $exactGroups->firstItem() }}–{{ $exactGroups->lastItem() }} of {{ $exactGroups->total() }} client groups</div>
-                                        {{ $exactGroups->links('pagination::bootstrap-5') }}
+                                        <div class="small text-muted">Showing
+                                            {{ $exactGroups->firstItem() }}–{{ $exactGroups->lastItem() }} of
+                                            {{ $exactGroups->total() }} client groups</div>
+                                        @include(
+                                            'pages.transaction_events.partials.paginationWithPageJump',
+                                            [
+                                                'paginator' => $exactGroups,
+                                                'pageName' => 'exact_page',
+                                                'tab' => 'exact',
+                                            ]
+                                        )
                                     </div>
                                 @endif
                             </div>
 
-                            <div class="tab-pane fade {{ $showLikely ? 'show active' : '' }}" id="rlikely-tab" role="tabpanel">
-                                <div class="alert alert-warning-subtle d-flex align-items-center mb-3 py-2" role="alert">
+                            <div class="tab-pane fade {{ $showLikely ? 'show active' : '' }}" id="rlikely-tab"
+                                role="tabpanel">
+                                <div class="alert alert-warning-subtle d-flex align-items-center mb-3 py-2"
+                                    role="alert">
                                     <i class="ri-alert-line fs-4 me-2"></i>
                                     <div class="small">
-                                        Same <strong>Lastname and Firstname</strong> plus at least one matching <strong>Event Date</strong>, <strong>Transaction Type</strong>, or <strong>Client Category</strong>. Exact-only groups appear in Exact Match. Review before acting.
+                                        Same <strong>Lastname and Firstname</strong> plus at least one matching
+                                        <strong>Event Date</strong>, <strong>Transaction Type</strong>, or <strong>Client
+                                            Category</strong>. Exact-only groups appear in Exact Match. Review before
+                                        acting.
                                     </div>
                                 </div>
                                 @forelse ($likelyGroups as $group)
@@ -462,16 +673,27 @@
                                 @endforelse
                                 @if ($likelyGroups->total() > 0)
                                     <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between mt-3">
-                                        <div class="small text-muted">Showing {{ $likelyGroups->firstItem() }}–{{ $likelyGroups->lastItem() }} of {{ $likelyGroups->total() }} client groups</div>
-                                        {{ $likelyGroups->links('pagination::bootstrap-5') }}
+                                        <div class="small text-muted">Showing
+                                            {{ $likelyGroups->firstItem() }}–{{ $likelyGroups->lastItem() }} of
+                                            {{ $likelyGroups->total() }} client groups</div>
+                                        @include(
+                                            'pages.transaction_events.partials.paginationWithPageJump',
+                                            [
+                                                'paginator' => $likelyGroups,
+                                                'pageName' => 'likely_page',
+                                                'tab' => 'likely',
+                                            ]
+                                        )
                                     </div>
                                 @endif
                             </div>
 
-                            <div class="tab-pane fade {{ $showFullName ? 'show active' : '' }}" id="rsimilar-tab" role="tabpanel">
+                            <div class="tab-pane fade {{ $showFullName ? 'show active' : '' }}" id="rsimilar-tab"
+                                role="tabpanel">
                                 <div class="alert alert-info-subtle d-flex align-items-center mb-3 py-2" role="alert">
                                     <i class="ri-information-line fs-4 me-2"></i>
-                                    <div class="small">Same <strong>Full Name</strong> only, ignoring letter case and leading or trailing spaces. Birth dates and transaction details may differ.</div>
+                                    <div class="small">Same <strong>Full Name</strong> only, ignoring letter case and
+                                        leading or trailing spaces. Birth dates and transaction details may differ.</div>
                                 </div>
                                 @forelse ($similarGroups as $group)
                                     {!! $renderGroup($group, 'full_name') !!}
@@ -483,8 +705,17 @@
                                 @endforelse
                                 @if ($similarGroups->total() > 0)
                                     <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between mt-3">
-                                        <div class="small text-muted">Showing {{ $similarGroups->firstItem() }}–{{ $similarGroups->lastItem() }} of {{ $similarGroups->total() }} client groups</div>
-                                        {{ $similarGroups->links('pagination::bootstrap-5') }}
+                                        <div class="small text-muted">Showing
+                                            {{ $similarGroups->firstItem() }}–{{ $similarGroups->lastItem() }} of
+                                            {{ $similarGroups->total() }} client groups</div>
+                                        @include(
+                                            'pages.transaction_events.partials.paginationWithPageJump',
+                                            [
+                                                'paginator' => $similarGroups,
+                                                'pageName' => 'similar_page',
+                                                'tab' => 'full_name',
+                                            ]
+                                        )
                                     </div>
                                 @endif
                             </div>
@@ -496,8 +727,8 @@
     </div>
 
     @if (auth()->user()?->role_name !== 'Viewer')
-        <div class="modal fade" id="notDuplicateGroupModal" tabindex="-1"
-            aria-labelledby="notDuplicateGroupModalLabel" aria-hidden="true">
+        <div class="modal fade" id="notDuplicateGroupModal" tabindex="-1" aria-labelledby="notDuplicateGroupModalLabel"
+            aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content">
                     <form action="{{ route('transaction-events.group-not-duplicate') }}" method="POST"
@@ -513,7 +744,8 @@
                         <div class="modal-body">
                             <div id="notDuplicateGroupInputs"></div>
                             <p class="mb-3">Mark the entire duplicate group for
-                                <strong id="notDuplicateGroupName"></strong> as not a duplicate?</p>
+                                <strong id="notDuplicateGroupName"></strong> as not a duplicate?
+                            </p>
                             <div class="alert alert-warning-subtle mb-0">
                                 All <strong id="notDuplicateGroupCount">0</strong> records in this group will be
                                 removed from Duplicate Event Records and stored in Not a Duplicate Review.
@@ -533,91 +765,74 @@
         <div class="modal fade" id="mergeDuplicateClientsModal" tabindex="-1"
             aria-labelledby="mergeDuplicateClientsModalLabel" aria-hidden="true">
             <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-                <div class="modal-content">
-                    <form action="{{ route('transaction-events.records-duplicates.merge-clients') }}" method="POST"
-                        id="mergeDuplicateClientsForm">
-                        @csrf
-                        <div class="modal-header">
-                            <h5 class="modal-title" id="mergeDuplicateClientsModalLabel">
-                                <i class="ri-git-merge-line text-primary me-1"></i> Merge to Oldest Client
-                            </h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal"
-                                aria-label="Close"></button>
+                <form class="modal-content" action="{{ route('transaction-events.records-duplicates.merge-clients') }}"
+                    method="POST" id="mergeDuplicateClientsForm">
+                    @csrf
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="mergeDuplicateClientsModalLabel">
+                            <i class="ri-git-merge-line text-primary me-1"></i> Merge to Oldest Client
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div id="mergeDuplicateClientInputs"></div>
+                        <p class="mb-3">
+                            Review <strong id="mergeDuplicateRecordCount">0</strong> duplicate records for
+                            <strong id="mergeDuplicateGroupName"></strong>, then select the newer client profiles
+                            to merge.
+                        </p>
+
+                        <div class="mb-3">
+                            <div class="small text-uppercase text-muted fw-semibold mb-2">
+                                Select clients to merge
+                            </div>
+                            <div class="list-group" id="mergeSourceClientChoices"></div>
+                            <div class="form-text">The oldest client is always kept as the destination.</div>
                         </div>
-                        <div class="modal-body">
-                            <div id="mergeDuplicateClientInputs"></div>
-                            <p class="mb-3">
-                                Review <strong id="mergeDuplicateRecordCount">0</strong> duplicate records for
-                                <strong id="mergeDuplicateGroupName"></strong>, then select the newer client profiles
-                                to merge.
-                            </p>
 
-                            <div class="alert alert-primary-subtle border-primary-subtle">
-                                <div class="fw-semibold mb-1">Client kept: <span id="mergeTargetClientId"></span></div>
-                                <div class="small">
-                                    Newer client profile(s) <strong id="mergeSourceClientIds"></strong> will be removed.
-                                </div>
-                            </div>
-
-                            <div class="mb-3">
-                                <div class="small text-uppercase text-muted fw-semibold mb-2">
-                                    Select clients to merge
-                                </div>
-                                <div class="list-group" id="mergeSourceClientChoices"></div>
-                                <div class="form-text">The oldest client is always kept as the destination.</div>
-                            </div>
-
-                            <div class="row g-3 mb-3">
-                                <div class="col-md-6">
-                                    <div class="border rounded-3 h-100 p-3">
-                                        <div class="text-uppercase text-muted small fw-semibold mb-2">
-                                            Current oldest profile
-                                        </div>
-                                        <dl class="row small mb-0" id="mergeOldestProfile"></dl>
+                        <div class="row g-3 mb-3" id="mergeSelectedProfileCards">
+                            <div class="col-md-6" id="mergeOldestProfileCard">
+                                <div class="border rounded-3 h-100 p-3">
+                                    <div class="text-uppercase text-muted small fw-semibold mb-2">
+                                        Current oldest profile
                                     </div>
-                                </div>
-                                <div class="col-md-6">
-                                    <div class="border rounded-3 h-100 p-3">
-                                        <div class="text-uppercase text-muted small fw-semibold mb-2">
-                                            Newest selected profile data
-                                        </div>
-                                        <dl class="row small mb-0" id="mergeNewestProfile"></dl>
-                                    </div>
+                                    <dl class="row small mb-0" id="mergeOldestProfile"></dl>
                                 </div>
                             </div>
-
-                            <ol class="small ps-3 mb-3">
-                                <li class="mb-1">Choose which profile to retain for each field; the current profile is selected by default.</li>
-                                <li class="mb-1">Keep the oldest client ID and retain all profile fields not shown above.</li>
-                                <li class="mb-1">Move and renumber every selected client's transaction.</li>
-                                <li class="mb-1">Delete only the selected newer client profile(s).</li>
-                                <li>Preserve event transactions and keep merged records out of Not a Duplicate Review.</li>
-                            </ol>
-
-                            <div class="alert alert-warning mb-3">
-                                This client-profile merge cannot be undone automatically.
-                            </div>
-
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" value="1"
-                                    id="confirmDuplicateClientMerge">
-                                <label class="form-check-label fw-semibold" for="confirmDuplicateClientMerge">
-                                    I reviewed this group and confirm the profiles belong to the same person.
-                                </label>
-                            </div>
                         </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal">Cancel</button>
-                            <button type="submit" class="btn btn-sm btn-primary"
-                                id="confirmDuplicateClientMergeButton" disabled>
-                                <i class="ri-git-merge-line me-1"></i> Merge Selected Clients
-                            </button>
+
+                        <ol class="small ps-3 mb-3">
+                            <li class="mb-1">Choose which selected client's profile to retain for each field; the current
+                                profile is selected by default.</li>
+                            <li class="mb-1">Keep the oldest client ID and retain all profile fields not shown above.
+                            </li>
+                            <li class="mb-1">Move and renumber every selected client's transaction.</li>
+                            <li class="mb-1">Delete only the selected newer client profile(s).</li>
+                            <li>Preserve event transactions and keep merged records out of Not a Duplicate Review.</li>
+                        </ol>
+
+                        <div class="alert alert-warning mb-3">
+                            This client-profile merge cannot be undone automatically.
                         </div>
-                    </form>
-                </div>
+
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="1"
+                                id="confirmDuplicateClientMerge">
+                            <label class="form-check-label fw-semibold" for="confirmDuplicateClientMerge">
+                                I reviewed this group and confirm the profiles belong to the same person.
+                            </label>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-sm btn-primary" id="confirmDuplicateClientMergeButton"
+                            disabled>
+                            <i class="ri-git-merge-line me-1"></i> Merge Selected Clients
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
-
     @endif
 
     @if (auth()->user()?->role_name !== 'Viewer' && feature_allowed('Undo Transfer'))
@@ -641,68 +856,75 @@
             });
 
             document.addEventListener('click', function(event) {
-                    const sortButton = event.target.closest('[data-duplicate-sort]');
-                    if (!sortButton) return;
+                const sortButton = event.target.closest('[data-duplicate-sort]');
+                if (!sortButton) return;
 
-                    const table = sortButton.closest('.duplicate-group-table');
-                    const tbody = table?.tBodies[0];
-                    if (!tbody) return;
+                const table = sortButton.closest('.duplicate-group-table');
+                const tbody = table?.tBodies[0];
+                if (!tbody) return;
 
-                    const column = Number(sortButton.dataset.sortColumn);
-                    const type = sortButton.dataset.sortType || 'text';
-                    const direction = sortButton.dataset.sortDirection === 'asc' ? 'desc' : 'asc';
-                    const rows = Array.from(tbody.rows);
+                const column = Number(sortButton.dataset.sortColumn);
+                const type = sortButton.dataset.sortType || 'text';
+                const direction = sortButton.dataset.sortDirection === 'asc' ? 'desc' : 'asc';
+                const rows = Array.from(tbody.rows);
 
-                    const valueFor = row => {
-                        const rawValue = row.cells[column]?.dataset.sortValue?.trim() ?? '';
-                        if (rawValue === '') return null;
-                        if (type === 'number') {
-                            const numberValue = Number(rawValue);
-                            return Number.isNaN(numberValue) ? null : numberValue;
-                        }
-                        if (type === 'date') {
-                            const dateValue = Date.parse(rawValue);
-                            return Number.isNaN(dateValue) ? null : dateValue;
-                        }
-                        return rawValue;
-                    };
-
-                    rows
-                        .map((row, originalIndex) => ({ row, originalIndex, value: valueFor(row) }))
-                        .sort((left, right) => {
-                            if (left.value === null && right.value === null) {
-                                return left.originalIndex - right.originalIndex;
-                            }
-                            if (left.value === null) return 1;
-                            if (right.value === null) return -1;
-
-                            const comparison = type === 'text'
-                                ? duplicateSortCollator.compare(left.value, right.value)
-                                : left.value - right.value;
-                            return comparison === 0
-                                ? left.originalIndex - right.originalIndex
-                                : (direction === 'asc' ? comparison : -comparison);
-                        })
-                        .forEach(item => tbody.appendChild(item.row));
-
-                    table.querySelectorAll('[data-duplicate-sort]').forEach(button => {
-                        button.dataset.sortDirection = '';
-                        button.closest('th')?.removeAttribute('aria-sort');
-                        const icon = button.querySelector('i');
-                        if (icon) icon.className = 'ri-arrow-up-down-line text-muted';
-                        button.setAttribute('aria-label', `Sort by ${button.textContent.trim()} ascending`);
-                    });
-
-                    sortButton.dataset.sortDirection = direction;
-                    sortButton.closest('th')?.setAttribute('aria-sort', direction === 'asc' ? 'ascending' : 'descending');
-                    const activeIcon = sortButton.querySelector('i');
-                    if (activeIcon) {
-                        activeIcon.className = direction === 'asc'
-                            ? 'ri-arrow-up-line text-primary'
-                            : 'ri-arrow-down-line text-primary';
+                const valueFor = row => {
+                    const rawValue = row.cells[column]?.dataset.sortValue?.trim() ?? '';
+                    if (rawValue === '') return null;
+                    if (type === 'number') {
+                        const numberValue = Number(rawValue);
+                        return Number.isNaN(numberValue) ? null : numberValue;
                     }
-                    sortButton.setAttribute('aria-label',
-                        `Sort by ${sortButton.textContent.trim()} ${direction === 'asc' ? 'descending' : 'ascending'}`);
+                    if (type === 'date') {
+                        const dateValue = Date.parse(rawValue);
+                        return Number.isNaN(dateValue) ? null : dateValue;
+                    }
+                    return rawValue;
+                };
+
+                rows
+                    .map((row, originalIndex) => ({
+                        row,
+                        originalIndex,
+                        value: valueFor(row)
+                    }))
+                    .sort((left, right) => {
+                        if (left.value === null && right.value === null) {
+                            return left.originalIndex - right.originalIndex;
+                        }
+                        if (left.value === null) return 1;
+                        if (right.value === null) return -1;
+
+                        const comparison = type === 'text' ?
+                            duplicateSortCollator.compare(left.value, right.value) :
+                            left.value - right.value;
+                        return comparison === 0 ?
+                            left.originalIndex - right.originalIndex :
+                            (direction === 'asc' ? comparison : -comparison);
+                    })
+                    .forEach(item => tbody.appendChild(item.row));
+
+                table.querySelectorAll('[data-duplicate-sort]').forEach(button => {
+                    button.dataset.sortDirection = '';
+                    button.closest('th')?.removeAttribute('aria-sort');
+                    const icon = button.querySelector('i');
+                    if (icon) icon.className = 'ri-arrow-up-down-line text-muted';
+                    button.setAttribute('aria-label',
+                        `Sort by ${button.textContent.trim()} ascending`);
+                });
+
+                sortButton.dataset.sortDirection = direction;
+                sortButton.closest('th')?.setAttribute('aria-sort', direction === 'asc' ? 'ascending' :
+                    'descending');
+                const activeIcon = sortButton.querySelector('i');
+                if (activeIcon) {
+                    activeIcon.className = direction === 'asc' ?
+                        'ri-arrow-up-line text-primary' :
+                        'ri-arrow-down-line text-primary';
+                }
+                sortButton.setAttribute('aria-label',
+                    `Sort by ${sortButton.textContent.trim()} ${direction === 'asc' ? 'descending' : 'ascending'}`
+                );
             });
 
             const notDuplicateModal = document.getElementById('notDuplicateGroupModal');
@@ -729,6 +951,7 @@
             const mergeConfirmation = document.getElementById('confirmDuplicateClientMerge');
             const mergeSubmitButton = document.getElementById('confirmDuplicateClientMergeButton');
             const mergeSourceClientChoices = document.getElementById('mergeSourceClientChoices');
+            const mergeSelectedProfileCards = document.getElementById('mergeSelectedProfileCards');
             let mergeSourceClients = [];
             const mergeProfileLabels = {
                 name: 'Full Name',
@@ -749,18 +972,22 @@
             ).map(choice => choice.value);
             const syncMergeSubmitState = () => {
                 if (!mergeSubmitButton) return;
-                mergeSubmitButton.disabled = !mergeConfirmation?.checked || selectedMergeSourceIds().length === 0;
+                mergeSubmitButton.disabled = !mergeConfirmation?.checked || selectedMergeSourceIds().length ===
+                    0;
             };
             const selectMergeProfileField = (field, source) => {
                 document.querySelectorAll('[data-merge-profile-field]').forEach(choice => {
                     if (choice.dataset.mergeProfileField !== field) return;
                     const selected = choice.dataset.mergeProfileSource === source;
                     choice.checked = selected;
-                    choice.closest('[data-merge-profile-value]')?.classList.toggle('bg-primary-subtle', selected);
+                    choice.closest('[data-merge-profile-value]')?.classList.toggle('bg-primary-subtle',
+                        selected);
                 });
             };
-            const renderMergeProfile = (containerId, profile, source) => {
-                const container = document.getElementById(containerId);
+            const renderMergeProfile = (containerOrId, profile, source, sourceLabel) => {
+                const container = typeof containerOrId === 'string' ?
+                    document.getElementById(containerOrId) :
+                    containerOrId;
                 if (!container) return;
                 const nodes = [];
                 Object.entries(mergeProfileLabels).forEach(([field, label]) => {
@@ -768,7 +995,8 @@
                     term.className = 'col-4 text-muted fw-normal';
                     term.textContent = label;
                     const detail = document.createElement('dd');
-                    detail.className = 'col-8 d-flex align-items-start gap-2 rounded px-1 fw-semibold text-break';
+                    detail.className =
+                        'col-8 d-flex align-items-start gap-2 rounded px-1 fw-semibold text-break';
                     detail.dataset.mergeProfileValue = '';
 
                     const choice = document.createElement('input');
@@ -779,7 +1007,7 @@
                     choice.checked = source === 'oldest';
                     choice.dataset.mergeProfileField = field;
                     choice.dataset.mergeProfileSource = source;
-                    choice.setAttribute('aria-label', `Retain ${label} from ${source === 'oldest' ? 'current' : 'newest'} profile`);
+                    choice.setAttribute('aria-label', `Retain ${label} from ${sourceLabel} profile`);
                     choice.addEventListener('change', function() {
                         selectMergeProfileField(field, source);
                     });
@@ -794,24 +1022,45 @@
             };
             const syncMergeSourceSelection = () => {
                 const selectedIds = selectedMergeSourceIds();
-                const selectedClients = mergeSourceClients.filter(client => selectedIds.includes(String(client.client_id)));
+                const selectedClients = mergeSourceClients.filter(client => selectedIds.includes(String(client
+                    .client_id)));
                 const selectedFieldSources = {};
                 document.querySelectorAll('[data-merge-profile-field]:checked').forEach(choice => {
-                    selectedFieldSources[choice.dataset.mergeProfileField] = choice.dataset.mergeProfileSource;
+                    selectedFieldSources[choice.dataset.mergeProfileField] = choice.dataset
+                        .mergeProfileSource;
                 });
 
-                document.getElementById('mergeSourceClientIds').textContent =
-                    selectedIds.length > 0 ? selectedIds.join(', ') : 'None selected';
-                const newestSelectedClient = selectedClients.at(-1);
-                renderMergeProfile('mergeNewestProfile', newestSelectedClient?.profile || {}, 'newest');
+                mergeSelectedProfileCards?.querySelectorAll('[data-merge-source-profile-card]').forEach(
+                    card => {
+                        card.remove();
+                    });
+                selectedClients.forEach(client => {
+                    const column = document.createElement('div');
+                    column.className = 'col-md-6';
+                    column.dataset.mergeSourceProfileCard = String(client.client_id);
+
+                    const card = document.createElement('div');
+                    card.className =
+                        'border border-primary-subtle bg-primary-subtle rounded-3 h-100 p-3';
+                    const heading = document.createElement('div');
+                    heading.className = 'text-uppercase text-primary small fw-semibold mb-2';
+                    heading.textContent = `Selected profile data — Client ${client.client_id}`;
+                    const details = document.createElement('dl');
+                    details.className = 'row small mb-0';
+                    card.append(heading, details);
+                    column.append(card);
+                    mergeSelectedProfileCards?.append(column);
+                    renderMergeProfile(details, client.profile || {}, String(client.client_id),
+                        `Client ${client.client_id}`);
+                });
+
+                const validSources = new Set(['oldest', ...selectedIds]);
                 Object.keys(mergeProfileLabels).forEach(field => {
                     selectMergeProfileField(
                         field,
-                        newestSelectedClient ? (selectedFieldSources[field] || 'oldest') : 'oldest'
+                        validSources.has(selectedFieldSources[field]) ? selectedFieldSources[
+                            field] : 'oldest'
                     );
-                });
-                document.querySelectorAll('#mergeNewestProfile [data-merge-profile-field]').forEach(choice => {
-                    choice.disabled = !newestSelectedClient;
                 });
                 syncMergeSubmitState();
             };
@@ -838,7 +1087,8 @@
                     const count = document.createElement('span');
                     count.className = 'small text-muted';
                     const recordCount = Number(client.record_count) || 0;
-                    count.textContent = `${recordCount} duplicate record${recordCount === 1 ? '' : 's'}`;
+                    count.textContent =
+                        `${recordCount} duplicate record${recordCount === 1 ? '' : 's'}`;
                     details.append(title, count);
                     label.append(choice, details);
                     return label;
@@ -863,10 +1113,13 @@
                     trigger?.dataset.groupName || 'this client';
                 document.getElementById('mergeDuplicateRecordCount').textContent =
                     trigger?.dataset.recordCount || ids.length;
-                document.getElementById('mergeTargetClientId').textContent =
-                    trigger?.dataset.targetClientId || '-';
                 mergeSourceClients = parseMergeData(trigger?.dataset.sourceClients, []);
-                renderMergeProfile('mergeOldestProfile', parseMergeData(trigger?.dataset.targetProfile), 'oldest');
+                renderMergeProfile(
+                    'mergeOldestProfile',
+                    parseMergeData(trigger?.dataset.targetProfile),
+                    'oldest',
+                    'current oldest'
+                );
                 if (mergeConfirmation) mergeConfirmation.checked = false;
                 renderMergeSourceClients();
             });
@@ -877,13 +1130,16 @@
             document.getElementById('mergeDuplicateClientsForm')?.addEventListener('submit', function() {
                 if (!mergeSubmitButton) return;
                 mergeSubmitButton.disabled = true;
-                mergeSubmitButton.innerHTML = '<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span> Merging...';
+                mergeSubmitButton.innerHTML =
+                    '<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span> Merging...';
             });
 
             document.querySelectorAll('[data-client-count]').forEach(tab => {
                 tab.addEventListener('shown.bs.tab', () => {
-                    document.getElementById('duplicateClientCount').textContent = `${tab.dataset.clientCount} client group(s) in this tab`;
-                    document.getElementById('duplicateRecordCount').textContent = `${tab.dataset.recordCount} record(s) in this tab`;
+                    document.getElementById('duplicateClientCount').textContent =
+                        `${tab.dataset.clientCount} client group(s) in this tab`;
+                    document.getElementById('duplicateRecordCount').textContent =
+                        `${tab.dataset.recordCount} record(s) in this tab`;
                     document.getElementById('dupActiveTab').value = ({
                         '#rexact-tab': 'exact',
                         '#rlikely-tab': 'likely',
@@ -912,7 +1168,8 @@
                 const url = new URL(window.location.href);
                 url.searchParams.set('per_page', this.value);
                 url.searchParams.set('duplicate_tab', document.getElementById('dupActiveTab').value);
-                ['exact_page', 'likely_page', 'similar_page', 'page'].forEach((k) => url.searchParams.delete(k));
+                ['exact_page', 'likely_page', 'similar_page', 'page'].forEach((k) => url.searchParams
+                    .delete(k));
                 window.location.href = url.toString();
             });
 
@@ -936,7 +1193,8 @@
                     if (allCheckbox && !updating) {
                         updating = true;
                         allCheckbox.checked = checked.length === checkboxes.length;
-                        allCheckbox.indeterminate = checked.length > 0 && checked.length < checkboxes.length;
+                        allCheckbox.indeterminate = checked.length > 0 && checked.length < checkboxes
+                            .length;
                         updating = false;
                     }
                 };
@@ -944,7 +1202,9 @@
                 allCheckbox?.addEventListener('change', function() {
                     if (updating) return;
                     const shouldCheck = this.checked;
-                    checkboxes.forEach((cb) => { cb.checked = shouldCheck; });
+                    checkboxes.forEach((cb) => {
+                        cb.checked = shouldCheck;
+                    });
                     syncLabel();
                 });
 
@@ -952,15 +1212,20 @@
                 syncLabel();
             };
 
-            setupDupMultiSelect('dupClientCategoryAll', 'dup-client-category-checkbox', 'dupClientCategoryLabel', 'All client categories');
-            setupDupMultiSelect('dupTransactionCategoryAll', 'dup-transaction-category-checkbox', 'dupTransactionCategoryLabel', 'All categories');
-            setupDupMultiSelect('dupTransactionTypeAll', 'dup-transaction-type-checkbox', 'dupTransactionTypeLabel', 'All types');
+            setupDupMultiSelect('dupClientCategoryAll', 'dup-client-category-checkbox', 'dupClientCategoryLabel',
+                'All client categories');
+            setupDupMultiSelect('dupTransactionCategoryAll', 'dup-transaction-category-checkbox',
+                'dupTransactionCategoryLabel', 'All categories');
+            setupDupMultiSelect('dupTransactionTypeAll', 'dup-transaction-type-checkbox', 'dupTransactionTypeLabel',
+                'All types');
 
             formEl?.addEventListener('submit', function() {
                 const injectMulti = (checkboxClass, fieldName) => {
-                    this.querySelectorAll('input[type="hidden"][name="' + fieldName + '[]"]').forEach((el) => el.remove());
+                    this.querySelectorAll('input[type="hidden"][name="' + fieldName + '[]"]').forEach((
+                        el) => el.remove());
                     const boxes = Array.from(document.querySelectorAll('.' + checkboxClass));
-                    const checked = boxes.filter((cb) => cb.checked).map((cb) => cb.value).filter((v) => v !== '');
+                    const checked = boxes.filter((cb) => cb.checked).map((cb) => cb.value).filter((v) =>
+                        v !== '');
                     if (checked.length > 0 && checked.length < boxes.length) {
                         checked.forEach((val) => {
                             const hidden = document.createElement('input');

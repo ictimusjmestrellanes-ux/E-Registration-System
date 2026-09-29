@@ -2,7 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Models\Client;
 use App\Models\TransactionEvent;
+use App\Models\TransactionHistory;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -14,7 +16,26 @@ class EventRecordEditTest extends TestCase
     public function test_record_can_be_edited_and_returns_to_the_same_list_context(): void
     {
         $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
-        $event = TransactionEvent::create(['full_name' => 'Original Name', 'transferred_at' => now()]);
+        $client = Client::create([
+            'client_id' => '2600100',
+            'first_name' => 'Original',
+            'last_name' => 'Name',
+        ]);
+        $history = TransactionHistory::create([
+            'client_id' => $client->client_id,
+            'client_category' => 'ORIGINAL CLIENT CATEGORY',
+            'transaction_id' => '2600100-26-0001',
+            'transaction_date' => '2026-09-01',
+            'category' => 'ORIGINAL CATEGORY',
+            'type' => 'ORIGINAL TYPE',
+            'events_transaction_type' => 'ORIGINAL TYPE',
+            'status' => 'Pending',
+        ]);
+        $event = TransactionEvent::create([
+            'full_name' => 'Original Name',
+            'transferred_at' => now(),
+            'transferred_transaction_id' => $history->id,
+        ]);
         $context = ['search' => 'Name', 'page' => 2, 'per_page' => 25];
         $this->get(route('transaction-events.records'))->assertOk()
             ->assertSee('data-bs-target="#editRecordModal"', false)
@@ -35,7 +56,19 @@ class EventRecordEditTest extends TestCase
         $this->assertSame('TRANCH 2', $event->transaction_type);
         $this->assertSame('2026-09-10', $event->event_date->format('Y-m-d'));
         $this->assertNotNull($event->transferred_at);
+        $history->refresh();
+        $this->assertSame('INDIGENT', $history->client_category);
+        $this->assertSame('ASSISTANCE', $history->category);
+        $this->assertSame('TRANCH 2', $history->type);
+        $this->assertSame('TRANCH 2', $history->events_transaction_type);
+        $this->assertSame('2026-09-10', $history->transaction_date->format('Y-m-d'));
         $this->get(route('transaction-events.records'))->assertSee('Updated Name');
+        $this->get(route('clients.show', $client))
+            ->assertOk()
+            ->assertSee('09/10/2026')
+            ->assertSee('ASSISTANCE')
+            ->assertSee('INDIGENT')
+            ->assertSee('TRANCH 2');
     }
 
     public function test_invalid_record_changes_are_rejected(): void

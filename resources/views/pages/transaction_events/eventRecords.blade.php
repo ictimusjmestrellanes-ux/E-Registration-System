@@ -624,7 +624,10 @@
                         </div>
 
                         <div class="d-flex justify-content-end mt-3" id="recordPagination">
-                            {{ $events->links('pagination::bootstrap-5') }}
+                            @include('pages.transaction_events.partials.paginationWithPageJump', [
+                                'paginator' => $events,
+                                'pageName' => 'page',
+                            ])
                         </div>
                     </div>
                 </div>

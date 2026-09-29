@@ -421,6 +421,52 @@ class EventRecordDuplicatesPaginationTest extends TestCase
         $this->assertStringContainsString('duplicate_tab=full_name', $groups->url(1));
     }
 
+    public function test_each_duplicate_tab_pagination_has_a_page_number_jump_input(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+
+        for ($group = 0; $group < 12; $group++) {
+            foreach ([0, 1] as $copy) {
+                DB::table('transaction_events')->insert([
+                    'full_name' => 'Jump Person '.$group,
+                    'client_category' => 'PWD',
+                    'transaction_category' => 'EVENTS',
+                    'transaction_type' => 'TYPE-A',
+                    'event_date' => '2026-09-01',
+                    'transferred_at' => '2026-09-01 12:00:00',
+                ]);
+            }
+
+            foreach ([['PWD', 'TYPE-A'], ['SENIOR', 'TYPE-B']] as [$clientCategory, $transactionType]) {
+                DB::table('transaction_events')->insert([
+                    'full_name' => 'Likely Jump Person '.$group,
+                    'client_category' => $clientCategory,
+                    'transaction_category' => 'EVENTS',
+                    'transaction_type' => $transactionType,
+                    'event_date' => '2026-09-01',
+                    'transferred_at' => '2026-09-01 12:00:00',
+                ]);
+            }
+        }
+
+        $this->get(route('transaction-events.records-duplicates', [
+            'search' => 'Jump',
+            'per_page' => 10,
+        ]))
+            ->assertOk()
+            ->assertSee('name="exact_page"', false)
+            ->assertSee('name="likely_page"', false)
+            ->assertSee('name="similar_page"', false)
+            ->assertSee('name="search"', false)
+            ->assertSee('value="Jump"', false)
+            ->assertSee('name="per_page"', false)
+            ->assertSee('value="10"', false)
+            ->assertSee('name="duplicate_tab" value="exact"', false)
+            ->assertSee('name="duplicate_tab" value="likely"', false)
+            ->assertSee('name="duplicate_tab" value="full_name"', false)
+            ->assertSee('>Go</button>', false);
+    }
+
     public function test_duplicate_pages_load_only_visible_groups_with_bounded_queries(): void
     {
         $this->actingAs(User::factory()->create(['role_name' => 'Admin']));

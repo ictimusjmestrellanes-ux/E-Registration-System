@@ -615,6 +615,7 @@ class TransactionEventsController extends Controller
     {
         abort_if(auth()->user()->role_name === 'Viewer', 403, 'Viewer role is read-only.');
         abort_if($event->transferred_at === null, 404);
+        $hasLinkedTransaction = filled($event->transferred_transaction_id);
 
         $validated = $request->validate([
             'full_name' => 'required|string|max:150',
@@ -623,15 +624,57 @@ class TransactionEventsController extends Controller
             'age' => 'nullable|integer|min:0|max:150',
             'birth_date' => 'nullable|date',
             'client_category' => 'nullable|string|max:100',
-            'transaction_category' => 'nullable|string|max:100',
-            'transaction_type' => 'nullable|string|max:100',
-            'event_date' => 'nullable|date',
+            'transaction_category' => ($hasLinkedTransaction ? 'required' : 'nullable').'|string|max:100',
+            'transaction_type' => ($hasLinkedTransaction ? 'required' : 'nullable').'|string|max:100',
+            'event_date' => ($hasLinkedTransaction ? 'required' : 'nullable').'|date',
         ]);
 
-        $event->update($validated);
+        $updated = DB::transaction(function () use ($event, $validated): bool {
+            $event = TransactionEvent::whereKey($event->id)->lockForUpdate()->firstOrFail();
+            abort_if($event->transferred_at === null, 404);
+
+            $history = null;
+            if ($event->transferred_transaction_id) {
+                $history = TransactionHistory::whereKey($event->transferred_transaction_id)
+                    ->lockForUpdate()
+                    ->first();
+                if (! $history) {
+                    return false;
+                }
+            }
+
+            $event->update($validated);
+
+            if ($history) {
+                $historyUpdates = [];
+                if (array_key_exists('client_category', $validated)) {
+                    $historyUpdates['client_category'] = $validated['client_category'];
+                }
+                if (array_key_exists('transaction_category', $validated)) {
+                    $historyUpdates['category'] = $validated['transaction_category'];
+                }
+                if (array_key_exists('transaction_type', $validated)) {
+                    $historyUpdates['type'] = $validated['transaction_type'];
+                    $historyUpdates['events_transaction_type'] = $validated['transaction_type'];
+                }
+                if (array_key_exists('event_date', $validated)) {
+                    $historyUpdates['transaction_date'] = $validated['event_date'];
+                }
+                if ($historyUpdates !== []) {
+                    $history->update($historyUpdates);
+                }
+            }
+
+            return true;
+        });
+
+        if (! $updated) {
+            return redirect()->route('transaction-events.records', $request->query())
+                ->with('error', 'The linked transaction history is missing. Review this record before updating.');
+        }
 
         return redirect()->route('transaction-events.records', $request->query())
-            ->with('success', 'Event record updated successfully.');
+            ->with('success', 'Event record and linked transaction history updated successfully.');
     }
 
     public function updateRecordStatus(Request $request, TransactionEvent $event)
@@ -4376,7 +4419,7 @@ class TransactionEventsController extends Controller
             'source_client_ids' => ['nullable', 'array', 'min:1', 'max:99'],
             'source_client_ids.*' => ['required', 'string', 'distinct', 'max:255'],
             'profile_field_sources' => ['nullable', 'array:name,birth_date,contact,address,sector'],
-            'profile_field_sources.*' => ['required', 'in:oldest,newest'],
+            'profile_field_sources.*' => ['required', 'string', 'max:255'],
         ]);
         $eventIds = collect($validated['event_ids'])->map(fn ($id) => (int) $id)->values();
         $requestedSourceClientIds = array_key_exists('source_client_ids', $validated)
@@ -4461,6 +4504,12 @@ class TransactionEventsController extends Controller
                 || $selectedSourceClientIds->diff($availableSourceClientIds)->isNotEmpty()) {
                 return ['error' => 'Select at least one available newer client profile to merge.'];
             }
+            if (collect($profileFieldSources)->contains(
+                fn ($source) => $source !== 'oldest'
+                    && ! $selectedSourceClientIds->contains((string) $source)
+            )) {
+                return ['error' => 'A selected profile value does not belong to a client chosen for this merge.'];
+            }
 
             $sources = $availableSources->filter(
                 fn (Client $client) => $selectedSourceClientIds->contains((string) $client->client_id)
@@ -4483,7 +4532,6 @@ class TransactionEventsController extends Controller
                 'fingerprint_template',
             ];
 
-            $latestSource = $sources->last();
             $selectableProfileFields = [
                 'name' => ['first_name', 'middle_name', 'last_name', 'suffix'],
                 'birth_date' => ['birth_date'],
@@ -4491,12 +4539,15 @@ class TransactionEventsController extends Controller
                 'address' => ['address'],
                 'sector' => ['sector'],
             ];
-            foreach ($profileFieldSources as $displayField => $source) {
-                if ($source !== 'newest') {
+            foreach ($profileFieldSources as $displayField => $sourceClientId) {
+                if ($sourceClientId === 'oldest') {
                     continue;
                 }
+                $profileSource = $sources->first(
+                    fn (Client $client) => (string) $client->client_id === (string) $sourceClientId
+                );
                 foreach ($selectableProfileFields[$displayField] as $field) {
-                    $target->setAttribute($field, $latestSource->getAttribute($field));
+                    $target->setAttribute($field, $profileSource->getAttribute($field));
                 }
             }
 
@@ -4602,7 +4653,6 @@ class TransactionEventsController extends Controller
                     'event_ids' => $resolvedEventIds->all(),
                     'reviewed_event_ids' => $eventIds->all(),
                     'profile_field_sources' => $profileFieldSources,
-                    'newest_profile_client_id' => $latestSource->client_id,
                     'profile_fields_updated' => $changedFields,
                     'transaction_id_changes' => $transactionIdChanges,
                     'duplicate_group_removed' => $allSourcesSelected,

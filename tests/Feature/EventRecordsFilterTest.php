@@ -11,6 +11,41 @@ class EventRecordsFilterTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_event_records_pagination_has_a_page_number_jump_input(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+
+        foreach (range(1, 12) as $record) {
+            TransactionEvent::create([
+                'full_name' => 'Page Jump Record '.$record,
+                'transferred_at' => now(),
+            ]);
+        }
+
+        $response = $this->get(route('transaction-events.records', [
+            'search' => 'Page Jump',
+            'per_page' => 10,
+        ]));
+
+        $response->assertOk()
+            ->assertSee('data-page-jump-form', false)
+            ->assertSee('name="page"', false)
+            ->assertSee('aria-label="Page number, from 1 to 2"', false)
+            ->assertSee('name="search"', false)
+            ->assertSee('value="Page Jump"', false)
+            ->assertSee('name="per_page"', false)
+            ->assertSee('value="10"', false)
+            ->assertDontSee('name="duplicate_tab"', false);
+
+        $this->get(route('transaction-events.records', [
+            'search' => 'Page Jump',
+            'per_page' => 10,
+            'page' => 2,
+        ]))
+            ->assertOk()
+            ->assertViewHas('events', fn ($events) => $events->currentPage() === 2 && $events->count() === 2);
+    }
+
     public function test_multiple_addresses_filter_both_lists_exports_and_bulk_ids(): void
     {
         $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
