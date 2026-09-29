@@ -11,6 +11,126 @@ class EventRecordDuplicatesPaginationTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_duplicate_records_exclude_different_transactions_for_the_same_client_id(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+
+        $sameClientHistoryIds = collect(['2615081-26-0001', '2615081-26-0002'])->map(
+            fn (string $transactionId) => DB::table('transaction_history')->insertGetId([
+                'transaction_id' => $transactionId,
+                'client_id' => '2615081',
+                'transaction_date' => '2026-09-03',
+                'type' => 'EVENT',
+                'category' => 'EVENTS',
+                'status' => 'Claimed',
+            ])
+        );
+        $differentClientHistoryIds = collect([
+            ['2616001-26-0001', '2616001'],
+            ['2616002-26-0001', '2616002'],
+        ])->map(fn (array $history) => DB::table('transaction_history')->insertGetId([
+            'transaction_id' => $history[0],
+            'client_id' => $history[1],
+            'transaction_date' => '2026-09-03',
+            'type' => 'EVENT',
+            'category' => 'EVENTS',
+            'status' => 'Claimed',
+        ]));
+
+        foreach ($sameClientHistoryIds as $index => $historyId) {
+            DB::table('transaction_events')->insert([
+                'full_name' => 'SAME CLIENT VALID TRANSACTIONS',
+                'client_category' => $index === 0 ? 'PWD' : 'SENIOR',
+                'transaction_category' => $index === 0 ? 'EVENTS' : 'OTHER',
+                'transaction_type' => $index === 0 ? 'TRANCH 1' : 'TRANCH 2',
+                'event_date' => $index === 0 ? '2026-09-03' : '2026-09-23',
+                'transferred_at' => '2026-09-23 12:00:00',
+                'transferred_transaction_id' => $historyId,
+            ]);
+        }
+        foreach ($differentClientHistoryIds as $index => $historyId) {
+            DB::table('transaction_events')->insert([
+                'full_name' => 'DIFFERENT CLIENT DUPLICATE',
+                'client_category' => $index === 0 ? 'PWD' : 'SENIOR',
+                'transaction_category' => $index === 0 ? 'EVENTS' : 'OTHER',
+                'transaction_type' => $index === 0 ? 'TRANCH 1' : 'TRANCH 2',
+                'event_date' => $index === 0 ? '2026-09-03' : '2026-09-23',
+                'transferred_at' => '2026-09-23 12:00:00',
+                'transferred_transaction_id' => $historyId,
+            ]);
+        }
+
+        $response = $this->get(route('transaction-events.records-duplicates', [
+            'duplicate_tab' => 'full_name',
+        ]))->assertOk();
+
+        $response->assertDontSee('SAME CLIENT VALID TRANSACTIONS')
+            ->assertSee('DIFFERENT CLIENT DUPLICATE');
+        $this->assertSame(1, $response->viewData('similarGroups')->total());
+        $this->assertSame(2, $response->viewData('similarRecordsTotal'));
+    }
+
+    public function test_duplicate_filter_buttons_submit_native_multi_select_values_to_the_correct_pages(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+
+        foreach ([null, '2026-09-20 12:00:00'] as $transferredAt) {
+            foreach ([
+                ['name' => 'Matching Filter Person', 'client' => 'PWD', 'category' => 'EVENTS', 'type' => 'TYPE-A'],
+                ['name' => 'Excluded Filter Person', 'client' => 'SENIOR', 'category' => 'OTHER', 'type' => 'TYPE-B'],
+            ] as $group) {
+                foreach ([1, 2] as $copy) {
+                    DB::table('transaction_events')->insert([
+                        'full_name' => ($transferredAt ? 'Transferred ' : 'Pending ').$group['name'],
+                        'client_category' => $group['client'],
+                        'transaction_category' => $group['category'],
+                        'transaction_type' => $group['type'],
+                        'event_date' => '2026-09-20',
+                        'transferred_at' => $transferredAt,
+                        'created_at' => now(),
+                        'updated_at' => now()->addSeconds($copy),
+                    ]);
+                }
+            }
+        }
+
+        foreach ([
+            'transaction-events.duplicate-review',
+            'transaction-events.records-duplicates',
+        ] as $routeName) {
+            $response = $this->get(route($routeName, ['per_page' => 25]));
+            $content = $response->assertOk()->getContent();
+
+            $this->assertMatchesRegularExpression(
+                '/<form\s+method="GET"\s+action="'.preg_quote(route($routeName), '/').'"\s+id="dupFiltersForm"/',
+                $content
+            );
+            $response->assertSee('name="client_category[]"', false)
+                ->assertSee('name="transaction_category[]"', false)
+                ->assertSee('name="transaction_type[]"', false)
+                ->assertSee('name="per_page"', false)
+                ->assertSee('value="25"', false)
+                ->assertSee('class="row g-3 mt-1 align-items-end"', false)
+                ->assertSee('d-flex gap-2 justify-content-end', false)
+                ->assertSee('class="small mt-2"', false)
+                ->assertSee('Apply Filters');
+        }
+
+        $filters = [
+            'client_category' => ['PWD'],
+            'transaction_category' => ['EVENTS'],
+            'transaction_type' => ['TYPE-A'],
+        ];
+        $this->get(route('transaction-events.duplicate-review', $filters))
+            ->assertOk()
+            ->assertSee('Pending Matching Filter Person')
+            ->assertDontSee('Pending Excluded Filter Person');
+        $this->get(route('transaction-events.records-duplicates', $filters))
+            ->assertOk()
+            ->assertSee('Transferred Matching Filter Person')
+            ->assertDontSee('Transferred Excluded Filter Person');
+    }
+
     public function test_duplicate_records_flash_message_closes_after_five_seconds(): void
     {
         $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
@@ -501,7 +621,7 @@ class EventRecordDuplicatesPaginationTest extends TestCase
         for ($group = 0; $group < 35; $group++) {
             foreach ([0, 1] as $copy) {
                 $history = DB::table('transaction_history')->insertGetId([
-                    'transaction_id' => 'DUP-'.$group.'-'.$copy, 'client_id' => 'C1',
+                    'transaction_id' => 'DUP-'.$group.'-'.$copy, 'client_id' => 'C'.($copy + 1),
                     'transaction_date' => '2026-09-01', 'type' => 'TYPE', 'category' => 'EVENTS', 'status' => 'Claimed',
                 ]);
                 $rows[] = [
@@ -519,7 +639,7 @@ class EventRecordDuplicatesPaginationTest extends TestCase
             [$clientCategory, $type] = explode('|', $combo);
             foreach ([0, 1, 2] as $group) {
                 $history = DB::table('transaction_history')->insertGetId([
-                    'transaction_id' => 'LIKELY-'.$group.'-'.$copy, 'client_id' => 'C1',
+                    'transaction_id' => 'LIKELY-'.$group.'-'.$copy, 'client_id' => 'C'.($copy + 1),
                     'transaction_date' => '2026-09-02', 'type' => $type, 'category' => 'EVENTS', 'status' => 'Claimed',
                 ]);
                 $rows[] = [
@@ -576,9 +696,9 @@ class EventRecordDuplicatesPaginationTest extends TestCase
     {
         $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
         $historyIds = [];
-        foreach (['EXACT-1', 'EXACT-2'] as $transactionId) {
+        foreach (['EXACT-1', 'EXACT-2'] as $index => $transactionId) {
             $historyIds[] = DB::table('transaction_history')->insertGetId([
-                'transaction_id' => $transactionId, 'client_id' => 'C1',
+                'transaction_id' => $transactionId, 'client_id' => 'C'.($index + 1),
                 'transaction_date' => '2026-09-01', 'type' => 'TYPE', 'category' => 'EVENTS', 'status' => 'Claimed',
             ]);
         }
@@ -606,9 +726,9 @@ class EventRecordDuplicatesPaginationTest extends TestCase
     {
         $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
         $historyIds = [];
-        foreach (['BIRTH-1', 'BIRTH-2'] as $transactionId) {
+        foreach (['BIRTH-1', 'BIRTH-2'] as $index => $transactionId) {
             $historyIds[] = DB::table('transaction_history')->insertGetId([
-                'transaction_id' => $transactionId, 'client_id' => 'C1',
+                'transaction_id' => $transactionId, 'client_id' => 'C'.($index + 1),
                 'transaction_date' => '2026-09-01', 'type' => 'TYPE', 'category' => 'EVENTS', 'status' => 'Claimed',
             ]);
         }
@@ -637,9 +757,9 @@ class EventRecordDuplicatesPaginationTest extends TestCase
     {
         $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
         $historyIds = [];
-        foreach (['LIKELY-1', 'LIKELY-2'] as $transactionId) {
+        foreach (['LIKELY-1', 'LIKELY-2'] as $index => $transactionId) {
             $historyIds[] = DB::table('transaction_history')->insertGetId([
-                'transaction_id' => $transactionId, 'client_id' => 'C1',
+                'transaction_id' => $transactionId, 'client_id' => 'C'.($index + 1),
                 'transaction_date' => '2026-09-02', 'type' => 'TYPE-A', 'category' => 'EVENTS', 'status' => 'Claimed',
             ]);
         }

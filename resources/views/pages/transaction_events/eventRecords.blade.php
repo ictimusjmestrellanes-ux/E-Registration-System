@@ -509,8 +509,7 @@
                                 </thead>
                                 <tbody>
                                     @forelse ($events as $event)
-                                        <tr data-event-id="{{ $event->id }}"
-                                            data-base-status="{{ $event->status }}"
+                                        <tr data-event-id="{{ $event->id }}" data-base-status="{{ $event->status }}"
                                             data-not-duplicate="{{ $event->not_duplicate ? '1' : '0' }}">
                                             @if (auth()->user()?->role_name !== 'Viewer')
                                                 <td class="text-center">

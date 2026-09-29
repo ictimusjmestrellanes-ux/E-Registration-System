@@ -7,6 +7,7 @@ use App\Models\TransactionEvent;
 use App\Models\TransactionHistory;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class TransferOneByOneTest extends TestCase
@@ -114,11 +115,22 @@ class TransferOneByOneTest extends TestCase
         $prepare->assertOk()->assertJsonPath('total', 501);
         $token = $prepare->json('token');
 
+        DB::enableQueryLog();
+        DB::flushQueryLog();
         $this->postJson(route('transaction-events.transfer-selected.process'), [
             'token' => $token,
             'offset' => 0,
             'limit' => 1000,
         ])->assertOk()->assertJsonPath('processed', 500)->assertJsonPath('done', false);
+        $queries = collect(DB::getQueryLog())->pluck('query');
+        DB::disableQueryLog();
+
+        $insertCount = fn (string $table): int => $queries
+            ->filter(fn (string $sql): bool => preg_match('/^insert into [`"]?'.preg_quote($table, '/').'[`"]?/i', trim($sql)) === 1)
+            ->count();
+        $this->assertSame(1, $insertCount('clients'));
+        $this->assertSame(1, $insertCount('transaction_history'));
+        $this->assertSame(1, $insertCount('transaction_events'));
         $this->assertDatabaseCount('transaction_history', 500);
         $this->assertSame(1, TransactionEvent::whereNull('transferred_at')->count());
 

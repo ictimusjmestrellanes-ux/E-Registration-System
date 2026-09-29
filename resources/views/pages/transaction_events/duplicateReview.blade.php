@@ -186,9 +186,11 @@
                                 </div>
                             </div>
 
-                            <form method="GET" id="dupFiltersForm"
-                                class="mt-3 {{ request()->anyFilled(['search', 'client_category', 'transaction_category', 'transaction_type', 'date_from', 'date_to']) ? '' : 'd-none' }}">
-                                <div class="row g-3">
+                            <form method="GET" action="{{ route('transaction-events.duplicate-review') }}"
+                                id="dupFiltersForm"
+                                class="{{ request()->anyFilled(['search', 'client_category', 'transaction_category', 'transaction_type', 'date_from', 'date_to']) ? '' : 'd-none' }}">
+                                <input type="hidden" name="per_page" value="{{ $perPage ?? 10 }}">
+                                <div class="row g-3 mt-1 align-items-end">
                                     <div class="col-12 col-xl-4">
                                         <label for="dupKeywordInput"
                                             class="form-label fw-semibold text-uppercase small">Keyword Search</label>
@@ -250,17 +252,14 @@
                                         <input type="date" class="form-control" id="dupDateTo" name="date_to"
                                             value="{{ request('date_to') }}">
                                     </div>
-                                </div>
-
-                                <div class="row g-3 align-items-end">
-                                    <div class="col-12 d-flex gap-2 justify-content-end">
+                                    <div class="col-12 col-xl-10 d-flex gap-2 justify-content-end">
                                         <button type="submit" class="btn btn-sm btn-primary px-4">
                                             <i class="ri-filter-3-fill me-1"></i> Apply Filters
                                         </button>
                                     </div>
                                 </div>
 
-                                <div class="small mt-3">
+                                <div class="small mt-2">
                                     {{ request()->anyFilled(['search', 'client_category', 'transaction_category', 'transaction_type', 'date_from', 'date_to']) ? 'Filtered groups are shown below.' : 'Showing all duplicate groups.' }}
                                 </div>
                             </form>

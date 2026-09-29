@@ -176,7 +176,7 @@
                                 $out .= '</div>';
                                 $out .= '<div class="table-responsive">';
                                 $out .=
-                                    '<table class="table table-sm table-hover align-middle mb-0 duplicate-group-table">';
+                                    '<table class="table table-bordered table-sm table-hover align-middle mb-0 duplicate-group-table">';
                                 $out .= '<thead class="table-light"><tr>';
                                 $sortableHeaders = [
                                     ['label' => 'Transaction ID', 'type' => 'text'],
@@ -369,10 +369,12 @@
                                 </div>
                             </div>
 
-                            <form method="GET" id="dupFiltersForm"
-                                class="mt-3 {{ request()->anyFilled(['search', 'client_category', 'transaction_category', 'transaction_type', 'status', 'date_from', 'date_to']) ? '' : 'd-none' }}">
+                            <form method="GET" action="{{ route('transaction-events.records-duplicates') }}"
+                                id="dupFiltersForm"
+                                class="{{ request()->anyFilled(['search', 'client_category', 'transaction_category', 'transaction_type', 'status', 'date_from', 'date_to']) ? '' : 'd-none' }}">
                                 <input type="hidden" name="duplicate_tab" id="dupActiveTab" value="{{ $activeTab }}">
-                                <div class="row g-3">
+                                <input type="hidden" name="per_page" value="{{ $perPage ?? 10 }}">
+                                <div class="row g-3 mt-1 align-items-end">
                                     <div class="col-12 col-xl-4">
                                         <label for="dupKeywordInput"
                                             class="form-label fw-semibold text-uppercase small">Keyword Search</label>
@@ -421,6 +423,7 @@
                                                             data-option-label="{{ strtolower($clientCategory) }}">
                                                             <input class="form-check-input dup-client-category-checkbox"
                                                                 type="checkbox" id="dupClientCategory_{{ $loop->index }}"
+                                                                name="client_category[]"
                                                                 value="{{ $clientCategory }}"
                                                                 {{ $dupIsClientCategoryChecked ? 'checked' : '' }}>
                                                             <label class="form-check-label"
@@ -476,6 +479,7 @@
                                                                 class="form-check-input dup-transaction-category-checkbox"
                                                                 type="checkbox"
                                                                 id="dupTransactionCategory_{{ $loop->index }}"
+                                                                name="transaction_category[]"
                                                                 value="{{ $transactionCategory }}"
                                                                 {{ $dupIsTransactionCategoryChecked ? 'checked' : '' }}>
                                                             <label class="form-check-label"
@@ -529,6 +533,7 @@
                                                             <input class="form-check-input dup-transaction-type-checkbox"
                                                                 type="checkbox"
                                                                 id="dupTransactionType_{{ $loop->index }}"
+                                                                name="transaction_type[]"
                                                                 value="{{ $transactionType }}"
                                                                 {{ $dupIsTransactionTypeChecked ? 'checked' : '' }}>
                                                             <label class="form-check-label"
@@ -566,17 +571,14 @@
                                         <input type="date" class="form-control" id="dupDateTo" name="date_to"
                                             value="{{ request('date_to') }}">
                                     </div>
-                                </div>
 
-                                <div class="row g-3 mt-1 align-items-end">
-                                    <div class="col-12 d-flex gap-2 justify-content-end">
+                                    <div class="col-12 col-xl-8 d-flex gap-2 justify-content-end">
                                         <button type="submit" class="btn btn-sm btn-primary px-4">
                                             <i class="ri-filter-3-fill me-1"></i> Apply Filters
                                         </button>
                                     </div>
                                 </div>
-
-                                <div class="small mt-3">
+                                <div class="small mt-2">
                                     {{ request()->anyFilled(['search', 'client_category', 'transaction_category', 'transaction_type', 'status', 'date_from', 'date_to']) ? 'Filtered groups are shown below.' : 'Showing all duplicate groups.' }}
                                 </div>
                             </form>
@@ -1226,27 +1228,6 @@
             setupDupMultiSelect('dupTransactionTypeAll', 'dup-transaction-type-checkbox', 'dupTransactionTypeLabel',
                 'All types');
 
-            formEl?.addEventListener('submit', function() {
-                const injectMulti = (checkboxClass, fieldName) => {
-                    this.querySelectorAll('input[type="hidden"][name="' + fieldName + '[]"]').forEach((
-                        el) => el.remove());
-                    const boxes = Array.from(document.querySelectorAll('.' + checkboxClass));
-                    const checked = boxes.filter((cb) => cb.checked).map((cb) => cb.value).filter((v) =>
-                        v !== '');
-                    if (checked.length > 0 && checked.length < boxes.length) {
-                        checked.forEach((val) => {
-                            const hidden = document.createElement('input');
-                            hidden.type = 'hidden';
-                            hidden.name = fieldName + '[]';
-                            hidden.value = val;
-                            this.appendChild(hidden);
-                        });
-                    }
-                };
-                injectMulti('dup-client-category-checkbox', 'client_category');
-                injectMulti('dup-transaction-category-checkbox', 'transaction_category');
-                injectMulti('dup-transaction-type-checkbox', 'transaction_type');
-            });
             const initialHash = window.location.hash;
             if (initialHash) {
                 const tabTrigger = document.querySelector('a[data-bs-toggle="tab"][href="' + initialHash + '"]');

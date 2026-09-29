@@ -126,7 +126,7 @@
                                             View transaction ID changes
                                         </summary>
                                         <div class="table-responsive mt-3">
-                                            <table class="table table-sm table-hover align-middle mb-0">
+                                            <table class="table table-bordered table-sm table-hover align-middle mb-0">
                                                 <thead class="table-light">
                                                     <tr>
                                                         <th>Previous Transaction ID</th>
@@ -156,8 +156,15 @@
                     </div>
 
                     @if ($completedMerges->hasPages())
-                        <div class="card-footer">
-                            {{ $completedMerges->onEachSide(1)->links() }}
+                        <div class="card-footer d-flex flex-wrap gap-2 align-items-center justify-content-between">
+                            <div class="small text-muted">
+                                Showing {{ $completedMerges->firstItem() }}–{{ $completedMerges->lastItem() }} of
+                                {{ $completedMerges->total() }} completed merge groups
+                            </div>
+                            @include('pages.transaction_events.partials.paginationWithPageJump', [
+                                'paginator' => $completedMerges->onEachSide(1),
+                                'pageName' => 'completed_page',
+                            ])
                         </div>
                     @endif
                 </div>

@@ -18,7 +18,7 @@
             <input type="number" class="form-control form-control-sm" id="{{ $pageName }}Jump"
                 name="{{ $pageName }}" value="{{ $paginator->currentPage() }}" min="1"
                 max="{{ $paginator->lastPage() }}" inputmode="numeric" required
-                aria-label="Page number, from 1 to {{ $paginator->lastPage() }}" style="width: 2rem; text-align: center; font-weight: 600;">
+                aria-label="Page number, from 1 to {{ $paginator->lastPage() }}" style="width: 3rem; text-align: center; font-weight: 600;">
             <span class="small text-muted text-nowrap">of {{ $paginator->lastPage() }}</span>
             <button type="submit" class="btn btn-sm btn-primary">Go</button>
         </form>

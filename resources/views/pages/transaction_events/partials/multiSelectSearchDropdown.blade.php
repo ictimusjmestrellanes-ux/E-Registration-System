@@ -31,7 +31,7 @@
             @forelse ($options as $option)
                 <div class="form-check" data-option-row data-option-label="{{ strtolower($option) }}">
                     <input class="form-check-input {{ $dropdownId }}-checkbox" type="checkbox"
-                        id="{{ $dropdownId }}_{{ $loop->index }}" value="{{ $option }}"
+                        id="{{ $dropdownId }}_{{ $loop->index }}" name="{{ $fieldName }}[]" value="{{ $option }}"
                         {{ $selectedValues->contains($option) ? 'checked' : '' }}>
                     <label class="form-check-label" for="{{ $dropdownId }}_{{ $loop->index }}">{{ $option }}</label>
                 </div>
@@ -50,7 +50,6 @@
         root.dataset.initialized = '1';
 
         var dropdownId = @json($dropdownId);
-        var fieldName = @json($fieldName);
         var allLabel = @json($allLabel);
         var allCheckbox = document.getElementById(dropdownId + 'All');
         var label = document.getElementById(dropdownId + 'Label');
@@ -106,25 +105,6 @@
                     if (show) visibleCount++;
                 });
                 if (noResults) noResults.classList.toggle('d-none', visibleCount !== 0);
-            });
-        }
-
-        var form = root.closest('form');
-        if (form && !form.dataset['msdBound' + dropdownId]) {
-            form.dataset['msdBound' + dropdownId] = '1';
-            form.addEventListener('submit', function () {
-                var scopeBoxes = Array.from(root.querySelectorAll('.' + dropdownId + '-checkbox'));
-                form.querySelectorAll('input[type="hidden"][name="' + fieldName + '[]"]').forEach(function (el) { el.remove(); });
-                var checked = scopeBoxes.filter(function (cb) { return cb.checked; }).map(function (cb) { return cb.value; }).filter(function (v) { return v !== ''; });
-                if (checked.length > 0 && checked.length < scopeBoxes.length) {
-                    checked.forEach(function (val) {
-                        var hidden = document.createElement('input');
-                        hidden.type = 'hidden';
-                        hidden.name = fieldName + '[]';
-                        hidden.value = val;
-                        form.appendChild(hidden);
-                    });
-                }
             });
         }
 

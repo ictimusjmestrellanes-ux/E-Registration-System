@@ -15,6 +15,44 @@ class DuplicateEventClientMergeTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_completed_merge_groups_use_the_correct_bootstrap_pagination(): void
+    {
+        $admin = User::factory()->create(['role_name' => 'Admin']);
+        $this->actingAs($admin);
+
+        foreach (range(1, 12) as $merge) {
+            ActivityLog::create([
+                'user_id' => $admin->id,
+                'action' => 'duplicate_event_clients_merged',
+                'subject_type' => 'Client',
+                'description' => 'Completed merge '.$merge,
+                'properties' => [
+                    'target_client_id' => '26'.str_pad((string) $merge, 5, '0', STR_PAD_LEFT),
+                    'source_client_ids' => [],
+                    'event_ids' => [],
+                    'transaction_id_changes' => [],
+                ],
+            ]);
+        }
+
+        $response = $this->get(route('transaction-events.records-duplicates.merge-clients.index', [
+            'per_page' => 10,
+            'completed_page' => 2,
+        ]));
+
+        $response->assertOk()
+            ->assertSee('pagination', false)
+            ->assertSee('data-page-jump-form', false)
+            ->assertSee('name="completed_page"', false)
+            ->assertSee('Page number, from 1 to 2')
+            ->assertSee('Showing 11–12 of')
+            ->assertViewHas('completedMerges', fn ($merges) => $merges->currentPage() === 2
+                && $merges->lastPage() === 2
+                && $merges->count() === 2
+                && str_contains($merges->previousPageUrl(), 'completed_page=1')
+                && str_contains($merges->previousPageUrl(), 'per_page=10'));
+    }
+
     public function test_admin_can_merge_newer_event_client_into_oldest_without_losing_transactions_or_requirements(): void
     {
         $this->actingAs(User::factory()->create(['role_name' => 'Admin']));

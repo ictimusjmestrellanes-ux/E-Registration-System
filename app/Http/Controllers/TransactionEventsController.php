@@ -1251,12 +1251,12 @@ class TransactionEventsController extends Controller
      */
     private function recordDuplicateNormalizedExpression(string $column): string
     {
-        return match ($column) {
-            'full_name' => "LOWER(TRIM(COALESCE(full_name,'')))",
-            'client_category' => "LOWER(TRIM(COALESCE(client_category,'')))",
-            'transaction_category' => "LOWER(TRIM(COALESCE(transaction_category,'')))",
-            'transaction_type' => "LOWER(TRIM(COALESCE(transaction_type,'')))",
-            'event_date' => "COALESCE(DATE(event_date),'')",
+        $columnName = str_contains($column, '.') ? str($column)->afterLast('.')->value() : $column;
+
+        return match ($columnName) {
+            'full_name', 'client_category', 'transaction_category', 'transaction_type' =>
+                "LOWER(TRIM(COALESCE({$column},'')))",
+            'event_date' => "COALESCE(DATE({$column}),'')",
             default => $column,
         };
     }
@@ -1285,39 +1285,41 @@ class TransactionEventsController extends Controller
      * each pattern's base query before grouping so counts and pages reflect
      * exactly what the filters show.
      */
-    private function applyRecordDuplicatePrefilters($query, Request $request): void
+    private function applyRecordDuplicatePrefilters($query, Request $request, string $tablePrefix = ''): void
     {
+        $column = static fn (string $name): string => $tablePrefix.$name;
+
         if ($request->filled('status')) {
-            $query->where('status', $request->input('status'));
+            $query->where($column('status'), $request->input('status'));
         }
 
         if ($search = trim((string) $request->input('search', ''))) {
-            $query->where(function ($matches) use ($search) {
-                $matches->where('full_name', 'like', "%{$search}%")
-                    ->orWhere('client_category', 'like', "%{$search}%")
-                    ->orWhere('transaction_category', 'like', "%{$search}%")
-                    ->orWhere('transaction_type', 'like', "%{$search}%");
+            $query->where(function ($matches) use ($search, $column) {
+                $matches->where($column('full_name'), 'like', "%{$search}%")
+                    ->orWhere($column('client_category'), 'like', "%{$search}%")
+                    ->orWhere($column('transaction_category'), 'like', "%{$search}%")
+                    ->orWhere($column('transaction_type'), 'like', "%{$search}%");
             });
         }
 
         if ($values = $this->multiFilterValues($request, 'client_category')) {
-            $query->whereIn('client_category', $values);
+            $query->whereIn($column('client_category'), $values);
         }
 
         if ($values = $this->multiFilterValues($request, 'transaction_category')) {
-            $query->whereIn('transaction_category', $values);
+            $query->whereIn($column('transaction_category'), $values);
         }
 
         if ($values = $this->multiFilterValues($request, 'transaction_type')) {
-            $query->whereIn('transaction_type', $values);
+            $query->whereIn($column('transaction_type'), $values);
         }
 
         if ($from = $request->input('date_from')) {
-            $query->whereDate('event_date', '>=', $from);
+            $query->whereDate($column('event_date'), '>=', $from);
         }
 
         if ($to = $request->input('date_to')) {
-            $query->whereDate('event_date', '<=', $to);
+            $query->whereDate($column('event_date'), '<=', $to);
         }
     }
 
@@ -1332,19 +1334,34 @@ class TransactionEventsController extends Controller
     {
         $columns = ['event_date', 'client_category', 'transaction_category', 'transaction_type'];
         $query = DB::table('transaction_events')
-            ->whereNotNull('transferred_at')
-            ->where('not_duplicate', false)
-            ->whereNull('duplicate_merged_at');
-        $this->applyRecordDuplicatePrefilters($query, $request);
-        $query->selectRaw($this->recordDuplicateNormalizedExpression('full_name').' as fullname');
+            ->leftJoin(
+                'transaction_history as duplicate_history',
+                'duplicate_history.id',
+                '=',
+                'transaction_events.transferred_transaction_id'
+            )
+            ->whereNotNull('transaction_events.transferred_at')
+            ->where('transaction_events.not_duplicate', false)
+            ->whereNull('transaction_events.duplicate_merged_at');
+        $this->applyRecordDuplicatePrefilters($query, $request, 'transaction_events.');
+        $query->selectRaw(
+            $this->recordDuplicateNormalizedExpression('transaction_events.full_name').' as fullname'
+        );
         foreach ($columns as $column) {
-            $query->selectRaw($this->recordDuplicateNormalizedExpression($column).' as '.$column);
-        }
-        $query->selectRaw('COUNT(*) as total, MIN(id) as group_id')
-            ->groupBy(
-                DB::raw($this->recordDuplicateNormalizedExpression('full_name')),
-                ...array_map(fn ($c) => DB::raw($this->recordDuplicateNormalizedExpression($c)), $columns)
+            $query->selectRaw(
+                $this->recordDuplicateNormalizedExpression('transaction_events.'.$column).' as '.$column
             );
+        }
+        $query->addSelect('duplicate_history.client_id as linked_client_id')
+            ->selectRaw('COUNT(*) as total, MIN(transaction_events.id) as group_id')
+            ->groupBy(array_merge(
+                [DB::raw($this->recordDuplicateNormalizedExpression('transaction_events.full_name'))],
+                array_map(
+                    fn ($c) => DB::raw($this->recordDuplicateNormalizedExpression('transaction_events.'.$c)),
+                    $columns
+                ),
+                ['duplicate_history.client_id']
+            ));
 
         return $query->get();
     }
@@ -1385,6 +1402,10 @@ class TransactionEventsController extends Controller
                 $descriptor->member_ids = $members->pluck('group_id')->all();
                 $descriptor->group_id = $members->min('group_id');
                 $descriptor->total = $total;
+                $descriptor->linked_client_ids = $members->pluck('linked_client_id')->filter()->unique()->values()->all();
+                $descriptor->has_unlinked_client = $members->contains(
+                    fn ($member) => blank($member->linked_client_id)
+                );
                 foreach ($columns as $column) {
                     $descriptor->$column = in_array($column, $groupColumns, true) ? $first->$column : null;
                 }
@@ -1425,8 +1446,16 @@ class TransactionEventsController extends Controller
                     'group_id' => $memberIds->min(),
                     'member_ids' => $memberIds->all(),
                     'total' => (int) $keyRowsById->only($memberIds->all())->sum('total'),
+                    'linked_client_ids' => $matches->flatMap(
+                        fn ($match) => $match->linked_client_ids
+                    )->unique()->values()->all(),
+                    'has_unlinked_client' => $matches->contains(
+                        fn ($match) => $match->has_unlinked_client
+                    ),
                 ];
             })
+            ->filter(fn ($descriptor) => $descriptor->has_unlinked_client
+                || count($descriptor->linked_client_ids) !== 1)
             ->sort(fn ($a, $b) => ($b->total <=> $a->total) ?: ($a->group_id <=> $b->group_id))
             ->values();
         $recordsTotal = (int) $descriptors->sum('total');
@@ -1487,12 +1516,25 @@ class TransactionEventsController extends Controller
     private function likelyRecordGroups(Request $request, int $perPage): array
     {
         $base = DB::table('transaction_events')
-            ->whereNotNull('transferred_at')
-            ->where('not_duplicate', false)
-            ->whereNull('duplicate_merged_at');
-        $this->applyRecordDuplicatePrefilters($base, $request);
-        $rows = $base->get(['id', 'full_name', 'event_date', 'transaction_category',
-            'transaction_type', 'client_category']);
+            ->leftJoin(
+                'transaction_history as duplicate_history',
+                'duplicate_history.id',
+                '=',
+                'transaction_events.transferred_transaction_id'
+            )
+            ->whereNotNull('transaction_events.transferred_at')
+            ->where('transaction_events.not_duplicate', false)
+            ->whereNull('transaction_events.duplicate_merged_at');
+        $this->applyRecordDuplicatePrefilters($base, $request, 'transaction_events.');
+        $rows = $base->get([
+            'transaction_events.id',
+            'transaction_events.full_name',
+            'transaction_events.event_date',
+            'transaction_events.transaction_category',
+            'transaction_events.transaction_type',
+            'transaction_events.client_category',
+            'duplicate_history.client_id as linked_client_id',
+        ]);
         $normalized = static fn ($value) => mb_strtolower(preg_replace('/\s+/u', ' ', trim((string) $value)));
         $people = [];
         foreach ($rows as $row) {
@@ -1535,8 +1577,16 @@ class TransactionEventsController extends Controller
             }
             $eventIds = array_keys($eventIds);
             $matchedIdLookup = array_fill_keys($eventIds, true);
+            $matchedRows = collect($personRows)->filter(
+                fn ($row) => isset($matchedIdLookup[(int) $row->id])
+            );
+            $linkedClientIds = $matchedRows->pluck('linked_client_id')->filter()->unique();
+            $hasUnlinkedClient = $matchedRows->contains(fn ($row) => blank($row->linked_client_id));
+            if (! $hasUnlinkedClient && $linkedClientIds->count() === 1) {
+                continue;
+            }
             // Exact-only groups belong in Exact Match, not Likely Match.
-            $exactKeys = collect($personRows)->filter(fn ($row) => isset($matchedIdLookup[(int) $row->id]))
+            $exactKeys = $matchedRows
                 ->map(function ($row) use ($normalized) {
                     $name = $this->splitImportFullName((string) $row->full_name);
                     return json_encode([
@@ -1651,7 +1701,7 @@ class TransactionEventsController extends Controller
             sort($cacheFilters['client_category']);
             sort($cacheFilters['transaction_category']);
             sort($cacheFilters['transaction_type']);
-            $cacheKey = 'transaction-events:duplicate-records:v2:'.hash('sha256', json_encode([
+            $cacheKey = 'transaction-events:duplicate-records:v3:'.hash('sha256', json_encode([
                 'state' => $state,
                 'filters' => $cacheFilters,
             ]));
@@ -2660,13 +2710,14 @@ class TransactionEventsController extends Controller
         $eventsOnly = (bool) ($payload['events_only'] ?? false);
         $updateExisting = (bool) ($payload['update_existing'] ?? false);
         $canUseFastInsert = !$eventsOnly
-            && !$forceNewClients
             && !$updateExisting
             && !collect($chunkRows)->contains(fn (array $record): bool => (bool) ($record['_stage_duplicate_in_import_events'] ?? false));
 
         if ($canUseFastInsert && $chunkRows !== []) {
             try {
-                $created = $this->storeImportRowsFast($chunkRows);
+                $created = $forceNewClients
+                    ? $this->storeForceImportRowsFast($chunkRows)
+                    : $this->storeImportRowsFast($chunkRows);
                 $payload['created'] = (int) ($payload['created'] ?? 0) + $created;
                 $imported += $created;
                 $chunkRows = [];
@@ -3469,6 +3520,129 @@ class TransactionEventsController extends Controller
 
             return count($records);
         });
+    }
+
+    /**
+     * Bulk version of Force Create All. Every source row still receives its
+     * own new client, transaction history, and transferred event, but the
+     * three tables are written in batches instead of through three Eloquent
+     * model saves per row.
+     */
+    private function storeForceImportRowsFast(array $records): int
+    {
+        $created = DB::transaction(function () use ($records): int {
+            $now = now();
+            $year = $now->format('y');
+            $clerk = auth()->user()?->name ?? 'System';
+            $clientRows = [];
+            $historyRows = [];
+            $eventDetails = [];
+
+            foreach ($records as $record) {
+                $fullName = trim((string) ($record['full_name'] ?? ''));
+                if ($fullName === '') {
+                    throw new \RuntimeException('Full name is required but empty');
+                }
+
+                $name = $this->splitImportFullName($fullName);
+                $birthDate = trim((string) ($record['birth_date'] ?? $record['birthdate'] ?? ''));
+                $databaseBirthDate = $birthDate !== ''
+                    ? \Carbon\Carbon::parse($birthDate)->toDateString()
+                    : null;
+                $transactionDate = trim((string) ($record['event_date'] ?? ''));
+                try {
+                    $parsedDate = $transactionDate !== ''
+                        ? \Carbon\Carbon::parse($transactionDate)->toDateString()
+                        : $now->toDateString();
+                } catch (\Throwable) {
+                    throw new \RuntimeException('Invalid event_date format: '.$transactionDate);
+                }
+                $databaseEventDate = \Carbon\Carbon::parse($parsedDate)->startOfDay()->format('Y-m-d H:i:s');
+
+                $clientId = $this->nextImportClientId();
+                $transactionId = $clientId.'-'.$year.'-0001';
+
+                $clientRows[] = [
+                    'client_id' => $clientId,
+                    'first_name' => $name['first'],
+                    'middle_name' => $name['middle'] !== '' ? $name['middle'] : null,
+                    'last_name' => $name['last'],
+                    'suffix' => $name['suffix'] !== '' ? $name['suffix'] : null,
+                    'birth_date' => $databaseBirthDate,
+                    'sector' => trim((string) ($record['client_category'] ?? '')) ?: null,
+                    'contact' => trim((string) ($record['contact_no'] ?? '')),
+                    'address' => trim((string) ($record['address'] ?? '')),
+                    'age' => isset($record['age']) && $record['age'] !== '' ? (int) $record['age'] : null,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+                $historyRows[] = [
+                    'client_id' => $clientId,
+                    'client_category' => trim((string) ($record['client_category'] ?? '')) ?: null,
+                    'transaction_id' => $transactionId,
+                    'transaction_date' => $databaseEventDate,
+                    'category' => trim((string) ($record['transaction_category'] ?? '')),
+                    'type' => trim((string) ($record['transaction_type'] ?? '')),
+                    'events_transaction_type' => trim((string) ($record['transaction_type'] ?? '')) ?: null,
+                    'status' => 'Pending',
+                    'source' => 'import',
+                    'clerk' => $clerk,
+                    'description' => 'Imported from event CSV/XLSX file.',
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+                $eventDetails[] = [$record, $fullName, $databaseBirthDate, $databaseEventDate, $transactionId];
+            }
+
+            foreach (array_chunk($clientRows, 500) as $rows) {
+                Client::query()->insert($rows);
+            }
+            foreach (array_chunk($historyRows, 500) as $rows) {
+                TransactionHistory::query()->insert($rows);
+            }
+
+            $historyIds = TransactionHistory::query()
+                ->whereIn('transaction_id', array_column($historyRows, 'transaction_id'))
+                ->pluck('id', 'transaction_id');
+            if ($historyIds->count() !== count($historyRows)) {
+                throw new \RuntimeException('Unable to link every imported transaction history.');
+            }
+
+            $eventRows = [];
+            foreach ($eventDetails as [$record, $fullName, $databaseBirthDate, $databaseEventDate, $transactionId]) {
+                $eventRows[] = [
+                    'full_name' => $fullName,
+                    'display_name_sort' => mb_strtolower(\App\Support\ImportName::format($fullName)),
+                    'contact_no' => trim((string) ($record['contact_no'] ?? '')),
+                    'address' => trim((string) ($record['address'] ?? '')),
+                    'age' => isset($record['age']) && $record['age'] !== '' ? (int) $record['age'] : null,
+                    'birth_date' => $databaseBirthDate,
+                    'client_category' => trim((string) ($record['client_category'] ?? '')),
+                    'transaction_category' => trim((string) ($record['transaction_category'] ?? '')),
+                    'transaction_type' => trim((string) ($record['transaction_type'] ?? '')),
+                    'event_date' => $databaseEventDate,
+                    'status' => 'Pending',
+                    'imported_by' => $clerk,
+                    'transferred_at' => $now,
+                    'transferred_transaction_id' => $historyIds[$transactionId],
+                    'not_duplicate' => false,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+            }
+
+            foreach (array_chunk($eventRows, 500) as $rows) {
+                TransactionEvent::query()->insert($rows);
+            }
+
+            return count($records);
+        });
+
+        Cache::forget('duplicate_clients_v2');
+        Cache::forget('duplicate_clients_filter_options_v1');
+        TransactionHistory::flushDashboardCache();
+
+        return $created;
     }
 
     /** @param array<int, string> $clientIds */
@@ -5061,6 +5235,122 @@ class TransactionEventsController extends Controller
         });
     }
 
+    /**
+     * Bulk Force Create Client for pending Import Events.
+     *
+     * @param array<int, int> $eventIds
+     * @return array{successCount: int, createdClients: int}
+     */
+    private function forceTransferPendingEventsFast(array $eventIds): array
+    {
+        $result = DB::transaction(function () use ($eventIds): array {
+            $events = TransactionEvent::query()
+                ->whereIn('id', $eventIds)
+                ->whereNull('transferred_at')
+                ->where('not_duplicate', false)
+                ->lockForUpdate()
+                ->get();
+
+            if ($events->isEmpty()) {
+                return ['successCount' => 0, 'createdClients' => 0];
+            }
+
+            $now = now();
+            $year = $now->format('y');
+            $fallbackClerk = auth()->user()?->name ?? 'System';
+            $clientRows = [];
+            $historyRows = [];
+            $eventHistoryKeys = [];
+
+            foreach ($events as $event) {
+                $fullName = trim((string) $event->full_name);
+                if ($fullName === '') {
+                    throw new \RuntimeException('Client full name is required.');
+                }
+
+                $name = $this->splitImportFullName($fullName);
+                $clientId = $this->nextImportClientId();
+                $transactionId = $clientId.'-'.$year.'-0001';
+                $birthDate = $event->birth_date?->format('Y-m-d');
+                $transactionDate = $event->event_date?->format('Y-m-d') ?? $now->toDateString();
+
+                $clientRows[] = [
+                    'client_id' => $clientId,
+                    'first_name' => $name['first'],
+                    'middle_name' => $name['middle'] !== '' ? $name['middle'] : null,
+                    'last_name' => $name['last'],
+                    'suffix' => $name['suffix'] !== '' ? $name['suffix'] : null,
+                    'birth_date' => $birthDate,
+                    'sector' => trim((string) $event->client_category) ?: null,
+                    'contact' => trim((string) $event->contact_no),
+                    'address' => trim((string) $event->address),
+                    'age' => $event->age,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+                $historyRows[] = [
+                    'client_id' => $clientId,
+                    'client_category' => $event->client_category ?? '',
+                    'transaction_id' => $transactionId,
+                    'transaction_date' => $transactionDate,
+                    'category' => $event->transaction_category ?? '',
+                    'type' => $event->transaction_type ?? '',
+                    'events_transaction_type' => $event->transaction_type ?? '',
+                    'status' => $event->status,
+                    'source' => 'transfer-one',
+                    'clerk' => $event->imported_by ?: $fallbackClerk,
+                    'description' => 'Transferred from event record.',
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+                $eventHistoryKeys[(int) $event->id] = $transactionId;
+            }
+
+            foreach (array_chunk($clientRows, 500) as $rows) {
+                Client::query()->insert($rows);
+            }
+            foreach (array_chunk($historyRows, 500) as $rows) {
+                TransactionHistory::query()->insert($rows);
+            }
+
+            $historyIds = TransactionHistory::query()
+                ->whereIn('transaction_id', array_values($eventHistoryKeys))
+                ->pluck('id', 'transaction_id');
+            if ($historyIds->count() !== count($eventHistoryKeys)) {
+                throw new \RuntimeException('Unable to link every transferred transaction history.');
+            }
+
+            $eventUpdates = [];
+            foreach ($eventHistoryKeys as $eventId => $transactionId) {
+                $event = $events->firstWhere('id', $eventId);
+                $eventUpdates[] = [
+                    'id' => $eventId,
+                    'full_name' => $event?->full_name ?? '',
+                    'transferred_at' => $now,
+                    'transferred_transaction_id' => $historyIds[$transactionId],
+                    'updated_at' => $now,
+                ];
+            }
+            foreach (array_chunk($eventUpdates, 500) as $rows) {
+                TransactionEvent::query()->upsert(
+                    $rows,
+                    ['id'],
+                    ['transferred_at', 'transferred_transaction_id', 'updated_at']
+                );
+            }
+
+            $count = count($eventHistoryKeys);
+
+            return ['successCount' => $count, 'createdClients' => $count];
+        });
+
+        Cache::forget('duplicate_clients_v2');
+        Cache::forget('duplicate_clients_filter_options_v1');
+        TransactionHistory::flushDashboardCache();
+
+        return $result;
+    }
+
     private function saveTransferSession(string $token, array $data): void
     {
         Storage::disk('local')->makeDirectory(self::TRANSFER_SESSION_DIR);
@@ -5166,30 +5456,53 @@ class TransactionEventsController extends Controller
         $slice = array_slice($ids, $offset, $limit);
 
         if ($slice !== []) {
-            $events = TransactionEvent::query()
-                ->whereIn('id', $slice)
-                ->whereNull('transferred_at')
-                ->where('not_duplicate', false)
-                ->get();
-
-            foreach ($events as $event) {
-                $result = $this->transferSinglePendingEvent($event, $forceNewClients);
-
-                if ($result['success']) {
-                    $session['successCount'] = ($session['successCount'] ?? 0) + 1;
-
-                    if ($result['created_client']) {
-                        $session['createdClients'] = ($session['createdClients'] ?? 0) + 1;
-                    }
-                } else {
-                    $session['skippedCount'] = ($session['skippedCount'] ?? 0) + 1;
+            $fastResult = null;
+            if ($forceNewClients) {
+                try {
+                    $fastResult = $this->forceTransferPendingEventsFast($slice);
+                } catch (\Throwable $e) {
+                    // Preserve the proven row-by-row behavior for malformed
+                    // data or a concurrent client-id collision.
+                    $this->resetImportRuntimeCaches();
+                    Log::warning('Fast force-create batch failed; retrying events individually', [
+                        'offset' => $offset,
+                        'rows' => count($slice),
+                        'error' => $e->getMessage(),
+                    ]);
                 }
             }
 
-            // Ids that no longer resolve (already transferred/deleted) count as skipped.
-            $missing = count($slice) - $events->count();
-            if ($missing > 0) {
-                $session['skippedCount'] = ($session['skippedCount'] ?? 0) + $missing;
+            if ($fastResult !== null) {
+                $session['successCount'] = ($session['successCount'] ?? 0) + $fastResult['successCount'];
+                $session['createdClients'] = ($session['createdClients'] ?? 0) + $fastResult['createdClients'];
+                $session['skippedCount'] = ($session['skippedCount'] ?? 0)
+                    + count($slice) - $fastResult['successCount'];
+            } else {
+                $events = TransactionEvent::query()
+                    ->whereIn('id', $slice)
+                    ->whereNull('transferred_at')
+                    ->where('not_duplicate', false)
+                    ->get();
+
+                foreach ($events as $event) {
+                    $result = $this->transferSinglePendingEvent($event, $forceNewClients);
+
+                    if ($result['success']) {
+                        $session['successCount'] = ($session['successCount'] ?? 0) + 1;
+
+                        if ($result['created_client']) {
+                            $session['createdClients'] = ($session['createdClients'] ?? 0) + 1;
+                        }
+                    } else {
+                        $session['skippedCount'] = ($session['skippedCount'] ?? 0) + 1;
+                    }
+                }
+
+                // Ids that no longer resolve (already transferred/deleted) count as skipped.
+                $missing = count($slice) - $events->count();
+                if ($missing > 0) {
+                    $session['skippedCount'] = ($session['skippedCount'] ?? 0) + $missing;
+                }
             }
 
             $this->saveTransferSession($request->input('token'), $session);

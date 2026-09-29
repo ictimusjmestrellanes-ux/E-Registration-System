@@ -283,7 +283,7 @@
                                 </div>
 
                                 <div class="table-responsive">
-                                    <table class="table table-sm table-hover align-middle mb-0 not-duplicate-group-table">
+                                    <table class="table table-bordered table-sm table-hover align-middle mb-0 not-duplicate-group-table">
                                         <thead class="table-light">
                                             <tr>
                                                 @foreach ($sortableHeaders as $column => $header)

@@ -7,6 +7,7 @@ use App\Models\TransactionHistory;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class ImportClientReuseTest extends TestCase
@@ -254,13 +255,24 @@ class ImportClientReuseTest extends TestCase
 
         // Two rows, same name as the client list entry: force mode must NOT
         // reuse — one fresh client per row (strict 1:1).
+        DB::enableQueryLog();
+        DB::flushQueryLog();
         $result = $this->importCsv(
             "Juan Dela Cruz,09170000001,Brgy 1,40,,INDIGENT,BIGAY BIGAS SA MASA,TRANCH 1,2026-09-01\n"
             . "Juan Dela Cruz,09170000002,Brgy 2,41,,INDIGENT,BIGAY BIGAS SA MASA,TRANCH 1,2026-09-02\n",
             ['force_direct' => 1]
         );
+        $queries = collect(DB::getQueryLog())->pluck('query');
+        DB::disableQueryLog();
+
+        $insertCount = fn (string $table): int => $queries
+            ->filter(fn (string $sql): bool => preg_match('/^insert into [`"]?'.preg_quote($table, '/').'[`"]?/i', trim($sql)) === 1)
+            ->count();
 
         $this->assertSame(2, $result['imported']);
+        $this->assertSame(1, $insertCount('clients'));
+        $this->assertSame(1, $insertCount('transaction_history'));
+        $this->assertSame(1, $insertCount('transaction_events'));
         $this->assertDatabaseCount('clients', 3);
         $this->assertDatabaseCount('transaction_history', 2);
         $linkedIds = TransactionHistory::pluck('client_id')->all();
