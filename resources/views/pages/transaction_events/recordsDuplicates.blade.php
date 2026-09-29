@@ -183,6 +183,7 @@
                                     ['label' => 'Full Name', 'type' => 'text'],
                                     ['label' => 'Age', 'type' => 'number'],
                                     ['label' => 'Birth Date', 'type' => 'date'],
+                                    ['label' => 'Address', 'type' => 'text'],
                                     ['label' => 'Contact No.', 'type' => 'text'],
                                     ['label' => 'Client Category', 'type' => 'text'],
                                     ['label' => 'Transaction Category', 'type' => 'text'],
@@ -191,7 +192,7 @@
                                     ['label' => 'Status', 'type' => 'text'],
                                 ];
                                 foreach ($sortableHeaders as $column => $header) {
-                                    $isDefaultSort = $column === 2;
+                                    $isDefaultSort = $column === 1;
                                     $out .= '<th scope="col"' . ($isDefaultSort ? ' aria-sort="ascending"' : '') . '>';
                                     $out .=
                                         '<button type="button" class="btn btn-link btn-sm p-0 text-body fw-semibold text-decoration-none d-inline-flex align-items-center gap-1 text-nowrap" data-duplicate-sort data-sort-column="' .
@@ -260,6 +261,12 @@
                                         e(optional($event->birth_date)->format('Y-m-d') ?? '') .
                                         '">' .
                                         e(optional($event->birth_date)->format('M d, Y') ?? '-') .
+                                        '</td>';
+                                    $out .=
+                                        '<td class="small" data-sort-value="' .
+                                        e($event->address ?: '') .
+                                        '">' .
+                                        e($event->address ?: '-') .
                                         '</td>';
                                     $out .=
                                         '<td data-sort-value="' .

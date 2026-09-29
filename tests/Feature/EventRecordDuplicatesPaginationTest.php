@@ -45,10 +45,37 @@ class EventRecordDuplicatesPaginationTest extends TestCase
             ->assertSee('data-duplicate-sort', false)
             ->assertSee('data-sort-type="number"', false)
             ->assertSee('data-sort-type="date"', false)
-            ->assertSee('data-sort-column="2" data-sort-type="text" data-sort-direction="asc"', false)
+            ->assertSee('data-sort-column="1" data-sort-type="text" data-sort-direction="asc"', false)
             ->assertSee('aria-sort="ascending"', false)
             ->assertSee('data-sort-value="2026-09-20"', false)
             ->assertSee('duplicateSortCollator', false);
+    }
+
+    public function test_duplicate_records_show_address_beside_birth_date(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+
+        foreach ([31, 24] as $age) {
+            DB::table('transaction_events')->insert([
+                'full_name' => 'Address Person',
+                'age' => $age,
+                'birth_date' => '1990-01-15',
+                'address' => '123 Sample Street',
+                'client_category' => 'PWD',
+                'transaction_category' => 'EVENTS',
+                'transaction_type' => 'TYPE-A',
+                'event_date' => '2026-09-20',
+                'transferred_at' => '2026-09-20 12:00:00',
+            ]);
+        }
+
+        $content = $this->get(route('transaction-events.records-duplicates'))
+            ->assertOk()
+            ->assertSee('123 Sample Street')
+            ->assertSee('data-sort-value="123 Sample Street"', false)
+            ->getContent();
+
+        $this->assertMatchesRegularExpression('/Birth Date.*Address.*Contact No\./s', $content);
     }
 
     public function test_not_duplicate_review_flash_message_closes_after_five_seconds(): void
