@@ -105,7 +105,6 @@
                                         <div class="dropdown-menu dropdown-menu-end p-3" style="min-width: 230px;">
                                             <h6 class="dropdown-header px-0">Manage Columns</h6>
                                             @foreach ([
-            'id' => 'ID',
             'transaction_id' => 'Transaction ID',
             'full_name' => 'Full Name',
             'age' => 'Age',

@@ -147,7 +147,7 @@
                                 <i class="bx bx-bell fs-22"></i>
                                 <span class="position-absolute topbar-badge fs-10 translate-middle badge rounded-pill bg-danger {{ ($navbarUnreadCount ?? 0) > 0 ? '' : 'd-none' }}" id="notificationUnreadBadge">{{ $navbarUnreadCount > 99 ? '99+' : ($navbarUnreadCount ?? 0) }}<span class="visually-hidden">unread messages</span></span>
                             </button>
-                            <div class="dropdown-menu dropdown-menu-xl dropdown-menu-end p-0" aria-labelledby="page-header-notifications-dropdown" style="width: 550px">
+                            <div class="dropdown-menu dropdown-menu-xl dropdown-menu-end p-0" aria-labelledby="page-header-notifications-dropdown" style="width: 25rem">
 
                                 <div class="dropdown-head bg-primary bg-pattern rounded-top">
                                     <div class="p-3">
@@ -175,7 +175,7 @@
 
                                 <div class="tab-content position-relative" id="notificationItemsTabContent">
                                     <div class="tab-pane fade show active py-2 ps-2" id="all-noti-tab" role="tabpanel">
-                                        <div data-simplebar="" style="max-height: 300px;" class="pe-2">
+                                        <div data-simplebar="" style="max-height: 35rem;" class="pe-2">
                                             @php
                                                 $notifMeta = function ($action) {
                                                     $action = strtolower((string) $action);
