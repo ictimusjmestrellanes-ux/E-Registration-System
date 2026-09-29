@@ -23,6 +23,8 @@ class DuplicateEventClientMergeTest extends TestCase
             'client_id' => '2600001',
             'first_name' => 'Allan',
             'last_name' => 'Asaytono',
+            'birth_date' => '1980-01-01',
+            'address' => 'Oldest complete address',
             'gender' => 'Male',
         ]);
         $oldest->forceFill([
@@ -36,6 +38,7 @@ class DuplicateEventClientMergeTest extends TestCase
             'middle_name' => 'R',
             'last_name' => 'Asaytono',
             'age' => 42,
+            'birth_date' => '1984-02-03',
             'contact' => '9701791890',
             'address' => 'Newest complete address',
             'sector' => 'PODA',
@@ -102,6 +105,10 @@ class DuplicateEventClientMergeTest extends TestCase
             ->assertSee('Merge to Oldest Client')
             ->assertSee(route('transaction-events.records-duplicates.merge-clients.index'))
             ->assertSee('data-bs-target="#mergeDuplicateClientsModal"', false)
+            ->assertSee('Full Name')
+            ->assertSee('Contact No.')
+            ->assertSee('profile_field_sources', false)
+            ->assertSee('data-source-clients=', false)
             ->assertSee('data-target-client-id="2600001"', false)
             ->assertSee('data-source-client-ids="2600002"', false)
             ->assertSee('Newest complete address');
@@ -114,16 +121,24 @@ class DuplicateEventClientMergeTest extends TestCase
 
         $this->post(route('transaction-events.records-duplicates.merge-clients'), [
             'event_ids' => [$oldEvent->id, $newEvent->id],
+            'profile_field_sources' => [
+                'name' => 'newest',
+                'birth_date' => 'oldest',
+                'contact' => 'newest',
+                'address' => 'oldest',
+                'sector' => 'newest',
+            ],
         ])->assertRedirect(route('transaction-events.records-duplicates'))->assertSessionHas('success');
 
         $canonical = $oldest->fresh();
         $this->assertNotNull($canonical);
         $this->assertSame('R', $canonical->middle_name);
-        $this->assertSame(42, $canonical->age);
+        $this->assertNull($canonical->age, 'Fields not shown in the modal must retain their current value.');
+        $this->assertSame('1980-01-01', $canonical->birth_date?->toDateString());
         $this->assertSame('9701791890', $canonical->contact);
-        $this->assertSame('Newest complete address', $canonical->address);
+        $this->assertSame('Oldest complete address', $canonical->address);
         $this->assertSame('PODA', $canonical->sector);
-        $this->assertSame('Male', $canonical->gender, 'A blank newer value must not erase good old data.');
+        $this->assertSame('Male', $canonical->gender, 'Fields not shown in the modal must retain their current value.');
         $this->assertNull($newest->fresh());
 
         $this->assertDatabaseHas('transaction_history', [
@@ -161,6 +176,15 @@ class DuplicateEventClientMergeTest extends TestCase
             'subject_type' => 'Client',
             'subject_id' => $oldest->id,
         ]);
+        $mergeLog = ActivityLog::where('action', 'duplicate_event_clients_merged')->latest('id')->firstOrFail();
+        $this->assertSame([
+            'name' => 'newest',
+            'birth_date' => 'oldest',
+            'contact' => 'newest',
+            'address' => 'oldest',
+            'sector' => 'newest',
+        ], $mergeLog->properties['profile_field_sources']);
+        $this->assertSame('2600002', $mergeLog->properties['newest_profile_client_id']);
         $this->assertContains('duplicate_event_clients_merged', ActivityLog::NOTIFICATION_ACTIONS);
 
         $this->get(route('transaction-events.records-duplicates.merge-clients.index'))
@@ -170,6 +194,135 @@ class DuplicateEventClientMergeTest extends TestCase
             ->assertSee('2600002')
             ->assertSee('2600002-26-0001')
             ->assertSee('2600001-26-0002');
+    }
+
+    public function test_merge_keeps_the_current_oldest_profile_by_default(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+
+        $oldest = Client::create([
+            'client_id' => '2600003',
+            'first_name' => 'Maria',
+            'last_name' => 'Santos',
+            'contact' => '09111111111',
+            'address' => 'Oldest address',
+        ]);
+        $oldest->forceFill(['created_at' => '2026-01-01 08:00:00'])->saveQuietly();
+        $newest = Client::create([
+            'client_id' => '2600004',
+            'first_name' => 'Maria',
+            'middle_name' => 'D',
+            'last_name' => 'Santos',
+            'contact' => '09222222222',
+            'address' => 'Newest address',
+        ]);
+        $newest->forceFill(['created_at' => '2026-09-03 08:00:00'])->saveQuietly();
+
+        $events = collect([$oldest, $newest])->map(function (Client $client, int $index) {
+            $history = TransactionHistory::create([
+                'client_id' => $client->client_id,
+                'transaction_id' => $client->client_id.'-26-0001',
+                'transaction_date' => '2026-09-03',
+                'category' => 'EVENTS',
+                'type' => 'TYPE',
+            ]);
+
+            return TransactionEvent::create([
+                'full_name' => $index === 0 ? 'SANTOS, MARIA' : 'SANTOS, MARIA D',
+                'client_category' => 'SOLO PARENT',
+                'transaction_category' => 'EVENTS',
+                'transaction_type' => 'TYPE',
+                'event_date' => '2026-09-03',
+                'transferred_at' => '2026-09-03 12:00:00',
+                'transferred_transaction_id' => $history->id,
+            ]);
+        });
+
+        $this->post(route('transaction-events.records-duplicates.merge-clients'), [
+            'event_ids' => $events->pluck('id')->all(),
+        ])->assertRedirect(route('transaction-events.records-duplicates'))->assertSessionHas('success');
+
+        $canonical = $oldest->fresh();
+        $this->assertSame('Maria', $canonical->first_name);
+        $this->assertNull($canonical->middle_name);
+        $this->assertSame('09111111111', $canonical->contact);
+        $this->assertSame('Oldest address', $canonical->address);
+        $this->assertNull($newest->fresh());
+
+        $mergeLog = ActivityLog::where('action', 'duplicate_event_clients_merged')->latest('id')->firstOrFail();
+        $this->assertSame([
+            'name' => 'oldest',
+            'birth_date' => 'oldest',
+            'contact' => 'oldest',
+            'address' => 'oldest',
+            'sector' => 'oldest',
+        ], $mergeLog->properties['profile_field_sources']);
+        $this->assertSame('2600004', $mergeLog->properties['newest_profile_client_id']);
+    }
+
+    public function test_admin_can_merge_only_selected_newer_clients_and_leave_others_for_review(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+
+        $clients = collect([
+            ['client_id' => '2600020', 'middle_name' => null, 'created_at' => '2026-01-01 08:00:00'],
+            ['client_id' => '2600021', 'middle_name' => 'M', 'created_at' => '2026-02-01 08:00:00'],
+            ['client_id' => '2600022', 'middle_name' => 'N', 'created_at' => '2026-03-01 08:00:00'],
+        ])->map(function (array $attributes) {
+            $client = Client::create([
+                'client_id' => $attributes['client_id'],
+                'first_name' => 'Allan',
+                'middle_name' => $attributes['middle_name'],
+                'last_name' => 'Asaytono',
+            ]);
+            $client->forceFill(['created_at' => $attributes['created_at']])->saveQuietly();
+
+            return $client;
+        });
+
+        $events = $clients->map(function (Client $client) {
+            $history = TransactionHistory::create([
+                'client_id' => $client->client_id,
+                'transaction_id' => $client->client_id.'-26-0001',
+                'transaction_date' => '2026-09-03',
+                'category' => 'EVENTS',
+                'type' => 'TYPE',
+            ]);
+
+            return TransactionEvent::create([
+                'full_name' => 'ASAYTONO, ALLAN'.($client->middle_name ? ' '.$client->middle_name : ''),
+                'client_category' => 'PODA',
+                'transaction_category' => 'EVENTS',
+                'transaction_type' => 'TYPE',
+                'event_date' => '2026-09-03',
+                'transferred_at' => '2026-09-03 12:00:00',
+                'transferred_transaction_id' => $history->id,
+            ]);
+        })->values();
+
+        $this->post(route('transaction-events.records-duplicates.merge-clients'), [
+            'event_ids' => $events->pluck('id')->all(),
+            'source_client_ids' => ['2600021'],
+        ])->assertRedirect(route('transaction-events.records-duplicates'))->assertSessionHas('success');
+
+        $this->assertNotNull($clients[0]->fresh());
+        $this->assertNull($clients[1]->fresh());
+        $this->assertNotNull($clients[2]->fresh());
+        $this->assertNull($events[0]->fresh()->duplicate_merged_at);
+        $this->assertNotNull($events[1]->fresh()->duplicate_merged_at);
+        $this->assertNull($events[2]->fresh()->duplicate_merged_at);
+        $this->assertDatabaseHas('transaction_history', [
+            'id' => $events[1]->transferred_transaction_id,
+            'client_id' => '2600020',
+        ]);
+        $this->assertDatabaseHas('transaction_history', [
+            'id' => $events[2]->transferred_transaction_id,
+            'client_id' => '2600022',
+        ]);
+
+        $mergeLog = ActivityLog::where('action', 'duplicate_event_clients_merged')->latest('id')->firstOrFail();
+        $this->assertSame(['2600021'], $mergeLog->properties['source_client_ids']);
+        $this->assertFalse($mergeLog->properties['duplicate_group_removed']);
     }
 
     public function test_merge_rejects_unrelated_event_clients(): void

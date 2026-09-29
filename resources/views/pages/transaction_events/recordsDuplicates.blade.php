@@ -92,6 +92,14 @@
                                         'sector' => $client->sector ?: '-',
                                     ];
                                 };
+                                $newerClients = $linkedClients->slice(1)->map(fn ($client) => [
+                                    'client_id' => (string) $client->client_id,
+                                    'name' => $client->full_name,
+                                    'record_count' => $events->filter(
+                                        fn ($event) => (string) $event->transferredTransaction?->client_id === (string) $client->client_id
+                                    )->count(),
+                                    'profile' => $profileSummary($client),
+                                ])->values();
                                 $out = '<div class="border rounded-4 p-3 mb-3">';
                                 $out .= '<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">';
                                 $out .= '<div>';
@@ -107,6 +115,7 @@
                                             . ' data-target-client-id="' . e($oldestClient?->client_id ?? '') . '"'
                                             . ' data-target-profile="' . e(json_encode($profileSummary($oldestClient))) . '"'
                                             . ' data-source-client-ids="' . e($newerClientIds->implode(', ')) . '"'
+                                            . ' data-source-clients="' . e(json_encode($newerClients)) . '"'
                                             . ' data-latest-profile="' . e(json_encode($profileSummary($newestClient))) . '">'
                                             . '<i class="ri-git-merge-line me-1"></i> Merge to Oldest Client</button>';
                                     }
@@ -538,8 +547,9 @@
                         <div class="modal-body">
                             <div id="mergeDuplicateClientInputs"></div>
                             <p class="mb-3">
-                                Review and merge all <strong id="mergeDuplicateRecordCount">0</strong> records for
-                                <strong id="mergeDuplicateGroupName"></strong>.
+                                Review <strong id="mergeDuplicateRecordCount">0</strong> duplicate records for
+                                <strong id="mergeDuplicateGroupName"></strong>, then select the newer client profiles
+                                to merge.
                             </p>
 
                             <div class="alert alert-primary-subtle border-primary-subtle">
@@ -547,6 +557,14 @@
                                 <div class="small">
                                     Newer client profile(s) <strong id="mergeSourceClientIds"></strong> will be removed.
                                 </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <div class="small text-uppercase text-muted fw-semibold mb-2">
+                                    Select clients to merge
+                                </div>
+                                <div class="list-group" id="mergeSourceClientChoices"></div>
+                                <div class="form-text">The oldest client is always kept as the destination.</div>
                             </div>
 
                             <div class="row g-3 mb-3">
@@ -559,9 +577,9 @@
                                     </div>
                                 </div>
                                 <div class="col-md-6">
-                                    <div class="border border-primary-subtle bg-primary-subtle rounded-3 h-100 p-3">
-                                        <div class="text-uppercase text-primary small fw-semibold mb-2">
-                                            Newest available profile data
+                                    <div class="border rounded-3 h-100 p-3">
+                                        <div class="text-uppercase text-muted small fw-semibold mb-2">
+                                            Newest selected profile data
                                         </div>
                                         <dl class="row small mb-0" id="mergeNewestProfile"></dl>
                                     </div>
@@ -569,10 +587,11 @@
                             </div>
 
                             <ol class="small ps-3 mb-3">
-                                <li class="mb-1">Keep the oldest client ID and copy newer non-empty profile values.</li>
-                                <li class="mb-1">Move and renumber every newer client transaction.</li>
-                                <li class="mb-1">Delete only the newer client profile(s).</li>
-                                <li>Preserve event transactions and exclude the group from Not a Duplicate Review.</li>
+                                <li class="mb-1">Choose which profile to retain for each field; the current profile is selected by default.</li>
+                                <li class="mb-1">Keep the oldest client ID and retain all profile fields not shown above.</li>
+                                <li class="mb-1">Move and renumber every selected client's transaction.</li>
+                                <li class="mb-1">Delete only the selected newer client profile(s).</li>
+                                <li>Preserve event transactions and keep merged records out of Not a Duplicate Review.</li>
                             </ol>
 
                             <div class="alert alert-warning mb-3">
@@ -591,7 +610,7 @@
                             <button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal">Cancel</button>
                             <button type="submit" class="btn btn-sm btn-primary"
                                 id="confirmDuplicateClientMergeButton" disabled>
-                                <i class="ri-git-merge-line me-1"></i> Merge This Group
+                                <i class="ri-git-merge-line me-1"></i> Merge Selected Clients
                             </button>
                         </div>
                     </form>
@@ -709,14 +728,38 @@
             const mergeClientsModal = document.getElementById('mergeDuplicateClientsModal');
             const mergeConfirmation = document.getElementById('confirmDuplicateClientMerge');
             const mergeSubmitButton = document.getElementById('confirmDuplicateClientMergeButton');
+            const mergeSourceClientChoices = document.getElementById('mergeSourceClientChoices');
+            let mergeSourceClients = [];
             const mergeProfileLabels = {
-                name: 'Name',
-                birth_date: 'Birth date',
-                contact: 'Contact',
+                name: 'Full Name',
+                birth_date: 'Birth Date',
+                contact: 'Contact No.',
                 address: 'Address',
-                sector: 'Client category',
+                sector: 'Client Category',
             };
-            const renderMergeProfile = (containerId, profile) => {
+            const parseMergeData = (value, fallback = {}) => {
+                try {
+                    return JSON.parse(value || JSON.stringify(fallback));
+                } catch (error) {
+                    return fallback;
+                }
+            };
+            const selectedMergeSourceIds = () => Array.from(
+                mergeSourceClientChoices?.querySelectorAll('[data-merge-source-client]:checked') || []
+            ).map(choice => choice.value);
+            const syncMergeSubmitState = () => {
+                if (!mergeSubmitButton) return;
+                mergeSubmitButton.disabled = !mergeConfirmation?.checked || selectedMergeSourceIds().length === 0;
+            };
+            const selectMergeProfileField = (field, source) => {
+                document.querySelectorAll('[data-merge-profile-field]').forEach(choice => {
+                    if (choice.dataset.mergeProfileField !== field) return;
+                    const selected = choice.dataset.mergeProfileSource === source;
+                    choice.checked = selected;
+                    choice.closest('[data-merge-profile-value]')?.classList.toggle('bg-primary-subtle', selected);
+                });
+            };
+            const renderMergeProfile = (containerId, profile, source) => {
                 const container = document.getElementById(containerId);
                 if (!container) return;
                 const nodes = [];
@@ -725,11 +768,83 @@
                     term.className = 'col-4 text-muted fw-normal';
                     term.textContent = label;
                     const detail = document.createElement('dd');
-                    detail.className = 'col-8 fw-semibold text-break';
-                    detail.textContent = profile?.[field] || '-';
+                    detail.className = 'col-8 d-flex align-items-start gap-2 rounded px-1 fw-semibold text-break';
+                    detail.dataset.mergeProfileValue = '';
+
+                    const choice = document.createElement('input');
+                    choice.className = 'form-check-input flex-shrink-0 mt-1';
+                    choice.type = 'checkbox';
+                    choice.name = `profile_field_sources[${field}]`;
+                    choice.value = source;
+                    choice.checked = source === 'oldest';
+                    choice.dataset.mergeProfileField = field;
+                    choice.dataset.mergeProfileSource = source;
+                    choice.setAttribute('aria-label', `Retain ${label} from ${source === 'oldest' ? 'current' : 'newest'} profile`);
+                    choice.addEventListener('change', function() {
+                        selectMergeProfileField(field, source);
+                    });
+
+                    const value = document.createElement('span');
+                    value.textContent = profile?.[field] || '-';
+                    detail.append(choice, value);
+                    detail.classList.toggle('bg-primary-subtle', choice.checked);
                     nodes.push(term, detail);
                 });
                 container.replaceChildren(...nodes);
+            };
+            const syncMergeSourceSelection = () => {
+                const selectedIds = selectedMergeSourceIds();
+                const selectedClients = mergeSourceClients.filter(client => selectedIds.includes(String(client.client_id)));
+                const selectedFieldSources = {};
+                document.querySelectorAll('[data-merge-profile-field]:checked').forEach(choice => {
+                    selectedFieldSources[choice.dataset.mergeProfileField] = choice.dataset.mergeProfileSource;
+                });
+
+                document.getElementById('mergeSourceClientIds').textContent =
+                    selectedIds.length > 0 ? selectedIds.join(', ') : 'None selected';
+                const newestSelectedClient = selectedClients.at(-1);
+                renderMergeProfile('mergeNewestProfile', newestSelectedClient?.profile || {}, 'newest');
+                Object.keys(mergeProfileLabels).forEach(field => {
+                    selectMergeProfileField(
+                        field,
+                        newestSelectedClient ? (selectedFieldSources[field] || 'oldest') : 'oldest'
+                    );
+                });
+                document.querySelectorAll('#mergeNewestProfile [data-merge-profile-field]').forEach(choice => {
+                    choice.disabled = !newestSelectedClient;
+                });
+                syncMergeSubmitState();
+            };
+            const renderMergeSourceClients = () => {
+                if (!mergeSourceClientChoices) return;
+                const choices = mergeSourceClients.map(client => {
+                    const label = document.createElement('label');
+                    label.className = 'list-group-item d-flex align-items-start gap-2';
+
+                    const choice = document.createElement('input');
+                    choice.className = 'form-check-input flex-shrink-0 mt-1';
+                    choice.type = 'checkbox';
+                    choice.name = 'source_client_ids[]';
+                    choice.value = String(client.client_id);
+                    choice.checked = true;
+                    choice.dataset.mergeSourceClient = '';
+                    choice.addEventListener('change', syncMergeSourceSelection);
+
+                    const details = document.createElement('span');
+                    details.className = 'd-flex flex-column';
+                    const title = document.createElement('span');
+                    title.className = 'fw-semibold';
+                    title.textContent = `Client ${client.client_id} — ${client.name || '-'}`;
+                    const count = document.createElement('span');
+                    count.className = 'small text-muted';
+                    const recordCount = Number(client.record_count) || 0;
+                    count.textContent = `${recordCount} duplicate record${recordCount === 1 ? '' : 's'}`;
+                    details.append(title, count);
+                    label.append(choice, details);
+                    return label;
+                });
+                mergeSourceClientChoices.replaceChildren(...choices);
+                syncMergeSourceSelection();
             };
 
             mergeClientsModal?.addEventListener('show.bs.modal', function(event) {
@@ -750,25 +865,14 @@
                     trigger?.dataset.recordCount || ids.length;
                 document.getElementById('mergeTargetClientId').textContent =
                     trigger?.dataset.targetClientId || '-';
-                document.getElementById('mergeSourceClientIds').textContent =
-                    trigger?.dataset.sourceClientIds || '-';
-
-                const parseProfile = value => {
-                    try {
-                        return JSON.parse(value || '{}');
-                    } catch (error) {
-                        return {};
-                    }
-                };
-                renderMergeProfile('mergeOldestProfile', parseProfile(trigger?.dataset.targetProfile));
-                renderMergeProfile('mergeNewestProfile', parseProfile(trigger?.dataset.latestProfile));
-
+                mergeSourceClients = parseMergeData(trigger?.dataset.sourceClients, []);
+                renderMergeProfile('mergeOldestProfile', parseMergeData(trigger?.dataset.targetProfile), 'oldest');
                 if (mergeConfirmation) mergeConfirmation.checked = false;
-                if (mergeSubmitButton) mergeSubmitButton.disabled = true;
+                renderMergeSourceClients();
             });
 
             mergeConfirmation?.addEventListener('change', function() {
-                if (mergeSubmitButton) mergeSubmitButton.disabled = !this.checked;
+                syncMergeSubmitState();
             });
             document.getElementById('mergeDuplicateClientsForm')?.addEventListener('submit', function() {
                 if (!mergeSubmitButton) return;

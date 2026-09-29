@@ -4357,9 +4357,10 @@ class TransactionEventsController extends Controller
 
     /**
      * Consolidate the client profiles linked to a visible duplicate-event
-     * group. The oldest client row remains the canonical profile; every newer
-     * nonblank profile value wins, all histories are moved and renumbered,
-     * and only the redundant client profiles are deleted.
+     * group. The oldest client row remains the canonical profile and the user
+     * chooses the newer clients to merge and the source for each displayed
+     * profile field. Selected histories are moved and renumbered, and only
+     * selected redundant profiles are deleted.
      */
     public function mergeDuplicateEventClients(Request $request)
     {
@@ -4372,10 +4373,21 @@ class TransactionEventsController extends Controller
         $validated = $request->validate([
             'event_ids' => ['required', 'array', 'min:2', 'max:100'],
             'event_ids.*' => ['required', 'integer', 'distinct', 'exists:transaction_events,id'],
+            'source_client_ids' => ['nullable', 'array', 'min:1', 'max:99'],
+            'source_client_ids.*' => ['required', 'string', 'distinct', 'max:255'],
+            'profile_field_sources' => ['nullable', 'array:name,birth_date,contact,address,sector'],
+            'profile_field_sources.*' => ['required', 'in:oldest,newest'],
         ]);
         $eventIds = collect($validated['event_ids'])->map(fn ($id) => (int) $id)->values();
+        $requestedSourceClientIds = array_key_exists('source_client_ids', $validated)
+            ? collect($validated['source_client_ids'])->map(fn ($id) => (string) $id)->values()
+            : null;
+        $profileFieldSources = array_replace(
+            array_fill_keys(['name', 'birth_date', 'contact', 'address', 'sector'], 'oldest'),
+            $validated['profile_field_sources'] ?? []
+        );
 
-        $result = DB::transaction(function () use ($eventIds, $request): array {
+        $result = DB::transaction(function () use ($eventIds, $request, $profileFieldSources, $requestedSourceClientIds): array {
             $events = TransactionEvent::query()
                 ->whereKey($eventIds->all())
                 ->whereNotNull('transferred_at')
@@ -4441,8 +4453,28 @@ class TransactionEventsController extends Controller
             }
 
             $target = $clients->first();
-            $sources = $clients->slice(1)->values();
+            $availableSources = $clients->slice(1)->values();
+            $selectedSourceClientIds = $requestedSourceClientIds
+                ?? $availableSources->pluck('client_id')->map(fn ($id) => (string) $id)->values();
+            $availableSourceClientIds = $availableSources->pluck('client_id')->map(fn ($id) => (string) $id)->values();
+            if ($selectedSourceClientIds->isEmpty()
+                || $selectedSourceClientIds->diff($availableSourceClientIds)->isNotEmpty()) {
+                return ['error' => 'Select at least one available newer client profile to merge.'];
+            }
+
+            $sources = $availableSources->filter(
+                fn (Client $client) => $selectedSourceClientIds->contains((string) $client->client_id)
+            )->values();
             $sourceClientIds = $sources->pluck('client_id')->values();
+            $allSourcesSelected = $sources->count() === $availableSources->count();
+            $eventClientIds = $eventHistories->keyBy('id')->map(
+                fn (TransactionHistory $history) => (string) $history->client_id
+            );
+            $selectedSourceEventIds = $events->filter(
+                fn (TransactionEvent $event) => $sourceClientIds->contains(
+                    $eventClientIds->get($event->transferred_transaction_id)
+                )
+            )->pluck('id')->map(fn ($id) => (int) $id)->values();
             $profileFields = [
                 'first_name', 'middle_name', 'last_name', 'suffix', 'age', 'birth_date',
                 'birthplace', 'education', 'course', 'sector', 'position_organization',
@@ -4451,21 +4483,25 @@ class TransactionEventsController extends Controller
                 'fingerprint_template',
             ];
 
-            // Iterate oldest-to-newest so the newest meaningful value becomes
-            // authoritative while a blank newer value never erases good data.
-            $merged = $target->only($profileFields);
-            foreach ($sources as $source) {
-                foreach ($profileFields as $field) {
-                    $value = $source->getAttribute($field);
-                    if ($this->hasClientMergeValue($value)) {
-                        $merged[$field] = $value;
-                    }
+            $latestSource = $sources->last();
+            $selectableProfileFields = [
+                'name' => ['first_name', 'middle_name', 'last_name', 'suffix'],
+                'birth_date' => ['birth_date'],
+                'contact' => ['contact'],
+                'address' => ['address'],
+                'sector' => ['sector'],
+            ];
+            foreach ($profileFieldSources as $displayField => $source) {
+                if ($source !== 'newest') {
+                    continue;
+                }
+                foreach ($selectableProfileFields[$displayField] as $field) {
+                    $target->setAttribute($field, $latestSource->getAttribute($field));
                 }
             }
 
             $changedFields = [];
-            foreach ($merged as $field => $value) {
-                $target->setAttribute($field, $value);
+            foreach ($profileFields as $field) {
                 if ($target->isDirty($field)) {
                     $changedFields[] = $field;
                 }
@@ -4514,11 +4550,14 @@ class TransactionEventsController extends Controller
                 $source->delete();
             }
 
-            // The selected records are now one resolved client group. Preserve
-            // the event rows for history, but keep confirmed merges separate
-            // from both active duplicates and the Not a Duplicate review queue.
+            // When only some newer clients are selected, leave the oldest and
+            // unselected profiles active so the remaining group can be reviewed.
             $resolvedAt = now();
-            TransactionEvent::whereKey($events->pluck('id')->all())->update([
+            $resolvedEventIds = $allSourcesSelected
+                ? $events->pluck('id')->map(fn ($id) => (int) $id)->values()
+                : $selectedSourceEventIds;
+            $resolvedEvents = $events->whereIn('id', $resolvedEventIds->all());
+            TransactionEvent::whereKey($resolvedEventIds->all())->update([
                 'not_duplicate' => false,
                 'duplicate_merged_at' => $resolvedAt,
                 'updated_at' => $resolvedAt,
@@ -4527,7 +4566,7 @@ class TransactionEventsController extends Controller
             // Bulk updates skip model-level auditing, so retain a per-record
             // trail for the dedicated merged-group resolution state.
             if (auth()->check() && $request->route()) {
-                $auditRows = $events->map(fn (TransactionEvent $event) => [
+                $auditRows = $resolvedEvents->map(fn (TransactionEvent $event) => [
                     'user_id' => auth()->id(),
                     'action' => 'transaction_event_updated',
                     'subject_type' => 'TransactionEvent',
@@ -4547,9 +4586,11 @@ class TransactionEventsController extends Controller
                 ActivityLog::insert($auditRows);
             }
 
-            $description = 'Merged '.count($sourcePrimaryKeys).' newer duplicate client profile(s) into oldest client '
-                .$target->client_id.', updated '.count($transactionIdChanges)
-                .' transaction ID(s), and removed the resolved group from Duplicate Event Records.';
+            $description = 'Merged '.count($sourcePrimaryKeys).' selected newer duplicate client profile(s) into oldest client '
+                .$target->client_id.' and updated '.count($transactionIdChanges).' transaction ID(s). '
+                .($allSourcesSelected
+                    ? 'The resolved group was removed from Duplicate Event Records.'
+                    : 'Unselected client profiles remain in Duplicate Event Records for review.');
             app(\App\Services\ActivityLogger::class)->record(
                 'duplicate_event_clients_merged',
                 $description,
@@ -4558,10 +4599,13 @@ class TransactionEventsController extends Controller
                     'target_client_primary_key' => (int) $target->id,
                     'source_client_ids' => $sourceClientIds->all(),
                     'source_client_primary_keys' => $sourcePrimaryKeys,
-                    'event_ids' => $eventIds->all(),
+                    'event_ids' => $resolvedEventIds->all(),
+                    'reviewed_event_ids' => $eventIds->all(),
+                    'profile_field_sources' => $profileFieldSources,
+                    'newest_profile_client_id' => $latestSource->client_id,
                     'profile_fields_updated' => $changedFields,
                     'transaction_id_changes' => $transactionIdChanges,
-                    'duplicate_group_removed' => true,
+                    'duplicate_group_removed' => $allSourcesSelected,
                 ],
                 $target
             );
@@ -4570,6 +4614,7 @@ class TransactionEventsController extends Controller
                 'target' => $target,
                 'sources' => count($sourcePrimaryKeys),
                 'transactions' => count($transactionIdChanges),
+                'duplicate_group_removed' => $allSourcesSelected,
             ];
         });
 
@@ -4582,20 +4627,11 @@ class TransactionEventsController extends Controller
         return redirect()->route('transaction-events.records-duplicates')->with(
             'success',
             "Merged {$result['sources']} newer client profile(s) into oldest client "
-                .$result['target']->client_id.". Updated {$result['transactions']} transaction ID(s), removed the duplicate group without adding it to Not a Duplicate Review, and preserved every event transaction."
+                .$result['target']->client_id.". Updated {$result['transactions']} transaction ID(s), preserved every event transaction, and "
+                .($result['duplicate_group_removed']
+                    ? 'removed the resolved group without adding it to Not a Duplicate Review.'
+                    : 'left the unselected client profiles in Duplicate Event Records for review.')
         );
-    }
-
-    private function hasClientMergeValue(mixed $value): bool
-    {
-        if ($value === null) {
-            return false;
-        }
-        if (is_string($value)) {
-            return trim($value) !== '';
-        }
-
-        return true;
     }
 
     public function markGroupNotDuplicate(Request $request)
