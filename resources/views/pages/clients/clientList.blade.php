@@ -400,9 +400,9 @@
                             </div>
                         </div>
                         <div class="modal-footer">
-                            <button type="button" class="btn btn-soft-secondary" data-bs-dismiss="modal"
+                            <button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal"
                                 id="deleteClientsCancel">Cancel</button>
-                            <button type="submit" class="btn btn-danger" id="deleteEligibleClientsConfirm" disabled>
+                            <button type="submit" class="btn btn-sm btn-danger" id="deleteEligibleClientsConfirm" disabled>
                                 Delete Selected Clients
                             </button>
                         </div>

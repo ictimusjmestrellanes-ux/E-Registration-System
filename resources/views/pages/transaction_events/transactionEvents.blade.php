@@ -834,12 +834,12 @@
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-                        <button type="button" class="btn btn-secondary" id="diagnoseCsvBtn"
+                        <button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-sm btn-secondary" id="diagnoseCsvBtn"
                             title="Analyze the file structure before importing">
                             <i class="ri-search-line me-1"></i> Diagnose
                         </button>
-                        <button type="button" class="btn btn-primary" id="previewCsvBtn">
+                        <button type="button" class="btn btn-sm btn-primary" id="previewCsvBtn">
                             <i class="ri-eye-line me-1"></i> Preview
                         </button>
                     </div>
@@ -933,12 +933,12 @@
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-                        <button type="button" class="btn btn-danger" id="forceCreateAllBtn"
+                        <button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-sm btn-danger" id="forceCreateAllBtn"
                             title="Skip duplicate checking and create every row as clients + transaction history, even duplicates.">
                             <i class="ri-upload-2-line me-1"></i> Force Create All
                         </button>
-                        <button type="button" class="btn btn-primary" id="confirmImportBtn">
+                        <button type="button" class="btn btn-sm btn-primary" id="confirmImportBtn">
                             <i class="ri-upload-2-line me-1"></i> Confirm Import
                         </button>
                     </div>

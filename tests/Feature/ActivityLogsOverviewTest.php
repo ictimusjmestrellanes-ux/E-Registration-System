@@ -3,6 +3,9 @@
 namespace Tests\Feature;
 
 use App\Models\ActivityLog;
+use App\Models\Client;
+use App\Models\TransactionEvent;
+use App\Models\TransactionHistory;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -81,5 +84,74 @@ class ActivityLogsOverviewTest extends TestCase
                 return $activities->total() === 1
                     && $activities->first()->user_id === $admin->id;
             });
+    }
+
+    public function test_activities_tab_searches_client_id_and_name_in_log_details(): void
+    {
+        $admin = User::factory()->create(['role_name' => 'Admin']);
+        $client = Client::create([
+            'client_id' => '2600456',
+            'first_name' => 'Juan',
+            'middle_name' => 'Dela',
+            'last_name' => 'Cruz',
+        ]);
+        $history = TransactionHistory::create([
+            'client_id' => $client->client_id,
+            'transaction_id' => '2600456-26-0001',
+            'transaction_date' => '2026-09-30',
+            'category' => 'EVENTS',
+            'type' => 'TRANCH 1',
+        ]);
+        $event = TransactionEvent::create([
+            'full_name' => 'CRUZ, JUAN DELA',
+            'transferred_at' => now(),
+            'transferred_transaction_id' => $history->id,
+        ]);
+
+        ActivityLog::create([
+            'user_id' => $admin->id,
+            'action' => 'event_status_tagged',
+            'subject_type' => 'TransactionEvent',
+            'subject_id' => $event->id,
+            'description' => 'Updated an event record.',
+            'properties' => [
+                'event_id' => $event->id,
+                'status' => 'Claimed',
+            ],
+        ]);
+        ActivityLog::create([
+            'user_id' => $admin->id,
+            'action' => 'login',
+            'description' => 'Unrelated activity.',
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('activity.logs', [
+                'search' => '2600456',
+                'period' => 'all',
+                'action' => '',
+            ]))
+            ->assertOk()
+            ->assertViewHas('activities', function ($activities) {
+                return $activities->total() === 1
+                    && $activities->first()->action === 'event_status_tagged';
+            });
+
+        $this->actingAs($admin)
+            ->get(route('activity.logs', [
+                'search' => 'JUAN DELA CRUZ',
+                'period' => 'all',
+                'action' => '',
+            ]))
+            ->assertOk()
+            ->assertViewHas('activities', function ($activities) {
+                return $activities->total() === 1
+                    && $activities->first()->action === 'event_status_tagged';
+            })
+            ->assertSee('Client ID / Full Name')
+            ->assertSee('Client ID')
+            ->assertSee('2600456')
+            ->assertSee('CRUZ, JUAN DELA')
+            ->assertDontSee('Event ID');
     }
 }

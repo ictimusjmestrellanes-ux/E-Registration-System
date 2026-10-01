@@ -410,7 +410,8 @@
                                     <div class="input-group">
                                         <span class="input-group-text"><i class="ri-search-line"></i></span>
                                         <input type="text" name="search" class="form-control"
-                                            placeholder="Search description, action, IP..." value="{{ $search }}">
+                                            placeholder="Search client ID, name, description, action, IP..."
+                                            value="{{ $search }}">
                                     </div>
                                 </div>
                                 <div class="col-md-3">
@@ -472,7 +473,7 @@
                                         <th style="width: 180px;">User</th>
                                         <th style="width: 160px;">Action</th>
                                         <th>Description</th>
-                                        <th style="width: 170px;">Subject</th>
+                                        <th style="width: 220px;">Client ID / Full Name</th>
                                         <th style="width: 130px;">IP</th>
                                     </tr>
                                 </thead>
@@ -484,6 +485,8 @@
                                                 ? class_basename($activity->subject_type) .
                                                     ($activity->subject_id ? ' #' . $activity->subject_id : '')
                                                 : '-';
+                                            $relatedClientId = $activity->related_client_id;
+                                            $relatedClientName = $activity->related_client_name;
                                         @endphp
                                         <tr>
                                             <td>
@@ -509,7 +512,14 @@
                                                     'activity' => $activity,
                                                 ])
                                             </td>
-                                            <td>{{ $subjectLabel }}</td>
+                                            <td>
+                                                @if ($relatedClientId || $relatedClientName)
+                                                    <div class="fw-semibold">{{ $relatedClientId ?? '—' }}</div>
+                                                    <div class="text-muted small">{{ $relatedClientName ?? '—' }}</div>
+                                                @else
+                                                    {{ $subjectLabel }}
+                                                @endif
+                                            </td>
                                             <td>{{ $activity->ip_address ?? '-' }}</td>
                                         </tr>
                                     @empty

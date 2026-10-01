@@ -4,11 +4,20 @@
     if (is_string($details)) {
         $details = json_decode($details, true);
     }
+    // Event IDs are internal record keys. Activity-log users need the public
+    // Client ID, resolved through the event's transferred transaction.
+    if (is_array($details) && array_key_exists('event_id', $details)) {
+        unset($details['event_id']);
+        $details = ['client_id' => $activity->related_client_id] + $details;
+    }
     $formatValue = static function ($value) {
         if ($value === null || $value === '') return '—';
         if (is_bool($value)) return $value ? 'Yes' : 'No';
         return is_array($value) ? json_encode($value, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) : (string) $value;
     };
+    $formatLabel = static fn ($field) => $field === 'client_id'
+        ? 'Client ID'
+        : \Illuminate\Support\Str::headline($field);
 @endphp
 @if (is_array($details) && count($details))
     <details class="mt-2 small">
@@ -25,7 +34,7 @@
                     <tbody>
                         @foreach ($fields as $field)
                             <tr>
-                                <th>{{ \Illuminate\Support\Str::headline($field) }}</th>
+                                <th>{{ $formatLabel($field) }}</th>
                                 <td style="white-space: pre-wrap; overflow-wrap: anywhere">{{ $formatValue($before[$field] ?? null) }}</td>
                                 <td style="white-space: pre-wrap; overflow-wrap: anywhere">{{ $formatValue($after[$field] ?? null) }}</td>
                             </tr>
@@ -35,7 +44,7 @@
             </div>
         @endif
         @foreach (array_diff_key($details, array_flip(['before', 'after', 'changed_fields'])) as $key => $value)
-            <div class="mt-1"><strong>{{ \Illuminate\Support\Str::headline($key) }}:</strong>
+            <div class="mt-1"><strong>{{ $formatLabel($key) }}:</strong>
                 <span style="white-space: pre-wrap; overflow-wrap: anywhere">{{ $formatValue($value) }}</span>
             </div>
         @endforeach

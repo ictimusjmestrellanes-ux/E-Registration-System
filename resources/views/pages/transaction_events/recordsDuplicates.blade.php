@@ -27,7 +27,7 @@
                                     @if (auth()->user()?->role_name !== 'Viewer')
                                         <a href="{{ route('transaction-events.records-duplicates.merge-clients.index') }}"
                                             class="btn btn-primary btn-sm fw-semibold">
-                                            <i class="ri-history-line me-1"></i> Completed Merges
+                                            <i class="ri-git-merge-line me-1"></i> Completed Merges
                                         </a>
                                     @endif
                                 @endif
