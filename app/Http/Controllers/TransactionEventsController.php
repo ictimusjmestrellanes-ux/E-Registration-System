@@ -1137,6 +1137,13 @@ class TransactionEventsController extends Controller
         $query = TransactionEvent::whereNotNull('transferred_at');
         $this->applyRecordFilters($query, $request);
 
+        if ($request->isMethod('post')) {
+            $eventIds = $query->orderByRaw('LOWER(full_name)')->orderBy('id')->pluck('id')->all();
+
+            return response()->json(app(\App\Services\EventRecordsXlsxProcess::class)
+                ->start($eventIds, (int) $request->user()->id));
+        }
+
         // Export should always be alphabetical by client name across all pages.
         $events = $query->with('transferredTransaction:id,transaction_id')
             ->orderByRaw('LOWER(full_name)')
@@ -1154,21 +1161,10 @@ class TransactionEventsController extends Controller
             'total' => $totalEvents,
         ]);
 
-        // Resolve each event's client through its linked transaction history
-        // (events carry no client_id themselves).
-        $histories = TransactionHistory::whereIn(
-            'id',
-            $events->pluck('transferred_transaction_id')->filter()->unique()->values()->all()
-        )->get(['id', 'client_id'])->keyBy('id');
-
-        $clients = Client::whereIn('client_id', $histories->pluck('client_id')->filter()->unique()->values()->all())
-            ->get(['client_id', 'first_name', 'middle_name', 'last_name', 'suffix'])
-            ->keyBy('client_id');
-
         $headers = [
-            'ID', 'Transaction ID', 'Full Name', 'Age', 'Birth Date', 'Contact No.',
+            'ID', 'Transaction ID', 'Client Name', 'Age', 'Birth Date', 'Contact No.',
             'Address', 'Client Category', 'Transaction Category', 'Transaction Type',
-            'Event Date', 'Transferred At', 'Status',
+            'Event Date', 'Transferred At', 'Status', 'Full Name',
         ];
         $widths = [8, 22, 28, 8, 14, 16, 35, 20, 24, 24, 14, 20, 12, 28];
 
@@ -1189,14 +1185,10 @@ class TransactionEventsController extends Controller
         $this->fwriteXlsxRow($sheet, $rowNumber++, $headers, true);
 
         foreach ($events as $eventIndex => $event) {
-            $history = $event->transferred_transaction_id
-                ? $histories->get($event->transferred_transaction_id)
-                : null;
-            $client = $history ? $clients->get($history->client_id) : null;
             $this->fwriteXlsxRow($sheet, $rowNumber++, [
                 $event->id,
                 $event->transferredTransaction?->transaction_id ?? '',
-                $event->full_name ?? '',
+                mb_strtoupper((string) $event->full_name),
                 $event->age ?? '',
                 $event->birth_date?->format('Y-m-d') ?? '',
                 $event->contact_no ?? '',
@@ -1209,10 +1201,11 @@ class TransactionEventsController extends Controller
                 $event->status,
                 // Preserve the event's exact matching name for re-imports.
                 // Client Name is a display value and may differ from this.
+                $event->full_name ?? '',
             ], false);
 
             $completed = $eventIndex + 1;
-            if ($completed === $totalEvents || $completed % 50 === 0) {
+            if ($completed === $totalEvents || $completed % 1000 === 0) {
                 $report([
                     'state' => 'working',
                     'message' => 'Writing records to the XLSX file…',
@@ -1288,6 +1281,27 @@ class TransactionEventsController extends Controller
         return response()->download($zipPath, 'event-records_'.now()->format('Ymd_His').'.xlsx', [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         ])->deleteFileAfterSend(true);
+    }
+
+    public function advanceRecordsXlsx(Request $request, string $token)
+    {
+        abort_unless(feature_allowed('Event Records'), 404);
+        @ini_set('memory_limit', '512M');
+
+        return response()->json(app(\App\Services\EventRecordsXlsxProcess::class)
+            ->step($token, (int) $request->user()->id));
+    }
+
+    public function downloadRecordsXlsx(Request $request, string $token)
+    {
+        abort_unless(feature_allowed('Event Records'), 404);
+        $path = app(\App\Services\EventRecordsXlsxProcess::class)
+            ->downloadPath($token, (int) $request->user()->id);
+
+        return response()->download($path, 'event-records_'.now()->format('Ymd_His').'.xlsx', [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Cache-Control' => 'private, no-store',
+        ]);
     }
 
     public function exportRecordsProgress(string $operationId)

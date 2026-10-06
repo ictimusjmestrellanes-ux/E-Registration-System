@@ -124,6 +124,63 @@ class ExportRecordsTest extends TestCase
             ->assertJsonPath('total', 1);
     }
 
+    public function test_browser_export_is_batched_and_downloads_a_valid_xlsx(): void
+    {
+        $user = User::factory()->create(['role_name' => 'Admin']);
+        $this->actingAs($user);
+
+        $now = now();
+        $rows = [];
+        for ($index = 1; $index <= 1001; $index++) {
+            $rows[] = [
+                'full_name' => sprintf('Person %04d', $index),
+                'contact_no' => '09170000001',
+                'address' => 'Brgy 1',
+                'age' => 40,
+                'birth_date' => '1986-05-05',
+                'client_category' => 'INDIGENT',
+                'transaction_category' => 'BIGAY BIGAS SA MASA',
+                'transaction_type' => 'TRANCH 1',
+                'event_date' => '2026-03-09',
+                'status' => 'Pending',
+                'transferred_at' => $now,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+        }
+        foreach (array_chunk($rows, 250) as $chunk) {
+            DB::table('transaction_events')->insert($chunk);
+        }
+
+        $start = $this->postJson(route('transaction-events.records.export'))
+            ->assertOk()
+            ->assertJsonPath('total', 1001)
+            ->assertJsonPath('completed', 0)
+            ->assertJsonPath('ready', false)
+            ->json();
+
+        $firstStep = $this->postJson(route('transaction-events.records.xlsx-step', $start['token']))
+            ->assertOk()
+            ->assertJsonPath('completed', 1000)
+            ->assertJsonPath('ready', false);
+
+        $firstStep->assertJsonPath('total', 1001);
+        $this->postJson(route('transaction-events.records.xlsx-step', $start['token']))
+            ->assertOk()
+            ->assertJsonPath('completed', 1001)
+            ->assertJsonPath('ready', true);
+
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+        $this->get(route('transaction-events.records.xlsx-download', $start['token']))
+            ->assertNotFound();
+
+        $this->actingAs($user);
+        $response = $this->get(route('transaction-events.records.xlsx-download', $start['token']));
+        $xml = $this->sheetXml($response);
+        $this->assertStringContainsString('PERSON 0001', $xml);
+        $this->assertStringContainsString('PERSON 1001', $xml);
+    }
+
     public function test_export_with_no_matches_still_returns_valid_xlsx(): void
     {
         $this->actingAs(User::factory()->create(['role_name' => 'Admin']));

@@ -31,15 +31,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return disposition.match(/filename="?([^";\\/]+)"?/i)?.[1] || 'event-records.xlsx';
     };
 
-    const newOperationId = () => {
-        if (typeof globalThis.crypto?.randomUUID === 'function') return globalThis.crypto.randomUUID();
-        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (character) => {
-            const random = Math.floor(Math.random() * 16);
-            const value = character === 'x' ? random : (random & 0x3) | 0x8;
-            return value.toString(16);
-        });
-    };
-
     button.addEventListener('click', async (event) => {
         // Preserve open-in-new-tab and the normal link fallback when modified.
         if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
@@ -60,11 +51,11 @@ document.addEventListener('DOMContentLoaded', () => {
         progress.classList.remove('d-none');
         const bar = progress.querySelector('.progress-bar');
         bar.classList.remove('w-100');
-        bar.style.width = '5%';
+        bar.style.width = '0%';
         progress.setAttribute('aria-valuemin', '0');
         progress.setAttribute('aria-valuemax', '100');
-        progress.setAttribute('aria-valuenow', '5');
-        help.textContent = 'Large exports may take a few minutes. Keep this page open.';
+        progress.setAttribute('aria-valuenow', '0');
+        help.textContent = 'Large exports are prepared in smaller batches. Keep this page open.';
 
         const started = Date.now();
         const updateElapsed = () => {
@@ -76,58 +67,72 @@ document.addEventListener('DOMContentLoaded', () => {
         window.addEventListener('beforeunload', warnBeforeLeaving);
         modal.show();
 
-        const operationId = newOperationId();
-        const exportUrl = new URL(button.href, window.location.href);
-        exportUrl.searchParams.set('export_operation_id', operationId);
-        const progressUrl = button.dataset.progressUrl.replace('__operation__', encodeURIComponent(operationId));
-        let progressRequestBusy = false;
-        const updateProgress = async () => {
-            if (progressRequestBusy || !busy) return;
-            progressRequestBusy = true;
-            try {
-                const response = await fetch(progressUrl, {
+        try {
+            const postJson = async (url) => {
+                const response = await fetch(url, {
+                    method: 'POST',
                     credentials: 'same-origin',
-                    cache: 'no-store',
-                    headers: { Accept: 'application/json' },
+                    headers: {
+                        Accept: 'application/json',
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    },
                 });
-                if (!response.ok) return;
-                const state = await response.json();
-                const total = Math.max(0, Number(state.total) || 0);
-                const completed = Math.min(total, Math.max(0, Number(state.completed) || 0));
-                const percent = state.state === 'complete'
-                    ? 100
-                    : (total > 0 ? Math.min(99, Math.floor(completed / total * 100)) : 5);
+                if (response.redirected || response.status === 401 || response.status === 419) {
+                    throw new Error('Your session expired. Refresh the page and sign in before exporting again.');
+                }
+                if (!response.ok) {
+                    const error = new Error(`XLSX export failed (HTTP ${response.status}). Please try again.`);
+                    error.retryable = [409, 502, 503, 504].includes(response.status);
+                    throw error;
+                }
+                return response.json();
+            };
+
+            let state = await postJson(button.href);
+            const exportBase = new URL(button.href, window.location.href);
+            exportBase.search = '';
+            exportBase.hash = '';
+            const stepUrl = `${exportBase.href}/${encodeURIComponent(state.token)}/step`;
+            const fileUrl = `${exportBase.href}/${encodeURIComponent(state.token)}/download`;
+            const showProgress = () => {
+                const percent = state.ready ? 100 : Math.min(99, Math.floor(state.completed / Math.max(1, state.total) * 100));
                 bar.style.width = `${percent}%`;
                 progress.setAttribute('aria-valuenow', String(percent));
-                status.textContent = total > 0 && state.state === 'working'
-                    ? `${state.message} ${completed.toLocaleString()} of ${total.toLocaleString()} (${percent}%)`
-                    : state.message;
-            } catch (_) {
-                // The download request remains authoritative; a missed poll is harmless.
-            } finally {
-                progressRequestBusy = false;
-            }
-        };
-        const progressTimer = setInterval(updateProgress, 500);
+                status.textContent = state.completed === state.total
+                    ? 'All records prepared. Packaging your XLSX file…'
+                    : `Writing records to the XLSX file… ${state.completed.toLocaleString()} of ${state.total.toLocaleString()} (${percent}%)`;
+            };
+            showProgress();
 
-        try {
-            const response = await fetch(exportUrl, {
+            while (!state.ready) {
+                for (let attempt = 0; ; attempt++) {
+                    try {
+                        state = await postJson(stepUrl);
+                        break;
+                    } catch (error) {
+                        if (attempt >= 3 || !(error.retryable || error instanceof TypeError)) throw error;
+                        help.textContent = 'Reconnecting to your export…';
+                        await new Promise(resolve => setTimeout(resolve, 2000 * (attempt + 1)));
+                    }
+                }
+                showProgress();
+                help.textContent = 'Keep this page open. Your XLSX file will download when it is ready.';
+            }
+
+            status.textContent = 'XLSX generated. Receiving the download…';
+            const response = await fetch(fileUrl, {
                 credentials: 'same-origin',
-                headers: {
-                    Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                },
+                headers: { Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' },
             });
             if (response.redirected || response.status === 401 || response.status === 419) {
                 throw new Error('Your session expired. Refresh the page and sign in before exporting again.');
             }
             const contentType = (response.headers.get('Content-Type') || '').toLowerCase();
             if (!response.ok || !contentType.includes('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')) {
-                throw new Error(`XLSX export failed (HTTP ${response.status}). Please try again.`);
+                throw new Error(`XLSX download failed (HTTP ${response.status}). Please try again.`);
             }
 
-            bar.style.width = '100%';
-            progress.setAttribute('aria-valuenow', '100');
-            status.textContent = 'XLSX generated. Receiving the download…';
             const blob = await response.blob();
             if (blob.size < 4 || await blob.slice(0, 2).text() !== 'PK') {
                 throw new Error('The XLSX download was incomplete. Please try again.');
@@ -148,7 +153,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 : error.message;
         } finally {
             clearInterval(timer);
-            clearInterval(progressTimer);
             updateElapsed();
             busy = false;
             progress.classList.add('d-none');
