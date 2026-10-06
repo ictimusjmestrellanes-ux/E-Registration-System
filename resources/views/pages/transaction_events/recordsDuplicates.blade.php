@@ -549,15 +549,14 @@
                                         </div>
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
-                                        <label for="dupStatusFilter"
-                                            class="form-label fw-semibold text-uppercase small">Status</label>
-                                        <select class="form-select" id="dupStatusFilter" name="status">
-                                            <option value="">All statuses</option>
-                                            @foreach (\App\Models\TransactionEvent::STATUSES as $status)
-                                                <option value="{{ $status }}" @selected(request('status') === $status)>
-                                                    {{ $status }}</option>
-                                            @endforeach
-                                        </select>
+                                        <label class="form-label fw-semibold text-uppercase small">Status</label>
+                                        @include('pages.transaction_events.partials.multiSelectSearchDropdown', [
+                                            'dropdownId' => 'dupStatus',
+                                            'fieldName' => 'status',
+                                            'options' => \App\Models\TransactionEvent::STATUSES,
+                                            'allLabel' => 'All statuses',
+                                            'searchPlaceholder' => 'Search statuses...',
+                                        ])
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
                                         <label for="dupDateFrom" class="form-label fw-semibold text-uppercase small">Date

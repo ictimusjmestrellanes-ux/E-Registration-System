@@ -94,7 +94,8 @@ class EventRecordStatusTest extends TestCase
         $this->get(route('transaction-events.records'))
             ->assertOk()
             ->assertSee('Tag as Not a Duplicate')
-            ->assertSee('<option value="Not a Duplicate"', false);
+            ->assertSee('name="status[]"', false)
+            ->assertSee('Search statuses...');
 
         $this->patchJson(route('transaction-events.records.status', $event), [
             'status' => 'Not a Duplicate',
@@ -196,6 +197,38 @@ class EventRecordStatusTest extends TestCase
         }
         $this->assertSame(39, $this->get(route('transaction-events.records', ['status' => '']))
             ->assertOk()->viewData('events')->total());
+    }
+
+    public function test_status_filter_accepts_multiple_statuses_and_review_tag(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+
+        $pending = TransactionEvent::create([
+            'full_name' => 'Pending Person',
+            'status' => 'Pending',
+            'transferred_at' => now(),
+            'not_duplicate' => true,
+        ]);
+        $claimed = TransactionEvent::create([
+            'full_name' => 'Claimed Person',
+            'status' => 'Claimed',
+            'transferred_at' => now(),
+        ]);
+        TransactionEvent::create([
+            'full_name' => 'Unclaimed Person',
+            'status' => 'Unclaimed',
+            'transferred_at' => now(),
+        ]);
+
+        $statuses = $this->get(route('transaction-events.records', [
+            'status' => ['Pending', 'Claimed'],
+        ]))->assertOk()->viewData('events');
+        $this->assertSame([$pending->id, $claimed->id], $statuses->pluck('id')->sort()->values()->all());
+
+        $statusAndReviewTag = $this->get(route('transaction-events.records', [
+            'status' => ['Claimed', 'Not a Duplicate'],
+        ]))->assertOk()->viewData('events');
+        $this->assertSame([$pending->id, $claimed->id], $statusAndReviewTag->pluck('id')->sort()->values()->all());
     }
 
     public function test_viewer_cannot_tag_records(): void

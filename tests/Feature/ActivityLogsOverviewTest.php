@@ -86,6 +86,27 @@ class ActivityLogsOverviewTest extends TestCase
             });
     }
 
+    public function test_transaction_history_update_entries_are_hidden_from_activity_lists(): void
+    {
+        $admin = User::factory()->create(['role_name' => 'Admin']);
+        $this->createLog(
+            $admin,
+            'Updated Transaction History #8115 (2608114-26-0001).',
+            1,
+            'transaction_history_updated'
+        );
+        $this->createLog($admin, 'Visible event update.', 2, 'transaction_event_updated');
+
+        $response = $this->actingAs($admin)->get(route('activity.logs'));
+
+        $response->assertOk()
+            ->assertDontSee('Updated Transaction History #8115')
+            ->assertSee('Visible event update.')
+            ->assertViewHas('allActivities', fn ($activities) => $activities->total() === 1)
+            ->assertViewHas('activities', fn ($activities) => $activities->total() === 1)
+            ->assertViewHas('uniqueActions', fn ($actions) => ! $actions->contains('transaction_history_updated'));
+    }
+
     public function test_activities_tab_searches_client_id_and_name_in_log_details(): void
     {
         $admin = User::factory()->create(['role_name' => 'Admin']);

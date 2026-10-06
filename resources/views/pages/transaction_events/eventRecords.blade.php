@@ -74,7 +74,8 @@
                                     @endif
                                     @if (feature_allowed('Export Transaction Event Records'))
                                         <a href="{{ route('transaction-events.records.export', request()->query()) }}"
-                                            class="btn btn-sm btn-soft-success text-nowrap"
+                                            id="recordExportXlsxBtn" class="btn btn-sm btn-soft-success text-nowrap"
+                                            data-progress-url="{{ route('transaction-events.records.export-progress', ['operationId' => '__operation__']) }}"
                                             title="Export the currently filtered records to Excel">
                                             <i class="ri-download-line me-1"></i> Export XLSX
                                         </a>
@@ -313,17 +314,14 @@
                                             value="{{ request('date_to') }}">
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
-                                        <label for="recordStatusFilter"
-                                            class="form-label fw-semibold text-uppercase small">Status</label>
-                                        <select class="form-select" id="recordStatusFilter" name="status">
-                                            <option value="">All statuses</option>
-                                            @foreach (\App\Models\TransactionEvent::STATUSES as $status)
-                                                <option value="{{ $status }}" @selected(request('status') === $status)>
-                                                    {{ $status }}</option>
-                                            @endforeach
-                                            <option value="Not a Duplicate" @selected(request('status') === 'Not a Duplicate')>
-                                                Not a Duplicate</option>
-                                        </select>
+                                        <label class="form-label fw-semibold text-uppercase small">Status</label>
+                                        @include('pages.transaction_events.partials.multiSelectSearchDropdown', [
+                                            'dropdownId' => 'recordStatus',
+                                            'fieldName' => 'status',
+                                            'options' => \App\Models\TransactionEvent::STATUSES,
+                                            'allLabel' => 'All statuses',
+                                            'searchPlaceholder' => 'Search statuses...',
+                                        ])
                                     </div>
                                     <div class="col-6 col-xl-2 d-flex gap-2 justify-content-end">
                                         <button type="submit" class="btn btn-sm btn-primary px-4">
@@ -658,8 +656,8 @@
                     </p>
                 </div>
                 <div class="modal-footer border-0 justify-content-center gap-3 pt-0">
-                    <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-warning px-4" id="confirmUndoTransferBtn">
+                    <button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-sm btn-warning" id="confirmUndoTransferBtn">
                         <i class="ri-check-line me-1"></i> Continue
                     </button>
                 </div>
@@ -682,14 +680,45 @@
                     </p>
                 </div>
                 <div class="modal-footer border-0 justify-content-center gap-3 pt-0">
-                    <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-info px-4" id="confirmTagStatusBtn">
+                    <button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-sm btn-info px-4" id="confirmTagStatusBtn">
                         <i class="ri-check-line me-1"></i> Continue
                     </button>
                 </div>
             </div>
         </div>
     </div>
+    @if (feature_allowed('Export Transaction Event Records'))
+        <div class="modal fade" id="recordXlsxProgressModal" tabindex="-1"
+            aria-labelledby="recordXlsxProgressTitle" aria-hidden="true" data-bs-backdrop="static"
+            data-bs-keyboard="false">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="recordXlsxProgressTitle">Export XLSX</h5>
+                    </div>
+                    <div class="modal-body">
+                        <p id="recordXlsxProgressStatus" role="status" aria-live="polite">
+                            Preparing your filtered records…
+                        </p>
+                        <div class="progress mb-3" id="recordXlsxProgressBar" role="progressbar"
+                            aria-label="Preparing XLSX">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated w-100 bg-success"></div>
+                        </div>
+                        <p class="text-muted small mb-1" id="recordXlsxProgressHelp">
+                            Large exports may take a few minutes. Keep this page open.
+                        </p>
+                        <p class="text-muted small mb-0" id="recordXlsxProgressElapsed">Elapsed: 0:00</p>
+                    </div>
+                    <div class="modal-footer">
+                        <a class="btn btn-sm btn-success d-none" id="recordXlsxDownload">Download XLSX</a>
+                        <button type="button" class="btn btn-sm btn-light" id="recordXlsxProgressClose"
+                            data-bs-dismiss="modal" disabled>Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
     <div class="modal fade" id="recordPdfDetailsModal" tabindex="-1" aria-labelledby="recordPdfDetailsTitle"
         aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
@@ -737,12 +766,12 @@
                     <div id="recordPayrollExcelError" class="alert alert-danger d-none mt-3 mb-0" role="alert"></div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-success" id="recordPayrollExcelBtn"
+                    <button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-sm btn-success" id="recordPayrollExcelBtn"
                         data-url="{{ route('transaction-events.records.payroll-xlsx', request()->query()) }}">
                         <i class="ri-file-excel-2-line me-1"></i> Download Excel
                     </button>
-                    <button type="submit" class="btn btn-primary">Generate PDF</button>
+                    <button type="submit" class="btn btn-sm btn-primary">Generate PDF</button>
                 </div>
             </form>
         </div>
@@ -764,8 +793,8 @@
                     <p class="text-muted small mb-0" id="recordPdfProgressElapsed">Elapsed: 0:00</p>
                 </div>
                 <div class="modal-footer">
-                    <a class="btn btn-primary d-none" id="recordPdfDownload">Download PDF</a>
-                    <button type="button" class="btn btn-light" id="recordPdfProgressClose" data-bs-dismiss="modal"
+                    <a class="btn btn-sm btn-primary d-none" id="recordPdfDownload">Download PDF</a>
+                    <button type="button" class="btn btn-sm btn-light" id="recordPdfProgressClose" data-bs-dismiss="modal"
                         disabled>Close</button>
                 </div>
             </div>
@@ -774,6 +803,9 @@
 @endsection
 
 @push('scripts')
+    <script
+        src="{{ asset('assets/js/event-records-xlsx-export.js') }}?v={{ filemtime(public_path('assets/js/event-records-xlsx-export.js')) }}">
+    </script>
     <script
         src="{{ asset('assets/js/event-records-pdf-export.js') }}?v={{ filemtime(public_path('assets/js/event-records-pdf-export.js')) }}">
     </script>
@@ -913,7 +945,11 @@
             const eventRecordsTable = document.getElementById('eventRecordsTable');
             const recordTotalBadge = document.getElementById('recordTotalBadge');
             const recordPagination = document.getElementById('recordPagination');
-            const activeStatusFilter = new URLSearchParams(window.location.search).get('status') || '';
+            const activeStatusFilters = Array.from(new URLSearchParams(window.location.search).entries())
+                .filter(([key, value]) => (key === 'status' || key.startsWith('status[')) && value !== '')
+                .flatMap(([, value]) => value.split(','))
+                .map((value) => value.trim())
+                .filter(Boolean);
 
             const recordStatusColor = (status) => ({
                 Claimed: 'success',
@@ -968,12 +1004,22 @@
 
             const applyEventStatus = (eventIds, status) => {
                 const ids = [...new Set(eventIds.map(Number).filter((id) => id > 0))];
-                if (status !== 'Not a Duplicate' && activeStatusFilter &&
-                    activeStatusFilter !== 'Not a Duplicate' && activeStatusFilter !== status) {
-                    removeEventRows(ids, ids.length);
-                    return;
+                const removedIds = [];
+                ids.forEach((eventId) => {
+                    setEventRowStatus(eventId, status);
+                    if (activeStatusFilters.length === 0) return;
+
+                    const row = eventRecordsTable?.querySelector(`tr[data-event-id="${eventId}"]`);
+                    const matchesBaseStatus = activeStatusFilters.includes(row?.dataset.baseStatus || '');
+                    const matchesNotDuplicate = activeStatusFilters.includes('Not a Duplicate') &&
+                        row?.dataset.notDuplicate === '1';
+                    if (!matchesBaseStatus && !matchesNotDuplicate) {
+                        removedIds.push(eventId);
+                    }
+                });
+                if (removedIds.length > 0) {
+                    removeEventRows(removedIds, removedIds.length);
                 }
-                ids.forEach((eventId) => setEventRowStatus(eventId, status));
             };
 
             window.EventRecordsUi = {
@@ -1225,7 +1271,7 @@
                         exclude_duplicates: 0
                     };
                     ['search', 'contact', 'age_from', 'age_to', 'date_from', 'date_to',
-                        'event_date_from', 'event_date_to', 'status'
+                        'event_date_from', 'event_date_to'
                     ].forEach((name) => {
                         const value = params.get(name);
                         if (value !== null && value !== '') {
@@ -1234,7 +1280,7 @@
                     });
 
                     // Handle filters which can have multiple values
-                    ['address', 'client_category', 'transaction_category', 'transaction_type'].forEach((
+                    ['address', 'client_category', 'transaction_category', 'transaction_type', 'status'].forEach((
                         name) => {
                         const values = Array.from(params.entries())
                             .filter(([key]) => key === name || key.startsWith(name + '['))
@@ -1373,14 +1419,14 @@
                         exclude_duplicates: 0
                     };
                     ['search', 'contact', 'age_from', 'age_to', 'date_from', 'date_to',
-                        'event_date_from', 'event_date_to', 'status'
+                        'event_date_from', 'event_date_to'
                     ].forEach((name) => {
                         const value = params.get(name);
                         if (value !== null && value !== '') {
                             payload[name] = value;
                         }
                     });
-                    ['address', 'client_category', 'transaction_category', 'transaction_type'].forEach((
+                    ['address', 'client_category', 'transaction_category', 'transaction_type', 'status'].forEach((
                         name) => {
                         const values = Array.from(params.entries())
                             .filter(([key]) => key === name || key.startsWith(name + '['))

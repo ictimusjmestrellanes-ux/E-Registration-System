@@ -132,6 +132,7 @@ Route::group(['namespace' => 'App\Http\Controllers'], function () {
         Route::get('transaction-events/export', [TransactionEventsController::class, 'exportEvents'])->name('transaction-events.export');
         Route::get('transaction-events/records', [TransactionEventsController::class, 'records'])->name('transaction-events.records');
         Route::get('transaction-events/records/export', [TransactionEventsController::class, 'exportRecords'])->name('transaction-events.records.export');
+        Route::get('transaction-events/records/export/progress/{operationId}', [TransactionEventsController::class, 'exportRecordsProgress'])->name('transaction-events.records.export-progress');
         Route::get('transaction-events/records/export-pdf', [TransactionEventsController::class, 'exportRecordsPdf'])->name('transaction-events.records.export-pdf');
         Route::get('transaction-events/records/payroll-xlsx', [TransactionEventsController::class, 'exportRecordsPayrollXlsx'])->name('transaction-events.records.payroll-xlsx');
         Route::post('transaction-events/records/export-pdf', [TransactionEventsController::class, 'exportRecordsPdf']);

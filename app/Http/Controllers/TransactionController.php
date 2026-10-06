@@ -29,7 +29,7 @@ class TransactionController extends Controller
                         ->orWhere('category', 'like', '%' . $request->search . '%');
                 });
             })
-            ->when($request->filled('status'), fn ($q) => $q->where('status', $request->input('status')))
+            ->when($this->multiValues($request, 'status'), fn ($q, $v) => $q->whereIn('status', $v))
             ->when($this->multiValues($request, 'client_category'), fn ($q, $v) => $q->whereIn('client_category', $v))
             ->when($request->filled('category_filter'), function ($q) use ($request) {
                 $q->whereIn('category', $this->categoryFilterValues($request->input('category_filter')));
@@ -82,7 +82,7 @@ class TransactionController extends Controller
                         ->orWhere('events_transaction_type', 'like', '%' . $request->search . '%');
                 });
             })
-            ->when($request->filled('status'), fn ($q) => $q->where('status', $request->input('status')))
+            ->when($this->multiValues($request, 'status'), fn ($q, $v) => $q->whereIn('status', $v))
             ->when($this->multiValues($request, 'client_category'), fn ($q, $v) => $q->whereIn('client_category', $v))
             ->when($this->multiValues($request, 'transaction_type'), fn ($q, $v) => $q->whereIn('events_transaction_type', $v))
             ->when($request->filled('date_from'), fn ($q) => $q->whereDate('transaction_date', '>=', $request->input('date_from')))

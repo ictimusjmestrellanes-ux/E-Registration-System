@@ -57,7 +57,12 @@ class NotificationsReadTest extends TestCase
         $this->getJson(route('notifications.state'))
             ->assertOk()
             ->assertJsonPath('latest_id', $own->id)
-            ->assertJsonPath('unread_count', 1);
+            ->assertJsonPath('unread_count', 1)
+            ->assertJsonCount(1, 'notifications')
+            ->assertJsonPath('notifications.0.id', $own->id)
+            ->assertJsonPath('notifications.0.action', 'event_status_tagged')
+            ->assertJsonPath('notifications.0.description', 'Viewer notification.')
+            ->assertJsonPath('notifications.0.user_name', $viewer->name);
         $this->postJson(route('notifications.read-all'))->assertOk();
         $this->getJson(route('notifications.state'))
             ->assertOk()
@@ -66,6 +71,7 @@ class NotificationsReadTest extends TestCase
         $this->actingAs($admin);
         $this->getJson(route('notifications.state'))
             ->assertOk()
-            ->assertJsonPath('unread_count', 2);
+            ->assertJsonPath('unread_count', 2)
+            ->assertJsonCount(2, 'notifications');
     }
 }

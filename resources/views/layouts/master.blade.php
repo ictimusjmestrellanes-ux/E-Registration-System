@@ -215,34 +215,36 @@
                                                     };
                                                 };
                                             @endphp
-                                            @forelse (($navbarNotifications ?? collect()) as $notification)
-                                                @php
-                                                    [$notifIcon, $notifClass] = $notifMeta($notification->action);
-                                                @endphp
-                                                <div class="text-reset notification-item d-block dropdown-item position-relative">
-                                                    <div class="d-flex">
-                                                        <span class="avatar-xs flex-shrink-0 me-3">
-                                                            <span class="avatar-title rounded-circle fs-16 {{ $notifClass }}">
-                                                                <i class="{{ $notifIcon }}"></i>
+                                            <div id="notificationList" aria-live="polite" aria-atomic="true">
+                                                @forelse (($navbarNotifications ?? collect()) as $notification)
+                                                    @php
+                                                        [$notifIcon, $notifClass] = $notifMeta($notification->action);
+                                                    @endphp
+                                                    <div class="text-reset notification-item d-block dropdown-item position-relative" data-notification-id="{{ $notification->id }}">
+                                                        <div class="d-flex">
+                                                            <span class="avatar-xs flex-shrink-0 me-3">
+                                                                <span class="avatar-title rounded-circle fs-16 {{ $notifClass }}">
+                                                                    <i class="{{ $notifIcon }}"></i>
+                                                                </span>
                                                             </span>
-                                                        </span>
-                                                        <div class="flex-grow-1">
-                                                            <span class="badge rounded-pill {{ $notifClass }} mb-1">{{ $notifLabel($notification->action) }}</span>
-                                                            <h6 class="mt-0 mb-1 fs-13 fw-semibold">{{ \Illuminate\Support\Str::limit($notification->description, 110) }}</h6>
-                                                            <p class="mb-1 fs-11 fw-medium text-uppercase text-muted">
-                                                                {{ $notification->user?->name ?? 'System' }}
-                                                                <span class="mx-1">─୨ৎ─</span>
-                                                                {{ optional($notification->created_at)->timezone('Asia/Manila')->diffForHumans() }}
-                                                            </p>
+                                                            <div class="flex-grow-1">
+                                                                <span class="badge rounded-pill {{ $notifClass }} mb-1">{{ $notifLabel($notification->action) }}</span>
+                                                                <h6 class="mt-0 mb-1 fs-13 fw-semibold">{{ \Illuminate\Support\Str::limit($notification->description, 110) }}</h6>
+                                                                <p class="mb-1 fs-11 fw-medium text-uppercase text-muted">
+                                                                    {{ $notification->user?->name ?? 'System' }}
+                                                                    <span class="mx-1">─୨ৎ─</span>
+                                                                    {{ optional($notification->created_at)->timezone('Asia/Manila')->diffForHumans() }}
+                                                                </p>
+                                                            </div>
                                                         </div>
                                                     </div>
-                                                </div>
-                                            @empty
-                                                <div class="text-center py-4">
-                                                    <i class="ri-notification-off-line fs-24 text-muted"></i>
-                                                    <p class="text-muted mt-2 mb-0">No import, transfer, tag, delete, or undo updates yet.</p>
-                                                </div>
-                                            @endforelse
+                                                @empty
+                                                    <div class="text-center py-4" data-notification-empty>
+                                                        <i class="ri-notification-off-line fs-24 text-muted"></i>
+                                                        <p class="text-muted mt-2 mb-0">No import, transfer, tag, delete, or undo updates yet.</p>
+                                                    </div>
+                                                @endforelse
+                                            </div>
                                             <div class="my-3 text-center view-all d-flex justify-content-center gap-2 flex-wrap px-2">
                                                     <form method="POST" action="{{ route('notifications.read-all') }}" class="m-0 {{ ($navbarUnreadCount ?? 0) > 0 ? '' : 'd-none' }}" id="markAllNotificationsReadForm">
                                                         @csrf

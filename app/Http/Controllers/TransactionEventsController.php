@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Str;
 
 class TransactionEventsController extends Controller
 {
@@ -424,13 +425,21 @@ class TransactionEventsController extends Controller
      */
     private function applyRecordFilters($query, Request $request): void
     {
-        if ($request->filled('status')) {
-            $status = $request->input('status');
-            if ($status === self::NOT_DUPLICATE_TAG) {
-                $query->where('not_duplicate', true);
-            } else {
-                $query->where('status', $status);
-            }
+        if ($statuses = $this->multiFilterValues($request, 'status')) {
+            $includeNotDuplicate = in_array(self::NOT_DUPLICATE_TAG, $statuses, true);
+            $eventStatuses = array_values(array_diff($statuses, [self::NOT_DUPLICATE_TAG]));
+
+            $query->where(function ($statusQuery) use ($eventStatuses, $includeNotDuplicate) {
+                if ($eventStatuses) {
+                    $statusQuery->whereIn('status', $eventStatuses);
+                }
+
+                if ($includeNotDuplicate) {
+                    $eventStatuses
+                        ? $statusQuery->orWhere('not_duplicate', true)
+                        : $statusQuery->where('not_duplicate', true);
+                }
+            });
         }
 
         if ($search = $request->input('search')) {
@@ -1112,6 +1121,16 @@ class TransactionEventsController extends Controller
             abort(404);
         }
 
+        $request->validate(['export_operation_id' => ['nullable', 'uuid']]);
+        $operationId = $request->input('export_operation_id');
+        $report = fn (array $progress) => $this->recordXlsxExportProgress($operationId, $progress);
+        $report([
+            'state' => 'working',
+            'message' => 'Loading filtered records…',
+            'completed' => 0,
+            'total' => 0,
+        ]);
+
         @ini_set('memory_limit', '512M');
         @set_time_limit(300);
 
@@ -1127,6 +1146,13 @@ class TransactionEventsController extends Controller
                 'client_category', 'transaction_category', 'transaction_type',
                 'event_date', 'transferred_at', 'transferred_transaction_id', 'status',
             ]);
+        $totalEvents = $events->count();
+        $report([
+            'state' => 'working',
+            'message' => 'Writing records to the XLSX file…',
+            'completed' => 0,
+            'total' => $totalEvents,
+        ]);
 
         // Resolve each event's client through its linked transaction history
         // (events carry no client_id themselves).
@@ -1151,6 +1177,7 @@ class TransactionEventsController extends Controller
         $sheet = fopen($sheetPath, 'w');
 
         if ($sheet === false) {
+            $report(['state' => 'failed', 'message' => 'Unable to create the XLSX worksheet.']);
             return back()->with('error', 'Unable to generate the Excel file. Please try again.');
         }
 
@@ -1161,7 +1188,7 @@ class TransactionEventsController extends Controller
         $rowNumber = 1;
         $this->fwriteXlsxRow($sheet, $rowNumber++, $headers, true);
 
-        foreach ($events as $event) {
+        foreach ($events as $eventIndex => $event) {
             $history = $event->transferred_transaction_id
                 ? $histories->get($event->transferred_transaction_id)
                 : null;
@@ -1183,6 +1210,16 @@ class TransactionEventsController extends Controller
                 // Preserve the event's exact matching name for re-imports.
                 // Client Name is a display value and may differ from this.
             ], false);
+
+            $completed = $eventIndex + 1;
+            if ($completed === $totalEvents || $completed % 50 === 0) {
+                $report([
+                    'state' => 'working',
+                    'message' => 'Writing records to the XLSX file…',
+                    'completed' => $completed,
+                    'total' => $totalEvents,
+                ]);
+            }
         }
 
         fwrite($sheet, '</sheetData></worksheet>');
@@ -1190,9 +1227,16 @@ class TransactionEventsController extends Controller
 
         $zipPath = tempnam(sys_get_temp_dir(), 'records_export_').'.xlsx';
         $zip = new \ZipArchive;
+        $report([
+            'state' => 'working',
+            'message' => 'Packaging the XLSX download…',
+            'completed' => $totalEvents,
+            'total' => $totalEvents,
+        ]);
 
         if ($zip->open($zipPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) {
             @unlink($sheetPath);
+            $report(['state' => 'failed', 'message' => 'Unable to package the XLSX download.']);
 
             return back()->with('error', 'Unable to generate the Excel file. Please try again.');
         }
@@ -1234,10 +1278,49 @@ class TransactionEventsController extends Controller
         $zip->close();
 
         @unlink($sheetPath);
+        $report([
+            'state' => 'complete',
+            'message' => 'Your XLSX file is ready.',
+            'completed' => $totalEvents,
+            'total' => $totalEvents,
+        ]);
 
         return response()->download($zipPath, 'event-records_'.now()->format('Ymd_His').'.xlsx', [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         ])->deleteFileAfterSend(true);
+    }
+
+    public function exportRecordsProgress(string $operationId)
+    {
+        abort_unless(feature_allowed('Event Records') && Str::isUuid($operationId), 404);
+
+        return response()->json(Cache::store('file')->get(
+            $this->xlsxExportProgressKey($operationId),
+            [
+                'state' => 'pending',
+                'message' => 'Waiting for the XLSX export to start…',
+                'completed' => 0,
+                'total' => 0,
+            ]
+        ));
+    }
+
+    private function recordXlsxExportProgress(?string $operationId, array $progress): void
+    {
+        if (!$operationId) {
+            return;
+        }
+
+        Cache::store('file')->put(
+            $this->xlsxExportProgressKey($operationId),
+            $progress,
+            now()->addMinutes(20)
+        );
+    }
+
+    private function xlsxExportProgressKey(string $operationId): string
+    {
+        return 'event_records_xlsx_progress:'.auth()->id().':'.$operationId;
     }
 
     /**
@@ -1289,8 +1372,8 @@ class TransactionEventsController extends Controller
     {
         $column = static fn (string $name): string => $tablePrefix.$name;
 
-        if ($request->filled('status')) {
-            $query->where($column('status'), $request->input('status'));
+        if ($statuses = $this->multiFilterValues($request, 'status')) {
+            $query->whereIn($column('status'), $statuses);
         }
 
         if ($search = trim((string) $request->input('search', ''))) {
@@ -1687,7 +1770,7 @@ class TransactionEventsController extends Controller
             )->first();
             $cacheFilters = [
                 'search' => trim((string) $request->input('search', '')),
-                'status' => (string) $request->input('status', ''),
+                'status' => $this->multiFilterValues($request, 'status'),
                 'client_category' => $this->multiFilterValues($request, 'client_category'),
                 'transaction_category' => $this->multiFilterValues($request, 'transaction_category'),
                 'transaction_type' => $this->multiFilterValues($request, 'transaction_type'),
@@ -1701,6 +1784,7 @@ class TransactionEventsController extends Controller
             sort($cacheFilters['client_category']);
             sort($cacheFilters['transaction_category']);
             sort($cacheFilters['transaction_type']);
+            sort($cacheFilters['status']);
             $cacheKey = 'transaction-events:duplicate-records:v3:'.hash('sha256', json_encode([
                 'state' => $state,
                 'filters' => $cacheFilters,

@@ -476,6 +476,39 @@ class EventRecordDuplicatesPaginationTest extends TestCase
         $this->assertSame(9, $response->viewData('exactRecordsTotal'));
     }
 
+    public function test_status_filter_accepts_multiple_values(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+        foreach (['Pending', 'Claimed', 'Unclaimed'] as $status) {
+            foreach (['TYPE-A', 'TYPE-A', 'TYPE-B'] as $type) {
+                DB::table('transaction_events')->insert([
+                    'full_name' => 'Juan Santos',
+                    'status' => $status,
+                    'event_date' => '2026-09-01',
+                    'transaction_type' => $type,
+                    'transferred_at' => '2026-09-01 12:00:00',
+                ]);
+            }
+        }
+
+        $response = $this->get(route('transaction-events.records-duplicates', [
+            'status' => ['Pending', 'Claimed'],
+            'search' => 'Juan',
+        ]))->assertOk()
+            ->assertSee('name="status[]"', false)
+            ->assertSee('Search statuses...');
+
+        $this->assertSame(6, $response->viewData('exactRecordsTotal'));
+        $this->assertSame(6, $response->viewData('similarRecordsTotal'));
+        foreach (['exactGroups', 'likelyGroups', 'similarGroups'] as $key) {
+            foreach ($response->viewData($key) as $group) {
+                $this->assertTrue($group['events']->every(
+                    fn ($event) => in_array($event->status, ['Pending', 'Claimed'], true)
+                ));
+            }
+        }
+    }
+
     public function test_exact_match_uses_first_last_names_and_event_fields_except_birth_date(): void
     {
         $this->actingAs(User::factory()->create(['role_name' => 'Admin']));

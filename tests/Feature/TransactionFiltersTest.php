@@ -72,6 +72,37 @@ class TransactionFiltersTest extends TestCase
         $response->assertDontSee('C1-26-0001');
     }
 
+    public function test_status_filter_accepts_multiple_values(): void
+    {
+        $this->actingAs(User::factory()->create());
+        $this->seedHistory();
+        DB::table('transaction_history')->where('transaction_id', 'C2-26-0001')->update([
+            'status' => 'Unclaimed',
+        ]);
+        DB::table('transaction_history')->insert([
+            'transaction_id' => 'C3-26-0001',
+            'client_id' => 'C3',
+            'transaction_date' => '2026-03-09',
+            'category' => 'CARAVAN',
+            'type' => 'CARAVAN',
+            'events_transaction_type' => 'TRANCH 2',
+            'status' => 'Pending',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->get(route('transactions.index', [
+            'status' => ['Claimed', 'Unclaimed'],
+        ]))->assertOk();
+
+        $this->assertSame(2, $response->viewData('transactions')->total());
+        $response->assertSee('C1-26-0001')
+            ->assertSee('C2-26-0001')
+            ->assertDontSee('C3-26-0001')
+            ->assertSee('name="status[]"', false)
+            ->assertSee('Search statuses...');
+    }
+
     public function test_list_shows_events_transaction_type_in_type_column(): void
     {
         $this->actingAs(User::factory()->create());

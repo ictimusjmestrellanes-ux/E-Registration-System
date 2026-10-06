@@ -517,7 +517,7 @@
                                                     <div class="fw-semibold">{{ $relatedClientId ?? '—' }}</div>
                                                     <div class="text-muted small">{{ $relatedClientName ?? '—' }}</div>
                                                 @else
-                                                    {{ $subjectLabel }}
+                                                    {{ $activity->user?->name ?? 'System' }}
                                                 @endif
                                             </td>
                                             <td>{{ $activity->ip_address ?? '-' }}</td>

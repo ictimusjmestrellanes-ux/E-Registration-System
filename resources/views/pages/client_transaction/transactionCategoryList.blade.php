@@ -88,15 +88,14 @@
                                         ])
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
-                                        <label for="transactionStatusFilter"
-                                            class="form-label fw-semibold text-uppercase small">Status</label>
-                                        <select class="form-select" id="transactionStatusFilter" name="status">
-                                            <option value="">All Status</option>
-                                            @foreach (($filterStatuses ?? []) as $status)
-                                                <option value="{{ $status }}" {{ request('status') === $status ? 'selected' : '' }}>
-                                                    {{ $status }}</option>
-                                            @endforeach
-                                        </select>
+                                        <label class="form-label fw-semibold text-uppercase small">Status</label>
+                                        @include('pages.transaction_events.partials.multiSelectSearchDropdown', [
+                                            'dropdownId' => 'transactionStatus',
+                                            'fieldName' => 'status',
+                                            'options' => $filterStatuses ?? [],
+                                            'allLabel' => 'All statuses',
+                                            'searchPlaceholder' => 'Search statuses...',
+                                        ])
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
                                         <label for="transactionDateFrom"
@@ -226,7 +225,6 @@
             const transactionFiltersToggleBtn = document.getElementById('transactionFiltersToggleBtn');
             const transactionFiltersFormEl = document.getElementById('transactionFiltersForm');
             const transactionKeywordInput = document.getElementById('transactionKeywordInput');
-            const transactionStatusFilter = document.getElementById('transactionStatusFilter');
             const transactionCategoryFilter = document.getElementById('transactionCategoryFilter');
             const transactionDateFrom = document.getElementById('transactionDateFrom');
             const transactionDateTo = document.getElementById('transactionDateTo');
@@ -237,8 +235,7 @@
                 .map((cb) => cb.value.trim().toLowerCase()).filter(Boolean);
 
             if (!transactionFiltersToggleBtn || !transactionFiltersFormEl || !transactionKeywordInput ||
-                !transactionStatusFilter || !transactionDateFrom ||
-                !transactionDateTo || !transactionSearchSummary
+                !transactionDateFrom || !transactionDateTo || !transactionSearchSummary
             ) {
                 return;
             }
@@ -267,7 +264,7 @@
 
             const filterTransactionList = () => {
                 const query = transactionKeywordInput.value.trim().toLowerCase();
-                const status = transactionStatusFilter.value.trim().toLowerCase();
+                const statuses = checkedValues('transactionStatus-checkbox');
                 const clientCategories = checkedValues('txClientCategory-checkbox');
                 const category = transactionCategoryFilter ? transactionCategoryFilter.value.trim().toLowerCase() : '';
                 const txCategories = checkedValues('txTransactionCategory-checkbox');
@@ -285,7 +282,7 @@
                     const rowTxType = (row.dataset.searchEventsTransactionType || '').toLowerCase();
                     const rowDate = row.dataset.searchDate || '';
                     const matchesSearch = !query || searchableValue.includes(query);
-                    const matchesStatus = !status || rowStatus === status;
+                    const matchesStatus = statuses.length === 0 || statuses.includes(rowStatus);
                     const matchesClientCategory = clientCategories.length === 0 || clientCategories.includes(rowClientCategory);
                     const matchesCategory = !category || rowCategoryKey === category || rowCategory === category;
                     const matchesTxCategory = txCategories.length === 0 || txCategories.includes(rowCategory);
@@ -305,8 +302,8 @@
                 }
 
                 if (transactionSearchSummary) {
-                    const activeCount = [query, status, category, dateFrom, dateTo].filter(Boolean).length +
-                        clientCategories.length + txCategories.length + txTypes.length;
+                    const activeCount = [query, category, dateFrom, dateTo].filter(Boolean).length +
+                        statuses.length + clientCategories.length + txCategories.length + txTypes.length;
                     if (!activeCount) {
                         transactionSearchSummary.textContent = 'Showing all transactions.';
                     } else {
@@ -317,7 +314,6 @@
             };
 
             transactionKeywordInput.addEventListener('input', filterTransactionList);
-            transactionStatusFilter.addEventListener('change', filterTransactionList);
             if (transactionCategoryFilter) {
                 transactionCategoryFilter.addEventListener('change', filterTransactionList);
             }

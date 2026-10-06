@@ -7,9 +7,12 @@ use App\Models\Client;
 use App\Models\TransactionEvent;
 use App\Models\TransactionHistory;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class ActivityLogsController extends Controller
 {
+    private const HIDDEN_ACTIONS = ['transaction_history_updated'];
+
     public function __construct()
     {
         $this->middleware('auth');
@@ -30,6 +33,7 @@ class ActivityLogsController extends Controller
 
         $baseQuery = ActivityLog::with($activityRelations)
             ->where('user_id', auth()->id())
+            ->whereNotIn('action', self::HIDDEN_ACTIONS)
             ->latest()
             ->orderByDesc('id');
 
@@ -81,7 +85,10 @@ class ActivityLogsController extends Controller
                     ->between($manilaNow->copy()->startOfWeek(), $manilaNow->copy()->endOfWeek());
         })->values();
 
-        $activitiesQuery = ActivityLog::with($activityRelations)->latest()->orderByDesc('id');
+        $activitiesQuery = ActivityLog::with($activityRelations)
+            ->whereNotIn('action', self::HIDDEN_ACTIONS)
+            ->latest()
+            ->orderByDesc('id');
         if ($viewOwnOnly) {
             $activitiesQuery->where('user_id', auth()->id());
         }
@@ -198,6 +205,7 @@ class ActivityLogsController extends Controller
         $activities = $activitiesQuery->paginate(15)->withQueryString();
         $uniqueActions = ActivityLog::query()
             ->when($viewOwnOnly, fn ($query) => $query->where('user_id', auth()->id()))
+            ->whereNotIn('action', self::HIDDEN_ACTIONS)
             ->distinct()
             ->pluck('action')
             ->filter()
@@ -300,10 +308,26 @@ class ActivityLogsController extends Controller
         $unreadCount = (clone $query)
             ->when($readId, fn ($items) => $items->where('id', '>', $readId))
             ->count();
+        $notifications = (clone $query)
+            ->with('user:id,name')
+            ->latest()
+            ->orderByDesc('id')
+            ->take(8)
+            ->get()
+            ->map(fn (ActivityLog $notification) => [
+                'id' => $notification->id,
+                'action' => $notification->action,
+                'description' => Str::limit($notification->description, 110),
+                'user_name' => $notification->user?->name ?? 'System',
+                'time_ago' => $notification->created_at
+                    ?->timezone('Asia/Manila')
+                    ?->diffForHumans(),
+            ]);
 
         return response()->json([
             'latest_id' => $latestId,
             'unread_count' => $unreadCount,
+            'notifications' => $notifications,
         ])->header('Cache-Control', 'no-store');
     }
 }

@@ -4,6 +4,7 @@ document.addEventListener('DOMContentLoaded', function () {
         ['recordAddressFilterBtn', 'input[name="address[]"]', 'addresses'],
         ['recordCategoryFilter', '[data-category-option]', 'transaction categories'],
         ['recordTypeFilterBtn', '.record-type-checkbox', 'transaction types'],
+        ['recordStatusBtn', '.recordStatus-checkbox', 'statuses'],
         ['eventClientCategoryBtn', '.event-client-category-checkbox', 'client categories'],
         ['eventAddressFilterBtn', 'input[name="address[]"]', 'addresses'],
         ['eventTransactionCategory', '[data-category-option]', 'transaction categories'],

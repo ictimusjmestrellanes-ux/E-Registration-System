@@ -95,6 +95,35 @@ class ExportRecordsTest extends TestCase
         $this->assertStringContainsString('Client Name', $xml);
     }
 
+    public function test_records_page_renders_xlsx_progress_ui(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+
+        $this->get(route('transaction-events.records'))
+            ->assertOk()
+            ->assertSee('id="recordExportXlsxBtn"', false)
+            ->assertSee('id="recordXlsxProgressModal"', false)
+            ->assertSee('id="recordXlsxProgressElapsed"', false)
+            ->assertSee('event-records-xlsx-export.js');
+    }
+
+    public function test_xlsx_export_reports_progress_for_the_current_user(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+        $this->seedEvent(['full_name' => 'Progress Person']);
+        $operationId = (string) \Illuminate\Support\Str::uuid();
+
+        $this->get(route('transaction-events.records.export', [
+            'export_operation_id' => $operationId,
+        ]))->assertOk();
+
+        $this->get(route('transaction-events.records.export-progress', $operationId))
+            ->assertOk()
+            ->assertJsonPath('state', 'complete')
+            ->assertJsonPath('completed', 1)
+            ->assertJsonPath('total', 1);
+    }
+
     public function test_export_with_no_matches_still_returns_valid_xlsx(): void
     {
         $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
