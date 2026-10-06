@@ -37,6 +37,7 @@ class ActivityLog extends Model
         'events_force_created_all',
         'event_status_tagged',
         'events_status_tagged',
+        'event_record_edited',
         'events_marked_not_duplicate',
         'events_not_duplicate_review_undone',
         'duplicate_event_clients_merged',
@@ -44,6 +45,9 @@ class ActivityLog extends Model
         'events_bulk_deleted',
         'event_transfer_undone',
         'events_transfer_undone',
+        'payroll_pdf_exported',
+        'payroll_xlsx_exported',
+        'event_records_xlsx_exported',
     ];
 
     public function user(): BelongsTo

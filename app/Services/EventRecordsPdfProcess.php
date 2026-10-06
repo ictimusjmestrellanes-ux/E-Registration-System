@@ -80,6 +80,11 @@ class EventRecordsPdfProcess
                 $paths = array_map(fn ($index) => $directory.'/batch-'.$index.'.pdf', range(0, $state['batches'] - 1));
                 File::put($directory.'/export.pdf', $renderer->mergeFiles($paths));
                 $state['ready'] = true;
+                app(ActivityLogger::class)->record(
+                    'payroll_pdf_exported',
+                    "Printed payroll PDF for {$state['total']} Event Record(s).",
+                    ['record_count' => $state['total']]
+                );
             }
             File::replace($directory.'/state.json', json_encode($state, JSON_THROW_ON_ERROR));
             if ($state['ready']) {

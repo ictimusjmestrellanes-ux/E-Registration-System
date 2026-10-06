@@ -60,17 +60,17 @@ class ClientBulkDeleteWithoutTransactionsTest extends TestCase
 
         $this->delete(route('client.list.destroy-without-transactions'), $this->selectionPayload(false, [$unused->id]))
             ->assertRedirect(route('client.list'))
-            ->assertSessionHas('success', 'Deleted 1 client without transaction history. Updated 3 client IDs and linked transaction IDs.');
+            ->assertSessionHas('success', 'Deleted 1 client without transaction history.');
 
         $this->assertDatabaseMissing('clients', ['id' => $unused->id]);
         $this->assertDatabaseHas('clients', ['id' => $alsoUnused->id]);
         $this->assertDatabaseHas('clients', ['id' => $linkedByClientId->id]);
         $this->assertDatabaseHas('clients', ['id' => $linkedByLegacyId->id]);
-        $this->assertDatabaseHas('clients', ['id' => $alsoUnused->id, 'client_id' => '2600001']);
-        $this->assertDatabaseHas('clients', ['id' => $linkedByClientId->id, 'client_id' => '2600002']);
-        $this->assertDatabaseHas('clients', ['id' => $linkedByLegacyId->id, 'client_id' => '2600003']);
-        $this->assertDatabaseHas('transaction_history', ['transaction_id' => '2600003-00001', 'client_id' => null]);
-        $this->assertDatabaseHas('transaction_history', ['transaction_id' => 'EXTERNAL-00001', 'client_id' => '2600002']);
+        $this->assertDatabaseHas('clients', ['id' => $alsoUnused->id, 'client_id' => '2600002']);
+        $this->assertDatabaseHas('clients', ['id' => $linkedByClientId->id, 'client_id' => '2600003']);
+        $this->assertDatabaseHas('clients', ['id' => $linkedByLegacyId->id, 'client_id' => '2600004']);
+        $this->assertDatabaseHas('transaction_history', ['transaction_id' => '2600004-00001', 'client_id' => null]);
+        $this->assertDatabaseHas('transaction_history', ['transaction_id' => 'EXTERNAL-00001', 'client_id' => '2600003']);
         $this->assertDatabaseCount('transaction_history', 2);
         $this->assertSame(1, \App\Models\ActivityLog::where('action', 'client_deleted')->count());
         Storage::disk('public')->assertMissing('clients/unused.png');
@@ -121,11 +121,11 @@ class ClientBulkDeleteWithoutTransactionsTest extends TestCase
 
         $this->delete(route('client.list.destroy-without-transactions'),
             $this->selectionPayload(true, [], [$unchecked->id]))
-            ->assertSessionHas('success', 'Deleted 104 clients without transaction history. Updated 1 client ID and linked transaction IDs.');
+            ->assertSessionHas('success', 'Deleted 104 clients without transaction history.');
 
         $this->assertDatabaseCount('clients', 1);
         $this->assertDatabaseHas('clients', ['id' => $unchecked->id]);
-        $this->assertDatabaseHas('clients', ['id' => $unchecked->id, 'client_id' => '2600001']);
+        $this->assertDatabaseHas('clients', ['id' => $unchecked->id, 'client_id' => '2600050']);
     }
 
     public function test_manual_selection_can_include_clients_from_multiple_preview_pages(): void
@@ -139,7 +139,7 @@ class ClientBulkDeleteWithoutTransactionsTest extends TestCase
 
         $this->delete(route('client.list.destroy-without-transactions'),
             $this->selectionPayload(false, [$clients[0]->id, $clients[11]->id]))
-            ->assertSessionHas('success', 'Deleted 2 clients without transaction history. Updated 10 client IDs and linked transaction IDs.');
+            ->assertSessionHas('success', 'Deleted 2 clients without transaction history.');
 
         $this->assertDatabaseCount('clients', 10);
         $this->assertDatabaseMissing('clients', ['id' => $clients[0]->id]);
@@ -187,14 +187,14 @@ class ClientBulkDeleteWithoutTransactionsTest extends TestCase
 
         $this->delete(route('client.list.destroy-without-transactions'),
             $this->selectionPayload(true, [], [], $preview['max_client_id']))
-            ->assertSessionHas('success', 'Deleted 1 client without transaction history. Updated 1 client ID and linked transaction IDs.');
+            ->assertSessionHas('success', 'Deleted 1 client without transaction history.');
 
         $this->assertDatabaseMissing('clients', ['id' => $previewed->id]);
         $this->assertDatabaseHas('clients', ['id' => $newClient->id]);
-        $this->assertDatabaseHas('clients', ['id' => $newClient->id, 'client_id' => '2600001']);
+        $this->assertDatabaseHas('clients', ['id' => $newClient->id, 'client_id' => '2600002']);
     }
 
-    public function test_deleting_2600202_updates_later_client_and_transaction_ids(): void
+    public function test_bulk_delete_keeps_later_client_and_transaction_ids_unchanged(): void
     {
         $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
         $before = $this->client('2600201');
@@ -208,22 +208,22 @@ class ClientBulkDeleteWithoutTransactionsTest extends TestCase
 
         $this->delete(route('client.list.destroy-without-transactions'),
             $this->selectionPayload(false, [$deleted->id]))
-            ->assertSessionHas('success', 'Deleted 1 client without transaction history. Updated 2 client IDs and linked transaction IDs.');
+            ->assertSessionHas('success', 'Deleted 1 client without transaction history.');
 
         $this->assertDatabaseMissing('clients', ['id' => $deleted->id]);
         $this->assertDatabaseHas('clients', ['id' => $before->id, 'client_id' => '2600201']);
-        $this->assertDatabaseHas('clients', ['id' => $next->id, 'client_id' => '2600202']);
-        $this->assertDatabaseHas('clients', ['id' => $last->id, 'client_id' => '2600203']);
+        $this->assertDatabaseHas('clients', ['id' => $next->id, 'client_id' => '2600203']);
+        $this->assertDatabaseHas('clients', ['id' => $last->id, 'client_id' => '2600204']);
         $this->assertDatabaseHas('transaction_history', ['id' => $firstHistory->id,
-            'client_id' => '2600202', 'transaction_id' => '2600202-26-0001']);
-        $this->assertDatabaseHas('transaction_history', ['id' => $secondHistory->id,
             'client_id' => '2600203', 'transaction_id' => '2600203-26-0001']);
+        $this->assertDatabaseHas('transaction_history', ['id' => $secondHistory->id,
+            'client_id' => '2600204', 'transaction_id' => '2600204-26-0001']);
         $this->assertDatabaseHas('clients', ['id' => $otherYear->id, 'client_id' => '2700001']);
         $this->assertDatabaseHas('transaction_history', ['id' => $otherHistory->id,
             'client_id' => '2700001', 'transaction_id' => '2700001-27-0001']);
     }
 
-    public function test_archived_and_orphan_history_ids_are_not_reassigned(): void
+    public function test_bulk_delete_leaves_archived_orphan_and_active_ids_unchanged(): void
     {
         $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
         $deleted = $this->client('2600202');
@@ -235,12 +235,12 @@ class ClientBulkDeleteWithoutTransactionsTest extends TestCase
 
         $this->delete(route('client.list.destroy-without-transactions'),
             $this->selectionPayload(false, [$deleted->id]))
-            ->assertSessionHas('success', 'Deleted 1 client without transaction history. Updated 2 client IDs and linked transaction IDs.');
+            ->assertSessionHas('success', 'Deleted 1 client without transaction history.');
 
-        $this->assertDatabaseHas('clients', ['id' => $next->id, 'client_id' => '2600202']);
-        $this->assertDatabaseHas('clients', ['id' => $last->id, 'client_id' => '2600204']);
+        $this->assertDatabaseHas('clients', ['id' => $next->id, 'client_id' => '2600204']);
+        $this->assertDatabaseHas('clients', ['id' => $last->id, 'client_id' => '2600206']);
         $this->assertDatabaseHas('transaction_history', ['id' => $history->id,
-            'client_id' => '2600204', 'transaction_id' => '2600204-26-0001']);
+            'client_id' => '2600206', 'transaction_id' => '2600206-26-0001']);
         $this->assertDatabaseHas('transaction_history', ['transaction_id' => '2600205-26-0001', 'client_id' => null]);
         $this->assertDatabaseHas('archived_clients', ['client_id' => '2600203']);
     }
@@ -262,7 +262,7 @@ class ClientBulkDeleteWithoutTransactionsTest extends TestCase
             'client_id' => '2600202', 'transaction_id' => '2600202-26-0001']);
     }
 
-    public function test_multiple_deletions_shift_each_remaining_client_once(): void
+    public function test_multiple_bulk_deletions_keep_remaining_ids_unchanged(): void
     {
         $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
         $deletedFirst = $this->client('2600202');
@@ -273,12 +273,12 @@ class ClientBulkDeleteWithoutTransactionsTest extends TestCase
 
         $this->delete(route('client.list.destroy-without-transactions'),
             $this->selectionPayload(false, [$deletedFirst->id, $deletedSecond->id]))
-            ->assertSessionHas('success', 'Deleted 2 clients without transaction history. Updated 2 client IDs and linked transaction IDs.');
+            ->assertSessionHas('success', 'Deleted 2 clients without transaction history.');
 
-        $this->assertDatabaseHas('clients', ['id' => $firstSurvivor->id, 'client_id' => '2600202']);
-        $this->assertDatabaseHas('clients', ['id' => $secondSurvivor->id, 'client_id' => '2600203']);
+        $this->assertDatabaseHas('clients', ['id' => $firstSurvivor->id, 'client_id' => '2600203']);
+        $this->assertDatabaseHas('clients', ['id' => $secondSurvivor->id, 'client_id' => '2600205']);
         $this->assertDatabaseHas('transaction_history', ['id' => $history->id,
-            'client_id' => '2600203', 'transaction_id' => '2600203-26-0001']);
+            'client_id' => '2600205', 'transaction_id' => '2600205-26-0001']);
     }
 
     public function test_ajax_delete_reports_completion_only_to_the_requesting_user(): void
@@ -298,14 +298,14 @@ class ClientBulkDeleteWithoutTransactionsTest extends TestCase
             array_merge($this->selectionPayload(false, [$deleted->id]), ['operation_id' => $operationId]))
             ->assertOk()
             ->assertJsonPath('redirect', route('client.list'))
-            ->assertSessionHas('success', 'Deleted 1 client without transaction history. Updated 1 client ID and linked transaction IDs.');
+            ->assertSessionHas('success', 'Deleted 1 client without transaction history.');
 
         $this->getJson($statusRoute)
             ->assertOk()
             ->assertJsonPath('state', 'complete')
             ->assertJsonPath('deleted', 1)
-            ->assertJsonPath('renumbered', 1);
-        $this->assertDatabaseHas('clients', ['id' => $remaining->id, 'client_id' => '2600202']);
+            ->assertJsonMissingPath('renumbered');
+        $this->assertDatabaseHas('clients', ['id' => $remaining->id, 'client_id' => '2600203']);
 
         $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
         $this->getJson($statusRoute)

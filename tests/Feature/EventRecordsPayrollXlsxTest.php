@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\ActivityLog;
 use App\Models\Client;
 use App\Models\TransactionEvent;
 use App\Models\User;
@@ -129,6 +130,9 @@ class EventRecordsPayrollXlsxTest extends TestCase
         $this->assertSame('8', $xpath->evaluate('string(//x:c[@r="K4"]/@s)'));
         $this->assertStringContainsString('<sz val="7"/>', $styles);
         $this->assertStringNotContainsString('_xlnm.Print_Titles', $workbook);
+        $log = ActivityLog::where('action', 'payroll_xlsx_exported')->sole();
+        $this->assertSame(3, $log->properties['record_count']);
+        $this->assertContains('payroll_xlsx_exported', ActivityLog::NOTIFICATION_ACTIONS);
     }
 
     public function test_payroll_excel_without_matches_still_has_headers_and_message(): void

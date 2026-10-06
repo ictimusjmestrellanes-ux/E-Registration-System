@@ -22,19 +22,27 @@ class ActivityAuditTest extends TestCase
         $event = TransactionEvent::create(['full_name' => 'Original Name', 'transferred_at' => now()]);
         $this->put(route('transaction-events.records.update', $event), ['full_name' => 'Updated Name'])
             ->assertRedirect();
-        $log = ActivityLog::where('action', 'transaction_event_updated')->firstOrFail();
+        $log = ActivityLog::where('action', 'event_record_edited')->firstOrFail();
         $this->assertSame($user->id, $log->user_id);
         $this->assertSame($event->id, $log->subject_id);
         $this->assertSame('Original Name', $log->properties['before']['full_name']);
         $this->assertSame('Updated Name', $log->properties['after']['full_name']);
+        $this->assertSame(['full_name'], $log->properties['changed_fields']);
         $this->assertSame('transaction-events.records.update', $log->properties['route']);
+        $this->assertSame('Edited Event Record #'.$event->id.' (Updated Name). Changed: Full Name.', $log->description);
         $this->assertNotEmpty($log->ip_address);
+        $this->assertContains('event_record_edited', ActivityLog::NOTIFICATION_ACTIONS);
+        $this->getJson(route('notifications.state'))
+            ->assertOk()
+            ->assertJsonPath('unread_count', 1)
+            ->assertJsonPath('notifications.0.action', 'event_record_edited')
+            ->assertJsonPath('notifications.0.description', $log->description);
 
         $this->put(route('transaction-events.records.update', $event), ['full_name' => 'Updated Name'])->assertRedirect();
-        $this->assertSame(1, ActivityLog::where('action', 'transaction_event_updated')->count());
+        $this->assertSame(1, ActivityLog::where('action', 'event_record_edited')->count());
         $this->put(route('transaction-events.records.update', $event), ['full_name' => ''])->assertSessionHasErrors();
-        $this->assertSame(1, ActivityLog::where('action', 'transaction_event_updated')->count());
-        $this->get(route('activity.logs', ['action' => 'transaction_event_updated']))->assertOk()
+        $this->assertSame(1, ActivityLog::where('action', 'event_record_edited')->count());
+        $this->get(route('activity.logs', ['action' => 'event_record_edited']))->assertOk()
             ->assertSee('View details')->assertSee('Before')->assertSee('After')
             ->assertSee('Original Name')->assertSee('Updated Name');
     }

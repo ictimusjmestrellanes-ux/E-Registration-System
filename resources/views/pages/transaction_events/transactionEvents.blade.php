@@ -3398,8 +3398,11 @@
                         duplicateRows = data.duplicates || [];
                         duplicatePage = 1;
                         renderDuplicatePage();
+                        const duplicateReviewNote = data.duplicates_truncated
+                            ? ` Showing the first ${duplicateRows.length.toLocaleString()} matches for review.`
+                            : '';
                         document.getElementById('importDuplicateSummary').textContent =
-                            `${Number(data.duplicates_count).toLocaleString()} of ${Number(data.total_rows).toLocaleString()} row(s) match clients or existing events, or repeat within the file.`;
+                            `${Number(data.duplicates_count).toLocaleString()} of ${Number(data.total_rows).toLocaleString()} row(s) match clients or existing events, or repeat within the file.${duplicateReviewNote}`;
                         bootstrap.Modal.getOrCreateInstance(document.getElementById(
                             'importDuplicateModal')).show();
                         confirmBtn.disabled = false;

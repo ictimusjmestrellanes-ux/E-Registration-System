@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\ActivityLog;
 use App\Models\TransactionEvent;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -41,6 +42,10 @@ class EventRecordsPdfTest extends TestCase
         $this->assertSame(['aba, ana', 'BETA, BEN', 'ZULU, ZOE'], $data['events']->pluck('full_name')->all());
         $this->assertTrue($data['isRice']);
         $this->assertSame('2026-03-09', $data['dateLabel']);
+        $this->assertDatabaseHas('activity_logs', [
+            'action' => 'payroll_pdf_exported',
+            'description' => 'Printed payroll PDF for 3 Event Record(s).',
+        ]);
     }
 
     public function test_empty_export_is_a_valid_pdf(): void
@@ -164,6 +169,8 @@ class EventRecordsPdfTest extends TestCase
             $this->postJson($step)->assertOk()->assertJsonPath('completed', 101)->assertJsonPath('ready', false);
             $this->postJson($step)->assertOk()->assertJsonPath('ready', true);
             $this->postJson($step)->assertOk()->assertJsonPath('ready', true);
+            $this->assertSame(1, ActivityLog::where('action', 'payroll_pdf_exported')->count());
+            $this->assertContains('payroll_pdf_exported', ActivityLog::NOTIFICATION_ACTIONS);
             $this->assertSame(array_map(fn ($i) => sprintf('BENEFICIARY, %04d', $i), range(1, 101)), $seen);
             $response = $this->get($download)->assertOk()->assertHeader('Content-Type', 'application/pdf');
             $reader = new \setasign\Fpdi\Fpdi();

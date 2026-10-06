@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\ActivityLog;
 use App\Models\TransactionEvent;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -87,12 +88,12 @@ class ExportRecordsTest extends TestCase
         ]));
 
         $xml = $this->sheetXml($response);
-        // Client names resolve via linked clients (full_name accessor uppercases).
-        $this->assertStringContainsString('BETA TWO', $xml);
-        $this->assertStringNotContainsString('ALPHA ONE', $xml);
+        $this->assertStringContainsString('Beta Two', $xml);
+        $this->assertStringNotContainsString('Alpha One', $xml);
         $this->assertStringContainsString('LUPON', $xml);
         // Header row present.
-        $this->assertStringContainsString('Client Name', $xml);
+        $this->assertStringContainsString('Full Name', $xml);
+        $this->assertStringNotContainsString('Client Name', $xml);
     }
 
     public function test_records_page_renders_xlsx_progress_ui(): void
@@ -169,6 +170,17 @@ class ExportRecordsTest extends TestCase
             ->assertOk()
             ->assertJsonPath('completed', 1001)
             ->assertJsonPath('ready', true);
+        $this->postJson(route('transaction-events.records.xlsx-step', $start['token']))
+            ->assertOk()
+            ->assertJsonPath('ready', true);
+
+        $log = ActivityLog::where('action', 'event_records_xlsx_exported')->sole();
+        $this->assertSame($user->id, $log->user_id);
+        $this->assertSame(1001, $log->properties['record_count']);
+        $this->assertContains('event_records_xlsx_exported', ActivityLog::NOTIFICATION_ACTIONS);
+        $this->getJson(route('notifications.state'))
+            ->assertOk()
+            ->assertJsonPath('notifications.0.action', 'event_records_xlsx_exported');
 
         $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
         $this->get(route('transaction-events.records.xlsx-download', $start['token']))
@@ -177,8 +189,10 @@ class ExportRecordsTest extends TestCase
         $this->actingAs($user);
         $response = $this->get(route('transaction-events.records.xlsx-download', $start['token']));
         $xml = $this->sheetXml($response);
-        $this->assertStringContainsString('PERSON 0001', $xml);
-        $this->assertStringContainsString('PERSON 1001', $xml);
+        $this->assertStringContainsString('Full Name', $xml);
+        $this->assertStringNotContainsString('Client Name', $xml);
+        $this->assertStringContainsString('Person 0001', $xml);
+        $this->assertStringContainsString('Person 1001', $xml);
     }
 
     public function test_export_with_no_matches_still_returns_valid_xlsx(): void
@@ -191,7 +205,8 @@ class ExportRecordsTest extends TestCase
         ]));
 
         $xml = $this->sheetXml($response);
-        $this->assertStringContainsString('Client Name', $xml);
+        $this->assertStringContainsString('Full Name', $xml);
+        $this->assertStringNotContainsString('Client Name', $xml);
         $this->assertStringNotContainsString('ALPHA ONE', $xml);
     }
 }

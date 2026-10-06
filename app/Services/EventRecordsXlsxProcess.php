@@ -13,12 +13,12 @@ class EventRecordsXlsxProcess
     public const BATCH_SIZE = 1000;
 
     private const HEADERS = [
-        'ID', 'Transaction ID', 'Client Name', 'Age', 'Birth Date', 'Contact No.',
+        'ID', 'Transaction ID', 'Full Name', 'Age', 'Birth Date', 'Contact No.',
         'Address', 'Client Category', 'Transaction Category', 'Transaction Type',
-        'Event Date', 'Transferred At', 'Status', 'Full Name',
+        'Event Date', 'Transferred At', 'Status',
     ];
 
-    private const WIDTHS = [8, 22, 28, 8, 14, 16, 35, 20, 24, 24, 14, 20, 12, 28];
+    private const WIDTHS = [8, 22, 28, 8, 14, 16, 35, 20, 24, 24, 14, 20, 12];
 
     private function directory(string $token): string
     {
@@ -105,7 +105,7 @@ class EventRecordsXlsxProcess
                     $xml .= $this->rowXml($state['rows'] + 1, [
                         $event->id,
                         $event->transferredTransaction?->transaction_id ?? '',
-                        mb_strtoupper((string) $event->full_name),
+                        $event->full_name ?? '',
                         $event->age ?? '',
                         $event->birth_date?->format('Y-m-d') ?? '',
                         $event->contact_no ?? '',
@@ -116,7 +116,6 @@ class EventRecordsXlsxProcess
                         $event->event_date?->format('Y-m-d') ?? '',
                         $event->transferred_at?->timezone('Asia/Manila')->format('Y-m-d H:i:s') ?? '',
                         $event->status,
-                        $event->full_name ?? '',
                     ], false);
                 }
 
@@ -128,6 +127,11 @@ class EventRecordsXlsxProcess
                 File::append($directory.'/sheet.xml', '</sheetData></worksheet>');
                 $this->package($directory);
                 $state['ready'] = true;
+                app(ActivityLogger::class)->record(
+                    'event_records_xlsx_exported',
+                    "Exported {$state['total']} Event Record(s) to XLSX.",
+                    ['record_count' => $state['total']]
+                );
                 File::delete($directory.'/ids.json');
                 File::delete($directory.'/sheet.xml');
             }

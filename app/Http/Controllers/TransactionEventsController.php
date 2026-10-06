@@ -8,6 +8,7 @@ use App\Models\ImportArchiveFile;
 use App\Models\TransactionEvent;
 use App\Models\TransactionHistory;
 use App\Models\TransactionRequirement;
+use App\Support\ImportName;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
@@ -29,6 +30,8 @@ class TransactionEventsController extends Controller
     private array $transactionSequenceCache = [];
 
     private const NOT_DUPLICATE_TAG = 'Not a Duplicate';
+
+    private const IMPORT_DUPLICATE_REVIEW_LIMIT = 1000;
 
     /** @var array<string, Client|null> */
     private array $importClientCache = [];
@@ -1038,6 +1041,11 @@ class TransactionEventsController extends Controller
         }
 
         $content = app(\App\Services\EventRecordsPdfExporter::class)->render($events, $isRice, $dateLabel, $details);
+        app(\App\Services\ActivityLogger::class)->record(
+            'payroll_pdf_exported',
+            "Printed payroll PDF for {$events->count()} Event Record(s).",
+            ['record_count' => $events->count()]
+        );
 
         return response($content, 200, [
             'Content-Type' => 'application/pdf',
@@ -1087,6 +1095,11 @@ class TransactionEventsController extends Controller
 
         $path = app(\App\Services\EventRecordsPayrollXlsxExporter::class)
             ->render($events, $isRice, $dateLabel, $details);
+        app(\App\Services\ActivityLogger::class)->record(
+            'payroll_xlsx_exported',
+            "Exported payroll XLSX for {$events->count()} Event Record(s).",
+            ['record_count' => $events->count()]
+        );
 
         return response()->download($path, 'event-records-payroll_'.now()->format('Ymd_His').'.xlsx', [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -1162,11 +1175,11 @@ class TransactionEventsController extends Controller
         ]);
 
         $headers = [
-            'ID', 'Transaction ID', 'Client Name', 'Age', 'Birth Date', 'Contact No.',
+            'ID', 'Transaction ID', 'Full Name', 'Age', 'Birth Date', 'Contact No.',
             'Address', 'Client Category', 'Transaction Category', 'Transaction Type',
-            'Event Date', 'Transferred At', 'Status', 'Full Name',
+            'Event Date', 'Transferred At', 'Status',
         ];
-        $widths = [8, 22, 28, 8, 14, 16, 35, 20, 24, 24, 14, 20, 12, 28];
+        $widths = [8, 22, 28, 8, 14, 16, 35, 20, 24, 24, 14, 20, 12];
 
         // Write the worksheet incrementally so large exports stay lean.
         $sheetPath = tempnam(sys_get_temp_dir(), 'records_sheet_').'.xml';
@@ -1188,7 +1201,7 @@ class TransactionEventsController extends Controller
             $this->fwriteXlsxRow($sheet, $rowNumber++, [
                 $event->id,
                 $event->transferredTransaction?->transaction_id ?? '',
-                mb_strtoupper((string) $event->full_name),
+                $event->full_name ?? '',
                 $event->age ?? '',
                 $event->birth_date?->format('Y-m-d') ?? '',
                 $event->contact_no ?? '',
@@ -1199,9 +1212,6 @@ class TransactionEventsController extends Controller
                 $event->event_date?->format('Y-m-d') ?? '',
                 $event->transferred_at?->timezone('Asia/Manila')->format('Y-m-d H:i:s') ?? '',
                 $event->status,
-                // Preserve the event's exact matching name for re-imports.
-                // Client Name is a display value and may differ from this.
-                $event->full_name ?? '',
             ], false);
 
             $completed = $eventIndex + 1;
@@ -1277,6 +1287,11 @@ class TransactionEventsController extends Controller
             'completed' => $totalEvents,
             'total' => $totalEvents,
         ]);
+        app(\App\Services\ActivityLogger::class)->record(
+            'event_records_xlsx_exported',
+            "Exported {$totalEvents} Event Record(s) to XLSX.",
+            ['record_count' => $totalEvents]
+        );
 
         return response()->download($zipPath, 'event-records_'.now()->format('Ymd_His').'.xlsx', [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -2619,17 +2634,12 @@ class TransactionEventsController extends Controller
         ]);
         session()->put('transaction_events_latest_import_check_token', $checkToken);
 
-        $existingEvents = TransactionEvent::query()->get([
-            'full_name', 'client_category', 'transaction_category', 'transaction_type', 'event_date',
-        ]);
-        $matchingCounts = $existingEvents->countBy(fn ($event) => $this->importMatchKey($event->getAttributes()));
-        $existingClientDetails = $existingEvents->mapWithKeys(fn ($event) => [
-            $this->importClientDetailsKey((string) $event->full_name, (string) $event->client_category) => true,
-        ])->all();
+        [$matchingCounts, $existingClientDetails] = $this->matchingImportEventSummary($records);
         foreach ($this->matchingImportClients($records) as $key => $client) {
             $existingClientDetails[$key] = true;
         }
         $duplicates = [];
+        $duplicateCount = 0;
         $seen = [];
 
         foreach ($records as $record) {
@@ -2642,14 +2652,17 @@ class TransactionEventsController extends Controller
             $key = $clientDetailsKey . '|' . $eventDate . '|' . strtolower($category) . '|' . strtolower($transactionType);
 
             if (isset($seen[$key])) {
-                $duplicates[] = [
-                    '_match_record' => $record,
-                    'full_name' => $fullName,
-                    'client_category' => trim((string) ($record['client_category'] ?? '')),
-                    'event_date' => $eventDate,
-                    'transaction_category' => $category,
-                    'transaction_type' => $transactionType,
-                ];
+                $duplicateCount++;
+                if (count($duplicates) < self::IMPORT_DUPLICATE_REVIEW_LIMIT) {
+                    $duplicates[] = [
+                        '_match_record' => $record,
+                        'full_name' => $fullName,
+                        'client_category' => trim((string) ($record['client_category'] ?? '')),
+                        'event_date' => $eventDate,
+                        'transaction_category' => $category,
+                        'transaction_type' => $transactionType,
+                    ];
+                }
                 continue;
             }
 
@@ -2660,18 +2673,20 @@ class TransactionEventsController extends Controller
             // match. A name-only match must not receive another person's data.
             $match = isset($existingClientDetails[$clientDetailsKey]);
             if ($match) {
-                $duplicates[] = [
-                    '_match_record' => $record,
-                    'full_name' => $fullName,
-                    'client_category' => trim((string) ($record['client_category'] ?? '')),
-                    'event_date' => $eventDate,
-                    'transaction_category' => $category,
-                    'transaction_type' => $transactionType,
-                ];
+                $duplicateCount++;
+                if (count($duplicates) < self::IMPORT_DUPLICATE_REVIEW_LIMIT) {
+                    $duplicates[] = [
+                        '_match_record' => $record,
+                        'full_name' => $fullName,
+                        'client_category' => trim((string) ($record['client_category'] ?? '')),
+                        'event_date' => $eventDate,
+                        'transaction_category' => $category,
+                        'transaction_type' => $transactionType,
+                    ];
+                }
             }
         }
 
-        $duplicateCount = count($duplicates);
         foreach ($duplicates as &$duplicate) {
             $record = $duplicate['_match_record'];
             $complete = collect(['full_name', 'client_category', 'transaction_category', 'transaction_type', 'event_date'])
@@ -2686,7 +2701,7 @@ class TransactionEventsController extends Controller
             'total_rows' => count($records),
             'duplicates_count' => $duplicateCount,
             'duplicates' => $duplicates,
-            'duplicates_truncated' => false,
+            'duplicates_truncated' => $duplicateCount > count($duplicates),
             'check_token' => $checkToken,
         ]);
     }
@@ -3348,6 +3363,99 @@ class TransactionEventsController extends Controller
     private function importClientDetailsKey(string $fullName, string $sector): string
     {
         return $this->importClientDetailsPartsKey($this->splitImportFullName($fullName), $sector);
+    }
+
+    /**
+     * Read only transaction events whose normalized display name occurs in
+     * the import. The former implementation hydrated the complete table in
+     * one collection, which could exhaust the web worker on production data.
+     *
+     * @return array{0: array<string, int>, 1: array<string, true>}
+     */
+    private function matchingImportEventSummary(array $records): array
+    {
+        $candidateNames = [];
+        $rawNamesByCandidate = [];
+        $wantedClientKeys = [];
+        $wantedMatchKeys = [];
+
+        foreach ($records as $record) {
+            $fullName = trim((string) ($record['full_name'] ?? ''));
+            if ($fullName === '') {
+                continue;
+            }
+
+            $candidate = mb_strtolower(ImportName::format($fullName));
+            $candidateNames[$candidate] = true;
+            $rawNamesByCandidate[$candidate][mb_strtolower($fullName)] = true;
+            $wantedClientKeys[$this->importClientDetailsKey(
+                $fullName,
+                trim((string) ($record['client_category'] ?? ''))
+            )] = true;
+
+            $complete = collect(['full_name', 'client_category', 'transaction_category', 'transaction_type', 'event_date'])
+                ->every(fn ($field) => trim((string) ($record[$field] ?? '')) !== '');
+            if ($complete) {
+                $wantedMatchKeys[$this->importMatchKey($record)] = true;
+            }
+        }
+
+        if ($candidateNames === []) {
+            return [[], []];
+        }
+
+        $matchingCounts = [];
+        $existingClientDetails = [];
+
+        // Keep each query below SQLite's parameter limit in tests while also
+        // avoiding very large IN clauses in MySQL production.
+        foreach (array_chunk(array_keys($candidateNames), 400) as $nameChunk) {
+            $rawNameChunk = [];
+            foreach ($nameChunk as $candidate) {
+                foreach (array_keys($rawNamesByCandidate[$candidate] ?? []) as $rawName) {
+                    $rawNameChunk[$rawName] = true;
+                }
+            }
+
+            DB::table('transaction_events')
+                ->select(['id', 'full_name', 'client_category', 'transaction_category', 'transaction_type', 'event_date'])
+                ->where(function ($query) use ($nameChunk, $rawNameChunk): void {
+                    $query->whereIn('display_name_sort', $nameChunk);
+                    if ($rawNameChunk !== []) {
+                        // Legacy rows created before display_name_sort was
+                        // backfilled still participate in duplicate checks.
+                        $query->orWhere(function ($legacy) use ($rawNameChunk): void {
+                            $legacy->whereNull('display_name_sort')
+                                ->whereIn(DB::raw('LOWER(TRIM(full_name))'), array_keys($rawNameChunk));
+                        });
+                    }
+                })
+                ->orderBy('id')
+                ->chunkById(1000, function (Collection $events) use (
+                    &$matchingCounts,
+                    &$existingClientDetails,
+                    $wantedClientKeys,
+                    $wantedMatchKeys
+                ): void {
+                    foreach ($events as $event) {
+                        $record = (array) $event;
+                        $clientKey = $this->importClientDetailsKey(
+                            (string) ($record['full_name'] ?? ''),
+                            (string) ($record['client_category'] ?? '')
+                        );
+                        if (isset($wantedClientKeys[$clientKey])) {
+                            $existingClientDetails[$clientKey] = true;
+                        }
+
+                        $matchKey = $this->importMatchKey($record);
+                        if (isset($wantedMatchKeys[$matchKey])) {
+                            $matchingCounts[$matchKey] = ($matchingCounts[$matchKey] ?? 0) + 1;
+                        }
+                    }
+                }, 'id');
+        }
+
+        return [$matchingCounts, $existingClientDetails];
     }
 
     /**

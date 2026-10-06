@@ -23,6 +23,7 @@ class ActivityLogsController extends Controller
         $timezone = 'Asia/Manila';
         $manilaNow = now($timezone);
         $viewOwnOnly = !in_array(auth()->user()->role_name, ['Admin', 'Super Admin']);
+        $liveLatestIds = $this->liveLatestIds($request);
 
         $activityRelations = [
             'user',
@@ -226,8 +227,31 @@ class ActivityLogsController extends Controller
             'actionFilter',
             'search',
             'uniqueActions',
-            'filteredTotal'
+            'filteredTotal',
+            'liveLatestIds'
         ));
+    }
+
+    public function liveState(Request $request)
+    {
+        return response()->json($this->liveLatestIds($request))
+            ->header('Cache-Control', 'no-store');
+    }
+
+    private function liveLatestIds(Request $request): array
+    {
+        $visibleQuery = ActivityLog::query()->whereNotIn('action', self::HIDDEN_ACTIONS);
+        if (!in_array($request->user()->role_name, ['Admin', 'Super Admin'], true)) {
+            $visibleQuery->where('user_id', $request->user()->id);
+        }
+
+        return [
+            'overview_latest_id' => (int) ActivityLog::query()
+                ->where('user_id', $request->user()->id)
+                ->whereNotIn('action', self::HIDDEN_ACTIONS)
+                ->max('id'),
+            'activities_latest_id' => (int) $visibleQuery->max('id'),
+        ];
     }
 
     private function applyClientSearchTerms($query, array $terms): void

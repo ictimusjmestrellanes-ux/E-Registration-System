@@ -83,7 +83,7 @@ function feature_route_map(): array
         'Save Permissions' => ['permissions/save'],
         'Add Permissions' => ['permissions/add'],
         'Delete Permissions' => ['permissions/delete'],
-        'Activity Logs' => ['activity-logs'],
+        'Activity Logs' => ['activity-logs', 'activity-logs/live-state'],
         'Send Transactions' => ['transactions', 'transactions/*', 'transaction-requirements/*'],
         'Profile Page' => ['settings'],
         'Import CSV' => ['transaction-events/import*'],

@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\Client;
 use App\Models\TransactionHistory;
-use App\Services\ClientIdCompactor;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -175,7 +174,7 @@ class ClientListController extends Controller
         $query->orderBy('id', $direction);
     }
 
-    public function destroyWithoutTransactions(Request $request, ClientIdCompactor $compactor)
+    public function destroyWithoutTransactions(Request $request)
     {
         abort_if(auth()->user()?->role_name === 'Viewer' || !feature_allowed('Archive Clients'), 403);
 
@@ -204,8 +203,8 @@ class ClientListController extends Controller
             'checked' => 0, 'total' => 0, 'deleted' => 0]);
 
         try {
-            [$deletedCount, $renumberedCount, $mediaPaths] = DB::transaction(function () use (
-                $selectAll, $selectedIds, $excludedIds, $request, $compactor, $report
+            [$deletedCount, $mediaPaths] = DB::transaction(function () use (
+                $selectAll, $selectedIds, $excludedIds, $request, $report
             ) {
             $deletedIds = [];
             $mediaPaths = [];
@@ -255,17 +254,11 @@ class ClientListController extends Controller
                 });
             }
 
-            $renumberedCount = $compactor->compactAfterDeletion($deletedIds,
-                function (string $message, int $renumbered) use ($report, $checkedCount, $totalCandidates, &$deletedIds) {
-                    $report(['state' => 'working', 'message' => $message,
-                        'checked' => $checkedCount, 'total' => $totalCandidates,
-                        'deleted' => count($deletedIds), 'renumbered' => $renumbered]);
-                });
             $report(['state' => 'working', 'message' => 'Saving changes...',
                 'checked' => $checkedCount, 'total' => $totalCandidates,
-                'deleted' => count($deletedIds), 'renumbered' => $renumberedCount]);
+                'deleted' => count($deletedIds)]);
 
-            return [count($deletedIds), $renumberedCount, $mediaPaths];
+            return [count($deletedIds), $mediaPaths];
             });
         } catch (Throwable $exception) {
             $report(['state' => 'failed', 'message' => 'Deletion could not be completed. Check the Client List before retrying.']);
@@ -273,7 +266,7 @@ class ClientListController extends Controller
         }
 
         $report(['state' => 'working', 'message' => 'Removing saved media...',
-            'deleted' => $deletedCount, 'renumbered' => $renumberedCount]);
+            'deleted' => $deletedCount]);
         $mediaWarning = '';
         try {
             foreach ($mediaPaths as $paths) {
@@ -286,13 +279,10 @@ class ClientListController extends Controller
 
         $message = $deletedCount === 0
             ? 'No selected clients without transaction history were found.'
-            : "Deleted {$deletedCount} " . ($deletedCount === 1 ? 'client' : 'clients') . ' without transaction history.'
-                . ($renumberedCount > 0
-                    ? " Updated {$renumberedCount} client " . ($renumberedCount === 1 ? 'ID' : 'IDs') . ' and linked transaction IDs.'
-                    : '') . $mediaWarning;
+            : "Deleted {$deletedCount} " . ($deletedCount === 1 ? 'client' : 'clients')
+                . ' without transaction history.' . $mediaWarning;
         $report(['state' => 'complete', 'message' => $message,
-            'deleted' => $deletedCount, 'renumbered' => $renumberedCount,
-            'redirect' => route('client.list')]);
+            'deleted' => $deletedCount, 'redirect' => route('client.list')]);
 
         if ($request->expectsJson()) {
             session()->flash('success', $message);

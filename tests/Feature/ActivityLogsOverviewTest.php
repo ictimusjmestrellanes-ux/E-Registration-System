@@ -107,6 +107,34 @@ class ActivityLogsOverviewTest extends TestCase
             ->assertViewHas('uniqueActions', fn ($actions) => ! $actions->contains('transaction_history_updated'));
     }
 
+    public function test_activity_logs_page_exposes_live_updates_and_live_state_respects_visibility(): void
+    {
+        $admin = User::factory()->create(['role_name' => 'Admin']);
+        $staff = User::factory()->create(['role_name' => 'Staff']);
+        $this->createLog($staff, 'Staff activity', 2);
+        $staffLogId = ActivityLog::max('id');
+        $this->createLog($admin, 'Admin activity', 1);
+        $adminLogId = ActivityLog::max('id');
+        $this->createLog($admin, 'Hidden history update', 0, 'transaction_history_updated');
+
+        $this->actingAs($staff)
+            ->get(route('activity.logs'))
+            ->assertOk()
+            ->assertSee('id="activityLogsLive"', false)
+            ->assertSee('data-live-url="'.route('activity.logs.live-state').'"', false)
+            ->assertSee('New activity logs are available.');
+        $this->getJson(route('activity.logs.live-state'))
+            ->assertOk()
+            ->assertJsonPath('overview_latest_id', $staffLogId)
+            ->assertJsonPath('activities_latest_id', $staffLogId);
+
+        $this->actingAs($admin)
+            ->getJson(route('activity.logs.live-state'))
+            ->assertOk()
+            ->assertJsonPath('overview_latest_id', $adminLogId)
+            ->assertJsonPath('activities_latest_id', $adminLogId);
+    }
+
     public function test_activities_tab_searches_client_id_and_name_in_log_details(): void
     {
         $admin = User::factory()->create(['role_name' => 'Admin']);

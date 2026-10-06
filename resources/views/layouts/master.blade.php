@@ -194,8 +194,11 @@
                                                         in_array($action, ['event_force_created', 'events_force_created_all'], true) => ['ri-user-add-line', 'bg-info-subtle text-info'],
                                                         $action === 'duplicate_event_clients_merged' => ['ri-git-merge-line', 'bg-primary-subtle text-primary'],
                                                         in_array($action, ['event_status_tagged', 'events_status_tagged'], true) => ['ri-price-tag-3-line', 'bg-info-subtle text-info'],
+                                                        $action === 'event_record_edited' => ['ri-pencil-line', 'bg-info-subtle text-info'],
                                                         in_array($action, ['event_deleted', 'events_bulk_deleted'], true) => ['ri-delete-bin-line', 'bg-danger-subtle text-danger'],
                                                         in_array($action, ['event_transfer_undone', 'events_transfer_undone'], true) => ['ri-arrow-go-back-line', 'bg-warning-subtle text-warning'],
+                                                        $action === 'payroll_pdf_exported' => ['ri-printer-line', 'bg-danger-subtle text-danger'],
+                                                        in_array($action, ['payroll_xlsx_exported', 'event_records_xlsx_exported'], true) => ['ri-file-excel-2-line', 'bg-success-subtle text-success'],
                                                         default => ['ri-notification-2-line', 'bg-primary-subtle text-primary'],
                                                     };
                                                 };
@@ -208,9 +211,13 @@
                                                         'events_force_created_all' => 'Force create all',
                                                         'duplicate_event_clients_merged' => 'Clients merged',
                                                         'event_status_tagged', 'events_status_tagged' => 'Tag update',
+                                                        'event_record_edited' => 'Event Record edited',
                                                         'event_deleted' => 'Deleted',
                                                         'events_bulk_deleted' => 'Deleted selected',
                                                         'event_transfer_undone', 'events_transfer_undone' => 'Undo transfer',
+                                                        'payroll_pdf_exported' => 'Payroll printed',
+                                                        'payroll_xlsx_exported' => 'Payroll XLSX exported',
+                                                        'event_records_xlsx_exported' => 'Event Records exported',
                                                         default => ucfirst(str_replace('_', ' ', (string) $action)),
                                                     };
                                                 };
@@ -241,7 +248,7 @@
                                                 @empty
                                                     <div class="text-center py-4" data-notification-empty>
                                                         <i class="ri-notification-off-line fs-24 text-muted"></i>
-                                                        <p class="text-muted mt-2 mb-0">No import, transfer, tag, delete, or undo updates yet.</p>
+                                                        <p class="text-muted mt-2 mb-0">No activity notifications yet.</p>
                                                     </div>
                                                 @endforelse
                                             </div>

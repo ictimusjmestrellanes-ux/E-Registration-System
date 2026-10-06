@@ -16,7 +16,7 @@
 
             return match (true) {
                 str_contains($action, 'create') => ['Create', 'bg-primary-subtle text-primary', 'ri-add-line'],
-                str_contains($action, 'update') => ['Update', 'bg-info-subtle text-info', 'ri-pencil-line'],
+                str_contains($action, 'update') || str_contains($action, 'edit') => ['Update', 'bg-info-subtle text-info', 'ri-pencil-line'],
                 str_contains($action, 'delete') => ['Delete', 'bg-danger-subtle text-danger', 'ri-delete-bin-line'],
                 str_contains($action, 'archive') => ['Archive', 'bg-warning-subtle text-warning', 'ri-archive-line'],
                 str_contains($action, 'restore') => ['Restore', 'bg-success-subtle text-success', 'ri-restart-line'],
@@ -220,7 +220,10 @@
         }
     </style>
 
-    <div class="container-fluid">
+    <div class="container-fluid" id="activityLogsLive"
+        data-live-url="{{ route('activity.logs.live-state') }}"
+        data-overview-latest-id="{{ $liveLatestIds['overview_latest_id'] }}"
+        data-activities-latest-id="{{ $liveLatestIds['activities_latest_id'] }}">
         <div class="activity-hero p-3 p-lg-4 mb-4">
             <div class="d-flex flex-column flex-lg-row justify-content-between gap-4">
                 <div class="d-flex align-items-center gap-3 gap-lg-4">
@@ -253,6 +256,12 @@
                     <div class="badge rounded-pill bg-light text-primary px-3 py-2">{{ $todayCount }} today</div>
                 </div>
             </div>
+        </div>
+
+        <div class="alert alert-info d-none align-items-center justify-content-between gap-3" role="status"
+            aria-live="polite" id="activityLogsLiveNotice">
+            <span><i class="ri-notification-3-line me-1" aria-hidden="true"></i> New activity logs are available.</span>
+            <button type="button" class="btn btn-sm btn-info" id="activityLogsShowNewest">Show now</button>
         </div>
 
         <div class="tab-content">
@@ -547,3 +556,108 @@
         </div>
     </div>
 @endsection
+
+@push('scripts')
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const liveRoot = document.getElementById('activityLogsLive');
+            const notice = document.getElementById('activityLogsLiveNotice');
+            const showNewest = document.getElementById('activityLogsShowNewest');
+            if (!liveRoot || !notice || !showNewest) return;
+
+            const latestIds = {
+                overview: Number(liveRoot.dataset.overviewLatestId) || 0,
+                activities: Number(liveRoot.dataset.activitiesLatestId) || 0,
+            };
+            let filtersDirty = false;
+            let polling = false;
+            let timer = null;
+
+            const activeScope = () => document.getElementById('activities-tab')?.classList.contains('show') ?
+                'activities' : 'overview';
+
+            const rememberActiveTabs = () => {
+                const top = document.querySelector('.activity-hero-tabs .nav-link.active')?.getAttribute('href');
+                const recent = document.querySelector('.activity-tabs .nav-link.active')?.getAttribute('href');
+                sessionStorage.setItem('activityLogsLiveTabs', JSON.stringify({ top, recent }));
+            };
+
+            const restoreActiveTabs = () => {
+                let saved = null;
+                try {
+                    saved = JSON.parse(sessionStorage.getItem('activityLogsLiveTabs') || 'null');
+                } catch (error) {
+                    saved = null;
+                }
+                sessionStorage.removeItem('activityLogsLiveTabs');
+                [saved?.top, saved?.recent].filter(Boolean).forEach(selector => {
+                    const trigger = document.querySelector(`a[data-bs-toggle="tab"][href="${selector}"]`);
+                    if (trigger && window.bootstrap?.Tab) bootstrap.Tab.getOrCreateInstance(trigger).show();
+                });
+            };
+
+            const onFirstPage = (scope) => {
+                const url = new URL(window.location.href);
+                const page = Number(url.searchParams.get(scope === 'activities' ? 'page' : 'overview_page')) || 1;
+                return page === 1;
+            };
+
+            const showNotice = () => notice.classList.replace('d-none', 'd-flex');
+
+            const refresh = () => {
+                rememberActiveTabs();
+                window.location.reload();
+            };
+
+            const handleNewLogs = (scope) => {
+                if (onFirstPage(scope) && !filtersDirty && !document.hidden) {
+                    refresh();
+                    return true;
+                }
+                showNotice();
+                return false;
+            };
+
+            const poll = async () => {
+                if (polling || document.hidden) return;
+                polling = true;
+                try {
+                    const response = await fetch(liveRoot.dataset.liveUrl, {
+                        headers: { 'Accept': 'application/json' },
+                        cache: 'no-store',
+                    });
+                    if (!response.ok) return;
+                    const state = await response.json();
+                    const scope = activeScope();
+                    const newestId = Number(state[`${scope}_latest_id`]) || 0;
+                    if (newestId > latestIds[scope] && handleNewLogs(scope)) return;
+                } catch (error) {
+                    // A temporary polling failure should not disrupt the page.
+                } finally {
+                    polling = false;
+                }
+            };
+
+            document.querySelectorAll('#activityLogsLive form input, #activityLogsLive form select, #activityLogsLive form textarea')
+                .forEach(control => {
+                    control.addEventListener('input', () => { filtersDirty = true; });
+                    control.addEventListener('change', () => { filtersDirty = true; });
+                });
+
+            showNewest.addEventListener('click', () => {
+                const url = new URL(window.location.href);
+                url.searchParams.delete(activeScope() === 'activities' ? 'page' : 'overview_page');
+                rememberActiveTabs();
+                window.location.assign(url.toString());
+            });
+
+            document.addEventListener('visibilitychange', () => {
+                if (!document.hidden) poll();
+            });
+
+            restoreActiveTabs();
+            timer = window.setInterval(poll, 5000);
+            window.addEventListener('beforeunload', () => window.clearInterval(timer), { once: true });
+        });
+    </script>
+@endpush

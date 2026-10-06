@@ -376,12 +376,6 @@
                                                         </button>
                                                     </li>
                                                 @endforeach
-                                                <li>
-                                                    <button type="button" class="dropdown-item tag-selected-option"
-                                                        data-status="Not a Duplicate">
-                                                        Tag as Not a Duplicate
-                                                    </button>
-                                                </li>
                                             </ul>
                                         </div>
                                     @endif

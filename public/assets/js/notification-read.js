@@ -65,10 +65,14 @@ document.addEventListener('DOMContentLoaded', () => {
             duplicate_event_clients_merged: ['ri-git-merge-line', 'bg-primary-subtle text-primary', 'Clients merged'],
             event_status_tagged: ['ri-price-tag-3-line', 'bg-info-subtle text-info', 'Tag update'],
             events_status_tagged: ['ri-price-tag-3-line', 'bg-info-subtle text-info', 'Tag update'],
+            event_record_edited: ['ri-pencil-line', 'bg-info-subtle text-info', 'Event Record edited'],
             event_deleted: ['ri-delete-bin-line', 'bg-danger-subtle text-danger', 'Deleted'],
             events_bulk_deleted: ['ri-delete-bin-line', 'bg-danger-subtle text-danger', 'Deleted selected'],
             event_transfer_undone: ['ri-arrow-go-back-line', 'bg-warning-subtle text-warning', 'Undo transfer'],
             events_transfer_undone: ['ri-arrow-go-back-line', 'bg-warning-subtle text-warning', 'Undo transfer'],
+            payroll_pdf_exported: ['ri-printer-line', 'bg-danger-subtle text-danger', 'Payroll printed'],
+            payroll_xlsx_exported: ['ri-file-excel-2-line', 'bg-success-subtle text-success', 'Payroll XLSX exported'],
+            event_records_xlsx_exported: ['ri-file-excel-2-line', 'bg-success-subtle text-success', 'Event Records exported'],
         };
 
         return appearances[String(action).toLowerCase()]
@@ -125,7 +129,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const empty = document.createElement('div');
             empty.className = 'text-center py-4';
             empty.dataset.notificationEmpty = '';
-            empty.innerHTML = '<i class="ri-notification-off-line fs-24 text-muted"></i><p class="text-muted mt-2 mb-0">No import, transfer, tag, delete, or undo updates yet.</p>';
+            empty.innerHTML = '<i class="ri-notification-off-line fs-24 text-muted"></i><p class="text-muted mt-2 mb-0">No activity notifications yet.</p>';
             fragment.append(empty);
         } else {
             notifications.forEach((notification) => fragment.append(createNotificationElement(notification)));

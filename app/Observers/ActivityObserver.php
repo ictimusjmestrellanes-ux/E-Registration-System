@@ -15,7 +15,9 @@ class ActivityObserver
 
     public function updated(Model $model): void
     {
-        $changes = array_diff_key($model->getChanges(), array_flip(['updated_at', 'created_at', 'last_login', 'remember_token']));
+        $changes = array_diff_key($model->getChanges(), array_flip([
+            'updated_at', 'created_at', 'last_login', 'remember_token', 'display_name_sort',
+        ]));
         if ($changes !== []) {
             $this->record($model, 'updated', array_intersect_key($model->getRawOriginal(), $changes), $changes);
         }
@@ -47,9 +49,22 @@ class ActivityObserver
         if ($operation === 'updated') {
             $properties['changed_fields'] = array_keys($after);
         }
+        $action = Str::snake($type).'_'.$operation;
+        $description = ucfirst($operation).' '.$label.'.';
+
+        if ($model instanceof \App\Models\TransactionEvent
+            && $operation === 'updated'
+            && request()->routeIs('transaction-events.records.update')) {
+            $action = 'event_record_edited';
+            $fields = collect(array_keys($after))->map(fn (string $field) => Str::headline($field))->implode(', ');
+            $description = 'Edited Event Record #'.$model->getKey()
+                .($name ? ' ('.$name.')' : '')
+                .($fields !== '' ? '. Changed: '.$fields.'.' : '.');
+        }
+
         app(ActivityLogger::class)->record(
-            Str::snake($type).'_'.$operation,
-            ucfirst($operation).' '.$label.'.',
+            $action,
+            $description,
             $properties,
             $model
         );

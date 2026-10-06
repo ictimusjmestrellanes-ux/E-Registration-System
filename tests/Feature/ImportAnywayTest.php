@@ -118,6 +118,42 @@ class ImportAnywayTest extends TestCase
             ->assertJsonPath('success', false);
     }
 
+    public function test_duplicate_check_limits_the_review_payload_but_keeps_the_complete_count(): void
+    {
+        $this->prepareUser();
+        $header = "full_name,contact_no,birth_date,transaction_category,transaction_type,event_date\n";
+        $row = '"Dela Cruz, Juan P.",09170000001,,Food,Rice,2026-09-01';
+        $file = UploadedFile::fake()->createWithContent(
+            'large-review.csv',
+            $header.implode("\n", array_fill(0, 1005, $row))."\n"
+        );
+
+        $this->postJson(route('transaction-events.import.check-duplicates'), ['csv_file' => $file])
+            ->assertOk()
+            ->assertJsonPath('duplicates_count', 1005)
+            ->assertJsonCount(1000, 'duplicates')
+            ->assertJsonPath('duplicates_truncated', true);
+    }
+
+    public function test_duplicate_check_finds_a_normalized_event_name_without_loading_every_event(): void
+    {
+        Storage::fake('local');
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+        TransactionEvent::create([
+            'full_name' => 'Juan P Dela Cruz',
+            'client_category' => '',
+            'transaction_category' => 'Other Program',
+            'transaction_type' => 'Other Type',
+            'event_date' => '2026-08-01',
+        ]);
+
+        $this->postJson(route('transaction-events.import.check-duplicates'), ['csv_file' => $this->file()])
+            ->assertOk()
+            ->assertJsonPath('duplicates_count', 2)
+            ->assertJsonPath('duplicates.0.full_name', 'Dela Cruz, Juan P.')
+            ->assertJsonPath('duplicates.0.matching_records_count', 0);
+    }
+
     public function test_normal_import_processes_a_large_chunk_with_batched_database_writes(): void
     {
         $this->prepareUser();

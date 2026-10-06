@@ -46,6 +46,7 @@ Route::group(['namespace' => 'App\Http\Controllers'], function () {
 
         // --------------------- Activity Logs ------------------//
         Route::get('activity-logs', [ActivityLogsController::class, 'index'])->name('activity.logs');
+        Route::get('activity-logs/live-state', [ActivityLogsController::class, 'liveState'])->name('activity.logs.live-state');
 
         // --------------------- Users ------------------//
         Route::get('users', [UsersController::class, 'index'])->name('users.index');

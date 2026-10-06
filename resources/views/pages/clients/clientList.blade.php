@@ -385,9 +385,8 @@
                                 </div>
                             </div>
                             <p class="text-muted small mt-3 mb-0">Only selected clients will be deleted. Select all
-                                includes eligible clients on every page, even when the Client List is filtered. Later
-                                client IDs will move down to fill available gaps, and their transaction IDs will be
-                                updated to match. Archived IDs remain reserved. Saved photos and fingerprints of
+                                includes eligible clients on every page, even when the Client List is filtered. Existing
+                                client IDs and transaction IDs will not be changed. Saved photos and fingerprints of
                                 deleted clients will also be removed. This action cannot be undone.</p>
                             </div>
                             <div class="d-none py-3 text-center" id="deleteClientsProgress" role="status" aria-live="polite">

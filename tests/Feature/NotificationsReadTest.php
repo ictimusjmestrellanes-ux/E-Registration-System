@@ -74,4 +74,11 @@ class NotificationsReadTest extends TestCase
             ->assertJsonPath('unread_count', 2)
             ->assertJsonCount(2, 'notifications');
     }
+
+    public function test_successful_export_actions_are_notification_actions(): void
+    {
+        $this->assertContains('payroll_pdf_exported', ActivityLog::NOTIFICATION_ACTIONS);
+        $this->assertContains('payroll_xlsx_exported', ActivityLog::NOTIFICATION_ACTIONS);
+        $this->assertContains('event_records_xlsx_exported', ActivityLog::NOTIFICATION_ACTIONS);
+    }
 }
