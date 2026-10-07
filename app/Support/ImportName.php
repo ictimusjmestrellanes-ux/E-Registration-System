@@ -42,6 +42,43 @@ class ImportName
         return compact('first', 'middle', 'last', 'suffix');
     }
 
+    /**
+     * Split an event name for use in a linked client profile.
+     *
+     * A comma-form event name with a full middle name is normally ambiguous
+     * because given names can contain spaces. When the existing client has a
+     * middle name with the same initial, preserve the established field split.
+     *
+     * @return array{first: string, middle: string, last: string, suffix: string}
+     */
+    public static function splitForClientProfile(string $value, ?string $currentMiddleName = null): array
+    {
+        $name = self::split($value);
+        $currentMiddleName = trim((string) $currentMiddleName);
+
+        if ($name['middle'] !== '' || $currentMiddleName === '' || ! str_contains($value, ',')) {
+            return $name;
+        }
+
+        $givenParts = preg_split('/\s+/u', trim($name['first']), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        if (count($givenParts) < 2) {
+            return $name;
+        }
+
+        $middleCandidate = end($givenParts);
+        $currentInitial = mb_strtolower(mb_substr($currentMiddleName, 0, 1));
+        $candidateInitial = mb_strtolower(mb_substr((string) $middleCandidate, 0, 1));
+        if ($currentInitial === '' || $currentInitial !== $candidateInitial) {
+            return $name;
+        }
+
+        array_pop($givenParts);
+        $name['first'] = implode(' ', $givenParts);
+        $name['middle'] = (string) $middleCandidate;
+
+        return $name;
+    }
+
     public static function format(string $value): string
     {
         $name = self::split($value);

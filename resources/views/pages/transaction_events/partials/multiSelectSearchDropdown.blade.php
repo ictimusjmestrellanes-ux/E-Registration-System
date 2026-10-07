@@ -3,12 +3,24 @@
     // Params: $dropdownId (unique), $fieldName, $options, $allLabel, $searchPlaceholder
     $dropdownId = $dropdownId ?? 'multiSelect';
     $fieldName = $fieldName ?? 'filter';
-    $options = collect($options ?? [])->filter(fn ($v) => trim((string) $v) !== '')->values();
+    $options = collect($options ?? [])
+        ->map(function ($option) {
+            if (is_array($option)) {
+                return [
+                    'value' => trim((string) ($option['value'] ?? '')),
+                    'label' => trim((string) ($option['label'] ?? $option['value'] ?? '')),
+                ];
+            }
+
+            return ['value' => trim((string) $option), 'label' => trim((string) $option)];
+        })
+        ->filter(fn ($option) => $option['value'] !== '' && $option['label'] !== '')
+        ->values();
     $allLabel = $allLabel ?? 'All';
     $searchPlaceholder = $searchPlaceholder ?? 'Search...';
     $selectedValues = collect((array) request($fieldName, []))
         ->flatMap(fn ($v) => explode(',', (string) $v))
-        ->map(fn ($v) => trim($v))
+        ->map(fn ($v) => trim((string) $v))
         ->filter()
         ->unique()
         ->values();
@@ -29,11 +41,12 @@
         <hr class="my-2">
         <div id="{{ $dropdownId }}Options">
             @forelse ($options as $option)
-                <div class="form-check" data-option-row data-option-label="{{ strtolower($option) }}">
+                <div class="form-check" data-option-row data-option-label="{{ strtolower($option['label']) }}">
                     <input class="form-check-input {{ $dropdownId }}-checkbox" type="checkbox"
-                        id="{{ $dropdownId }}_{{ $loop->index }}" name="{{ $fieldName }}[]" value="{{ $option }}"
-                        {{ $selectedValues->contains($option) ? 'checked' : '' }}>
-                    <label class="form-check-label" for="{{ $dropdownId }}_{{ $loop->index }}">{{ $option }}</label>
+                        id="{{ $dropdownId }}_{{ $loop->index }}" name="{{ $fieldName }}[]" value="{{ $option['value'] }}"
+                        data-display-label="{{ $option['label'] }}"
+                        {{ $selectedValues->contains($option['value']) ? 'checked' : '' }}>
+                    <label class="form-check-label" for="{{ $dropdownId }}_{{ $loop->index }}">{{ $option['label'] }}</label>
                 </div>
             @empty
                 <div class="text-muted small px-1">No options available.</div>
@@ -64,7 +77,7 @@
             if (checked.length === 0 || checked.length === boxes.length) {
                 label.textContent = allLabel;
             } else if (checked.length === 1) {
-                label.textContent = checked[0].value;
+                label.textContent = checked[0].dataset.displayLabel || checked[0].value;
             } else {
                 label.textContent = checked.length + ' selected';
             }

@@ -6,7 +6,10 @@ use App\Models\ActivityLog;
 use App\Models\Client;
 use App\Models\TransactionEvent;
 use App\Models\TransactionHistory;
+use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class ActivityLogsController extends Controller
@@ -87,65 +90,74 @@ class ActivityLogsController extends Controller
         })->values();
 
         $activitiesQuery = ActivityLog::with($activityRelations)
-            ->whereNotIn('action', self::HIDDEN_ACTIONS)
-            ->latest()
-            ->orderByDesc('id');
+            ->whereNotIn('action', self::HIDDEN_ACTIONS);
         if ($viewOwnOnly) {
             $activitiesQuery->where('user_id', auth()->id());
         }
 
-        $period = $request->input('period', 'all');
-        // ConvertEmptyStringsToNull turns the "All Actions" option into null
-        // on real web requests. Normalize it so it does not add
-        // `WHERE action IS NULL` and hide every search result.
-        $actionFilter = trim((string) $request->input('action', ''));
+        $normalizeMultiSelect = static function ($values): array {
+            return collect((array) $values)
+                ->flatMap(fn ($value) => explode(',', (string) $value))
+                ->map(fn ($value) => trim($value))
+                ->filter(fn ($value) => $value !== '')
+                ->unique()
+                ->values()
+                ->all();
+        };
+        $normalizeDate = static function ($value): string {
+            $value = trim((string) $value);
+            if (! preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
+                return '';
+            }
+
+            [$year, $month, $day] = array_map('intval', explode('-', $value));
+
+            return checkdate($month, $day, $year) ? $value : '';
+        };
+
+        $userFilters = array_values(array_unique(array_map(
+            'intval',
+            array_filter(
+                $normalizeMultiSelect($request->input('user', [])),
+                fn ($value) => ctype_digit($value) && (int) $value > 0
+            )
+        )));
+        $actionFilters = $normalizeMultiSelect($request->input('action', []));
+        $dateFrom = $normalizeDate($request->input('date_from', ''));
+        $dateTo = $normalizeDate($request->input('date_to', ''));
         $search = trim((string) $request->input('search', ''));
+        $requestedSort = $request->input('sort');
+        $requestedDirection = $request->input('direction');
+        $sort = is_string($requestedSort)
+            && in_array($requestedSort, ['date', 'user', 'action', 'description', 'client'], true)
+            ? $requestedSort
+            : 'date';
+        $sortDirection = is_string($requestedDirection) && strtolower($requestedDirection) === 'asc'
+            ? 'asc'
+            : 'desc';
 
-        if ($period !== 'all') {
-            $periodMap = [
-                '7days'  => 7,
-                '14days' => 14,
-                '30days' => 30,
-                '3months' => 90,
-                '6months' => 180,
-                '1year' => 365,
-                '2years' => 730,
-                '3years' => 1095,
-            ];
-
-            $startInTz = null;
-            $endInTz = null;
-
-            switch ($period) {
-                case 'today':
-                    $startInTz = $manilaNow->copy()->startOfDay();
-                    $endInTz = $startInTz->copy()->addDay();
-                    break;
-                case 'this_week':
-                    $startInTz = $manilaNow->copy()->startOfWeek();
-                    $endInTz = $startInTz->copy()->addWeek();
-                    break;
-                case 'this_month':
-                    $startInTz = $manilaNow->copy()->startOfMonth();
-                    $endInTz = $startInTz->copy()->addMonth();
-                    break;
-                default:
-                    if (isset($periodMap[$period])) {
-                        $startInTz = $manilaNow->copy()->subDays($periodMap[$period]);
-                    }
-            }
-
-            if ($startInTz) {
-                $activitiesQuery->where('created_at', '>=', $startInTz->setTimezone('UTC'));
-
-                if ($endInTz) {
-                    $activitiesQuery->where('created_at', '<', $endInTz->setTimezone('UTC'));
-                }
-            }
+        if ($userFilters !== []) {
+            $activitiesQuery->whereIn('user_id', $userFilters);
         }
 
-        if ($actionFilter !== '') {
-            $activitiesQuery->where('action', $actionFilter);
+        if ($actionFilters !== []) {
+            $activitiesQuery->whereIn('action', $actionFilters);
+        }
+
+        if ($dateFrom !== '') {
+            $activitiesQuery->where(
+                'created_at',
+                '>=',
+                Carbon::createFromFormat('!Y-m-d', $dateFrom, $timezone)
+            );
+        }
+
+        if ($dateTo !== '') {
+            $activitiesQuery->where(
+                'created_at',
+                '<',
+                Carbon::createFromFormat('!Y-m-d', $dateTo, $timezone)->addDay()
+            );
         }
 
         if ($search !== '') {
@@ -203,17 +215,25 @@ class ActivityLogsController extends Controller
             });
         }
 
+        $filteredTotal = (clone $activitiesQuery)->count();
+        $this->applyActivitiesSort($activitiesQuery, $sort, $sortDirection);
         $activities = $activitiesQuery->paginate(15)->withQueryString();
-        $uniqueActions = ActivityLog::query()
+        $filterOptionsQuery = ActivityLog::query()
             ->when($viewOwnOnly, fn ($query) => $query->where('user_id', auth()->id()))
-            ->whereNotIn('action', self::HIDDEN_ACTIONS)
+            ->whereNotIn('action', self::HIDDEN_ACTIONS);
+        $uniqueActions = (clone $filterOptionsQuery)
             ->distinct()
             ->pluck('action')
             ->filter()
             ->sort()
             ->values();
-        $filteredTotal = (clone $activitiesQuery)->count();
-
+        $filterableUsers = User::query()
+            ->whereIn('id', (clone $filterOptionsQuery)
+                ->select('user_id')
+                ->whereNotNull('user_id')
+                ->distinct())
+            ->orderBy('name')
+            ->get(['id', 'name', 'email']);
         return view('pages.activity_logs.activityLogs', compact(
             'activities',
             'allActivities',
@@ -223,13 +243,89 @@ class ActivityLogsController extends Controller
             'todayActivities',
             'weeklyActivities',
             'monthlyActivities',
-            'period',
-            'actionFilter',
+            'userFilters',
+            'actionFilters',
+            'dateFrom',
+            'dateTo',
             'search',
+            'sort',
+            'sortDirection',
             'uniqueActions',
+            'filterableUsers',
             'filteredTotal',
             'liveLatestIds'
         ));
+    }
+
+    private function applyActivitiesSort($query, string $sort, string $direction): void
+    {
+        if ($sort === 'user') {
+            $query->orderByRaw(
+                "COALESCE((SELECT users.name FROM users WHERE users.id = activity_logs.user_id), 'System') {$direction}"
+            );
+        } elseif ($sort === 'action') {
+            $query->orderBy('activity_logs.action', $direction);
+        } elseif ($sort === 'description') {
+            $query->orderBy('activity_logs.description', $direction);
+        } elseif ($sort === 'client') {
+            [$clientIdExpression, $clientNameExpression] = $this->activityClientSortExpressions();
+            $query->orderByRaw("{$clientIdExpression} {$direction}")
+                ->orderByRaw("{$clientNameExpression} {$direction}");
+        } else {
+            $query->orderBy('activity_logs.created_at', $direction);
+        }
+
+        $query->orderBy('activity_logs.id', $direction);
+    }
+
+    private function activityClientSortExpressions(): array
+    {
+        $driver = DB::connection()->getDriverName();
+
+        if ($driver === 'sqlite') {
+            $clientName = static fn (string $alias): string => "trim(coalesce({$alias}.first_name, '') || ' ' || coalesce({$alias}.middle_name, '') || ' ' || coalesce({$alias}.last_name, '') || ' ' || coalesce({$alias}.suffix, ''))";
+            $jsonValue = static fn (string $path): string => "json_extract(activity_logs.properties, '$.{$path}')";
+            $jsonName = static fn (string $snapshot): string => "nullif(trim(coalesce(json_extract(activity_logs.properties, '$.{$snapshot}.first_name'), '') || ' ' || coalesce(json_extract(activity_logs.properties, '$.{$snapshot}.middle_name'), '') || ' ' || coalesce(json_extract(activity_logs.properties, '$.{$snapshot}.last_name'), '') || ' ' || coalesce(json_extract(activity_logs.properties, '$.{$snapshot}.suffix'), '')), '')";
+        } else {
+            $clientName = static fn (string $alias): string => "trim(concat_ws(' ', {$alias}.first_name, {$alias}.middle_name, {$alias}.last_name, {$alias}.suffix))";
+            $jsonValue = static fn (string $path): string => "nullif(json_unquote(json_extract(activity_logs.properties, '$.{$path}')), 'null')";
+            $jsonName = static fn (string $snapshot): string => "nullif(trim(concat_ws(' ', json_unquote(json_extract(activity_logs.properties, '$.{$snapshot}.first_name')), json_unquote(json_extract(activity_logs.properties, '$.{$snapshot}.middle_name')), json_unquote(json_extract(activity_logs.properties, '$.{$snapshot}.last_name')), json_unquote(json_extract(activity_logs.properties, '$.{$snapshot}.suffix')))), '')";
+        }
+
+        $subjectClientId = "(SELECT clients.client_id FROM clients WHERE activity_logs.subject_type = 'Client' AND clients.id = activity_logs.subject_id)";
+        $historyClientId = "(SELECT transaction_history.client_id FROM transaction_history WHERE activity_logs.subject_type = 'TransactionHistory' AND transaction_history.id = activity_logs.subject_id)";
+        $eventClientId = "(SELECT event_history.client_id FROM transaction_events AS event_subject LEFT JOIN transaction_history AS event_history ON event_history.id = event_subject.transferred_transaction_id WHERE activity_logs.subject_type = 'TransactionEvent' AND event_subject.id = activity_logs.subject_id)";
+
+        $subjectClientName = "(SELECT nullif({$clientName('subject_client')}, '') FROM clients AS subject_client WHERE activity_logs.subject_type = 'Client' AND subject_client.id = activity_logs.subject_id)";
+        $historyClientName = "(SELECT nullif({$clientName('history_client')}, '') FROM transaction_history AS history_subject LEFT JOIN clients AS history_client ON history_client.client_id = history_subject.client_id WHERE activity_logs.subject_type = 'TransactionHistory' AND history_subject.id = activity_logs.subject_id)";
+        $eventClientName = "(SELECT coalesce(nullif({$clientName('event_client')}, ''), nullif(event_subject.full_name, '')) FROM transaction_events AS event_subject LEFT JOIN transaction_history AS event_history ON event_history.id = event_subject.transferred_transaction_id LEFT JOIN clients AS event_client ON event_client.client_id = event_history.client_id WHERE activity_logs.subject_type = 'TransactionEvent' AND event_subject.id = activity_logs.subject_id)";
+        $actorName = "(SELECT users.name FROM users WHERE users.id = activity_logs.user_id)";
+
+        return [
+            'coalesce('.implode(', ', [
+                $subjectClientId,
+                $historyClientId,
+                $eventClientId,
+                $jsonValue('client_id'),
+                $jsonValue('target_client_id'),
+                $jsonValue('after.client_id'),
+                $jsonValue('before.client_id'),
+                "''",
+            ]).')',
+            'coalesce('.implode(', ', [
+                $subjectClientName,
+                $historyClientName,
+                $eventClientName,
+                $jsonValue('full_name'),
+                $jsonValue('client_name'),
+                $jsonValue('after.full_name'),
+                $jsonValue('before.full_name'),
+                $jsonName('after'),
+                $jsonName('before'),
+                $actorName,
+                "''",
+            ]).')',
+        ];
     }
 
     public function liveState(Request $request)

@@ -212,6 +212,16 @@ class DuplicateEventClientMergeTest extends TestCase
             'subject_type' => 'Client',
             'subject_id' => $oldest->id,
         ]);
+        $this->assertDatabaseHas('activity_logs', [
+            'action' => 'duplicate_event_client_merged',
+            'subject_type' => 'Client',
+            'subject_id' => $newest->id,
+        ]);
+        $this->assertDatabaseMissing('activity_logs', [
+            'action' => 'client_deleted',
+            'subject_type' => 'Client',
+            'subject_id' => $newest->id,
+        ]);
         $mergeLog = ActivityLog::where('action', 'duplicate_event_clients_merged')->latest('id')->firstOrFail();
         $this->assertSame([
             'name' => '2600002',

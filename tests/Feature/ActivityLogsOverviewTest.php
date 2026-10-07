@@ -7,6 +7,7 @@ use App\Models\Client;
 use App\Models\TransactionEvent;
 use App\Models\TransactionHistory;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -86,6 +87,18 @@ class ActivityLogsOverviewTest extends TestCase
             });
     }
 
+    public function test_activities_tab_is_active_by_default(): void
+    {
+        $admin = User::factory()->create(['role_name' => 'Admin']);
+
+        $this->actingAs($admin)
+            ->get(route('activity.logs'))
+            ->assertOk()
+            ->assertSee('class="nav-link active" data-bs-toggle="tab"', false)
+            ->assertSee('href="#activities-tab"', false)
+            ->assertSee('class="tab-pane fade show active" id="activities-tab"', false);
+    }
+
     public function test_transaction_history_update_entries_are_hidden_from_activity_lists(): void
     {
         $admin = User::factory()->create(['role_name' => 'Admin']);
@@ -105,6 +118,104 @@ class ActivityLogsOverviewTest extends TestCase
             ->assertViewHas('allActivities', fn ($activities) => $activities->total() === 1)
             ->assertViewHas('activities', fn ($activities) => $activities->total() === 1)
             ->assertViewHas('uniqueActions', fn ($actions) => ! $actions->contains('transaction_history_updated'));
+    }
+
+    public function test_client_merge_activity_uses_merge_action_metadata(): void
+    {
+        $admin = User::factory()->create(['role_name' => 'Admin']);
+        $this->createLog(
+            $admin,
+            'Merged a newer duplicate client profile into the oldest client.',
+            1,
+            'duplicate_event_clients_merged'
+        );
+
+        $this->actingAs($admin)
+            ->get(route('activity.logs'))
+            ->assertOk()
+            ->assertSee('ri-git-merge-line', false)
+            ->assertSee('>Merge</span>', false)
+            ->assertDontSee('>Delete</span>', false);
+    }
+
+    public function test_historical_client_delete_from_merge_route_displays_as_merge(): void
+    {
+        $admin = User::factory()->create(['role_name' => 'Admin']);
+        ActivityLog::create([
+            'user_id' => $admin->id,
+            'action' => 'client_deleted',
+            'description' => 'Deleted Client #1219 (Duplicate Client).',
+            'properties' => [
+                'route' => 'transaction-events.records-duplicates.merge-clients',
+            ],
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('activity.logs', ['action' => ['client_deleted']]))
+            ->assertOk()
+            ->assertSee('ri-git-merge-line', false)
+            ->assertSee('>Merge</span>', false)
+            ->assertDontSee('>Delete</span>', false);
+    }
+
+    public function test_transfer_actions_use_success_and_undo_actions_use_warning_metadata(): void
+    {
+        $admin = User::factory()->create(['role_name' => 'Admin']);
+
+        foreach (['event_transferred', 'events_transfer_selected'] as $action) {
+            $this->createLog($admin, "{$action} activity", 1, $action);
+        }
+
+        $this->createLog(
+            $admin,
+            'events_transferred_to_selected_client activity',
+            1,
+            'events_transferred_to_selected_client'
+        );
+        $this->createLog($admin, 'events_marked_not_duplicate activity', 1, 'events_marked_not_duplicate');
+        $this->createLog($admin, 'events_imported activity', 1, 'events_imported');
+
+        foreach (['event_transfer_undone', 'events_transfer_undone'] as $action) {
+            $this->createLog($admin, "{$action} activity", 1, $action);
+        }
+
+        $this->actingAs($admin)
+            ->get(route('activity.logs'))
+            ->assertOk()
+            ->assertSee(
+                'class="badge rounded-pill bg-success-subtle text-success px-3 py-2">Transfer</span>',
+                false
+            )
+            ->assertSee(
+                'class="badge rounded-pill bg-success-subtle text-success px-3 py-2">Events transferred to selected client</span>',
+                false
+            )
+            ->assertSee(
+                'class="badge rounded-pill bg-secondary-subtle text-secondary px-3 py-2">Events marked not duplicate</span>',
+                false
+            )
+            ->assertSee(
+                'class="badge rounded-pill bg-success-subtle text-success px-3 py-2">Events imported</span>',
+                false
+            )
+            ->assertSee(
+                'class="badge rounded-pill bg-warning-subtle text-warning px-3 py-2">Undo transfer</span>',
+                false
+            );
+    }
+
+    public function test_created_permission_uses_success_create_metadata(): void
+    {
+        $admin = User::factory()->create(['role_name' => 'Admin']);
+        $this->createLog($admin, 'Added permission "Test Permission".', 1, 'permission_created');
+
+        $this->actingAs($admin)
+            ->get(route('activity.logs'))
+            ->assertOk()
+            ->assertSee(
+                'class="badge rounded-pill bg-success-subtle text-success px-3 py-2">Create</span>',
+                false
+            );
     }
 
     public function test_activity_logs_page_exposes_live_updates_and_live_state_respects_visibility(): void
@@ -202,5 +313,119 @@ class ActivityLogsOverviewTest extends TestCase
             ->assertSee('2600456')
             ->assertSee('CRUZ, JUAN DELA')
             ->assertDontSee('Event ID');
+    }
+
+    public function test_activities_tab_filters_multiple_users_actions_and_manila_date_range(): void
+    {
+        $admin = User::factory()->create(['role_name' => 'Admin']);
+        $staffA = User::factory()->create(['name' => 'Alpha Staff', 'role_name' => 'Staff']);
+        $staffB = User::factory()->create(['name' => 'Beta Staff', 'role_name' => 'Staff']);
+        $staffC = User::factory()->create(['name' => 'Gamma Staff', 'role_name' => 'Staff']);
+
+        $createDatedLog = function (User $user, string $description, string $action, string $manilaDate): void {
+            $createdAt = Carbon::createFromFormat('Y-m-d H:i:s', $manilaDate, 'Asia/Manila');
+            $log = ActivityLog::create([
+                'user_id' => $user->id,
+                'action' => $action,
+                'description' => $description,
+            ]);
+            $log->timestamps = false;
+            $log->forceFill(['created_at' => $createdAt, 'updated_at' => $createdAt])->saveQuietly();
+        };
+
+        $createDatedLog($staffA, 'Selected login', 'login', '2026-10-05 08:00:00');
+        $createDatedLog($staffB, 'Selected update', 'profile_updated', '2026-10-06 17:00:00');
+        $createDatedLog($staffC, 'Unselected user', 'login', '2026-10-05 10:00:00');
+        $createDatedLog($staffA, 'Unselected action', 'logout', '2026-10-05 11:00:00');
+        $createDatedLog($staffA, 'Outside date range', 'login', '2026-10-07 00:00:00');
+
+        $response = $this->actingAs($admin)
+            ->get(route('activity.logs', [
+                'user' => [$staffA->id, $staffB->id],
+                'action' => ['login', 'profile_updated'],
+                'date_from' => '2026-10-05',
+                'date_to' => '2026-10-06',
+            ]));
+
+        $response->assertOk()
+            ->assertSee('name="user[]"', false)
+            ->assertSee('name="action[]"', false)
+            ->assertSee('name="date_from"', false)
+            ->assertSee('name="date_to"', false);
+
+        $activities = $response->viewData('activities');
+        $this->assertSame(2, $activities->total());
+        $this->assertSame([
+            'Selected login',
+            'Selected update',
+        ], $activities->pluck('description')->sort()->values()->all());
+    }
+
+    public function test_activity_table_columns_are_sortable_in_both_directions(): void
+    {
+        $admin = User::factory()->create(['role_name' => 'Admin']);
+        $alphaUser = User::factory()->create(['name' => 'Alpha User', 'role_name' => 'Staff']);
+        $zuluUser = User::factory()->create(['name' => 'Zulu User', 'role_name' => 'Staff']);
+        $alphaClient = Client::create([
+            'client_id' => '2600001',
+            'first_name' => 'Alpha',
+            'last_name' => 'Client',
+        ]);
+        $zuluClient = Client::create([
+            'client_id' => '2600002',
+            'first_name' => 'Zulu',
+            'last_name' => 'Client',
+        ]);
+
+        $alphaLog = ActivityLog::create([
+            'user_id' => $alphaUser->id,
+            'action' => 'alpha_sort_action',
+            'subject_type' => 'Client',
+            'subject_id' => $alphaClient->id,
+            'description' => 'Alpha sortable marker',
+        ]);
+        $zuluLog = ActivityLog::create([
+            'user_id' => $zuluUser->id,
+            'action' => 'zulu_sort_action',
+            'subject_type' => 'Client',
+            'subject_id' => $zuluClient->id,
+            'description' => 'Zulu sortable marker',
+        ]);
+
+        foreach ([
+            [$alphaLog, '2026-10-05 08:00:00'],
+            [$zuluLog, '2026-10-06 08:00:00'],
+        ] as [$log, $createdAt]) {
+            $log->timestamps = false;
+            $log->forceFill(['created_at' => $createdAt, 'updated_at' => $createdAt])->saveQuietly();
+        }
+
+        foreach (['date', 'user', 'action', 'description', 'client'] as $sort) {
+            $ascending = $this->actingAs($admin)->get(route('activity.logs', [
+                'search' => 'sortable marker',
+                'sort' => $sort,
+                'direction' => 'asc',
+            ]));
+
+            $ascending->assertOk()->assertSee('aria-sort="ascending"', false);
+            $this->assertSame(
+                [$alphaLog->id, $zuluLog->id],
+                $ascending->viewData('activities')->pluck('id')->all(),
+                "Failed ascending sort for {$sort}."
+            );
+
+            $descending = $this->actingAs($admin)->get(route('activity.logs', [
+                'search' => 'sortable marker',
+                'sort' => $sort,
+                'direction' => 'desc',
+            ]));
+
+            $descending->assertOk()->assertSee('aria-sort="descending"', false);
+            $this->assertSame(
+                [$zuluLog->id, $alphaLog->id],
+                $descending->viewData('activities')->pluck('id')->all(),
+                "Failed descending sort for {$sort}."
+            );
+        }
     }
 }

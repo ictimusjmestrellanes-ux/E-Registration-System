@@ -644,6 +644,7 @@ class TransactionEventsController extends Controller
         $updated = DB::transaction(function () use ($event, $validated): bool {
             $event = TransactionEvent::whereKey($event->id)->lockForUpdate()->firstOrFail();
             abort_if($event->transferred_at === null, 404);
+            $nameChanged = $event->full_name !== $validated['full_name'];
 
             $history = null;
             if ($event->transferred_transaction_id) {
@@ -674,6 +675,29 @@ class TransactionEventsController extends Controller
                 }
                 if ($historyUpdates !== []) {
                     $history->update($historyUpdates);
+                }
+
+                if ($nameChanged) {
+                    $client = Client::where('client_id', $history->client_id)
+                        ->lockForUpdate()
+                        ->first();
+                    $latestLinkedEventId = TransactionEvent::query()
+                        ->whereHas('transferredTransaction', fn ($query) => $query
+                            ->where('client_id', $history->client_id))
+                        ->max('id');
+
+                    if ($client && (int) $latestLinkedEventId === (int) $event->id) {
+                        $name = ImportName::splitForClientProfile(
+                            $validated['full_name'],
+                            $client->middle_name
+                        );
+                        $client->update([
+                            'first_name' => $name['first'],
+                            'middle_name' => $name['middle'] !== '' ? $name['middle'] : null,
+                            'last_name' => $name['last'],
+                            'suffix' => $name['suffix'] !== '' ? $name['suffix'] : null,
+                        ]);
+                    }
                 }
             }
 

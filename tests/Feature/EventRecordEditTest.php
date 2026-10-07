@@ -85,6 +85,78 @@ class EventRecordEditTest extends TestCase
         $this->assertSame('Original Name', $event->fresh()->full_name);
     }
 
+    public function test_latest_event_name_populates_both_client_edit_entry_points(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+        $client = Client::create([
+            'client_id' => '2600101',
+            'first_name' => 'ROSALIDA',
+            'middle_name' => 'S.',
+            'last_name' => 'QUIMNO',
+        ]);
+        $history = TransactionHistory::create([
+            'client_id' => $client->client_id,
+            'transaction_id' => '2600101-26-0001',
+            'transaction_date' => '2026-09-01',
+            'category' => 'ASSISTANCE',
+            'type' => 'FOOD',
+        ]);
+        TransactionEvent::create([
+            'full_name' => 'QUIMNO, ROSALINDA SUMILI',
+            'transferred_at' => now(),
+            'transferred_transaction_id' => $history->id,
+        ]);
+
+        $response = $this->get(route('clients.edit', $client))->assertOk();
+        $this->assertMatchesRegularExpression('/name="first_name"[^>]*value="ROSALINDA"/s', $response->getContent());
+        $this->assertMatchesRegularExpression('/name="middle_name"[^>]*value="SUMILI"/s', $response->getContent());
+        $this->assertMatchesRegularExpression('/name="last_name"[^>]*value="QUIMNO"/s', $response->getContent());
+    }
+
+    public function test_editing_latest_event_name_synchronizes_the_linked_client_profile(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+        $client = Client::create([
+            'client_id' => '2600102',
+            'first_name' => 'ROSALIDA',
+            'middle_name' => 'S.',
+            'last_name' => 'QUIMNO',
+        ]);
+        $history = TransactionHistory::create([
+            'client_id' => $client->client_id,
+            'transaction_id' => '2600102-26-0001',
+            'transaction_date' => '2026-09-01',
+            'category' => 'ASSISTANCE',
+            'type' => 'FOOD',
+        ]);
+        $event = TransactionEvent::create([
+            'full_name' => 'QUIMNO, ROSALIDA S.',
+            'transferred_at' => now(),
+            'transferred_transaction_id' => $history->id,
+        ]);
+
+        $this->put(route('transaction-events.records.update', $event), [
+            'full_name' => 'QUIMNO, ROSALINDA SUMILI',
+            'transaction_category' => 'ASSISTANCE',
+            'transaction_type' => 'FOOD',
+            'event_date' => '2026-09-01',
+        ])->assertRedirect()->assertSessionHas('success');
+
+        $client->refresh();
+        $this->assertSame('ROSALINDA', $client->first_name);
+        $this->assertSame('SUMILI', $client->middle_name);
+        $this->assertSame('QUIMNO', $client->last_name);
+
+        $this->get(route('clients.edit', $client))
+            ->assertOk()
+            ->assertSee('value="ROSALINDA"', false)
+            ->assertSee('value="SUMILI"', false)
+            ->assertSee('value="QUIMNO"', false);
+        $this->get(route('clients.show', $client))
+            ->assertOk()
+            ->assertSee('QUIMNO, ROSALINDA SUMILI');
+    }
+
     public function test_viewers_cannot_edit_and_pending_events_are_not_editable_as_records(): void
     {
         $event = TransactionEvent::create(['full_name' => 'Original Name', 'transferred_at' => now()]);

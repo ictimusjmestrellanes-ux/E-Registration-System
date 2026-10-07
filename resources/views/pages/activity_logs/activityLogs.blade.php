@@ -10,13 +10,49 @@
         $todayCount = $todayActivities->count();
         $weeklyCount = $weeklyActivities->count();
         $monthlyCount = $monthlyActivities->count();
+        $showActivities = feature_allowed('View Activity Logs');
 
-        $actionMeta = function ($action) {
+        $actionMeta = function ($action, $properties = []) {
             $action = strtolower((string) $action);
+            $route = (string) data_get($properties, 'route', '');
+            $isDuplicateMerge =
+                str_contains($action, 'merge') ||
+                ($action === 'client_deleted' && $route === 'transaction-events.records-duplicates.merge-clients');
 
             return match (true) {
+                $isDuplicateMerge => ['Merge', 'bg-primary-subtle text-primary', 'ri-git-merge-line'],
+                $action === 'events_transferred_to_selected_client' => [
+                    'Events transferred to selected client',
+                    'bg-success-subtle text-success',
+                    'ri-exchange-line',
+                ],
+                $action === 'events_marked_not_duplicate' => [
+                    'Events marked not duplicate',
+                    'bg-secondary-subtle text-secondary',
+                    'ri-checkbox-circle-line',
+                ],
+                $action === 'events_imported' => [
+                    'Events imported',
+                    'bg-success-subtle text-success',
+                    'ri-upload-2-line',
+                ],
+                $action === 'permission_created' => ['Create', 'bg-success-subtle text-success', 'ri-add-line'],
+                in_array($action, ['event_transferred', 'events_transfer_selected'], true) => [
+                    'Transfer',
+                    'bg-success-subtle text-success',
+                    'ri-exchange-line',
+                ],
+                in_array($action, ['event_transfer_undone', 'events_transfer_undone'], true) => [
+                    'Undo transfer',
+                    'bg-warning-subtle text-warning',
+                    'ri-arrow-go-back-line',
+                ],
                 str_contains($action, 'create') => ['Create', 'bg-primary-subtle text-primary', 'ri-add-line'],
-                str_contains($action, 'update') || str_contains($action, 'edit') => ['Update', 'bg-info-subtle text-info', 'ri-pencil-line'],
+                str_contains($action, 'update') || str_contains($action, 'edit') => [
+                    'Update',
+                    'bg-info-subtle text-info',
+                    'ri-pencil-line',
+                ],
                 str_contains($action, 'delete') => ['Delete', 'bg-danger-subtle text-danger', 'ri-delete-bin-line'],
                 str_contains($action, 'archive') => ['Archive', 'bg-warning-subtle text-warning', 'ri-archive-line'],
                 str_contains($action, 'restore') => ['Restore', 'bg-success-subtle text-success', 'ri-restart-line'],
@@ -39,6 +75,25 @@
             };
         };
 
+        $activitySortUrl = function (string $column) use ($sort, $sortDirection): string {
+            $query = request()->query();
+            unset($query['page']);
+            $query['sort'] = $column;
+            $query['direction'] = $sort === $column && $sortDirection === 'asc' ? 'desc' : 'asc';
+
+            return route('activity.logs', $query);
+        };
+        $activitySortIcon = fn(string $column): string => $sort === $column
+            ? ($sortDirection === 'asc'
+                ? 'ri-arrow-up-line'
+                : 'ri-arrow-down-line')
+            : 'ri-arrow-up-down-line';
+        $activityAriaSort = fn(string $column): string => $sort === $column
+            ? ($sortDirection === 'asc'
+                ? 'ascending'
+                : 'descending')
+            : 'none';
+
         $renderActivityList = function ($items) use ($actionMeta) {
             if ($items->isEmpty()) {
                 return '<div class="text-center text-muted py-4">No activity logs found in this range.</div>';
@@ -46,7 +101,7 @@
 
             return $items
                 ->map(function ($activity) use ($actionMeta) {
-                    [$label, $badgeClass, $icon] = $actionMeta($activity->action);
+                    [$label, $badgeClass, $icon] = $actionMeta($activity->action, $activity->properties);
                     $subjectLabel = $activity->subject_type
                         ? class_basename($activity->subject_type) .
                             ($activity->subject_id ? ' #' . $activity->subject_id : '')
@@ -104,6 +159,7 @@
             border-radius: 20px;
             min-height: 0;
             aspect-ratio: 2571 / 727;
+            background-color: #192452;
             color: #fff;
         }
 
@@ -218,10 +274,32 @@
             border-bottom-color: var(--vz-primary, #405189);
             background: transparent;
         }
+
+        @media (max-width: 767.98px) {
+            .activity-hero {
+                aspect-ratio: auto;
+            }
+
+            .activity-hero::after {
+                background-size: cover;
+            }
+
+            .activity-hero-tabs {
+                width: 100%;
+            }
+
+            .activity-hero-tabs .nav-item {
+                flex: 1 1 0;
+            }
+
+            .activity-hero-tabs .nav-link {
+                width: 100%;
+                text-align: center;
+            }
+        }
     </style>
 
-    <div class="container-fluid" id="activityLogsLive"
-        data-live-url="{{ route('activity.logs.live-state') }}"
+    <div class="container-fluid" id="activityLogsLive" data-live-url="{{ route('activity.logs.live-state') }}"
         data-overview-latest-id="{{ $liveLatestIds['overview_latest_id'] }}"
         data-activities-latest-id="{{ $liveLatestIds['activities_latest_id'] }}">
         <div class="activity-hero p-3 p-lg-4 mb-4">
@@ -234,22 +312,23 @@
                     </div>
                 </div>
                 <div class="d-flex align-items-start align-items-lg-center gap-2">
-                    <a href="{{ route('dashboard') }}" class="btn btn-success">Back to Dashboard</a>
+                    <a href="{{ route('dashboard') }}" class="btn btn-sm btn-primary">Back to Dashboard</a>
                 </div>
             </div>
 
             <div class="d-flex flex-column flex-md-row align-items-md-end justify-content-between gap-3 mt-4">
                 <ul class="nav nav-pills activity-hero-tabs gap-2" role="tablist">
-                    <li class="nav-item">
-                        <a class="nav-link {{ !request()->hasAny(['period', 'action', 'search', 'page']) ? 'active' : '' }}"
-                            data-bs-toggle="tab" href="#overview-tab" role="tab">Overview</a>
-                    </li>
+
                     @if (feature_allowed('View Activity Logs'))
                         <li class="nav-item">
-                            <a class="nav-link {{ request()->hasAny(['period', 'action', 'search', 'page']) ? 'active' : '' }}"
-                                data-bs-toggle="tab" href="#activities-tab" role="tab">Activities</a>
+                            <a class="nav-link active" data-bs-toggle="tab"
+                                href="#activities-tab" role="tab">Activities</a>
                         </li>
                     @endif
+                    <li class="nav-item">
+                        <a class="nav-link {{ $showActivities ? '' : 'active' }}" data-bs-toggle="tab"
+                            href="#overview-tab" role="tab">Overview</a>
+                    </li>
                 </ul>
                 <div class="d-flex flex-wrap gap-2">
                     <div class="badge rounded-pill bg-light text-primary px-3 py-2">{{ $totalLogs }} total logs</div>
@@ -265,8 +344,8 @@
         </div>
 
         <div class="tab-content">
-            <div class="tab-pane fade {{ !request()->hasAny(['period', 'action', 'search', 'page']) ? 'show active' : '' }}"
-                id="overview-tab" role="tabpanel">
+            <div class="tab-pane fade {{ $showActivities ? '' : 'show active' }}" id="overview-tab"
+                role="tabpanel">
                 <div class="row g-4">
                     <div class="col-xxl-3">
                         <div class="card activity-summary-card shadow-sm h-100">
@@ -321,7 +400,8 @@
                                                 role="tab">All</a>
                                         </li>
                                         <li class="nav-item">
-                                            <a class="nav-link" data-bs-toggle="tab" href="#today-tab" role="tab">Today</a>
+                                            <a class="nav-link" data-bs-toggle="tab" href="#today-tab"
+                                                role="tab">Today</a>
                                         </li>
                                         <li class="nav-item">
                                             <a class="nav-link" data-bs-toggle="tab" href="#weekly-tab"
@@ -342,8 +422,7 @@
                                             <div class="input-group">
                                                 <span class="input-group-text"><i class="ri-search-line"></i></span>
                                                 <input type="text" name="overview_search" class="form-control"
-                                                    placeholder="Search activity or IP..."
-                                                    value="{{ $overviewSearch }}">
+                                                    placeholder="Search activity or IP..." value="{{ $overviewSearch }}">
                                             </div>
                                         </div>
                                         <div class="col-lg-4 col-md-6">
@@ -380,8 +459,7 @@
                                             </div>
                                         @endif
                                     </div>
-                                    <div class="tab-pane fade "
-                                        id="today-tab" role="tabpanel">
+                                    <div class="tab-pane fade " id="today-tab" role="tabpanel">
                                         {!! $renderActivityList($todayActivities) !!}
                                     </div>
                                     <div class="tab-pane fade" id="weekly-tab" role="tabpanel">
@@ -397,8 +475,8 @@
                 </div>
             </div>
 
-            <div class="tab-pane fade {{ request()->hasAny(['period', 'action', 'search', 'page']) ? 'show active' : '' }}"
-                id="activities-tab" role="tabpanel">
+            <div class="tab-pane fade {{ $showActivities ? 'show active' : '' }}" id="activities-tab"
+                role="tabpanel">
                 <div class="card shadow-sm">
                     <div class="card-body">
                         <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
@@ -414,7 +492,7 @@
 
                         <form method="GET" action="{{ route('activity.logs') }}" id="activityFilterForm">
                             <div class="row g-3 mb-4">
-                                <div class="col-md-4">
+                                <div class="col-12 col-lg-4 col-xxl-3">
                                     <label class="form-label fw-semibold small text-muted">Search</label>
                                     <div class="input-group">
                                         <span class="input-group-text"><i class="ri-search-line"></i></span>
@@ -423,48 +501,55 @@
                                             value="{{ $search }}">
                                     </div>
                                 </div>
-                                <div class="col-md-3">
-                                    <label class="form-label fw-semibold small text-muted">Time Period</label>
-                                    <select name="period" class="form-select">
-                                        <option value="all" {{ $period === 'all' ? 'selected' : '' }}>All Time</option>
-                                        <option value="today" {{ $period === 'today' ? 'selected' : '' }}>Today</option>
-                                        <option value="this_week" {{ $period === 'this_week' ? 'selected' : '' }}>This
-                                            Week</option>
-                                        <option value="this_month" {{ $period === 'this_month' ? 'selected' : '' }}>This
-                                            Month</option>
-                                        <option value="7days" {{ $period === '7days' ? 'selected' : '' }}>Past 7 Days
-                                        </option>
-                                        <option value="14days" {{ $period === '14days' ? 'selected' : '' }}>Past 14 Days
-                                        </option>
-                                        <option value="30days" {{ $period === '30days' ? 'selected' : '' }}>Past 30 Days
-                                        </option>
-                                        <option value="3months" {{ $period === '3months' ? 'selected' : '' }}>Past 3
-                                            Months</option>
-                                        <option value="6months" {{ $period === '6months' ? 'selected' : '' }}>Past 6
-                                            Months</option>
-                                        <option value="1year" {{ $period === '1year' ? 'selected' : '' }}>Past 1 Year
-                                        </option>
-                                        <option value="2years" {{ $period === '2years' ? 'selected' : '' }}>Past 2 Years
-                                        </option>
-                                        <option value="3years" {{ $period === '3years' ? 'selected' : '' }}>Past 3 Years
-                                        </option>
-                                    </select>
+                                <div class="col-12 col-lg-4 col-xxl-2">
+                                    <label class="form-label fw-semibold small text-muted">User</label>
+                                    @include(
+                                        'pages.transaction_events.partials.multiSelectSearchDropdown',
+                                        [
+                                            'dropdownId' => 'activityUserFilter',
+                                            'fieldName' => 'user',
+                                            'options' => $filterableUsers->map(
+                                                fn($filterUser) => [
+                                                    'value' => (string) $filterUser->id,
+                                                    'label' => $filterUser->name,
+                                                ]),
+                                            'allLabel' => 'All users',
+                                            'searchPlaceholder' => 'Search users...',
+                                        ]
+                                    )
                                 </div>
-                                <div class="col-md-3">
+                                <div class="col-12 col-lg-4 col-xxl-2">
                                     <label class="form-label fw-semibold small text-muted">Action Type</label>
-                                    <select name="action" class="form-select">
-                                        <option value="">All Actions</option>
-                                        @foreach ($uniqueActions as $act)
-                                            <option value="{{ $act }}"
-                                                {{ $actionFilter === $act ? 'selected' : '' }}>
-                                                {{ ucfirst(str_replace('_', ' ', $act)) }}
-                                            </option>
-                                        @endforeach
-                                    </select>
+                                    @include(
+                                        'pages.transaction_events.partials.multiSelectSearchDropdown',
+                                        [
+                                            'dropdownId' => 'activityActionFilter',
+                                            'fieldName' => 'action',
+                                            'options' => $uniqueActions->map(
+                                                fn($activityAction) => [
+                                                    'value' => $activityAction,
+                                                    'label' => ucfirst(str_replace('_', ' ', $activityAction)),
+                                                ]),
+                                            'allLabel' => 'All actions',
+                                            'searchPlaceholder' => 'Search actions...',
+                                        ]
+                                    )
                                 </div>
-                                <div class="col-md-2 d-flex align-items-end gap-2">
+                                <div class="col-12 col-lg-3 col-xxl-2">
+                                    <label for="activityDateFrom" class="form-label fw-semibold small text-muted">Date
+                                        From</label>
+                                    <input type="date" name="date_from" id="activityDateFrom" class="form-control"
+                                        value="{{ $dateFrom }}">
+                                </div>
+                                <div class="col-12 col-lg-3 col-xxl-2">
+                                    <label for="activityDateTo" class="form-label fw-semibold small text-muted">Date
+                                        To</label>
+                                    <input type="date" name="date_to" id="activityDateTo" class="form-control"
+                                        value="{{ $dateTo }}">
+                                </div>
+                                <div class="col-12 col-lg-2 col-xxl-1 d-flex align-items-end gap-2">
                                     <button type="submit" class="btn btn-primary flex-grow-1">
-                                        <i class="ri-filter-3-line me-1"></i>Filter
+                                        <i class="ri-filter-3-line"></i><span class="visually-hidden">Filter</span>
                                     </button>
                                     <a href="{{ route('activity.logs') }}" class="btn btn-outline-secondary"
                                         title="Reset">
@@ -478,18 +563,48 @@
                             <table class="table table-bordered table-hover align-middle mb-0">
                                 <thead class="table-light">
                                     <tr>
-                                        <th style="width: 160px;">Date</th>
-                                        <th style="width: 180px;">User</th>
-                                        <th style="width: 160px;">Action</th>
-                                        <th>Description</th>
-                                        <th style="width: 220px;">Client ID / Full Name</th>
-                                        <th style="width: 130px;">IP</th>
+                                        <th style="width: 160px;" aria-sort="{{ $activityAriaSort('date') }}">
+                                            <a href="{{ $activitySortUrl('date') }}"
+                                                class="d-inline-flex align-items-center gap-1 text-reset text-decoration-none">
+                                                Date <i class="{{ $activitySortIcon('date') }}" aria-hidden="true"></i>
+                                            </a>
+                                        </th>
+                                        <th style="width: 180px;" aria-sort="{{ $activityAriaSort('user') }}">
+                                            <a href="{{ $activitySortUrl('user') }}"
+                                                class="d-inline-flex align-items-center gap-1 text-reset text-decoration-none">
+                                                User <i class="{{ $activitySortIcon('user') }}" aria-hidden="true"></i>
+                                            </a>
+                                        </th>
+                                        <th style="width: 160px;" aria-sort="{{ $activityAriaSort('action') }}">
+                                            <a href="{{ $activitySortUrl('action') }}"
+                                                class="d-inline-flex align-items-center gap-1 text-reset text-decoration-none">
+                                                Action <i class="{{ $activitySortIcon('action') }}"
+                                                    aria-hidden="true"></i>
+                                            </a>
+                                        </th>
+                                        <th aria-sort="{{ $activityAriaSort('description') }}">
+                                            <a href="{{ $activitySortUrl('description') }}"
+                                                class="d-inline-flex align-items-center gap-1 text-reset text-decoration-none">
+                                                Description <i class="{{ $activitySortIcon('description') }}"
+                                                    aria-hidden="true"></i>
+                                            </a>
+                                        </th>
+                                        <th style="width: 220px;" aria-sort="{{ $activityAriaSort('client') }}">
+                                            <a href="{{ $activitySortUrl('client') }}"
+                                                class="d-inline-flex align-items-center gap-1 text-reset text-decoration-none">
+                                                Client ID / Full Name <i class="{{ $activitySortIcon('client') }}"
+                                                    aria-hidden="true"></i>
+                                            </a>
+                                        </th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     @forelse ($activities as $activity)
                                         @php
-                                            [$label, $badgeClass] = $actionMeta($activity->action);
+                                            [$label, $badgeClass] = $actionMeta(
+                                                $activity->action,
+                                                $activity->properties,
+                                            );
                                             $subjectLabel = $activity->subject_type
                                                 ? class_basename($activity->subject_type) .
                                                     ($activity->subject_id ? ' #' . $activity->subject_id : '')
@@ -529,12 +644,11 @@
                                                     {{ $activity->user?->name ?? 'System' }}
                                                 @endif
                                             </td>
-                                            <td>{{ $activity->ip_address ?? '-' }}</td>
                                         </tr>
                                     @empty
                                         <tr>
-                                            <td colspan="6" class="text-center text-muted py-5">
-                                                @if ($search || $period !== 'all' || $actionFilter)
+                                            <td colspan="5" class="text-center text-muted py-5">
+                                                @if ($search || $userFilters || $actionFilters || $dateFrom || $dateTo)
                                                     No activity logs match your filters. <a
                                                         href="{{ route('activity.logs') }}">Clear filters</a>
                                                 @else
@@ -577,9 +691,13 @@
                 'activities' : 'overview';
 
             const rememberActiveTabs = () => {
-                const top = document.querySelector('.activity-hero-tabs .nav-link.active')?.getAttribute('href');
+                const top = document.querySelector('.activity-hero-tabs .nav-link.active')?.getAttribute(
+                'href');
                 const recent = document.querySelector('.activity-tabs .nav-link.active')?.getAttribute('href');
-                sessionStorage.setItem('activityLogsLiveTabs', JSON.stringify({ top, recent }));
+                sessionStorage.setItem('activityLogsLiveTabs', JSON.stringify({
+                    top,
+                    recent
+                }));
             };
 
             const restoreActiveTabs = () => {
@@ -591,14 +709,17 @@
                 }
                 sessionStorage.removeItem('activityLogsLiveTabs');
                 [saved?.top, saved?.recent].filter(Boolean).forEach(selector => {
-                    const trigger = document.querySelector(`a[data-bs-toggle="tab"][href="${selector}"]`);
-                    if (trigger && window.bootstrap?.Tab) bootstrap.Tab.getOrCreateInstance(trigger).show();
+                    const trigger = document.querySelector(
+                        `a[data-bs-toggle="tab"][href="${selector}"]`);
+                    if (trigger && window.bootstrap?.Tab) bootstrap.Tab.getOrCreateInstance(trigger)
+                        .show();
                 });
             };
 
             const onFirstPage = (scope) => {
                 const url = new URL(window.location.href);
-                const page = Number(url.searchParams.get(scope === 'activities' ? 'page' : 'overview_page')) || 1;
+                const page = Number(url.searchParams.get(scope === 'activities' ? 'page' : 'overview_page')) ||
+                    1;
                 return page === 1;
             };
 
@@ -623,7 +744,9 @@
                 polling = true;
                 try {
                     const response = await fetch(liveRoot.dataset.liveUrl, {
-                        headers: { 'Accept': 'application/json' },
+                        headers: {
+                            'Accept': 'application/json'
+                        },
                         cache: 'no-store',
                     });
                     if (!response.ok) return;
@@ -638,10 +761,15 @@
                 }
             };
 
-            document.querySelectorAll('#activityLogsLive form input, #activityLogsLive form select, #activityLogsLive form textarea')
+            document.querySelectorAll(
+                    '#activityLogsLive form input, #activityLogsLive form select, #activityLogsLive form textarea')
                 .forEach(control => {
-                    control.addEventListener('input', () => { filtersDirty = true; });
-                    control.addEventListener('change', () => { filtersDirty = true; });
+                    control.addEventListener('input', () => {
+                        filtersDirty = true;
+                    });
+                    control.addEventListener('change', () => {
+                        filtersDirty = true;
+                    });
                 });
 
             showNewest.addEventListener('click', () => {
@@ -657,7 +785,9 @@
 
             restoreActiveTabs();
             timer = window.setInterval(poll, 5000);
-            window.addEventListener('beforeunload', () => window.clearInterval(timer), { once: true });
+            window.addEventListener('beforeunload', () => window.clearInterval(timer), {
+                once: true
+            });
         });
     </script>
 @endpush

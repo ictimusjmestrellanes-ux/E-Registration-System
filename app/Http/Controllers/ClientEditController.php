@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Client;
 use App\Http\Controllers\Traits\HandlesClientStorage;
+use App\Support\ImportName;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
@@ -21,6 +22,20 @@ class ClientEditController extends Controller
     {
         if (auth()->user()->role_name === 'Viewer') {
             abort(403, 'Viewer role is read-only.');
+        }
+
+        $client->load('latestLinkedEvent');
+        if ($client->latestLinkedEvent) {
+            $name = ImportName::splitForClientProfile(
+                (string) $client->latestLinkedEvent->full_name,
+                $client->middle_name
+            );
+            $client->forceFill([
+                'first_name' => $name['first'],
+                'middle_name' => $name['middle'] !== '' ? $name['middle'] : null,
+                'last_name' => $name['last'],
+                'suffix' => $name['suffix'] !== '' ? $name['suffix'] : null,
+            ]);
         }
 
         return view('pages.clients.clients', compact('client'));

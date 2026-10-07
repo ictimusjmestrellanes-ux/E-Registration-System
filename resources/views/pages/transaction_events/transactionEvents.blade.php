@@ -709,8 +709,8 @@
                         <div class="alert alert-success d-none mt-3 mb-0" id="selectedTransferClientSummary"></div>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-                        <button type="button" class="btn btn-success" id="confirmTransferToClientBtn" disabled>
+                        <button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-sm btn-success" id="confirmTransferToClientBtn" disabled>
                             <i class="ri-exchange-line me-1"></i> Transfer to Selected Client
                         </button>
                     </div>

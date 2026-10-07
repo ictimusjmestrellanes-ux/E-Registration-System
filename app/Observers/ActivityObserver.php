@@ -52,6 +52,13 @@ class ActivityObserver
         $action = Str::snake($type).'_'.$operation;
         $description = ucfirst($operation).' '.$label.'.';
 
+        if ($model instanceof \App\Models\Client
+            && $operation === 'deleted'
+            && request()->routeIs('transaction-events.records-duplicates.merge-clients')) {
+            $action = 'duplicate_event_client_merged';
+            $description = 'Merged duplicate '.$label.' into the oldest client profile.';
+        }
+
         if ($model instanceof \App\Models\TransactionEvent
             && $operation === 'updated'
             && request()->routeIs('transaction-events.records.update')) {
