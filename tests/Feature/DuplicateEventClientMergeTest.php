@@ -304,6 +304,86 @@ class DuplicateEventClientMergeTest extends TestCase
         ], $mergeLog->properties['profile_field_sources']);
     }
 
+    public function test_merge_applies_retained_profile_values_to_every_merged_event_record(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+
+        $oldest = Client::create([
+            'client_id' => '2600030',
+            'first_name' => 'Maria',
+            'last_name' => 'Santos',
+            'birth_date' => '1980-01-02',
+            'contact' => '09111111111',
+            'address' => 'Oldest address',
+            'sector' => 'PODA',
+        ]);
+        $oldest->forceFill(['created_at' => '2026-01-01 08:00:00'])->saveQuietly();
+        $newest = Client::create([
+            'client_id' => '2600031',
+            'first_name' => 'Maria',
+            'middle_name' => 'D',
+            'last_name' => 'Santos',
+            'birth_date' => '1981-03-04',
+            'contact' => '09222222222',
+            'address' => 'Newest address',
+            'sector' => 'ECO AIDE',
+        ]);
+        $newest->forceFill(['created_at' => '2026-02-01 08:00:00'])->saveQuietly();
+
+        $events = collect([$oldest, $newest])->map(function (Client $client) {
+            $history = TransactionHistory::create([
+                'client_id' => $client->client_id,
+                'client_category' => $client->sector,
+                'transaction_id' => $client->client_id.'-26-0001',
+                'transaction_date' => '2026-09-03',
+                'category' => 'EVENTS',
+                'type' => 'TYPE',
+            ]);
+
+            return TransactionEvent::create([
+                'full_name' => $client->full_name,
+                'birth_date' => $client->birth_date,
+                'contact_no' => $client->contact,
+                'address' => $client->address,
+                'client_category' => $client->sector,
+                'transaction_category' => 'EVENTS',
+                'transaction_type' => 'TYPE',
+                'event_date' => '2026-09-03',
+                'transferred_at' => '2026-09-03 12:00:00',
+                'transferred_transaction_id' => $history->id,
+            ]);
+        })->values();
+
+        $this->post(route('transaction-events.records-duplicates.merge-clients'), [
+            'event_ids' => $events->pluck('id')->all(),
+            'profile_field_sources' => [
+                'name' => '2600031',
+                'birth_date' => 'oldest',
+                'contact' => '2600031',
+                'address' => 'oldest',
+                'sector' => 'oldest',
+            ],
+        ])->assertRedirect(route('transaction-events.records-duplicates'))->assertSessionHas('success');
+
+        foreach ($events as $event) {
+            $retainedEvent = $event->fresh();
+            $this->assertSame('SANTOS, MARIA D.', $retainedEvent->full_name);
+            $this->assertSame('1980-01-02', $retainedEvent->birth_date?->toDateString());
+            $this->assertSame('09222222222', $retainedEvent->contact_no);
+            $this->assertSame('Oldest address', $retainedEvent->address);
+            $this->assertSame('PODA', $retainedEvent->client_category);
+            $this->assertSame(
+                'PODA',
+                TransactionHistory::findOrFail($retainedEvent->transferred_transaction_id)->client_category
+            );
+        }
+
+        $this->get(route('transaction-events.records-duplicates'))
+            ->assertOk()
+            ->assertSee('data-merge-profile-result', false)
+            ->assertSee('After merge:', false);
+    }
+
     public function test_admin_can_merge_only_selected_newer_clients_and_leave_others_for_review(): void
     {
         $this->actingAs(User::factory()->create(['role_name' => 'Admin']));

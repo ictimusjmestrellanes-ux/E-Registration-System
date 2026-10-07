@@ -961,6 +961,7 @@
             const mergeSourceClientChoices = document.getElementById('mergeSourceClientChoices');
             const mergeSelectedProfileCards = document.getElementById('mergeSelectedProfileCards');
             let mergeSourceClients = [];
+            let mergeTargetProfile = {};
             const mergeProfileLabels = {
                 name: 'Full Name',
                 birth_date: 'Birth Date',
@@ -983,6 +984,22 @@
                 mergeSubmitButton.disabled = !mergeConfirmation?.checked || selectedMergeSourceIds().length ===
                     0;
             };
+            const syncMergeProfileResults = () => {
+                const selectedValues = {};
+                document.querySelectorAll('[data-merge-profile-field]:checked').forEach(choice => {
+                    const source = choice.dataset.mergeProfileSource;
+                    const sourceProfile = source === 'oldest' ?
+                        mergeTargetProfile :
+                        mergeSourceClients.find(client => String(client.client_id) === source)?.profile;
+                    selectedValues[choice.dataset.mergeProfileField] =
+                        sourceProfile?.[choice.dataset.mergeProfileField] || '-';
+                });
+
+                document.querySelectorAll('[data-merge-profile-result]').forEach(result => {
+                    const value = selectedValues[result.dataset.mergeProfileResult] || '-';
+                    result.textContent = `After merge: ${value}`;
+                });
+            };
             const selectMergeProfileField = (field, source) => {
                 document.querySelectorAll('[data-merge-profile-field]').forEach(choice => {
                     if (choice.dataset.mergeProfileField !== field) return;
@@ -991,8 +1008,9 @@
                     choice.closest('[data-merge-profile-value]')?.classList.toggle('bg-primary-subtle',
                         selected);
                 });
+                syncMergeProfileResults();
             };
-            const renderMergeProfile = (containerOrId, profile, source, sourceLabel) => {
+            const renderMergeProfile = (containerOrId, profile, source, sourceLabel, showResult = false) => {
                 const container = typeof containerOrId === 'string' ?
                     document.getElementById(containerOrId) :
                     containerOrId;
@@ -1020,9 +1038,19 @@
                         selectMergeProfileField(field, source);
                     });
 
+                    const valueGroup = document.createElement('span');
+                    valueGroup.className = 'd-flex flex-column';
                     const value = document.createElement('span');
                     value.textContent = profile?.[field] || '-';
-                    detail.append(choice, value);
+                    valueGroup.append(value);
+                    if (showResult) {
+                        const result = document.createElement('span');
+                        result.className = 'small text-primary fw-normal';
+                        result.dataset.mergeProfileResult = field;
+                        result.textContent = `After merge: ${profile?.[field] || '-'}`;
+                        valueGroup.append(result);
+                    }
+                    detail.append(choice, valueGroup);
                     detail.classList.toggle('bg-primary-subtle', choice.checked);
                     nodes.push(term, detail);
                 });
@@ -1059,7 +1087,7 @@
                     column.append(card);
                     mergeSelectedProfileCards?.append(column);
                     renderMergeProfile(details, client.profile || {}, String(client.client_id),
-                        `Client ${client.client_id}`);
+                        `Client ${client.client_id}`, true);
                 });
 
                 const validSources = new Set(['oldest', ...selectedIds]);
@@ -1070,6 +1098,7 @@
                             field] : 'oldest'
                     );
                 });
+                syncMergeProfileResults();
                 syncMergeSubmitState();
             };
             const renderMergeSourceClients = () => {
@@ -1122,9 +1151,10 @@
                 document.getElementById('mergeDuplicateRecordCount').textContent =
                     trigger?.dataset.recordCount || ids.length;
                 mergeSourceClients = parseMergeData(trigger?.dataset.sourceClients, []);
+                mergeTargetProfile = parseMergeData(trigger?.dataset.targetProfile);
                 renderMergeProfile(
                     'mergeOldestProfile',
-                    parseMergeData(trigger?.dataset.targetProfile),
+                    mergeTargetProfile,
                     'oldest',
                     'current oldest'
                 );

@@ -4965,6 +4965,31 @@ class TransactionEventsController extends Controller
                 $target->save();
             }
 
+            // Event records retain a profile snapshot. Keep every event tied
+            // to the destination and selected source clients aligned with the
+            // retained profile values, including events outside this review
+            // group whose histories will also be consolidated below.
+            $mergedClientIds = collect([$target->client_id])
+                ->concat($sourceClientIds)
+                ->map(fn ($clientId) => (string) $clientId)
+                ->unique()
+                ->values();
+            $mergedProfileEvents = TransactionEvent::query()
+                ->whereHas('transferredTransaction', fn ($query) => $query
+                    ->whereIn('client_id', $mergedClientIds->all()))
+                ->lockForUpdate()
+                ->get();
+            $retainedEventProfile = [
+                'full_name' => $target->full_name,
+                'birth_date' => $target->birth_date?->toDateString(),
+                'contact_no' => $target->contact,
+                'address' => $target->address,
+                'client_category' => $target->sector,
+            ];
+            foreach ($mergedProfileEvents as $profileEvent) {
+                $profileEvent->update($retainedEventProfile);
+            }
+
             // Include legacy histories whose client_id was not backfilled but
             // whose display ID still starts with the source client ID.
             $histories = TransactionHistory::query()
@@ -4989,6 +5014,7 @@ class TransactionEventsController extends Controller
                 $newTransactionId = $this->nextTransactionIdForClientYear((string) $target->client_id, $year);
                 $history->update([
                     'client_id' => $target->client_id,
+                    'client_category' => $target->sector,
                     'transaction_id' => $newTransactionId,
                 ]);
                 $transactionIdChanges[] = [
@@ -4997,6 +5023,10 @@ class TransactionEventsController extends Controller
                     'new' => $newTransactionId,
                 ];
             }
+
+            TransactionHistory::query()
+                ->where('client_id', $target->client_id)
+                ->update(['client_category' => $target->sector]);
 
             $sourcePrimaryKeys = $sources->pluck('id')->map(fn ($id) => (int) $id)->all();
             foreach ($sources as $source) {
