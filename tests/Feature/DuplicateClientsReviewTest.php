@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Client;
 use App\Models\TransactionHistory;
 use App\Models\User;
+use App\Services\DuplicateClientScan;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -158,6 +159,9 @@ class DuplicateClientsReviewTest extends TestCase
         ]);
 
         $response = $this->get('/duplicate-review')->assertOk();
+        $this->assertTrue($response->viewData('similarScanPending'));
+        $this->finishScan();
+        $response = $this->get('/duplicate-review')->assertOk();
 
         $this->assertSame(1, $response->viewData('similarGroups')->total());
         $this->assertEqualsCanonicalizing(
@@ -166,7 +170,7 @@ class DuplicateClientsReviewTest extends TestCase
         );
     }
 
-    public function test_cold_and_warm_cache_preserve_groups_filters_and_pagination(): void
+    public function test_database_pagination_preserves_groups_and_filters_on_repeated_requests(): void
     {
         for ($group = 0; $group < 12; $group++) {
             foreach ([0, 1] as $copy) {
@@ -183,23 +187,16 @@ class DuplicateClientsReviewTest extends TestCase
         $this->assertSame(12, $response->viewData('exactGroups')->total());
         $this->assertCount(2, $response->viewData('exactGroups'));
         $this->assertSame(24, $response->viewData('exactRecordsTotal'));
-        $cached = Cache::get('duplicate_clients_v3');
-        $this->assertCount(12, $cached['exact']);
-        foreach ($cached as $category) {
-            foreach ($category as $ids) {
-                foreach ($ids as $id) {
-                    $this->assertIsInt($id);
-                }
-            }
-        }
+        // Exact queries no longer depend on a full-table membership cache.
+        $this->assertNull(Cache::get('duplicate_clients_v3'));
 
         $response = $this->get('/duplicate-review?city=Imus')->assertOk();
         $this->assertSame(1, $response->viewData('exactGroups')->total());
         $this->assertSame(2, $response->viewData('exactRecordsTotal'));
-        $this->assertSame($cached, Cache::get('duplicate_clients_v3'));
+        $this->assertNull(Cache::get('duplicate_clients_v3'));
     }
 
-    public function test_cached_reload_hydrates_only_visible_groups(): void
+    public function test_page_ignores_old_membership_cache_and_hydrates_only_visible_groups(): void
     {
         $memberships = [];
         for ($group = 0; $group < 12; $group++) {
@@ -235,7 +232,10 @@ class DuplicateClientsReviewTest extends TestCase
         $this->assertSame(12, $response->viewData('exactGroups')->total());
         $this->assertCount(10, $response->viewData('exactGroups'));
         $this->assertCount(1, $detailQueries, 'A cached reload should issue one detail query for visible records only.');
-        $this->assertCount(20, $detailQueries->first()['bindings']);
+        // Ten keys in WHERE and in the canonical-key CASE, plus one legacy
+        // predicate. The query never binds the full duplicate client ID list.
+        $this->assertCount(31, $detailQueries->first()['bindings']);
+        $this->assertSame(20, $response->viewData('exactGroups')->sum(fn ($group) => $group['clients']->count()));
     }
 
     public function test_client_changes_invalidate_membership_and_missing_clients_are_tolerated(): void
@@ -253,6 +253,126 @@ class DuplicateClientsReviewTest extends TestCase
         $client->delete();
         $this->assertNull(Cache::get('duplicate_clients_v3'));
         $this->assertNull(Cache::get('duplicate_clients_filter_options_v1'));
+    }
+
+    public function test_filters_match_one_member_but_keep_the_whole_transaction_group(): void
+    {
+        $first = Client::create(['client_id' => 'FILTER-1', 'first_name' => ' Juan ', 'last_name' => ' CRUZ ',
+            'city' => ' Imus ', 'gender' => 'Male', 'birth_date' => '1990-01-01', 'address' => '100% real']);
+        $second = Client::create(['client_id' => 'FILTER-2', 'first_name' => 'juan', 'last_name' => 'cruz',
+            'city' => 'Other', 'gender' => 'Female']);
+        $this->createTransaction($first);
+        $this->createTransaction($second);
+        foreach (['city=imus', 'search=100%25', 'search=Jan%2001%2C%201990', 'gender=male&city=imus'] as $filter) {
+            $response = $this->get('/duplicate-review?'.$filter)->assertOk();
+            $this->assertSame(1, $response->viewData('exactGroupsTotal'));
+            $this->assertSame(2, $response->viewData('exactRecordsTotal'));
+        }
+        $this->assertSame(0, $this->get('/duplicate-review?gender=female&city=imus')->assertOk()->viewData('exactGroupsTotal'));
+        $this->assertSame(['Imus', 'Other'], $response->viewData('filterCities'));
+    }
+
+    public function test_extra_transactions_do_not_inflate_duplicate_counts_and_new_transactions_are_immediately_visible(): void
+    {
+        $first = Client::create(['client_id' => 'LIVE-1', 'first_name' => 'Live', 'last_name' => 'Match']);
+        $second = Client::create(['client_id' => 'LIVE-2', 'first_name' => 'Live', 'last_name' => 'Match']);
+        $this->createTransaction($first);
+        $this->assertSame(0, $this->get('/duplicate-review')->assertOk()->viewData('exactGroupsTotal'));
+        $this->createTransaction($second);
+        TransactionHistory::create(['client_id' => $second->client_id, 'transaction_id' => 'extra-transaction',
+            'transaction_date' => '2026-01-02', 'category' => 'others', 'type' => 'test']);
+        $response = $this->get('/duplicate-review')->assertOk();
+        $this->assertSame(1, $response->viewData('exactGroupsTotal'));
+        $this->assertSame(2, $response->viewData('exactRecordsTotal'));
+    }
+
+    public function test_scan_resumes_in_small_batches_and_client_edits_invalidate_results(): void
+    {
+        foreach (['Cruz', 'Kruz', 'Krux'] as $index => $surname) {
+            Client::create(['client_id' => 'BATCH-'.$index, 'first_name' => 'Maria', 'last_name' => $surname]);
+        }
+        $scan = app(DuplicateClientScan::class);
+        $this->assertFalse($scan->advance(1)['done']); // read
+        $this->assertFalse($scan->advance(1)['done']); // index
+        $this->assertFalse($scan->advance(1)['done']); // one pair, not the full block
+        $this->assertNull($scan->results());
+        $this->finishScan();
+        $this->assertNotEmpty($scan->results());
+        $generation = $scan->generation();
+        Client::first()->update(['last_name' => 'Changed']);
+        $this->assertNotSame($generation, $scan->generation());
+        $this->assertNull($scan->results());
+    }
+
+    public function test_database_cache_can_store_scan_state_and_page_never_starts_scan(): void
+    {
+        Cache::setDefaultDriver('database');
+        Client::create(['client_id' => 'DB-1', 'first_name' => 'Maria', 'last_name' => 'Cruz']);
+        Client::create(['client_id' => 'DB-2', 'first_name' => 'Maria', 'last_name' => 'Kruz']);
+        $this->get('/duplicate-review')->assertOk()->assertSee('Load Similar Spelling');
+        $this->assertSame(0, DB::table('cache')->where('key', 'like', '%_state')->count());
+        $this->postJson('/duplicate-review/similar-scan')->assertOk()->assertJson(['done' => false]);
+        $this->assertSame(1, DB::table('cache')->where('key', 'like', '%_state')->count());
+        $this->finishScan();
+        $this->assertCount(1, app(DuplicateClientScan::class)->results());
+    }
+
+    public function test_similar_scan_keeps_imported_name_formats_and_does_not_treat_middle_names_as_typos(): void
+    {
+        Client::create(['client_id' => 'FORMAT-1', 'first_name' => 'CALDO,', 'last_name' => 'PATRICK']);
+        Client::create(['client_id' => 'FORMAT-2', 'first_name' => 'PATRICK', 'last_name' => 'CALDA']);
+        Client::create(['client_id' => 'SAME-1', 'first_name' => 'Juan', 'middle_name' => 'Santos', 'last_name' => 'Cruz']);
+        Client::create(['client_id' => 'SAME-2', 'first_name' => 'Juan', 'middle_name' => 'Reyes', 'last_name' => 'Cruz']);
+        $this->finishScan();
+        $response = $this->get('/duplicate-review')->assertOk();
+        $this->assertSame(1, $response->viewData('similarGroupsTotal'));
+        $this->assertEqualsCanonicalizing(['FORMAT-1', 'FORMAT-2'],
+            $response->viewData('similarGroups')->first()['clients']->pluck('client_id')->all());
+    }
+
+    public function test_62000_clients_are_paginated_in_sql_without_full_model_hydration_or_fuzzy_scan(): void
+    {
+        for ($offset = 0; $offset < 62000; $offset += 1000) {
+            $clients = [];
+            $transactions = [];
+            for ($id = $offset + 1; $id <= $offset + 1000; $id++) {
+                $publicId = 'LARGE-'.$id;
+                $clients[] = ['id' => $id, 'client_id' => $publicId,
+                    'first_name' => 'Person '.intdiv($id - 1, 2), 'last_name' => 'Example'];
+                $transactions[] = ['client_id' => $publicId, 'transaction_id' => $publicId.'-26-0001',
+                    'transaction_date' => '2026-01-01', 'category' => 'others', 'type' => 'test'];
+            }
+            DB::table('clients')->insert($clients);
+            DB::table('transaction_history')->insert($transactions);
+        }
+        DB::enableQueryLog();
+        DB::flushQueryLog();
+        $started = microtime(true);
+        $response = $this->get('/duplicate-review?exact_page=2')->assertOk();
+        $elapsed = microtime(true) - $started;
+        $queries = collect(DB::getQueryLog());
+        DB::disableQueryLog();
+        $this->assertSame(31000, $response->viewData('exactGroupsTotal'));
+        $this->assertSame(62000, $response->viewData('exactRecordsTotal'));
+        $this->assertCount(10, $response->viewData('exactGroups'));
+        $this->assertSame(20, $response->viewData('exactGroups')->sum(fn ($group) => $group['clients']->count()));
+        $this->assertTrue($response->viewData('similarScanPending'));
+        $this->assertFalse($queries->contains(fn ($query) => str_contains(strtolower($query['query']), 'soundex')));
+        $this->assertFalse($queries->contains(fn ($query) => str_contains($query['query'], '"middle_name"') && !str_contains($query['query'], 'where')));
+        $progress = app(DuplicateClientScan::class)->advance();
+        $this->assertFalse($progress['done']);
+        $this->assertSame(2000, $progress['processed']);
+        fwrite(STDERR, sprintf("\n62k page benchmark: %.3fs; only 20 client models displayed.\n", $elapsed));
+    }
+
+    private function finishScan(): void
+    {
+        for ($attempt = 0; $attempt < 100; $attempt++) {
+            if (app(DuplicateClientScan::class)->advance()['done']) {
+                return;
+            }
+        }
+        $this->fail('The scan did not finish within the expected number of batches.');
     }
 
     private function createTransaction(Client $client): TransactionHistory

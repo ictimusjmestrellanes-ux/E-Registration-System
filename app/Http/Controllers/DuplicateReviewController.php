@@ -3,555 +3,189 @@
 namespace App\Http\Controllers;
 
 use App\Models\Client;
+use App\Services\DuplicateClientScan;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Cache;
 
 class DuplicateReviewController extends Controller
 {
-    private const NAME_KEY = "CONCAT_WS('|', LOWER(TRIM(first_name)), LOWER(TRIM(COALESCE(middle_name,''))), LOWER(TRIM(last_name)))";
     private const EXACT_KEY = "CONCAT_WS('|', LOWER(TRIM(first_name)), LOWER(TRIM(last_name)))";
-    private const SOUNDEX_KEY = "CONCAT(COALESCE(SOUNDEX(LOWER(TRIM(first_name))),''), '|', COALESCE(SOUNDEX(LOWER(TRIM(last_name))),''))";
-
-    // Cached longer because the similar-spelling scan is expensive; the cache
-    // is cleared automatically whenever a client is saved or deleted
-    // (see Client::booted), so results stay fresh.
-    private const DUPLICATE_CLIENTS_CACHE_TTL = 1800; // seconds (30 minutes)
 
     public function __construct()
     {
         $this->middleware('auth');
     }
 
-    public function index(Request $request)
+    public function index(Request $request, DuplicateClientScan $scan)
     {
-        if (!feature_allowed('Duplicate Clients Review')) {
-            abort(404);
+        abort_unless(feature_allowed('Duplicate Clients Review'), 404);
+        $perPage = $this->duplicateClientPerPage($request);
+        $similar = $scan->results();
+        $groups = $this->normalizeSimilarIds($similar ?? []);
+        $ids = $groups->flatten()->unique()->values();
+        $results = $this->hydrateVisibleDuplicateGroups([
+            // Likely full-name groups are already covered by the broader exact
+            // first/last-name rule, as in the previous implementation.
+            'likely' => $this->paginateDuplicateClientGroups($request, collect(), null, 'likely_page', $perPage, 'likely-tab'),
+            'similar' => $this->paginateDuplicateClientGroups($request, $groups,
+                $this->matchingDuplicateClientIds($request, $ids), 'similar_page', $perPage, 'similar-tab'),
+        ]);
+        $results['exact'] = $this->paginateExactGroups($request, $perPage);
+        $data = ['perPage' => $perPage, 'similarScanPending' => $similar === null];
+        foreach ($results as $category => $result) {
+            $data[$category.'Groups'] = $result['paginator'];
+            $data[$category.'GroupsTotal'] = $result['total'];
+            $data[$category.'RecordsTotal'] = $result['records'];
         }
 
-        // The similar-spelling scan is memory/CPU heavy; raise limits for
-        // constrained hosts (e.g. Azure App Service) like the import flows do.
-        @ini_set('memory_limit', '512M');
-        @set_time_limit(300);
-
-        $cacheKey = 'duplicate_clients_v3';
-        $cacheTtl = now()->addSeconds(self::DUPLICATE_CLIENTS_CACHE_TTL);
-
-        $groups = Cache::remember($cacheKey, $cacheTtl, function () {
-            $exactGroups = $this->findExactDuplicates();
-            $exactClientIds = $exactGroups
-                ->flatMap(fn ($group) => $group['clients']->pluck('id'))
-                ->flip();
-
-            $groups = [
-                'exact' => $exactGroups,
-                // A likely-name group is omitted once all of its records are
-                // covered by the broader first-name + last-name exact rule.
-                'likely' => $this->findLikelyDuplicates()
-                    ->reject(fn ($group) => $group['clients']->every(
-                        fn ($client) => $exactClientIds->has($client->id)
-                    ))
-                    ->values(),
-                'similar' => $this->findSimilarSpellingDuplicates(),
-            ];
-
-            // Serializing thousands of Eloquent models can exceed the database
-            // cache column (MEDIUMTEXT) and exhaust memory. Cache membership only.
-            return array_map(fn ($category) => $category->map(
-                fn ($group) => $group['clients']->pluck('id')->all()
-            )->all(), $groups);
-        });
-
-        // Keep the warm path lightweight. The cache stores membership IDs, so
-        // only validate those IDs here; full client rows are loaded after the
-        // three tabs have been filtered and paginated.
-        $groups = $this->normalizeDuplicateGroupIds($groups);
-        $groups['exact'] = $this->exactGroupsWithTransactions($groups['exact']);
-
-        $exactGroups = $groups['exact'];
-        $likelyGroups = $groups['likely'];
-        $similarGroups = $groups['similar'];
-
-        $perPage = $this->duplicateClientPerPage($request);
-        $allIds = collect($groups)->flatten()->unique()->values();
-        $matchingIds = $this->matchingDuplicateClientIds($request, $allIds);
-
-        $results = [
-            'exact' => $this->paginateDuplicateClientGroups($request, $exactGroups, $matchingIds, 'exact_page', $perPage, 'exact-tab'),
-            'likely' => $this->paginateDuplicateClientGroups($request, $likelyGroups, $matchingIds, 'likely_page', $perPage, 'likely-tab'),
-            'similar' => $this->paginateDuplicateClientGroups($request, $similarGroups, $matchingIds, 'similar_page', $perPage, 'similar-tab'),
-        ];
-        $results = $this->hydrateVisibleDuplicateGroups($results);
-
-        return view('pages.duplicates.index', array_merge(
-            $this->duplicateClientFilterOptions($allIds),
-            [
-                'exactGroups' => $results['exact']['paginator'],
-                'exactGroupsTotal' => $results['exact']['total'],
-                'exactRecordsTotal' => $results['exact']['records'],
-                'likelyGroups' => $results['likely']['paginator'],
-                'likelyGroupsTotal' => $results['likely']['total'],
-                'likelyRecordsTotal' => $results['likely']['records'],
-                'similarGroups' => $results['similar']['paginator'],
-                'similarGroupsTotal' => $results['similar']['total'],
-                'similarRecordsTotal' => $results['similar']['records'],
-                'perPage' => $perPage,
-            ]
-        ));
+        return view('pages.duplicates.index', array_merge($this->filterOptions($ids), $data));
     }
 
-    /**
-     * Remove stale IDs from cached groups without hydrating full models.
-     */
-    private function normalizeDuplicateGroupIds(array $groups): array
+    public function scanSimilar(DuplicateClientScan $scan)
     {
-        $ids = collect($groups)->flatten()->unique()->values();
+        abort_unless(feature_allowed('Duplicate Clients Review'), 404);
+        @ini_set('memory_limit', '512M');
+
+        return response()->json($scan->advance());
+    }
+
+    private function normalizeSimilarIds(array $groups): Collection
+    {
         $existing = [];
-        foreach ($ids->chunk($this->duplicateClientQueryChunkSize()) as $chunk) {
-            foreach (Client::query()->whereIn('id', $chunk->all())->pluck('id') as $id) {
+        foreach (collect($groups)->flatten()->unique()->chunk($this->duplicateClientQueryChunkSize()) as $chunk) {
+            foreach (DB::table('clients')->whereIn('id', $chunk->all())->pluck('id') as $id) {
                 $existing[(int) $id] = true;
             }
         }
 
-        return array_map(fn ($category) => collect($category)
-            ->map(fn ($memberIds) => collect($memberIds)
-                ->map(fn ($id) => (int) $id)
-                ->filter(fn ($id) => isset($existing[$id]))
-                ->unique()
-                ->values()
-                ->all())
-            ->filter(fn ($memberIds) => count($memberIds) > 1)
-            ->values(), $groups);
+        return collect($groups)->map(fn ($ids) => array_values(array_filter(
+            array_unique(array_map('intval', $ids)), fn ($id) => isset($existing[$id])
+        )))->filter(fn ($ids) => count($ids) > 1)->values();
     }
 
     /**
-     * Keep only exact-match clients that own at least one transaction. A group
-     * must retain two clients after filtering to remain a duplicate group.
-     * Older transaction rows that only carry the client ID as the transaction
-     * number prefix are treated as linked too.
+     * Indexed existence checks avoid multiplying clients by their transactions.
+     * Legacy prefixes are read in one uncorrelated subquery, never via a
+     * transaction_id LIKE scan for every client.
      */
-    private function exactGroupsWithTransactions(Collection $groups): Collection
+    private function transactionClients()
     {
-        $ids = $groups->flatten()->unique()->values();
-        if ($ids->isEmpty()) {
-            return collect();
-        }
-
-        // Resolve internal IDs to public client IDs first, then use the indexed
-        // transaction_history.client_id column in batches. Avoid a correlated
-        // transaction_id LIKE CONCAT(clients.client_id, ...) fallback here: on
-        // large datasets it forces a transaction-history scan for every client.
-        $recordIdsByClientId = [];
-        foreach ($ids->chunk($this->duplicateClientQueryChunkSize()) as $chunk) {
-            $clientIds = Client::query()
-                ->whereIn('id', $chunk->all())
-                ->pluck('client_id', 'id');
-
-            foreach ($clientIds as $recordId => $clientId) {
-                $clientId = trim((string) $clientId);
-                if ($clientId !== '') {
-                    $recordIdsByClientId[$clientId][] = (int) $recordId;
-                }
-            }
-        }
-
-        $clientsWithTransactions = [];
-        foreach (array_chunk(array_keys($recordIdsByClientId), $this->duplicateClientQueryChunkSize()) as $clientIdChunk) {
-            $matchingClientIds = DB::table('transaction_history')
-                ->whereIn('client_id', $clientIdChunk)
-                ->distinct()
-                ->pluck('client_id');
-
-            foreach ($matchingClientIds as $clientId) {
-                foreach ($recordIdsByClientId[(string) $clientId] ?? [] as $recordId) {
-                    $clientsWithTransactions[$recordId] = true;
-                }
-            }
-        }
-
-        // Historical rows may predate transaction_history.client_id. Read only
-        // those unlinked rows once and recover the legacy numeric client prefix.
-        foreach (DB::table('transaction_history')
-            ->whereNull('client_id')
-            ->whereNotNull('transaction_id')
-            ->pluck('transaction_id') as $transactionId) {
-            $separator = strpos((string) $transactionId, '-');
-            if ($separator === false) {
-                continue;
-            }
-
-            $legacyClientId = substr((string) $transactionId, 0, $separator);
-            foreach ($recordIdsByClientId[$legacyClientId] ?? [] as $recordId) {
-                $clientsWithTransactions[$recordId] = true;
-            }
-        }
-
-        return $groups
-            ->map(fn ($memberIds) => collect($memberIds)
-                ->filter(fn ($id) => isset($clientsWithTransactions[(int) $id]))
-                ->values()
-                ->all())
-            ->filter(fn ($memberIds) => count($memberIds) > 1)
-            ->values();
+        $legacyPrefix = DB::connection()->getDriverName() === 'sqlite'
+            ? "substr(transaction_id, 1, instr(transaction_id, '-') - 1)"
+            : "SUBSTRING_INDEX(transaction_id, '-', 1)";
+        return DB::table('clients')->where(function ($query) use ($legacyPrefix) {
+            $query->whereExists(function ($transactions) {
+                $transactions->selectRaw('1')->from('transaction_history')
+                    ->whereColumn('transaction_history.client_id', 'clients.client_id');
+            })->orWhereIn('clients.client_id', DB::table('transaction_history')->selectRaw($legacyPrefix)
+                ->whereNull('client_id')->where('transaction_id', 'like', '%-%'));
+        })->select('clients.*');
     }
 
-    /**
-     * Same normalized first name and last name. Middle name and birth date do
-     * not affect exact-match membership.
-     */
-    private function findExactDuplicates(): \Illuminate\Support\Collection
+    private function exactGroupQuery(?Request $request = null)
     {
-        $keys = Client::query()
-            ->selectRaw(self::EXACT_KEY . ' as keyval')
-            ->groupBy('keyval')
-            ->havingRaw('COUNT(*) > 1')
-            ->pluck('keyval')
-            ->map(fn ($v) => (string) $v)
-            ->toArray();
+        $eligible = DB::query()->fromSub($this->transactionClients(), 'clients');
+        if ($request && $request->anyFilled(['search', 'gender', 'civil_status', 'city', 'barangay', 'date_from', 'date_to'])) {
+            $matching = DB::query()->fromSub($this->transactionClients(), 'clients');
+            $this->applyClientFilters($matching, $request);
+            // A matching member includes the whole group, not only that member.
+            $eligible->whereIn(DB::raw(self::EXACT_KEY), $matching->selectRaw(self::EXACT_KEY));
+        }
 
-        return $this->groupClientsByKey($keys, self::EXACT_KEY);
+        return $eligible->selectRaw(self::EXACT_KEY.' as name_key, COUNT(*) as records, MIN(id) as first_id')
+            ->groupBy('name_key')->havingRaw('COUNT(*) > 1');
     }
 
-    /**
-     * Same normalized full name, but birth dates are missing (null) or only
-     * match on the year.
-     */
-    private function findLikelyDuplicates(): \Illuminate\Support\Collection
+    private function applyClientFilters($query, Request $request): void
     {
-        $nameKeys = Client::query()
-            ->selectRaw(self::NAME_KEY . ' as keyval')
-            ->groupBy('keyval')
-            ->havingRaw('COUNT(*) > 1')
-            ->pluck('keyval')
-            ->map(fn ($v) => (string) $v)
-            ->toArray();
-
-        if (empty($nameKeys)) {
-            return collect();
+        foreach (['gender', 'civil_status', 'city', 'barangay'] as $field) {
+            $value = strtolower(trim((string) $request->input($field, '')));
+            if ($value !== '') {
+                $query->whereRaw("LOWER(TRIM(COALESCE($field, ''))) = ?", [$value]);
+            }
         }
-
-        $clients = Client::query()
-            ->select([
-                'id', 'client_id', 'first_name', 'middle_name', 'last_name', 'suffix',
-                'age', 'birth_date', 'gender', 'civil_status',
-                'email', 'contact', 'contact_2', 'address',
-                'province', 'city', 'barangay',
-                'photo_path', 'created_at',
-            ])
-            ->whereIn(DB::raw(self::NAME_KEY), $nameKeys)
-            ->get();
-
-        return $clients->groupBy(function ($client) {
-            return implode('|', [
-                strtolower(trim($client->first_name)),
-                strtolower(trim($client->middle_name ?? '')),
-                strtolower(trim($client->last_name)),
-            ]);
-        })->filter(function ($items) {
-            if ($items->count() < 2) {
-                return false;
+        if ($from = trim((string) $request->input('date_from', ''))) {
+            $query->whereDate('created_at', '>=', $from);
+        }
+        if ($to = trim((string) $request->input('date_to', ''))) {
+            $query->whereDate('created_at', '<=', $to);
+        }
+        $keyword = strtolower(trim((string) $request->input('search', '')));
+        if ($keyword === '') {
+            return;
+        }
+        $fields = ['first_name', 'middle_name', 'last_name', 'suffix', 'client_id', 'email', 'contact',
+            'contact_2', 'address', 'barangay', 'city', 'province', 'sector', 'gender', 'civil_status', 'birth_date'];
+        $parts = array_map(fn ($field) => "COALESCE($field, '')", $fields);
+        if (DB::connection()->getDriverName() === 'sqlite') {
+            $cases = '';
+            foreach (['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as $index => $month) {
+                $cases .= " WHEN '".sprintf('%02d', $index + 1)."' THEN '$month'";
             }
-
-            $birthDates = $items->pluck('birth_date')->filter()->map(fn ($d) => $d->format('Y-m-d'));
-
-            // Fully identical birth dates belong to the exact tab.
-            if ($birthDates->count() === $items->count() && $birthDates->unique()->count() === 1) {
-                return false;
-            }
-
-            // Some dates missing -> likely duplicate.
-            if ($birthDates->count() < $items->count()) {
-                return true;
-            }
-
-            // Only year-level match -> likely duplicate.
-            $years = $birthDates->map(fn ($d) => substr($d, 0, 4))->unique();
-
-            return $years->count() === 1;
-        })->map(fn ($items) => $this->groupPayload($items))->values();
+            $parts[] = "COALESCE((CASE strftime('%m', birth_date)$cases END) || strftime(' %d, %Y', birth_date), '')";
+        } else {
+            $parts[] = "COALESCE(DATE_FORMAT(birth_date, '%b %d, %Y'), '')";
+        }
+        $parts[] = 'id';
+        // INSTR treats percent/underscore as literals, preserving substring search.
+        $query->whereRaw("INSTR(LOWER(CONCAT_WS(' ', ".implode(', ', $parts).")), ?) > 0", [$keyword]);
     }
 
-    /**
-     * Different spelling but phonetically similar first/last names (SOUNDEX),
-     * plus near-spelling/typo matches (e.g. Iscober/Escobar) detected in PHP
-     * because MySQL has no built-in LEVENSHTEIN.
-     */
-    private function findSimilarSpellingDuplicates(): \Illuminate\Support\Collection
+    private function paginateExactGroups(Request $request, int $perPage): array
     {
-        $columns = [
-            'id', 'client_id', 'first_name', 'middle_name', 'last_name', 'suffix',
-            'age', 'birth_date', 'gender', 'civil_status',
-            'email', 'contact', 'contact_2', 'address',
-            'province', 'city', 'barangay',
-            'photo_path', 'created_at',
-        ];
+        $query = $this->exactGroupQuery($request);
+        $totals = DB::query()->fromSub(clone $query, 'duplicate_groups')
+            ->selectRaw('COUNT(*) as groups_total, COALESCE(SUM(records), 0) as records_total')->first();
+        $total = (int) $totals->groups_total;
+        $page = min(max(1, (int) $request->input('exact_page', 1)), max(1, (int) ceil($total / $perPage)));
+        $keys = (clone $query)->orderBy('first_id')->forPage($page, $perPage)->pluck('name_key');
+        $groups = collect();
+        if ($keys->isNotEmpty()) {
+            $case = 'CASE';
+            $bindings = [];
+            foreach ($keys as $key) {
+                $case .= ' WHEN '.self::EXACT_KEY.' = ? THEN ?';
+                array_push($bindings, $key, $key);
+            }
+            $members = Client::query()->fromSub($this->transactionClients(), 'clients')->select([
+                'clients.id', 'client_id', 'first_name', 'middle_name', 'last_name', 'suffix',
+                'age', 'birth_date', 'gender', 'civil_status', 'sector', 'email', 'contact',
+                'contact_2', 'address', 'province', 'city', 'barangay', 'photo_path', 'created_at',
+            ])->whereIn(DB::raw(self::EXACT_KEY), $keys)
+                ->selectRaw($case.' END as duplicate_name_key', $bindings)->orderBy('clients.id')->get()
+                // Use the database's canonical key, including its Unicode and
+                // accent collation, rather than regrouping differently in PHP.
+                ->groupBy('duplicate_name_key');
+            $groups = $keys->map(fn ($key) => $this->groupPayload($members->get($key, collect())));
+        }
+        $paginator = new LengthAwarePaginator($groups, $total, $perPage, $page, [
+            'path' => $request->url(), 'pageName' => 'exact_page',
+        ]);
 
-        // ---------- Pass 1: SOUNDEX-based phonetic matches ----------
-        $keys = Client::query()
-            ->selectRaw(self::SOUNDEX_KEY . ' as keyval')
-            ->whereNotNull('first_name')
-            ->whereNotNull('last_name')
-            ->groupBy('keyval')
-            ->havingRaw('COUNT(*) > 1')
-            ->pluck('keyval')
-            ->map(fn ($v) => (string) $v)
-            ->toArray();
+        return ['paginator' => $paginator->withQueryString()->fragment('exact-tab'),
+            'total' => $total, 'records' => (int) $totals->records_total];
+    }
 
-        $soundexGroups = collect();
-        if (!empty($keys)) {
-            $clients = Client::query()
-                ->select($columns)
-                ->whereIn(DB::raw(self::SOUNDEX_KEY), $keys)
-                ->get();
-
-            $soundexGroups = $clients->groupBy(function ($client) {
-                return implode('|', [
-                    (string) soundex(strtolower(trim($client->first_name))),
-                    (string) soundex(strtolower(trim($client->last_name))),
-                ]);
-            })->filter(function ($items) {
-                if ($items->count() < 2) {
-                    return false;
-                }
-
-                // Skip groups where the normalized names are identical
-                // (those belong to the exact/likely tabs).
-                $distinctNames = $items->map(function ($client) {
-                    return strtolower(trim($client->first_name)) . ' ' . strtolower(trim($client->last_name));
-                })->unique();
-
-                return $distinctNames->count() > 1;
-            });
+    private function filterOptions(Collection $similarIds): array
+    {
+        $fields = ['gender', 'civil_status', 'city', 'barangay'];
+        $rows = DB::query()->fromSub($this->transactionClients(), 'clients')
+            ->joinSub($this->exactGroupQuery(), 'duplicate_groups', function ($join) {
+                $join->on(DB::raw(self::EXACT_KEY), '=', 'duplicate_groups.name_key');
+            })->select($fields)->distinct()->get();
+        foreach ($similarIds->chunk($this->duplicateClientQueryChunkSize()) as $chunk) {
+            $rows = $rows->concat(DB::table('clients')->whereIn('id', $chunk->all())->select($fields)->distinct()->get());
+        }
+        $result = [];
+        foreach (['gender' => 'filterGenders', 'civil_status' => 'filterCivilStatuses',
+            'city' => 'filterCities', 'barangay' => 'filterBarangays'] as $field => $name) {
+            $result[$name] = $rows->pluck($field)->map(fn ($value) => trim((string) $value))
+                ->filter()->unique(fn ($value) => strtolower($value))->sort(SORT_NATURAL | SORT_FLAG_CASE)->values()->all();
         }
 
-        // ---------- Pass 2: near-spelling (typo) matches ----------
-        $allClients = Client::query()->select($columns)->get();
-
-        $clean = fn (?string $s) => strtolower(trim(preg_replace('/\s+/', ' ', preg_replace('/[^a-z0-9 ]+/i', ' ', (string) $s))));
-
-        // Extract the real surname and given name. Some imported records store
-        // "SURNAME, Given Name" inside first_name/middle_name, so handle both
-        // formats instead of trusting the column layout.
-        $extract = function ($client) use ($clean) {
-            $first = trim((string) $client->first_name);
-            $middle = trim((string) $client->middle_name);
-            $last = trim((string) $client->last_name);
-
-            if (str_contains($first, ',')) {
-                // Scrambled import format: "SURNAME," in first_name.
-                $sur = trim(str_replace(',', ' ', explode(',', $first)[0]));
-                $given = str_contains($middle, ',')
-                    ? trim(explode(',', $middle, 2)[1])
-                    : $middle;
-
-                // When the import left middle_name empty, the given name usually
-                // ended up in last_name ("CALDO," + "" + "PATRICK").
-                if ($given === '' && preg_match('/^[a-z]{2,}$/i', str_replace(['.', ','], '', $last))
-                    && !in_array(strtolower(preg_replace('/[^a-z]/i', '', $last)), ['jr', 'sr', 'ii', 'iii', 'iv'], true)) {
-                    $given = $last;
-                }
-
-                return ['sur' => $clean($sur), 'given' => $clean($given)];
-            }
-
-            $lettersOnlyLast = preg_replace('/[^a-z]/i', '', strtolower($last));
-            if ($lettersOnlyLast !== '' && strlen($lettersOnlyLast) >= 2 && !in_array(strtolower($last), ['jr', 'sr', 'ii', 'iii', 'iv', 'v'], true)) {
-                return ['sur' => $clean($last), 'given' => $clean($first)];
-            }
-
-            // last_name is a bare initial or suffix; the surname may sit in middle_name ("CRUZ, JUAN").
-            if (str_contains($middle, ',')) {
-                [$mSur, $mGiven] = array_pad(explode(',', $middle, 2), 2, '');
-
-                return ['sur' => $clean($mSur), 'given' => $clean($mGiven !== '' ? $mGiven : $first)];
-            }
-
-            return ['sur' => '', 'given' => $clean($first . ' ' . $last)];
-        };
-
-        $levOk = function (?string $a, ?string $b, int $max): bool {
-            $a = trim((string) $a);
-            $b = trim((string) $b);
-            if ($a === '' || $b === '') {
-                return false;
-            }
-            if ($a === $b) {
-                return true;
-            }
-            // Short strings (initials etc.) must match exactly to avoid false positives.
-            if (strlen($a) < 4 || strlen($b) < 4) {
-                return false;
-            }
-            return levenshtein($a, $b) <= $max;
-        };
-
-        $indexed = $allClients->map(fn ($c) => [
-            'client' => $c,
-        ] + $extract($c))->filter(fn ($x) => $x['sur'] !== '' || $x['given'] !== '');
-
-        $n = $indexed->count();
-
-        // Union-find over indices so overlapping pairs merge into one group.
-        $parent = range(0, max($n - 1, 0));
-        $find = function ($i) use (&$find, &$parent) {
-            while ($parent[$i] !== $i) {
-                $parent[$i] = $parent[$parent[$i]];
-                $i = $parent[$i];
-            }
-            return $i;
-        };
-        $union = function ($a, $b) use ($find, &$parent) {
-            $ra = $find($a);
-            $rb = $find($b);
-            if ($ra !== $rb) {
-                $parent[$rb] = $ra;
-            }
-        };
-
-        // Track pairs already grouped by the soundex pass so we do not duplicate them.
-        $seenPairs = [];
-        foreach ($soundexGroups as $items) {
-            $ids = $items->pluck('id')->values();
-            for ($i = 0; $i < $ids->count(); $i++) {
-                for ($j = $i + 1; $j < $ids->count(); $j++) {
-                    $seenPairs[min($ids[$i], $ids[$j]) . '-' . max($ids[$i], $ids[$j])] = true;
-                }
-            }
-        }
-
-        $byId = $indexed->values();
-
-        // Blocking: edit-distance-one surnames always share either their full
-        // value or a value with one character removed. Use those signatures
-        // instead of broad two-letter prefixes, which produced millions of
-        // unnecessary comparisons on production-sized client tables. Keep the
-        // consonant skeleton block for accepted two-edit vowel variations such
-        // as Iscober/Escobar (both become "scbr").
-        $skeletonOf = static fn (string $s): string => str_replace(['a', 'e', 'i', 'o', 'u', ' '], '', $s);
-
-        $blocks = [];
-        foreach ($byId as $idx => $item) {
-            $sur = $item['sur'];
-            if ($sur === '') {
-                continue; // can never match: the matcher requires non-empty surnames
-            }
-
-            $signatures = ['d:' . $sur];
-            for ($position = 0, $length = strlen($sur); $position < $length; $position++) {
-                $signatures[] = 'd:' . substr($sur, 0, $position) . substr($sur, $position + 1);
-            }
-
-            $skeleton = $skeletonOf($sur);
-            if ($skeleton !== '') {
-                $signatures[] = 'k:' . $skeleton;
-            }
-
-            foreach (array_unique($signatures) as $signature) {
-                $blocks[$signature][] = $idx;
-            }
-        }
-
-        // Plain parallel arrays keep the hot pair loop cheap: no Eloquent
-        // attribute access or closure dispatch per pair.
-        $pIds = [];
-        $pSur = [];
-        $pGiven = [];
-        foreach ($byId as $idx => $item) {
-            $pIds[$idx] = $item['client']->id;
-            $pSur[$idx] = $item['sur'];
-            $pGiven[$idx] = $item['given'];
-        }
-
-        $vowels = ['a', 'e', 'i', 'o', 'u'];
-        $comparedPairs = [];
-
-        foreach ($blocks as $members) {
-            $m = count($members);
-            for ($x = 0; $x < $m; $x++) {
-                $i = $members[$x];
-                $sa = $pSur[$i];
-                $ga = $pGiven[$i];
-                $slenA = strlen($sa);
-                for ($y = $x + 1; $y < $m; $y++) {
-                    $j = $members[$y];
-                    $sb = $pSur[$j];
-
-                    $pairKey = $pIds[$i] < $pIds[$j]
-                        ? $pIds[$i] . '-' . $pIds[$j]
-                        : $pIds[$j] . '-' . $pIds[$i];
-                    if (isset($comparedPairs[$pairKey]) || isset($seenPairs[$pairKey])) {
-                        continue;
-                    }
-                    $comparedPairs[$pairKey] = true;
-
-                    // Identical normalized names belong to the exact/likely tabs.
-                    if ($sa === $sb && $ga === $pGiven[$j]) {
-                        continue;
-                    }
-                    // The d<=2 surname gate below requires |length diff|<=2,
-                    // so anything wider is rejected with two integer ops.
-                    if (abs($slenA - strlen($sb)) > 2) {
-                        continue;
-                    }
-                    if ($sa !== $sb) {
-                        if ($slenA < 4 || strlen($sb) < 4) {
-                            continue;
-                        }
-                        $d = levenshtein($sa, $sb);
-                        if ($d > 1) {
-                            // A 2-letter difference is only accepted when the
-                            // consonant skeleton is identical
-                            // (Iscober/Escobar -> scbr), which rejects
-                            // unrelated names like Lapid/Sapida.
-                            $skelA = str_replace($vowels, '', $sa);
-                            if (!($d === 2 && $skelA !== '' && $skelA === str_replace($vowels, '', $sb))) {
-                                continue;
-                            }
-                        }
-                    }
-
-                    $gb = $pGiven[$j];
-                    $givenOk = $ga !== '' && $gb !== '' && (
-                        $ga === $gb
-                        || $levOk($ga, $gb, 1)
-                        || (min(strlen($ga), strlen($gb)) >= 3
-                            && (str_starts_with($ga, $gb) || str_starts_with($gb, $ga))));
-
-                    if (! $givenOk) {
-                        continue;
-                    }
-
-                    $seenPairs[$pairKey] = true;
-                    $union($i, $j);
-                }
-            }
-        }
-
-        $typoGroups = collect();
-        if ($n > 0) {
-            $buckets = [];
-            foreach ($byId as $idx => $item) {
-                $root = $find($idx);
-                $buckets[$root][] = $item['client'];
-            }
-
-            foreach ($buckets as $members) {
-                if (count($members) < 2) {
-                    continue;
-                }
-                $typoGroups->push(collect($members));
-            }
-        }
-
-        // Use a plain (non-Eloquent) collection: Eloquent's merge() expects
-        // models, but these hold groups of models.
-        return collect()
-            ->merge($soundexGroups)
-            ->merge($typoGroups)
-            ->map(fn ($items) => $this->groupPayload($items))
-            ->values();
+        return $result;
     }
 
     /**
@@ -710,63 +344,6 @@ class DuplicateReviewController extends Controller
         return $results;
     }
 
-    /**
-     * Cache dropdown values separately from full client models. Client model
-     * events invalidate this lightweight cache together with group membership.
-     *
-     * @return array{filterGenders: array, filterCivilStatuses: array, filterCities: array, filterBarangays: array}
-     */
-    private function duplicateClientFilterOptions(Collection $ids): array
-    {
-        if ($ids->isEmpty()) {
-            return [
-                'filterGenders' => [],
-                'filterCivilStatuses' => [],
-                'filterCities' => [],
-                'filterBarangays' => [],
-            ];
-        }
-
-        $cacheKey = 'duplicate_clients_filter_options_v1';
-
-        return Cache::remember($cacheKey, now()->addSeconds(self::DUPLICATE_CLIENTS_CACHE_TTL), function () use ($ids) {
-            $values = [
-                'gender' => [],
-                'civil_status' => [],
-                'city' => [],
-                'barangay' => [],
-            ];
-
-            foreach ($ids->chunk($this->duplicateClientQueryChunkSize()) as $chunk) {
-                $rows = Client::query()
-                    ->select(['gender', 'civil_status', 'city', 'barangay'])
-                    ->whereIn('id', $chunk->all())
-                    ->get();
-
-                foreach ($rows as $row) {
-                    foreach (array_keys($values) as $field) {
-                        $value = trim((string) $row->{$field});
-                        if ($value !== '') {
-                            $values[$field][strtolower($value)] = $value;
-                        }
-                    }
-                }
-            }
-
-            foreach ($values as &$items) {
-                natcasesort($items);
-            }
-            unset($items);
-
-            return [
-                'filterGenders' => array_values($values['gender']),
-                'filterCivilStatuses' => array_values($values['civil_status']),
-                'filterCities' => array_values($values['city']),
-                'filterBarangays' => array_values($values['barangay']),
-            ];
-        });
-    }
-
     private function duplicateClientPerPage(Request $request): int
     {
         $perPage = (int) $request->input('per_page', 10);
@@ -779,37 +356,6 @@ class DuplicateReviewController extends Controller
         // SQLite has a low placeholder limit in tests. MySQL can safely use a
         // larger batch, reducing round trips on production-sized client lists.
         return DB::connection()->getDriverName() === 'sqlite' ? 900 : 5000;
-    }
-
-    private function groupClientsByKey(array $keys, string $keyExpr): \Illuminate\Support\Collection
-    {
-        if (empty($keys)) {
-            return collect();
-        }
-
-        $clients = Client::query()
-            ->select([
-                'id', 'client_id', 'first_name', 'middle_name', 'last_name', 'suffix',
-                'age', 'birth_date', 'gender', 'civil_status',
-                'email', 'contact', 'contact_2', 'address',
-                'province', 'city', 'barangay',
-                'photo_path', 'created_at',
-            ])
-            ->whereIn(DB::raw($keyExpr), $keys)
-            ->get();
-
-        return $clients->groupBy(function ($client) use ($keyExpr) {
-            return $keyExpr === self::EXACT_KEY
-                ? implode('|', [
-                    strtolower(trim($client->first_name)),
-                    strtolower(trim($client->last_name)),
-                ])
-                : implode('|', [
-                    strtolower(trim($client->first_name)),
-                    strtolower(trim($client->middle_name ?? '')),
-                    strtolower(trim($client->last_name)),
-                ]);
-        })->map(fn ($items) => $this->groupPayload($items))->values();
     }
 
     private function groupPayload($items): array

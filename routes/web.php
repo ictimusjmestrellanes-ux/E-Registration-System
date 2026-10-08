@@ -86,6 +86,7 @@ Route::group(['namespace' => 'App\Http\Controllers'], function () {
 
         // --------------------- Duplicate Review ------------------//
         Route::get('duplicate-review', [DuplicateReviewController::class, 'index'])->name('duplicate.review');
+        Route::post('duplicate-review/similar-scan', [DuplicateReviewController::class, 'scanSimilar'])->name('duplicate.review.similar-scan');
 
         // --------------------- Fingerprint ------------------//
         Route::post('client-list/fingerprint-search', [FingerprintController::class, 'search'])->name('client.search.fingerprint');

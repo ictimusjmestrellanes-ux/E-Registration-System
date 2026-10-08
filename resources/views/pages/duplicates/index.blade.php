@@ -209,7 +209,7 @@
                             <li class="nav-item">
                                 <a class="nav-link" data-bs-toggle="tab" href="#similar-tab" role="tab">
                                     Similar Spelling
-                                    <span class="badge bg-info-subtle text-info ms-1">{{ $similarGroupsTotal ?? $similarGroups->count() }}</span>
+                                    <span class="badge bg-info-subtle text-info ms-1">{{ ($similarScanPending ?? false) ? 'Pending' : ($similarGroupsTotal ?? $similarGroups->count()) }}</span>
                                 </a>
                             </li>
                         </ul>
@@ -261,6 +261,12 @@
                             </div>
 
                             <div class="tab-pane fade" id="similar-tab" role="tabpanel">
+                                @if ($similarScanPending ?? false)
+                                    <div class="alert alert-info" data-similar-scan>
+                                        <p class="mb-2" data-scan-status role="status" aria-live="polite">Similar Spelling loads in short batches so large client lists do not block this page. Exact Match is ready above.</p>
+                                        <button type="button" class="btn btn-sm btn-primary" data-start-similar-scan>Load Similar Spelling</button>
+                                    </div>
+                                @else
                                 <div class="alert alert-info-subtle d-flex align-items-center mb-3 py-2" role="alert">
                                     <i class="ri-information-line fs-4 me-2"></i>
                                     <div class="small">Possible-similar name spelling or typos (e.g. Maria/Marie, Iscober/Escobar) and format mismatches (e.g. "SURNAME, First" vs "First Last"). Verify before acting.</div>
@@ -279,6 +285,7 @@
                                         {{ $similarGroups->links('pagination::bootstrap-5') }}
                                     </div>
                                 @endif
+                                @endif
                             </div>
                         </div>
                     </div>
@@ -291,6 +298,60 @@
 @push('scripts')
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            const scanPanel = document.querySelector('[data-similar-scan]');
+            const scanButton = document.querySelector('[data-start-similar-scan]');
+            const similarTab = document.querySelector('a[href="#similar-tab"]');
+            let scanRunning = false;
+            async function loadSimilarSpelling() {
+                if (!scanPanel || scanRunning) return;
+                scanRunning = true;
+                scanButton.disabled = true;
+                const status = scanPanel.querySelector('[data-scan-status]');
+                try {
+                    while (true) {
+                        const response = await fetch(@json(route('duplicate.review.similar-scan')), {
+                            method: 'POST',
+                            headers: { 'X-CSRF-TOKEN': @json(csrf_token()), 'Accept': 'application/json' },
+                            credentials: 'same-origin',
+                        });
+                        if (!response.ok) throw new Error('Scan request failed (' + response.status + ').');
+                        const progress = await response.json();
+                        status.textContent = progress.message;
+                        if (progress.done) {
+                            if (similarTab?.classList.contains('active')) {
+                                const url = new URL(window.location.href);
+                                url.hash = 'similar-tab';
+                                window.location.replace(url.href);
+                                window.location.reload();
+                            } else {
+                                scanButton.disabled = false;
+                                scanButton.textContent = 'View results';
+                                scanButton.onclick = () => {
+                                    const url = new URL(window.location.href);
+                                    url.hash = 'similar-tab';
+                                    window.location.replace(url.href);
+                                    window.location.reload();
+                                };
+                            }
+                            return;
+                        }
+                        // Stop requesting batches when the reviewer leaves the tab;
+                        // its cached cursor resumes on the next visit or retry.
+                        if (!similarTab?.classList.contains('active')) return;
+                        await new Promise(resolve => setTimeout(resolve, 250));
+                    }
+                } catch (error) {
+                    status.textContent = error.message + ' You can retry; completed batches are retained.';
+                    scanButton.textContent = 'Retry scan';
+                } finally {
+                    scanRunning = false;
+                    scanButton.disabled = false;
+                }
+            }
+            scanButton?.addEventListener('click', loadSimilarSpelling);
+            similarTab?.addEventListener('shown.bs.tab', loadSimilarSpelling);
+            if (window.location.hash === '#similar-tab') loadSimilarSpelling();
+
             const duplicateClientSortCollator = new Intl.Collator(undefined, {
                 numeric: true,
                 sensitivity: 'base',
