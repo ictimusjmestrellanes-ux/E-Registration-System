@@ -86,6 +86,36 @@ class DuplicateClientsReviewTest extends TestCase
         );
     }
 
+    public function test_exact_match_recognizes_legacy_transaction_id_links(): void
+    {
+        $first = Client::create([
+            'client_id' => '2601001',
+            'first_name' => 'Legacy',
+            'last_name' => 'Client',
+        ]);
+        $second = Client::create([
+            'client_id' => '2601002',
+            'first_name' => 'Legacy',
+            'last_name' => 'Client',
+        ]);
+        $this->createTransaction($first);
+        TransactionHistory::create([
+            'client_id' => null,
+            'transaction_id' => $second->client_id.'-26-0001',
+            'transaction_date' => '2026-01-01',
+            'category' => 'others',
+            'type' => 'test',
+        ]);
+
+        $response = $this->get('/duplicate-review')->assertOk();
+
+        $this->assertSame(1, $response->viewData('exactGroups')->total());
+        $this->assertEqualsCanonicalizing(
+            [$first->id, $second->id],
+            $response->viewData('exactGroups')->first()['clients']->pluck('id')->all()
+        );
+    }
+
     public function test_clients_inside_duplicate_groups_have_sortable_columns(): void
     {
         foreach ([31, 24] as $index => $age) {
@@ -112,6 +142,28 @@ class DuplicateClientsReviewTest extends TestCase
             ->assertSee('data-sort-column="8" data-sort-type="number"', false)
             ->assertSee('data-sort-value="1990-01-01"', false)
             ->assertSee('duplicateClientSortCollator', false);
+    }
+
+    public function test_similar_spelling_keeps_first_letter_typo_matches(): void
+    {
+        $first = Client::create([
+            'client_id' => 'SIMILAR-1',
+            'first_name' => 'Maria',
+            'last_name' => 'Cruz',
+        ]);
+        $second = Client::create([
+            'client_id' => 'SIMILAR-2',
+            'first_name' => 'Maria',
+            'last_name' => 'Kruz',
+        ]);
+
+        $response = $this->get('/duplicate-review')->assertOk();
+
+        $this->assertSame(1, $response->viewData('similarGroups')->total());
+        $this->assertEqualsCanonicalizing(
+            [$first->id, $second->id],
+            $response->viewData('similarGroups')->first()['clients']->pluck('id')->all()
+        );
     }
 
     public function test_cold_and_warm_cache_preserve_groups_filters_and_pagination(): void

@@ -139,29 +139,52 @@ class DuplicateReviewController extends Controller
             return collect();
         }
 
-        $prefixMatch = DB::connection()->getDriverName() === 'sqlite'
-            ? "transaction_history.transaction_id LIKE clients.client_id || '-%'"
-            : "transaction_history.transaction_id LIKE CONCAT(clients.client_id, '-%')";
-        $clientsWithTransactions = [];
-
+        // Resolve internal IDs to public client IDs first, then use the indexed
+        // transaction_history.client_id column in batches. Avoid a correlated
+        // transaction_id LIKE CONCAT(clients.client_id, ...) fallback here: on
+        // large datasets it forces a transaction-history scan for every client.
+        $recordIdsByClientId = [];
         foreach ($ids->chunk($this->duplicateClientQueryChunkSize()) as $chunk) {
-            $matchingIds = Client::query()
-                ->whereIn('clients.id', $chunk->all())
-                ->where(function ($query) use ($prefixMatch) {
-                    $query->whereExists(function ($transactionQuery) {
-                        $transactionQuery->selectRaw('1')
-                            ->from('transaction_history')
-                            ->whereColumn('transaction_history.client_id', 'clients.client_id');
-                    })->orWhereExists(function ($transactionQuery) use ($prefixMatch) {
-                        $transactionQuery->selectRaw('1')
-                            ->from('transaction_history')
-                            ->whereRaw($prefixMatch);
-                    });
-                })
-                ->pluck('clients.id');
+            $clientIds = Client::query()
+                ->whereIn('id', $chunk->all())
+                ->pluck('client_id', 'id');
 
-            foreach ($matchingIds as $id) {
-                $clientsWithTransactions[(int) $id] = true;
+            foreach ($clientIds as $recordId => $clientId) {
+                $clientId = trim((string) $clientId);
+                if ($clientId !== '') {
+                    $recordIdsByClientId[$clientId][] = (int) $recordId;
+                }
+            }
+        }
+
+        $clientsWithTransactions = [];
+        foreach (array_chunk(array_keys($recordIdsByClientId), $this->duplicateClientQueryChunkSize()) as $clientIdChunk) {
+            $matchingClientIds = DB::table('transaction_history')
+                ->whereIn('client_id', $clientIdChunk)
+                ->distinct()
+                ->pluck('client_id');
+
+            foreach ($matchingClientIds as $clientId) {
+                foreach ($recordIdsByClientId[(string) $clientId] ?? [] as $recordId) {
+                    $clientsWithTransactions[$recordId] = true;
+                }
+            }
+        }
+
+        // Historical rows may predate transaction_history.client_id. Read only
+        // those unlinked rows once and recover the legacy numeric client prefix.
+        foreach (DB::table('transaction_history')
+            ->whereNull('client_id')
+            ->whereNotNull('transaction_id')
+            ->pluck('transaction_id') as $transactionId) {
+            $separator = strpos((string) $transactionId, '-');
+            if ($separator === false) {
+                continue;
+            }
+
+            $legacyClientId = substr((string) $transactionId, 0, $separator);
+            foreach ($recordIdsByClientId[$legacyClientId] ?? [] as $recordId) {
+                $clientsWithTransactions[$recordId] = true;
             }
         }
 
@@ -400,12 +423,12 @@ class DuplicateReviewController extends Controller
 
         $byId = $indexed->values();
 
-        // Blocking: only compare pairs that share a surname consonant-skeleton,
-        // surname soundex, or surname first-2-letters. This cuts the ~292M full
-        // pairwise scan down to a few million pairs while keeping typo pairs
-        // such as Iscober/Escobar (same 'scbr' skeleton) in the same block.
-        // Only united pairs are recorded in $seenPairs so repeats across blocks
-        // are skipped without storing every considered pair.
+        // Blocking: edit-distance-one surnames always share either their full
+        // value or a value with one character removed. Use those signatures
+        // instead of broad two-letter prefixes, which produced millions of
+        // unnecessary comparisons on production-sized client tables. Keep the
+        // consonant skeleton block for accepted two-edit vowel variations such
+        // as Iscober/Escobar (both become "scbr").
         $skeletonOf = static fn (string $s): string => str_replace(['a', 'e', 'i', 'o', 'u', ' '], '', $s);
 
         $blocks = [];
@@ -414,63 +437,21 @@ class DuplicateReviewController extends Controller
             if ($sur === '') {
                 continue; // can never match: the matcher requires non-empty surnames
             }
-            $blocks['k:' . $skeletonOf($sur)][] = $idx;
-            $sx = soundex($sur);
-            if ($sx !== '') {
-                $blocks['s:' . $sx][] = $idx;
+
+            $signatures = ['d:' . $sur];
+            for ($position = 0, $length = strlen($sur); $position < $length; $position++) {
+                $signatures[] = 'd:' . substr($sur, 0, $position) . substr($sur, $position + 1);
             }
-            if (strlen($sur) >= 2) {
-                $blocks['p:' . substr($sur, 0, 2)][] = $idx;
+
+            $skeleton = $skeletonOf($sur);
+            if ($skeleton !== '') {
+                $signatures[] = 'k:' . $skeleton;
+            }
+
+            foreach (array_unique($signatures) as $signature) {
+                $blocks[$signature][] = $idx;
             }
         }
-
-        $tryPair = function ($i, $j) use ($byId, &$seenPairs, $levOk, $union) {
-            $a = $byId[$i];
-            $b = $byId[$j];
-
-            $pairKey = min($a['client']->id, $b['client']->id) . '-' . max($a['client']->id, $b['client']->id);
-            if (isset($seenPairs[$pairKey])) {
-                return;
-            }
-
-            // Identical normalized names belong to the exact/likely tabs.
-            if ($a['sur'] === $b['sur'] && $a['given'] === $b['given']) {
-                return;
-            }
-
-            // Surnames must match exactly, be a single typo apart, or be a
-            // 2-letter typo that stays phonetically identical (Iscober/Escobar).
-            $sa = $a['sur'];
-            $sb = $b['sur'];
-            if ($sa === '' || $sb === '') {
-                return;
-            }
-            if ($sa !== $sb) {
-                if (strlen($sa) < 4 || strlen($sb) < 4) {
-                    return;
-                }
-                $d = levenshtein($sa, $sb);
-                // A 2-letter difference is only accepted when the consonant
-                // skeleton is identical (Iscober/Escobar -> scbr), which
-                // rejects unrelated names like Lapid/Sapida.
-                $skelA = str_replace(['a', 'e', 'i', 'o', 'u'], '', $sa);
-                $skelB = str_replace(['a', 'e', 'i', 'o', 'u'], '', $sb);
-                if (!($d <= 1 || ($d === 2 && $skelA !== '' && $skelA === $skelB))) {
-                    return;
-                }
-            }
-
-            $givenOk = $a['given'] !== '' && $b['given'] !== '' && (
-                $a['given'] === $b['given']
-                || $levOk($a['given'], $b['given'], 1)
-                || (min(strlen($a['given']), strlen($b['given'])) >= 3
-                    && (str_starts_with($a['given'], $b['given']) || str_starts_with($b['given'], $a['given']))));
-
-            if ($givenOk) {
-                $seenPairs[$pairKey] = true;
-                $union($i, $j);
-            }
-        };
 
         // Plain parallel arrays keep the hot pair loop cheap: no Eloquent
         // attribute access or closure dispatch per pair.
@@ -484,6 +465,7 @@ class DuplicateReviewController extends Controller
         }
 
         $vowels = ['a', 'e', 'i', 'o', 'u'];
+        $comparedPairs = [];
 
         foreach ($blocks as $members) {
             $m = count($members);
@@ -495,6 +477,14 @@ class DuplicateReviewController extends Controller
                 for ($y = $x + 1; $y < $m; $y++) {
                     $j = $members[$y];
                     $sb = $pSur[$j];
+
+                    $pairKey = $pIds[$i] < $pIds[$j]
+                        ? $pIds[$i] . '-' . $pIds[$j]
+                        : $pIds[$j] . '-' . $pIds[$i];
+                    if (isset($comparedPairs[$pairKey]) || isset($seenPairs[$pairKey])) {
+                        continue;
+                    }
+                    $comparedPairs[$pairKey] = true;
 
                     // Identical normalized names belong to the exact/likely tabs.
                     if ($sa === $sb && $ga === $pGiven[$j]) {
@@ -533,12 +523,6 @@ class DuplicateReviewController extends Controller
                         continue;
                     }
 
-                    $pairKey = $pIds[$i] < $pIds[$j]
-                        ? $pIds[$i] . '-' . $pIds[$j]
-                        : $pIds[$j] . '-' . $pIds[$i];
-                    if (isset($seenPairs[$pairKey])) {
-                        continue;
-                    }
                     $seenPairs[$pairKey] = true;
                     $union($i, $j);
                 }
