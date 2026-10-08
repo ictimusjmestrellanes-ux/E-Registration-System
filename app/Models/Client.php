@@ -201,12 +201,12 @@ class Client extends Model
     protected static function booted()
     {
         static::saved(function () {
-            Cache::forget('duplicate_clients_v2');
+            Cache::forget('duplicate_clients_v3');
             Cache::forget('duplicate_clients_filter_options_v1');
         });
 
         static::deleted(function () {
-            Cache::forget('duplicate_clients_v2');
+            Cache::forget('duplicate_clients_v3');
             Cache::forget('duplicate_clients_filter_options_v1');
         });
 

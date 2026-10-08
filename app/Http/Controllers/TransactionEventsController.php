@@ -3892,7 +3892,7 @@ class TransactionEventsController extends Controller
             return count($records);
         });
 
-        Cache::forget('duplicate_clients_v2');
+        Cache::forget('duplicate_clients_v3');
         Cache::forget('duplicate_clients_filter_options_v1');
         TransactionHistory::flushDashboardCache();
 
@@ -5669,7 +5669,7 @@ class TransactionEventsController extends Controller
             return ['successCount' => $count, 'createdClients' => $count];
         });
 
-        Cache::forget('duplicate_clients_v2');
+        Cache::forget('duplicate_clients_v3');
         Cache::forget('duplicate_clients_filter_options_v1');
         TransactionHistory::flushDashboardCache();
 

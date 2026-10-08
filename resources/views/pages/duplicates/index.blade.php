@@ -18,21 +18,39 @@
             $out .= '<a href="' . e(route('client.list', ['client_ids' => $group['clients']->pluck('id')->implode(',')])) . '" class="btn btn-sm btn-outline-primary">View in Client List</a>';
         $out .= '</div>';
         $out .= '<div class="table-responsive">';
-        $out .= '<table class="table table-sm table-hover align-middle mb-0">';
+        $out .= '<table class="table table-sm table-hover align-middle mb-0 duplicate-client-group-table">';
         $out .= '<thead class="table-light"><tr>';
-        $out .= '<th>Client ID</th><th>Photo</th><th>Name</th><th>Age</th><th>Birth Date</th><th>Gender</th><th>Contact</th><th>Address</th><th class="text-center">Actions</th>';
+        $sortableHeaders = [
+            ['label' => 'Client ID', 'type' => 'text'],
+            ['label' => 'Photo', 'type' => 'text'],
+            ['label' => 'Name', 'type' => 'text'],
+            ['label' => 'Age', 'type' => 'number'],
+            ['label' => 'Birth Date', 'type' => 'date'],
+            ['label' => 'Gender', 'type' => 'text'],
+            ['label' => 'Contact', 'type' => 'text'],
+            ['label' => 'Address', 'type' => 'text'],
+            ['label' => 'Actions', 'type' => 'number', 'center' => true],
+        ];
+        foreach ($sortableHeaders as $column => $header) {
+            $out .= '<th scope="col"' . (!empty($header['center']) ? ' class="text-center"' : '') . '>';
+            $out .= '<button type="button" class="btn btn-link btn-sm p-0 text-body fw-semibold text-decoration-none d-inline-flex align-items-center gap-1 text-nowrap' . (!empty($header['center']) ? ' justify-content-center' : '') . '" data-duplicate-client-sort data-sort-column="' . $column . '" data-sort-type="' . $header['type'] . '" data-sort-direction="" aria-label="Sort by ' . e($header['label']) . ' ascending">';
+            $out .= e($header['label']) . '<i class="ri-arrow-up-down-line text-muted" aria-hidden="true"></i>';
+            $out .= '</button></th>';
+        }
         $out .= '</tr></thead><tbody>';
         foreach ($group['clients'] as $client) {
+            $address = collect([$client->address, $client->barangay, $client->city, $client->province])->filter()->implode(', ');
+            $photoSortValue = filled($client->photo_path) ? '1|' . $client->photo_path : '0';
             $out .= '<tr>';
-            $out .= '<td class="fw-semibold">' . e($client->client_id) . '</td>';
-            $out .= '<td><img src="' . e($client->photo_url) . '" alt="Photo" class="rounded avatar-sm object-fit-cover" onerror="this.onerror=null;this.src=\'' . e(asset('assets/images/profile.png')) . '\';"></td>';
-            $out .= '<td>' . e($client->full_name) . '</td>';
-            $out .= '<td>' . e($client->age ?? '-') . '</td>';
-            $out .= '<td>' . e(optional($client->birth_date)->format('M d, Y') ?? '-') . '</td>';
-            $out .= '<td>' . e($client->gender ?? '-') . '</td>';
-            $out .= '<td>' . e($client->contact ?? '-') . '</td>';
-            $out .= '<td class="small">' . e(collect([$client->address, $client->barangay, $client->city, $client->province])->filter()->implode(', ') ?: '-') . '</td>';
-            $out .= '<td class="text-center"><a href="' . e(route('clients.show', $client)) . '" class="btn btn-sm btn-soft-info">View</a></td>';
+            $out .= '<td class="fw-semibold" data-sort-value="' . e($client->client_id) . '">' . e($client->client_id) . '</td>';
+            $out .= '<td data-sort-value="' . e($photoSortValue) . '"><img src="' . e($client->photo_url) . '" alt="Photo" class="rounded avatar-sm object-fit-cover" onerror="this.onerror=null;this.src=\'' . e(asset('assets/images/profile.png')) . '\';"></td>';
+            $out .= '<td data-sort-value="' . e($client->full_name) . '">' . e($client->full_name) . '</td>';
+            $out .= '<td data-sort-value="' . e($client->age ?? '') . '">' . e($client->age ?? '-') . '</td>';
+            $out .= '<td data-sort-value="' . e(optional($client->birth_date)->format('Y-m-d') ?? '') . '">' . e(optional($client->birth_date)->format('M d, Y') ?? '-') . '</td>';
+            $out .= '<td data-sort-value="' . e($client->gender ?? '') . '">' . e($client->gender ?? '-') . '</td>';
+            $out .= '<td data-sort-value="' . e($client->contact ?? '') . '">' . e($client->contact ?? '-') . '</td>';
+            $out .= '<td class="small" data-sort-value="' . e($address) . '">' . e($address ?: '-') . '</td>';
+            $out .= '<td class="text-center" data-sort-value="' . (int) $client->id . '"><a href="' . e(route('clients.show', $client)) . '" class="btn btn-sm btn-soft-info">View</a></td>';
             $out .= '</tr>';
         }
         $out .= '</tbody></table></div></div>';
@@ -203,7 +221,7 @@
                             <div class="tab-pane fade show active" id="exact-tab" role="tabpanel">
                                 <div class="alert alert-danger-subtle alert-dismissible d-flex align-items-center mb-3 py-2" role="alert">
                                     <i class="ri-error-warning-line fs-4 me-2"></i>
-                                    <div class="small">Exact-same name and birth date. High confidence duplicates.</div>
+                                    <div class="small">Same first name and last name, with at least one transaction per client. High confidence duplicates.</div>
                                 </div>
                                 @forelse ($exactGroups as $group)
                                     {!! $renderGroup($group) !!}
@@ -273,6 +291,82 @@
 @push('scripts')
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            const duplicateClientSortCollator = new Intl.Collator(undefined, {
+                numeric: true,
+                sensitivity: 'base',
+            });
+
+            document.addEventListener('click', function(event) {
+                const sortButton = event.target.closest('[data-duplicate-client-sort]');
+                if (!sortButton) return;
+
+                const table = sortButton.closest('.duplicate-client-group-table');
+                const tbody = table?.tBodies[0];
+                if (!tbody) return;
+
+                const column = Number(sortButton.dataset.sortColumn);
+                const type = sortButton.dataset.sortType || 'text';
+                const direction = sortButton.dataset.sortDirection === 'asc' ? 'desc' : 'asc';
+                const rows = Array.from(tbody.rows);
+
+                const valueFor = row => {
+                    const rawValue = row.cells[column]?.dataset.sortValue?.trim() ?? '';
+                    if (rawValue === '') return null;
+                    if (type === 'number') {
+                        const numberValue = Number(rawValue);
+                        return Number.isNaN(numberValue) ? null : numberValue;
+                    }
+                    if (type === 'date') {
+                        const dateValue = Date.parse(rawValue);
+                        return Number.isNaN(dateValue) ? null : dateValue;
+                    }
+                    return rawValue;
+                };
+
+                rows
+                    .map((row, originalIndex) => ({ row, originalIndex, value: valueFor(row) }))
+                    .sort((left, right) => {
+                        if (left.value === null && right.value === null) {
+                            return left.originalIndex - right.originalIndex;
+                        }
+                        if (left.value === null) return 1;
+                        if (right.value === null) return -1;
+
+                        const comparison = type === 'text'
+                            ? duplicateClientSortCollator.compare(left.value, right.value)
+                            : left.value - right.value;
+
+                        return comparison === 0
+                            ? left.originalIndex - right.originalIndex
+                            : (direction === 'asc' ? comparison : -comparison);
+                    })
+                    .forEach(item => tbody.appendChild(item.row));
+
+                table.querySelectorAll('[data-duplicate-client-sort]').forEach(button => {
+                    button.dataset.sortDirection = '';
+                    button.closest('th')?.removeAttribute('aria-sort');
+                    const icon = button.querySelector('i');
+                    if (icon) icon.className = 'ri-arrow-up-down-line text-muted';
+                    button.setAttribute('aria-label', `Sort by ${button.textContent.trim()} ascending`);
+                });
+
+                sortButton.dataset.sortDirection = direction;
+                sortButton.closest('th')?.setAttribute(
+                    'aria-sort',
+                    direction === 'asc' ? 'ascending' : 'descending'
+                );
+                const activeIcon = sortButton.querySelector('i');
+                if (activeIcon) {
+                    activeIcon.className = direction === 'asc'
+                        ? 'ri-arrow-up-line text-primary'
+                        : 'ri-arrow-down-line text-primary';
+                }
+                sortButton.setAttribute(
+                    'aria-label',
+                    `Sort by ${sortButton.textContent.trim()} ${direction === 'asc' ? 'descending' : 'ascending'}`
+                );
+            });
+
             const toggleBtn = document.getElementById('dupFiltersToggleBtn');
             const formEl = document.getElementById('dupFiltersForm');
             if (!toggleBtn || !formEl) {

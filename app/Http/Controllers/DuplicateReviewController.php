@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Cache;
 class DuplicateReviewController extends Controller
 {
     private const NAME_KEY = "CONCAT_WS('|', LOWER(TRIM(first_name)), LOWER(TRIM(COALESCE(middle_name,''))), LOWER(TRIM(last_name)))";
-    private const EXACT_KEY = "CONCAT_WS('|', LOWER(TRIM(first_name)), LOWER(TRIM(COALESCE(middle_name,''))), LOWER(TRIM(last_name)), COALESCE(birth_date,''))";
+    private const EXACT_KEY = "CONCAT_WS('|', LOWER(TRIM(first_name)), LOWER(TRIM(last_name)))";
     private const SOUNDEX_KEY = "CONCAT(COALESCE(SOUNDEX(LOWER(TRIM(first_name))),''), '|', COALESCE(SOUNDEX(LOWER(TRIM(last_name))),''))";
 
     // Cached longer because the similar-spelling scan is expensive; the cache
@@ -36,13 +36,24 @@ class DuplicateReviewController extends Controller
         @ini_set('memory_limit', '512M');
         @set_time_limit(300);
 
-        $cacheKey = 'duplicate_clients_v2';
+        $cacheKey = 'duplicate_clients_v3';
         $cacheTtl = now()->addSeconds(self::DUPLICATE_CLIENTS_CACHE_TTL);
 
         $groups = Cache::remember($cacheKey, $cacheTtl, function () {
+            $exactGroups = $this->findExactDuplicates();
+            $exactClientIds = $exactGroups
+                ->flatMap(fn ($group) => $group['clients']->pluck('id'))
+                ->flip();
+
             $groups = [
-                'exact' => $this->findExactDuplicates(),
-                'likely' => $this->findLikelyDuplicates(),
+                'exact' => $exactGroups,
+                // A likely-name group is omitted once all of its records are
+                // covered by the broader first-name + last-name exact rule.
+                'likely' => $this->findLikelyDuplicates()
+                    ->reject(fn ($group) => $group['clients']->every(
+                        fn ($client) => $exactClientIds->has($client->id)
+                    ))
+                    ->values(),
                 'similar' => $this->findSimilarSpellingDuplicates(),
             ];
 
@@ -57,6 +68,7 @@ class DuplicateReviewController extends Controller
         // only validate those IDs here; full client rows are loaded after the
         // three tabs have been filtered and paginated.
         $groups = $this->normalizeDuplicateGroupIds($groups);
+        $groups['exact'] = $this->exactGroupsWithTransactions($groups['exact']);
 
         $exactGroups = $groups['exact'];
         $likelyGroups = $groups['likely'];
@@ -115,7 +127,56 @@ class DuplicateReviewController extends Controller
     }
 
     /**
-     * Same normalized full name AND exact same birth date.
+     * Keep only exact-match clients that own at least one transaction. A group
+     * must retain two clients after filtering to remain a duplicate group.
+     * Older transaction rows that only carry the client ID as the transaction
+     * number prefix are treated as linked too.
+     */
+    private function exactGroupsWithTransactions(Collection $groups): Collection
+    {
+        $ids = $groups->flatten()->unique()->values();
+        if ($ids->isEmpty()) {
+            return collect();
+        }
+
+        $prefixMatch = DB::connection()->getDriverName() === 'sqlite'
+            ? "transaction_history.transaction_id LIKE clients.client_id || '-%'"
+            : "transaction_history.transaction_id LIKE CONCAT(clients.client_id, '-%')";
+        $clientsWithTransactions = [];
+
+        foreach ($ids->chunk($this->duplicateClientQueryChunkSize()) as $chunk) {
+            $matchingIds = Client::query()
+                ->whereIn('clients.id', $chunk->all())
+                ->where(function ($query) use ($prefixMatch) {
+                    $query->whereExists(function ($transactionQuery) {
+                        $transactionQuery->selectRaw('1')
+                            ->from('transaction_history')
+                            ->whereColumn('transaction_history.client_id', 'clients.client_id');
+                    })->orWhereExists(function ($transactionQuery) use ($prefixMatch) {
+                        $transactionQuery->selectRaw('1')
+                            ->from('transaction_history')
+                            ->whereRaw($prefixMatch);
+                    });
+                })
+                ->pluck('clients.id');
+
+            foreach ($matchingIds as $id) {
+                $clientsWithTransactions[(int) $id] = true;
+            }
+        }
+
+        return $groups
+            ->map(fn ($memberIds) => collect($memberIds)
+                ->filter(fn ($id) => isset($clientsWithTransactions[(int) $id]))
+                ->values()
+                ->all())
+            ->filter(fn ($memberIds) => count($memberIds) > 1)
+            ->values();
+    }
+
+    /**
+     * Same normalized first name and last name. Middle name and birth date do
+     * not affect exact-match membership.
      */
     private function findExactDuplicates(): \Illuminate\Support\Collection
     {
@@ -757,9 +818,7 @@ class DuplicateReviewController extends Controller
             return $keyExpr === self::EXACT_KEY
                 ? implode('|', [
                     strtolower(trim($client->first_name)),
-                    strtolower(trim($client->middle_name ?? '')),
                     strtolower(trim($client->last_name)),
-                    $client->birth_date?->format('Y-m-d'),
                 ])
                 : implode('|', [
                     strtolower(trim($client->first_name)),
