@@ -3894,7 +3894,6 @@ class TransactionEventsController extends Controller
 
         Cache::forget('duplicate_clients_v3');
         Cache::forget('duplicate_clients_filter_options_v1');
-        \App\Services\DuplicateClientScan::invalidate();
         TransactionHistory::flushDashboardCache();
 
         return $created;
@@ -5672,7 +5671,6 @@ class TransactionEventsController extends Controller
 
         Cache::forget('duplicate_clients_v3');
         Cache::forget('duplicate_clients_filter_options_v1');
-        \App\Services\DuplicateClientScan::invalidate();
         TransactionHistory::flushDashboardCache();
 
         return $result;

@@ -73,7 +73,7 @@ function feature_route_map(): array
             'transaction-events/records/duplicates/merge-clients*',
         ],
         'View Archive Files' => ['transaction-events/archives'],
-        'Duplicate Clients Review' => ['duplicate-review', 'duplicate-review/similar-scan'],
+        'Duplicate Clients Review' => ['duplicate-review'],
         'Events - Duplicate Review' => ['transaction-events/duplicate-review'],
         'Manage Users' => ['users', 'users/*', 'roles', 'permissions'],
         'Roles' => ['roles'],

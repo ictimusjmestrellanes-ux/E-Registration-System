@@ -59,7 +59,7 @@ class ViewerPermissionLeakTest extends TestCase
         $this->assertFalse(feature_allowed('Duplicate Clients Review'));
         $this->assertTrue(feature_allowed('Dashboard'));
         $this->get(route('duplicate.review'))->assertNotFound();
-        $this->postJson(route('duplicate.review.similar-scan'))->assertNotFound();
+        $this->postJson('/duplicate-review/similar-scan')->assertNotFound();
     }
 
     public function test_admin_keeps_access_after_sync(): void
