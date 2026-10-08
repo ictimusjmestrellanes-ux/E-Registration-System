@@ -592,7 +592,7 @@
                                                             <button type="button" data-bs-toggle="modal"
                                                                 data-bs-target="#editRecordModal"
                                                                 data-update-url="{{ route('transaction-events.records.update', array_merge(request()->query(), ['event' => $event->id])) }}"
-                                                                data-record="{{ json_encode(array_merge($event->only(['id', 'full_name', 'age', 'contact_no', 'address', 'client_category', 'transaction_category', 'transaction_type']), ['birth_date' => $event->birth_date?->format('Y-m-d'), 'event_date' => $event->event_date?->format('Y-m-d')])) }}"
+                                                                data-record="{{ json_encode(array_merge($event->only(['id', 'full_name', 'age', 'contact_no', 'address', 'client_category', 'transaction_category', 'transaction_type', 'remarks']), ['birth_date' => $event->birth_date?->format('Y-m-d'), 'event_date' => $event->event_date?->format('Y-m-d')])) }}"
                                                                 class="btn btn-sm btn-soft-primary d-inline-flex align-items-center justify-content-center gap-1 text-nowrap">
                                                                 <i class="ri-pencil-line" aria-hidden="true"></i> Edit
                                                             </button>

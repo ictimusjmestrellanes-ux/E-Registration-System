@@ -304,6 +304,82 @@ class DuplicateEventClientMergeTest extends TestCase
         ], $mergeLog->properties['profile_field_sources']);
     }
 
+    public function test_merge_profile_uses_contact_edited_on_the_event_record(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+
+        $oldest = Client::create([
+            'client_id' => '2600040',
+            'first_name' => 'Lourdes',
+            'last_name' => 'Siongco',
+        ]);
+        $oldest->forceFill(['created_at' => '2026-01-01 08:00:00'])->saveQuietly();
+        $newest = Client::create([
+            'client_id' => '2600041',
+            'first_name' => 'Lourdes',
+            'last_name' => 'Siongco',
+        ]);
+        $newest->forceFill(['created_at' => '2026-02-01 08:00:00'])->saveQuietly();
+
+        $events = collect([$oldest, $newest])->map(function (Client $client, int $index) {
+            $history = TransactionHistory::create([
+                'client_id' => $client->client_id,
+                'transaction_id' => $client->client_id.'-26-0001',
+                'transaction_date' => '2026-09-03',
+                'category' => 'BIGAY BIGAS SA MASA',
+                'type' => 'TRANCHE '.($index + 1),
+            ]);
+
+            return TransactionEvent::create([
+                'full_name' => $index === 0 ? 'SIONGCO, LOURDES' : 'SIONGCO, LOURDES M',
+                'birth_date' => $index === 0 ? '1960-01-02' : '1970-03-04',
+                'contact_no' => $index === 0 ? '09111111111' : '09754693787',
+                'address' => $index === 0 ? 'OLD EVENT ADDRESS' : 'NEW EVENT ADDRESS',
+                'client_category' => $index === 0 ? 'UNKNOWN' : 'SENIOR CITIZEN',
+                'transaction_category' => 'BIGAY BIGAS SA MASA',
+                'transaction_type' => 'TRANCHE '.($index + 1),
+                'event_date' => '2026-09-03',
+                'transferred_at' => '2026-09-03 12:00:00',
+                'transferred_transaction_id' => $history->id,
+            ]);
+        })->values();
+
+        $response = $this->get(route('transaction-events.records-duplicates'));
+        $response->assertOk();
+        $this->assertMatchesRegularExpression(
+            '/data-target-profile="[^"]*&quot;contact&quot;:&quot;09111111111&quot;/',
+            $response->getContent()
+        );
+        $this->assertMatchesRegularExpression(
+            '/data-source-clients="[^"]*&quot;contact&quot;:&quot;09754693787&quot;/',
+            $response->getContent()
+        );
+        $this->assertMatchesRegularExpression(
+            '/data-source-clients="[^"]*&quot;address&quot;:&quot;NEW EVENT ADDRESS&quot;/',
+            $response->getContent()
+        );
+
+        $this->post(route('transaction-events.records-duplicates.merge-clients'), [
+            'event_ids' => $events->pluck('id')->all(),
+            'profile_field_sources' => [
+                'name' => '2600041',
+                'birth_date' => '2600041',
+                'contact' => '2600041',
+                'address' => '2600041',
+                'sector' => '2600041',
+            ],
+        ])->assertRedirect(route('transaction-events.records-duplicates'))->assertSessionHas('success');
+
+        $canonical = $oldest->fresh();
+        $this->assertSame('LOURDES', $canonical->first_name);
+        $this->assertSame('M', $canonical->middle_name);
+        $this->assertSame('SIONGCO', $canonical->last_name);
+        $this->assertSame('1970-03-04', $canonical->birth_date?->toDateString());
+        $this->assertSame('09754693787', $canonical->contact);
+        $this->assertSame('NEW EVENT ADDRESS', $canonical->address);
+        $this->assertSame('SENIOR CITIZEN', $canonical->sector);
+    }
+
     public function test_merge_applies_retained_profile_values_to_every_merged_event_record(): void
     {
         $this->actingAs(User::factory()->create(['role_name' => 'Admin']));

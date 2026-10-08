@@ -26,6 +26,7 @@ class TransactionEvent extends Model
         'transaction_category',
         'transaction_type',
         'event_date',
+        'remarks',
         'transferred_at',
         'transferred_transaction_id',
         'not_duplicate',

@@ -639,12 +639,17 @@ class TransactionEventsController extends Controller
             'transaction_category' => ($hasLinkedTransaction ? 'required' : 'nullable').'|string|max:100',
             'transaction_type' => ($hasLinkedTransaction ? 'required' : 'nullable').'|string|max:100',
             'event_date' => ($hasLinkedTransaction ? 'required' : 'nullable').'|date',
+            'remarks' => 'nullable|string',
         ]);
 
         $updated = DB::transaction(function () use ($event, $validated): bool {
             $event = TransactionEvent::whereKey($event->id)->lockForUpdate()->firstOrFail();
             abort_if($event->transferred_at === null, 404);
             $nameChanged = $event->full_name !== $validated['full_name'];
+            $contactChanged = $event->contact_no !== ($validated['contact_no'] ?? null);
+            $birthDateChanged = $event->birth_date?->toDateString() !== ($validated['birth_date'] ?? null);
+            $addressChanged = $event->address !== ($validated['address'] ?? null);
+            $clientCategoryChanged = $event->client_category !== ($validated['client_category'] ?? null);
 
             $history = null;
             if ($event->transferred_transaction_id) {
@@ -673,11 +678,14 @@ class TransactionEventsController extends Controller
                 if (array_key_exists('event_date', $validated)) {
                     $historyUpdates['transaction_date'] = $validated['event_date'];
                 }
+                if (array_key_exists('remarks', $validated)) {
+                    $historyUpdates['remarks'] = $validated['remarks'];
+                }
                 if ($historyUpdates !== []) {
                     $history->update($historyUpdates);
                 }
 
-                if ($nameChanged) {
+                if ($nameChanged || $contactChanged || $birthDateChanged || $addressChanged || $clientCategoryChanged) {
                     $client = Client::where('client_id', $history->client_id)
                         ->lockForUpdate()
                         ->first();
@@ -687,16 +695,32 @@ class TransactionEventsController extends Controller
                         ->max('id');
 
                     if ($client && (int) $latestLinkedEventId === (int) $event->id) {
-                        $name = ImportName::splitForClientProfile(
-                            $validated['full_name'],
-                            $client->middle_name
-                        );
-                        $client->update([
-                            'first_name' => $name['first'],
-                            'middle_name' => $name['middle'] !== '' ? $name['middle'] : null,
-                            'last_name' => $name['last'],
-                            'suffix' => $name['suffix'] !== '' ? $name['suffix'] : null,
-                        ]);
+                        $clientUpdates = [];
+                        if ($nameChanged) {
+                            $name = ImportName::splitForClientProfile(
+                                $validated['full_name'],
+                                $client->middle_name
+                            );
+                            $clientUpdates = [
+                                'first_name' => $name['first'],
+                                'middle_name' => $name['middle'] !== '' ? $name['middle'] : null,
+                                'last_name' => $name['last'],
+                                'suffix' => $name['suffix'] !== '' ? $name['suffix'] : null,
+                            ];
+                        }
+                        if ($contactChanged) {
+                            $clientUpdates['contact'] = $validated['contact_no'] ?? null;
+                        }
+                        if ($birthDateChanged) {
+                            $clientUpdates['birth_date'] = $validated['birth_date'] ?? null;
+                        }
+                        if ($addressChanged) {
+                            $clientUpdates['address'] = $validated['address'] ?? null;
+                        }
+                        if ($clientCategoryChanged) {
+                            $clientUpdates['sector'] = $validated['client_category'] ?? null;
+                        }
+                        $client->update($clientUpdates);
                     }
                 }
             }
@@ -4923,6 +4947,17 @@ class TransactionEventsController extends Controller
             $eventClientIds = $eventHistories->keyBy('id')->map(
                 fn (TransactionHistory $history) => (string) $history->client_id
             );
+            $profileEventForClient = $events
+                ->sort(function (TransactionEvent $left, TransactionEvent $right): int {
+                    $updatedOrder = ($right->updated_at?->getTimestamp() ?? 0)
+                        <=> ($left->updated_at?->getTimestamp() ?? 0);
+
+                    return $updatedOrder !== 0 ? $updatedOrder : ($right->id <=> $left->id);
+                })
+                ->groupBy(fn (TransactionEvent $event) => (string) $eventClientIds->get(
+                    $event->transferred_transaction_id
+                ))
+                ->map(fn ($clientEvents) => $clientEvents->first());
             $selectedSourceEventIds = $events->filter(
                 fn (TransactionEvent $event) => $sourceClientIds->contains(
                     $eventClientIds->get($event->transferred_transaction_id)
@@ -4944,14 +4979,44 @@ class TransactionEventsController extends Controller
                 'sector' => ['sector'],
             ];
             foreach ($profileFieldSources as $displayField => $sourceClientId) {
-                if ($sourceClientId === 'oldest') {
+                $profileSource = $sourceClientId === 'oldest'
+                    ? $target
+                    : $sources->first(
+                        fn (Client $client) => (string) $client->client_id === (string) $sourceClientId
+                    );
+                $profileEvent = $profileEventForClient->get((string) $profileSource->client_id);
+
+                $normalizeProfileName = static fn ($name): string => mb_strtolower(
+                    preg_replace('/[^\pL\pN]+/u', '', trim((string) $name)) ?? ''
+                );
+                if ($displayField === 'name'
+                    && filled($profileEvent?->full_name)
+                    && $normalizeProfileName($profileEvent->display_name)
+                        !== $normalizeProfileName($profileSource->full_name)) {
+                    $name = ImportName::splitForClientProfile(
+                        (string) $profileEvent->full_name,
+                        $profileSource->middle_name
+                    );
+                    $target->setAttribute('first_name', $name['first']);
+                    $target->setAttribute('middle_name', $name['middle'] !== '' ? $name['middle'] : null);
+                    $target->setAttribute('last_name', $name['last']);
+                    $target->setAttribute('suffix', $name['suffix'] !== '' ? $name['suffix'] : null);
+
                     continue;
                 }
-                $profileSource = $sources->first(
-                    fn (Client $client) => (string) $client->client_id === (string) $sourceClientId
-                );
+
+                $eventProfileValue = match ($displayField) {
+                    'birth_date' => $profileEvent?->birth_date?->toDateString(),
+                    'contact' => $profileEvent?->contact_no,
+                    'address' => $profileEvent?->address,
+                    'sector' => $profileEvent?->client_category,
+                    default => null,
+                };
                 foreach ($selectableProfileFields[$displayField] as $field) {
-                    $target->setAttribute($field, $profileSource->getAttribute($field));
+                    $target->setAttribute(
+                        $field,
+                        filled($eventProfileValue) ? $eventProfileValue : $profileSource->getAttribute($field)
+                    );
                 }
             }
 

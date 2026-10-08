@@ -35,6 +35,15 @@
                                     @enderror
                                 </div>
                             @endforeach
+                            <div class="col-6">
+                                <label for="edit_record_remarks" class="form-label">Remarks</label>
+                                <textarea id="edit_record_remarks" name="remarks" rows="1"
+                                    class="form-control @error('remarks') is-invalid @enderror"
+                                    placeholder="Enter remarks (optional)">{{ old('remarks') }}</textarea>
+                                @error('remarks')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
                         </div>
                 </div>
                 <div class="modal-footer">

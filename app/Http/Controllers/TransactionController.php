@@ -296,6 +296,7 @@ class TransactionController extends Controller
             'transaction_category'       => $validated['category'],
             'transaction_type'           => $validated['type'],
             'event_date'                 => $validated['transaction_date'],
+            'remarks'                    => $validated['remarks'] ?? null,
             'transferred_at'             => now(),
             'transferred_transaction_id' => $transaction->id,
         ]);
@@ -370,6 +371,10 @@ class TransactionController extends Controller
         $validated['events_transaction_type'] = $validated['type'];
 
         $transaction->update($validated);
+
+        \App\Models\TransactionEvent::query()
+            ->where('transferred_transaction_id', $transaction->id)
+            ->update(['remarks' => $validated['remarks'] ?? null]);
 
         TransactionHistory::flushDashboardCache();
 

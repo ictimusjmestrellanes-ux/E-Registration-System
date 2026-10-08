@@ -94,17 +94,45 @@
                                     })
                                     ->values();
                                 $oldestClient = $linkedClients->first();
-                                $profileSummary = function ($client) {
+                                $profileSummary = function ($client) use ($events) {
                                     if (!$client) {
                                         return [];
                                     }
 
+                                    $profileEvent = $events
+                                        ->filter(
+                                            fn($event) => (string) $event->transferredTransaction?->client_id ===
+                                                (string) $client->client_id,
+                                        )
+                                        ->sort(function ($left, $right) {
+                                            $updatedOrder =
+                                                ($right->updated_at?->getTimestamp() ?? 0) <=>
+                                                ($left->updated_at?->getTimestamp() ?? 0);
+
+                                            return $updatedOrder !== 0
+                                                ? $updatedOrder
+                                                : $right->id <=> $left->id;
+                                        })
+                                        ->first();
+                                    $eventContact = trim((string) ($profileEvent?->contact_no ?? ''));
+                                    $eventName = trim((string) ($profileEvent?->display_name ?? ''));
+                                    $eventAddress = trim((string) ($profileEvent?->address ?? ''));
+                                    $eventSector = trim((string) ($profileEvent?->client_category ?? ''));
+                                    $normalizeProfileName = fn($name) => mb_strtolower(
+                                        preg_replace('/[^\pL\pN]+/u', '', trim((string) $name)) ?? '',
+                                    );
+                                    $displayName = $eventName !== '' &&
+                                        $normalizeProfileName($eventName) !== $normalizeProfileName($client->full_name)
+                                            ? $eventName
+                                            : $client->full_name;
+
                                     return [
-                                        'name' => $client->full_name,
-                                        'birth_date' => $client->birth_date?->format('M d, Y') ?: '-',
-                                        'contact' => $client->contact ?: '-',
-                                        'address' => $client->address ?: '-',
-                                        'sector' => $client->sector ?: '-',
+                                        'name' => $displayName,
+                                        'birth_date' => $profileEvent?->birth_date?->format('M d, Y')
+                                            ?: ($client->birth_date?->format('M d, Y') ?: '-'),
+                                        'contact' => $eventContact !== '' ? $eventContact : ($client->contact ?: '-'),
+                                        'address' => $eventAddress !== '' ? $eventAddress : ($client->address ?: '-'),
+                                        'sector' => $eventSector !== '' ? $eventSector : ($client->sector ?: '-'),
                                     ];
                                 };
                                 $newerClients = $linkedClients

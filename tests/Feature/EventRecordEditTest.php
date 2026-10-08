@@ -29,10 +29,12 @@ class EventRecordEditTest extends TestCase
             'category' => 'ORIGINAL CATEGORY',
             'type' => 'ORIGINAL TYPE',
             'events_transaction_type' => 'ORIGINAL TYPE',
+            'remarks' => 'Original remarks',
             'status' => 'Pending',
         ]);
         $event = TransactionEvent::create([
             'full_name' => 'Original Name',
+            'remarks' => 'Original remarks',
             'transferred_at' => now(),
             'transferred_transaction_id' => $history->id,
         ]);
@@ -40,13 +42,16 @@ class EventRecordEditTest extends TestCase
         $this->get(route('transaction-events.records'))->assertOk()
             ->assertSee('data-bs-target="#editRecordModal"', false)
             ->assertSee(route('transaction-events.records.update', $event))
-            ->assertSee('Original Name');
+            ->assertSee('Original Name')
+            ->assertSee('name="remarks"', false)
+            ->assertSee('Original remarks');
 
         $this->put(route('transaction-events.records.update', $context + ['event' => $event->id]), [
             'full_name' => 'Updated Name', 'contact_no' => '09123456789',
             'age' => 35, 'birth_date' => '1991-01-01', 'address' => 'Updated Address',
             'client_category' => 'INDIGENT', 'transaction_category' => 'ASSISTANCE',
             'transaction_type' => 'TRANCH 2', 'event_date' => '2026-09-10',
+            'remarks' => 'Updated event remarks',
             'transferred_at' => null,
         ])->assertRedirect(route('transaction-events.records', $context))
             ->assertSessionHas('success');
@@ -54,13 +59,20 @@ class EventRecordEditTest extends TestCase
         $event->refresh();
         $this->assertSame('Updated Name', $event->full_name);
         $this->assertSame('TRANCH 2', $event->transaction_type);
+        $this->assertSame('Updated event remarks', $event->remarks);
         $this->assertSame('2026-09-10', $event->event_date->format('Y-m-d'));
         $this->assertNotNull($event->transferred_at);
         $history->refresh();
+        $client->refresh();
+        $this->assertSame('09123456789', $client->contact);
+        $this->assertSame('1991-01-01', $client->birth_date?->toDateString());
+        $this->assertSame('Updated Address', $client->address);
+        $this->assertSame('INDIGENT', $client->sector);
         $this->assertSame('INDIGENT', $history->client_category);
         $this->assertSame('ASSISTANCE', $history->category);
         $this->assertSame('TRANCH 2', $history->type);
         $this->assertSame('TRANCH 2', $history->events_transaction_type);
+        $this->assertSame('Updated event remarks', $history->remarks);
         $this->assertSame('2026-09-10', $history->transaction_date->format('Y-m-d'));
         $this->get(route('transaction-events.records'))->assertSee('Updated Name');
         $this->get(route('clients.show', $client))
