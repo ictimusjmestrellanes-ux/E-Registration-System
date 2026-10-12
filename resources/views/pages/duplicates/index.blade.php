@@ -229,7 +229,7 @@
                             <div class="tab-pane fade {{ $showLikely || $showFullName ? '' : 'show active' }}" id="exact-tab" role="tabpanel">
                                 <div class="alert alert-danger-subtle alert-dismissible d-flex align-items-center mb-3 py-2" role="alert">
                                     <i class="ri-error-warning-line fs-4 me-2"></i>
-                                    <div class="small">Same Last Name and First Name. Each client must have at least one transaction.</div>
+                                    <div class="small">Same Full Name. Each client must have at least one transaction.</div>
                                 </div>
                                 @forelse ($exactGroups as $group)
                                     {!! $renderGroup($group) !!}
@@ -250,7 +250,7 @@
                             <div class="tab-pane fade {{ $showLikely ? 'show active' : '' }}" id="likely-tab" role="tabpanel">
                                 <div class="alert alert-warning-subtle d-flex align-items-center mb-3 py-2" role="alert">
                                     <i class="ri-alert-line fs-4 me-2"></i>
-                                    <div class="small">Likely-same name, birth date missing or year-only match. Review before acting.</div>
+                                    <div class="small">Same first and last name, with one client using a middle initial and another using a matching full middle name. Each client must have at least one transaction. Review before acting.</div>
                                 </div>
                                 @forelse ($likelyGroups as $group)
                                     {!! $renderGroup($group) !!}

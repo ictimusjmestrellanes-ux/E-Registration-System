@@ -9,7 +9,6 @@ use Illuminate\Support\Facades\DB;
 
 class DuplicateReviewController extends Controller
 {
-    private const EXACT_KEY = "CONCAT_WS('|', LOWER(TRIM(last_name)), LOWER(TRIM(first_name)))";
     private const FULL_NAME_KEY = "CONCAT_WS('|', LOWER(TRIM(first_name)), LOWER(TRIM(COALESCE(middle_name,''))), LOWER(TRIM(last_name)), LOWER(TRIM(COALESCE(suffix,''))))";
 
     public function __construct()
@@ -21,17 +20,13 @@ class DuplicateReviewController extends Controller
     {
         abort_unless(feature_allowed('Duplicate Clients Review'), 404);
         $perPage = $this->duplicateClientPerPage($request);
-        $exact = $this->paginateNameGroups($request, $perPage, 'exact_page', 'exact-tab', true, self::EXACT_KEY);
+        $exact = $this->paginateNameGroups($request, $perPage, 'exact_page', 'exact-tab', true, self::FULL_NAME_KEY);
         // Match Full Name considers every client, so its membership, counts,
         // and pagination must not reuse Exact Match's transaction-only results.
         $fullName = $this->paginateNameGroups($request, $perPage, 'similar_page', 'similar-tab', false, self::FULL_NAME_KEY);
         $results = [
             'exact' => $exact,
-            // Birth-date-only likely groups are covered by full-name matching.
-            'likely' => [
-                'paginator' => $this->namePaginator($request, collect(), 0, $perPage, 1, 'likely_page', 'likely-tab'),
-                'total' => 0, 'records' => 0,
-            ],
+            'likely' => $this->paginateInitialNameGroups($request, $perPage),
             // Keep the existing paginator/view variable names for old links.
             'similar' => $fullName,
         ];
@@ -81,6 +76,55 @@ class DuplicateReviewController extends Controller
 
         return $eligible->selectRaw($keyExpression.' as name_key, COUNT(*) as records, MIN(id) as first_id')
             ->groupBy('name_key')->havingRaw('COUNT(*) > 1');
+    }
+
+    /**
+     * Candidates whose first, last, and suffix match while one middle name is
+     * an initial and another is a full name beginning with the same letter.
+     */
+    private function initialNameGroupQuery(?Request $request = null)
+    {
+        $expressions = $this->initialNameExpressions();
+        $eligible = DB::query()->fromSub($this->transactionClients(), 'clients');
+        if ($request && $request->anyFilled(['search', 'gender', 'civil_status', 'city', 'barangay', 'date_from', 'date_to'])) {
+            $matching = DB::query()->fromSub($this->transactionClients(), 'clients');
+            $this->applyClientFilters($matching, $request);
+            // A matching member includes the whole likely-match group.
+            $eligible->whereIn(DB::raw($expressions['key']), $matching->selectRaw($expressions['key']));
+        }
+
+        $length = DB::connection()->getDriverName() === 'sqlite' ? 'LENGTH' : 'CHAR_LENGTH';
+
+        return $eligible
+            ->whereRaw($expressions['given_name']." <> ''")
+            ->whereRaw("TRIM(COALESCE(last_name, '')) <> ''")
+            ->whereRaw($expressions['middle_letter']." <> ''")
+            ->selectRaw($expressions['key'].' as name_key, COUNT(*) as records, MIN(id) as first_id')
+            ->groupBy('name_key')
+            ->havingRaw("SUM(CASE WHEN $length({$expressions['compact_middle']}) = 1 THEN 1 ELSE 0 END) > 0")
+            ->havingRaw('SUM(CASE WHEN '.$expressions['full_middle_condition'].' THEN 1 ELSE 0 END) > 0');
+    }
+
+    /**
+     * Older rows sometimes store the full middle name at the end of first_name
+     * ("Juan Santos" + blank middle_name), while abbreviated rows store
+     * "Juan" + "S.". Canonicalize both layouts to the same candidate key.
+     */
+    private function initialNameExpressions(): array
+    {
+        $compactMiddle = "REPLACE(REPLACE(TRIM(COALESCE(middle_name,'')), '.', ''), ' ', '')";
+        $hasEmbeddedMiddle = "($compactMiddle = '' AND INSTR(TRIM(COALESCE(first_name,'')), ' ') > 0)";
+        $givenName = "LOWER(CASE WHEN $hasEmbeddedMiddle THEN SUBSTR(TRIM(first_name), 1, INSTR(TRIM(first_name), ' ') - 1) ELSE TRIM(COALESCE(first_name,'')) END)";
+        $middleLetter = "LOWER(CASE WHEN $compactMiddle <> '' THEN SUBSTR($compactMiddle, 1, 1) WHEN $hasEmbeddedMiddle THEN SUBSTR(TRIM(SUBSTR(TRIM(first_name), INSTR(TRIM(first_name), ' ') + 1)), 1, 1) ELSE '' END)";
+        $length = DB::connection()->getDriverName() === 'sqlite' ? 'LENGTH' : 'CHAR_LENGTH';
+
+        return [
+            'compact_middle' => $compactMiddle,
+            'full_middle_condition' => "$length($compactMiddle) > 1 OR $hasEmbeddedMiddle",
+            'given_name' => $givenName,
+            'middle_letter' => $middleLetter,
+            'key' => "CONCAT_WS('|', $givenName, LOWER(TRIM(last_name)), LOWER(TRIM(COALESCE(suffix,''))), $middleLetter)",
+        ];
     }
 
     private function applyClientFilters($query, Request $request): void
@@ -156,6 +200,37 @@ class DuplicateReviewController extends Controller
             'total' => $total, 'records' => (int) $totals->records_total];
     }
 
+    private function paginateInitialNameGroups(Request $request, int $perPage): array
+    {
+        $keyExpression = $this->initialNameExpressions()['key'];
+        $query = $this->initialNameGroupQuery($request);
+        $totals = DB::query()->fromSub(clone $query, 'duplicate_groups')
+            ->selectRaw('COUNT(*) as groups_total, COALESCE(SUM(records), 0) as records_total')->first();
+        $total = (int) $totals->groups_total;
+        $page = min(max(1, (int) $request->input('likely_page', 1)), max(1, (int) ceil($total / $perPage)));
+        $keys = (clone $query)->orderBy('first_id')->forPage($page, $perPage)->pluck('name_key');
+        $groups = collect();
+        if ($keys->isNotEmpty()) {
+            $case = 'CASE';
+            $bindings = [];
+            foreach ($keys as $key) {
+                $case .= ' WHEN '.$keyExpression.' = ? THEN ?';
+                array_push($bindings, $key, $key);
+            }
+            $members = Client::query()->fromSub($this->transactionClients(), 'clients')->select([
+                'clients.id', 'client_id', 'first_name', 'middle_name', 'last_name', 'suffix',
+                'age', 'birth_date', 'gender', 'civil_status', 'sector', 'email', 'contact',
+                'contact_2', 'address', 'province', 'city', 'barangay', 'photo_path', 'created_at',
+            ])->whereIn(DB::raw($keyExpression), $keys)
+                ->selectRaw($case.' END as duplicate_name_key', $bindings)->orderBy('clients.id')->get()
+                ->groupBy('duplicate_name_key');
+            $groups = $keys->map(fn ($key) => $this->groupPayload($members->get($key, collect())));
+        }
+
+        return ['paginator' => $this->namePaginator($request, $groups, $total, $perPage, $page, 'likely_page', 'likely-tab'),
+            'total' => $total, 'records' => (int) $totals->records_total];
+    }
+
     private function namePaginator(Request $request, $groups, int $total, int $perPage, int $page, string $pageName, string $fragment): LengthAwarePaginator
     {
         $paginator = new LengthAwarePaginator($groups, $total, $perPage, $page, [
@@ -173,18 +248,17 @@ class DuplicateReviewController extends Controller
     private function filterOptions(): array
     {
         $fields = ['gender', 'civil_status', 'city', 'barangay'];
-        // Neither tab contains the other's complete population: Exact Match
-        // ignores middle names/suffixes; Match Full Name includes nontransaction
-        // clients. Supply dropdown values from both populations.
+        // Match Full Name contains Exact Match plus clients without transactions;
+        // Likely Match adds initial/full-middle-name candidates.
         $fullNameRows = DB::query()->fromSub($this->nameClients(false), 'clients')
             ->joinSub($this->nameGroupQuery(self::FULL_NAME_KEY, false), 'duplicate_groups', function ($join) {
                 $join->on(DB::raw(self::FULL_NAME_KEY), '=', 'duplicate_groups.name_key');
             })->select($fields);
-        $exactRows = DB::query()->fromSub($this->nameClients(true), 'clients')
-            ->joinSub($this->nameGroupQuery(self::EXACT_KEY, true), 'duplicate_groups', function ($join) {
-                $join->on(DB::raw(self::EXACT_KEY), '=', 'duplicate_groups.name_key');
+        $likelyRows = DB::query()->fromSub($this->transactionClients(), 'clients')
+            ->joinSub($this->initialNameGroupQuery(), 'duplicate_groups', function ($join) {
+                $join->on(DB::raw($this->initialNameExpressions()['key']), '=', 'duplicate_groups.name_key');
             })->select($fields);
-        $rows = $fullNameRows->union($exactRows)->get();
+        $rows = $fullNameRows->union($likelyRows)->get();
         $result = [];
         foreach (['gender' => 'filterGenders', 'civil_status' => 'filterCivilStatuses',
             'city' => 'filterCities', 'barangay' => 'filterBarangays'] as $field => $name) {
