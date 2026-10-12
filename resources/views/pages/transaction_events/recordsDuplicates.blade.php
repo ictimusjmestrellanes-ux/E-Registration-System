@@ -52,7 +52,8 @@
         <div class="row">
             <div class="col-12">
                 <div class="card">
-                    <div class="card-body">
+                    <!-- duplicate-records-content:start -->
+                    <div class="card-body" id="duplicateRecordsContent">
                         @php
                             $activeTab = request(
                                 'duplicate_tab',
@@ -163,6 +164,12 @@
                                     ' </span> <span class="badge bg-danger-subtle text-danger ms-1">' .
                                     (int) $group['total'] .
                                     ' records</span></h6>';
+                                if ($tab === 'likely' && !empty($group['matched_fields'])) {
+                                    $out .=
+                                        '<div class="small text-muted mt-1">Matching details: ' .
+                                        e(implode(', ', $group['matched_fields'])) .
+                                        '</div>';
+                                }
                                 $out .= '</div>';
                                 if (auth()->user()?->role_name !== 'Viewer') {
                                     $out .= '<div class="d-flex flex-wrap gap-2">';
@@ -381,10 +388,15 @@
                                         date range.</div>
                                 </div>
                                 <div class="d-flex flex-wrap gap-2 align-items-center">
+                                    {{-- <button type="button" class="btn btn-sm btn-soft-primary"
+                                        id="duplicateRecordsRefreshBtn" title="Refresh duplicate records">
+                                        <i class="ri-refresh-line me-1"></i> Refresh
+                                    </button> --}}
                                     <button type="button" class="btn btn-sm btn-primary" id="dupFiltersToggleBtn">
                                         Show Filters <i class="ri-arrow-down-s-line ms-1"></i>
                                     </button>
                                     <a href="{{ route('transaction-events.records-duplicates') }}"
+                                        data-duplicate-records-load id="duplicateRecordsRefreshBtn"
                                         class="btn btn-sm btn-soft-primary">Reset</a>
                                     <select class="form-select form-select-sm w-auto" id="dupPerPageSelect"
                                         aria-label="Groups per page" title="Groups per page">
@@ -693,7 +705,9 @@
                                     role="alert">
                                     <i class="ri-alert-line fs-4 me-2"></i>
                                     <div class="small">
-                                        Same <strong>Lastname and Firstname</strong> plus at least one matching
+                                        One name uses a <strong>middle initial</strong> and another uses the matching
+                                        <strong>full middle name</strong> (for example, Juan Santos Cruz / Juan S.
+                                        Cruz), plus at least one matching
                                         <strong>Event Date</strong>, <strong>Transaction Type</strong>, or <strong>Client
                                             Category</strong>. Exact-only groups appear in Exact Match. Review before
                                         acting.
@@ -757,6 +771,7 @@
                             </div>
                         </div>
                     </div>
+                    <!-- duplicate-records-content:end -->
                 </div>
             </div>
         </div>
@@ -1200,46 +1215,6 @@
                     '<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span> Merging...';
             });
 
-            document.querySelectorAll('[data-client-count]').forEach(tab => {
-                tab.addEventListener('shown.bs.tab', () => {
-                    document.getElementById('duplicateClientCount').textContent =
-                        `${tab.dataset.clientCount} client group(s) in this tab`;
-                    document.getElementById('duplicateRecordCount').textContent =
-                        `${tab.dataset.recordCount} record(s) in this tab`;
-                    document.getElementById('dupActiveTab').value = ({
-                        '#rexact-tab': 'exact',
-                        '#rlikely-tab': 'likely',
-                        '#rsimilar-tab': 'full_name',
-                    })[tab.getAttribute('href')];
-                });
-            });
-            const toggleBtn = document.getElementById('dupFiltersToggleBtn');
-            const formEl = document.getElementById('dupFiltersForm');
-            if (!toggleBtn || !formEl) {
-                return;
-            }
-            let filtersVisible = !formEl.classList.contains('d-none');
-            const syncToggleLabel = () => {
-                toggleBtn.innerHTML = filtersVisible ?
-                    'Hide Filters <i class="ri-arrow-up-s-line ms-1"></i>' :
-                    'Show Filters <i class="ri-arrow-down-s-line ms-1"></i>';
-            };
-            syncToggleLabel();
-            toggleBtn.addEventListener('click', function() {
-                filtersVisible = !filtersVisible;
-                formEl.classList.toggle('d-none', !filtersVisible);
-                syncToggleLabel();
-            });
-            document.getElementById('dupPerPageSelect')?.addEventListener('change', function() {
-                const url = new URL(window.location.href);
-                url.searchParams.set('per_page', this.value);
-                url.searchParams.set('duplicate_tab', document.getElementById('dupActiveTab').value);
-                ['exact_page', 'likely_page', 'similar_page', 'page'].forEach((k) => url.searchParams
-                    .delete(k));
-                window.location.href = url.toString();
-            });
-
-            // ----- Multi-select dropdowns (Client Category / Transaction Category / Transaction Type) -----
             const setupDupMultiSelect = (allId, checkboxClass, labelId, allLabel) => {
                 const allCheckbox = document.getElementById(allId);
                 const checkboxes = Array.from(document.querySelectorAll('.' + checkboxClass));
@@ -1278,20 +1253,148 @@
                 syncLabel();
             };
 
-            setupDupMultiSelect('dupClientCategoryAll', 'dup-client-category-checkbox', 'dupClientCategoryLabel',
-                'All client categories');
-            setupDupMultiSelect('dupTransactionCategoryAll', 'dup-transaction-category-checkbox',
-                'dupTransactionCategoryLabel', 'All categories');
-            setupDupMultiSelect('dupTransactionTypeAll', 'dup-transaction-type-checkbox', 'dupTransactionTypeLabel',
-                'All types');
+            let duplicateRecordsRequest;
+            const duplicatePageKeys = ['exact_page', 'likely_page', 'similar_page', 'page'];
 
-            const initialHash = window.location.hash;
-            if (initialHash) {
-                const tabTrigger = document.querySelector('a[data-bs-toggle="tab"][href="' + initialHash + '"]');
-                if (tabTrigger) {
-                    bootstrap.Tab.getOrCreateInstance(tabTrigger).show();
+            const loadDuplicateRecords = async (targetUrl, pushState = true) => {
+                const currentContent = document.getElementById('duplicateRecordsContent');
+                if (!currentContent) {
+                    window.location.assign(targetUrl);
+                    return;
                 }
-            }
+                duplicateRecordsRequest?.abort();
+                duplicateRecordsRequest = new AbortController();
+                currentContent.setAttribute('aria-busy', 'true');
+                currentContent.classList.add('opacity-50');
+                currentContent.style.pointerEvents = 'none';
+
+                try {
+                    const response = await fetch(targetUrl, {
+                        credentials: 'same-origin',
+                        headers: {
+                            'Accept': 'text/html',
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                        signal: duplicateRecordsRequest.signal,
+                    });
+                    if (!response.ok) throw new Error(`Refresh failed (${response.status})`);
+                    const template = document.createElement('template');
+                    template.innerHTML = (await response.text()).trim();
+                    const replacement = template.content.querySelector('#duplicateRecordsContent');
+                    if (!replacement) throw new Error('Duplicate records fragment was not returned.');
+
+                    currentContent.replaceWith(replacement);
+                    if (pushState) window.history.pushState({}, '', targetUrl);
+                    initializeDuplicateRecordsControls();
+                    window.wireDropdownSearch?.(replacement);
+                } catch (error) {
+                    if (error.name === 'AbortError') return;
+                    console.error(error);
+                    window.location.assign(targetUrl);
+                } finally {
+                    const content = document.getElementById('duplicateRecordsContent');
+                    content?.removeAttribute('aria-busy');
+                    content?.classList.remove('opacity-50');
+                    if (content) content.style.pointerEvents = '';
+                }
+            };
+
+            const formUrl = (form) => {
+                const url = new URL(form.action, window.location.href);
+                url.search = '';
+                new FormData(form).forEach((value, key) => url.searchParams.append(key, value));
+                return url;
+            };
+
+            const initializeDuplicateRecordsControls = () => {
+                document.querySelectorAll('#duplicateRecordsContent [data-client-count]').forEach(tab => {
+                    tab.addEventListener('shown.bs.tab', () => {
+                        const selectedTab = ({
+                            '#rexact-tab': 'exact',
+                            '#rlikely-tab': 'likely',
+                            '#rsimilar-tab': 'full_name',
+                        })[tab.getAttribute('href')];
+                        document.getElementById('duplicateClientCount').textContent =
+                            `${tab.dataset.clientCount} client group(s) in this tab`;
+                        document.getElementById('duplicateRecordCount').textContent =
+                            `${tab.dataset.recordCount} record(s) in this tab`;
+                        document.getElementById('dupActiveTab').value = selectedTab;
+                        const url = new URL(window.location.href);
+                        url.searchParams.set('duplicate_tab', selectedTab);
+                        window.history.replaceState({}, '', url);
+                    }, { once: false });
+                });
+
+                const toggleBtn = document.getElementById('dupFiltersToggleBtn');
+                const formEl = document.getElementById('dupFiltersForm');
+                if (toggleBtn && formEl) {
+                    let filtersVisible = !formEl.classList.contains('d-none');
+                    const syncToggleLabel = () => {
+                        toggleBtn.innerHTML = filtersVisible ?
+                            'Hide Filters <i class="ri-arrow-up-s-line ms-1"></i>' :
+                            'Show Filters <i class="ri-arrow-down-s-line ms-1"></i>';
+                    };
+                    syncToggleLabel();
+                    toggleBtn.addEventListener('click', () => {
+                        filtersVisible = !filtersVisible;
+                        formEl.classList.toggle('d-none', !filtersVisible);
+                        syncToggleLabel();
+                    });
+                }
+
+                document.getElementById('dupPerPageSelect')?.addEventListener('change', function() {
+                    const url = new URL(window.location.href);
+                    url.searchParams.set('per_page', this.value);
+                    url.searchParams.set('duplicate_tab', document.getElementById('dupActiveTab').value);
+                    duplicatePageKeys.forEach(key => url.searchParams.delete(key));
+                    loadDuplicateRecords(url);
+                });
+                document.getElementById('duplicateRecordsRefreshBtn')?.addEventListener('click', function() {
+                    const url = new URL(window.location.href);
+                    url.searchParams.set('duplicate_tab', document.getElementById('dupActiveTab').value);
+                    this.disabled = true;
+                    this.innerHTML = '<i class="ri-loader-3-line ri-spin me-1"></i> Refreshing';
+                    loadDuplicateRecords(url, false);
+                });
+
+                setupDupMultiSelect('dupClientCategoryAll', 'dup-client-category-checkbox',
+                    'dupClientCategoryLabel', 'All client categories');
+                setupDupMultiSelect('dupTransactionCategoryAll', 'dup-transaction-category-checkbox',
+                    'dupTransactionCategoryLabel', 'All categories');
+                setupDupMultiSelect('dupTransactionTypeAll', 'dup-transaction-type-checkbox',
+                    'dupTransactionTypeLabel', 'All types');
+
+                const initialHash = window.location.hash;
+                if (initialHash) {
+                    const tabTrigger = document.querySelector(
+                        `#duplicateRecordsContent a[data-bs-toggle="tab"][href="${initialHash}"]`);
+                    if (tabTrigger) bootstrap.Tab.getOrCreateInstance(tabTrigger).show();
+                }
+            };
+
+            document.addEventListener('submit', event => {
+                const form = event.target;
+                if (!(form instanceof HTMLFormElement) || !form.closest('#duplicateRecordsContent')) return;
+                if (form.id !== 'dupFiltersForm' && !form.matches('[data-page-jump-form]')) return;
+                event.preventDefault();
+                const url = formUrl(form);
+                if (form.id === 'dupFiltersForm') duplicatePageKeys.forEach(key => url.searchParams.delete(key));
+                loadDuplicateRecords(url);
+            });
+
+            document.addEventListener('click', event => {
+                const link = event.target.closest(
+                    '#duplicateRecordsContent .pagination a[href], #duplicateRecordsContent [data-duplicate-records-load]'
+                );
+                if (!link || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) {
+                    return;
+                }
+                event.preventDefault();
+                loadDuplicateRecords(new URL(link.href, window.location.href));
+            });
+
+            window.addEventListener('popstate', () => loadDuplicateRecords(window.location.href, false));
+            initializeDuplicateRecordsControls();
         });
     </script>
 @endpush

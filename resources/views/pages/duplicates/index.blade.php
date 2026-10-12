@@ -1,66 +1,110 @@
 @extends('layouts.master')
 @section('title', 'ERS | Duplicate Clients Review')
 @section('content')
-@php
-    $exactCount = $exactRecordsTotal ?? $exactGroups->sum('total');
-    $likelyCount = $likelyRecordsTotal ?? $likelyGroups->sum('total');
-    $similarCount = $similarRecordsTotal ?? $similarGroups->sum('total');
-    $activeTab = request('duplicate_tab', request()->has('similar_page') ? 'full_name' : (request()->has('likely_page') ? 'likely' : 'exact'));
-    $activeTab = in_array($activeTab, ['exact', 'likely', 'full_name'], true) ? $activeTab : 'exact';
-    $showLikely = $activeTab === 'likely';
-    $showFullName = $activeTab === 'full_name';
-    $totalGroups = $showLikely ? $likelyGroups->total() : ($showFullName ? $similarGroups->total() : $exactGroups->total());
-    $totalDuplicates = $showLikely ? $likelyCount : ($showFullName ? $similarCount : $exactCount);
+    @php
+        $exactCount = $exactRecordsTotal ?? $exactGroups->sum('total');
+        $likelyCount = $likelyRecordsTotal ?? $likelyGroups->sum('total');
+        $similarCount = $similarRecordsTotal ?? $similarGroups->sum('total');
+        $activeTab = request(
+            'duplicate_tab',
+            request()->has('similar_page') ? 'full_name' : (request()->has('likely_page') ? 'likely' : 'exact'),
+        );
+        $activeTab = in_array($activeTab, ['exact', 'likely', 'full_name'], true) ? $activeTab : 'exact';
+        $showLikely = $activeTab === 'likely';
+        $showFullName = $activeTab === 'full_name';
+        $totalGroups = $showLikely
+            ? $likelyGroups->total()
+            : ($showFullName
+                ? $similarGroups->total()
+                : $exactGroups->total());
+        $totalDuplicates = $showLikely ? $likelyCount : ($showFullName ? $similarCount : $exactCount);
 
-    $renderGroup = function ($group) {
-        $first = $group['clients']->first();
-        $out = '<div class="border rounded-4 p-3 mb-3">';
-        $out .= '<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">';
-        $out .= '<div>';
-        $out .= '<span class="badge bg-danger-subtle text-danger ms-1">' . $group['total'] . ' records</span>';
-        $out .= '</div>';
-            $out .= '<a href="' . e(route('client.list', ['client_ids' => $group['clients']->pluck('id')->implode(',')])) . '" class="btn btn-sm btn-outline-primary">View in Client List</a>';
-        $out .= '</div>';
-        $out .= '<div class="table-responsive">';
-        $out .= '<table class="table table-sm table-hover align-middle mb-0 duplicate-client-group-table">';
-        $out .= '<thead class="table-light"><tr>';
-        $sortableHeaders = [
-            ['label' => 'Client ID', 'type' => 'text'],
-            ['label' => 'Photo', 'type' => 'text'],
-            ['label' => 'Name', 'type' => 'text'],
-            ['label' => 'Age', 'type' => 'number'],
-            ['label' => 'Birth Date', 'type' => 'date'],
-            ['label' => 'Gender', 'type' => 'text'],
-            ['label' => 'Contact', 'type' => 'text'],
-            ['label' => 'Address', 'type' => 'text'],
-            ['label' => 'Actions', 'type' => 'number', 'center' => true],
-        ];
-        foreach ($sortableHeaders as $column => $header) {
-            $out .= '<th scope="col"' . (!empty($header['center']) ? ' class="text-center"' : '') . '>';
-            $out .= '<button type="button" class="btn btn-link btn-sm p-0 text-body fw-semibold text-decoration-none d-inline-flex align-items-center gap-1 text-nowrap' . (!empty($header['center']) ? ' justify-content-center' : '') . '" data-duplicate-client-sort data-sort-column="' . $column . '" data-sort-type="' . $header['type'] . '" data-sort-direction="" aria-label="Sort by ' . e($header['label']) . ' ascending">';
-            $out .= e($header['label']) . '<i class="ri-arrow-up-down-line text-muted" aria-hidden="true"></i>';
-            $out .= '</button></th>';
-        }
-        $out .= '</tr></thead><tbody>';
-        foreach ($group['clients'] as $client) {
-            $address = collect([$client->address, $client->barangay, $client->city, $client->province])->filter()->implode(', ');
-            $photoSortValue = filled($client->photo_path) ? '1|' . $client->photo_path : '0';
-            $out .= '<tr>';
-            $out .= '<td class="fw-semibold" data-sort-value="' . e($client->client_id) . '">' . e($client->client_id) . '</td>';
-            $out .= '<td data-sort-value="' . e($photoSortValue) . '"><img src="' . e($client->photo_url) . '" alt="Photo" class="rounded avatar-sm object-fit-cover" onerror="this.onerror=null;this.src=\'' . e(asset('assets/images/profile.png')) . '\';"></td>';
-            $out .= '<td data-sort-value="' . e($client->full_name) . '">' . e($client->full_name) . '</td>';
-            $out .= '<td data-sort-value="' . e($client->age ?? '') . '">' . e($client->age ?? '-') . '</td>';
-            $out .= '<td data-sort-value="' . e(optional($client->birth_date)->format('Y-m-d') ?? '') . '">' . e(optional($client->birth_date)->format('M d, Y') ?? '-') . '</td>';
-            $out .= '<td data-sort-value="' . e($client->gender ?? '') . '">' . e($client->gender ?? '-') . '</td>';
-            $out .= '<td data-sort-value="' . e($client->contact ?? '') . '">' . e($client->contact ?? '-') . '</td>';
-            $out .= '<td class="small" data-sort-value="' . e($address) . '">' . e($address ?: '-') . '</td>';
-            $out .= '<td class="text-center" data-sort-value="' . (int) $client->id . '"><a href="' . e(route('clients.show', $client)) . '" class="btn btn-sm btn-soft-info">View</a></td>';
-            $out .= '</tr>';
-        }
-        $out .= '</tbody></table></div></div>';
+        $renderGroup = function ($group) {
+            $first = $group['clients']->first();
+            $out = '<div class="border rounded-4 p-3 mb-3">';
+            $out .= '<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">';
+            $out .= '<div>';
+            $out .= '<span class="badge bg-danger-subtle text-danger ms-1">' . $group['total'] . ' records</span>';
+            $out .= '</div>';
+            $out .=
+                '<a href="' .
+                e(route('client.list', ['client_ids' => $group['clients']->pluck('id')->implode(',')])) .
+                '" class="btn btn-sm btn-outline-primary">View in Client List</a>';
+            $out .= '</div>';
+            $out .= '<div class="table-responsive">';
+            $out .= '<table class="table table-sm table-hover align-middle mb-0 duplicate-client-group-table">';
+            $out .= '<thead class="table-light"><tr>';
+            $sortableHeaders = [
+                ['label' => 'Client ID', 'type' => 'text'],
+                ['label' => 'Photo', 'type' => 'text'],
+                ['label' => 'Name', 'type' => 'text'],
+                ['label' => 'Age', 'type' => 'number'],
+                ['label' => 'Birth Date', 'type' => 'date'],
+                ['label' => 'Gender', 'type' => 'text'],
+                ['label' => 'Contact', 'type' => 'text'],
+                ['label' => 'Address', 'type' => 'text'],
+                ['label' => 'Actions', 'type' => 'number', 'center' => true],
+            ];
+            foreach ($sortableHeaders as $column => $header) {
+                $out .= '<th scope="col"' . (!empty($header['center']) ? ' class="text-center"' : '') . '>';
+                $out .=
+                    '<button type="button" class="btn btn-link btn-sm p-0 text-body fw-semibold text-decoration-none d-inline-flex align-items-center gap-1 text-nowrap' .
+                    (!empty($header['center']) ? ' justify-content-center' : '') .
+                    '" data-duplicate-client-sort data-sort-column="' .
+                    $column .
+                    '" data-sort-type="' .
+                    $header['type'] .
+                    '" data-sort-direction="" aria-label="Sort by ' .
+                    e($header['label']) .
+                    ' ascending">';
+                $out .= e($header['label']) . '<i class="ri-arrow-up-down-line text-muted" aria-hidden="true"></i>';
+                $out .= '</button></th>';
+            }
+            $out .= '</tr></thead><tbody>';
+            foreach ($group['clients'] as $client) {
+                $address = collect([$client->address, $client->barangay, $client->city, $client->province])
+                    ->filter()
+                    ->implode(', ');
+                $photoSortValue = filled($client->photo_path) ? '1|' . $client->photo_path : '0';
+                $out .= '<tr>';
+                $out .=
+                    '<td class="fw-semibold" data-sort-value="' .
+                    e($client->client_id) .
+                    '">' .
+                    e($client->client_id) .
+                    '</td>';
+                $out .=
+                    '<td data-sort-value="' .
+                    e($photoSortValue) .
+                    '"><img src="' .
+                    e($client->photo_url) .
+                    '" alt="Photo" class="rounded avatar-sm object-fit-cover" onerror="this.onerror=null;this.src=\'' .
+                    e(asset('assets/images/profile.png')) .
+                    '\';"></td>';
+                $out .= '<td data-sort-value="' . e($client->full_name) . '">' . e($client->full_name) . '</td>';
+                $out .= '<td data-sort-value="' . e($client->age ?? '') . '">' . e($client->age ?? '-') . '</td>';
+                $out .=
+                    '<td data-sort-value="' .
+                    e(optional($client->birth_date)->format('Y-m-d') ?? '') .
+                    '">' .
+                    e(optional($client->birth_date)->format('M d, Y') ?? '-') .
+                    '</td>';
+                $out .= '<td data-sort-value="' . e($client->gender ?? '') . '">' . e($client->gender ?? '-') . '</td>';
+                $out .=
+                    '<td data-sort-value="' . e($client->contact ?? '') . '">' . e($client->contact ?? '-') . '</td>';
+                $out .= '<td class="small" data-sort-value="' . e($address) . '">' . e($address ?: '-') . '</td>';
+                $out .=
+                    '<td class="text-center" data-sort-value="' .
+                    (int) $client->id .
+                    '"><a href="' .
+                    e(route('clients.show', $client)) .
+                    '" class="btn btn-sm btn-soft-info">View</a></td>';
+                $out .= '</tr>';
+            }
+            $out .= '</tbody></table></div></div>';
             return $out;
         };
-@endphp
+    @endphp
     <div class="container-fluid">
         <div class="row">
             <div class="col-12">
@@ -69,7 +113,8 @@
                         <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
                             <div>
                                 <h4 class="mb-1">Duplicate Clients Review</h4>
-                                <p class="text-muted mb-0">Review potential duplicate client records before taking action.</p>
+                                <p class="text-muted mb-0">Review potential duplicate client records before taking action.
+                                </p>
                             </div>
                             <a href="{{ route('client.list') }}" class="btn btn-outline-primary btn-sm">
                                 <i class="ri-arrow-left-line me-1"></i> Back to Client List
@@ -83,7 +128,8 @@
         <div class="row">
             <div class="col-12">
                 <div class="card">
-                    <div class="card-body">
+                    <!-- duplicate-clients-content:start -->
+                    <div class="card-body" id="duplicateClientsContent">
                         <div class="border rounded-4 p-3 mb-4" id="dupFiltersCard">
                             <div class="d-flex flex-wrap gap-3 align-items-start justify-content-between mb-0">
                                 <div>
@@ -92,25 +138,30 @@
                                         location, and created date range.</div>
                                 </div>
                                 <div class="d-flex flex-wrap gap-2 align-items-center">
+                                    {{-- <button type="button" class="btn btn-sm btn-soft-primary"
+                                        id="duplicateClientsRefreshBtn" title="Refresh duplicate clients">
+                                        <i class="ri-refresh-line me-1"></i> Refresh
+                                    </button> --}}
                                     <button type="button" class="btn btn-sm btn-primary" id="dupFiltersToggleBtn">
                                         Show Filters <i class="ri-arrow-down-s-line ms-1"></i>
                                     </button>
-                                    <a href="{{ route('duplicate.review') }}"
-                                        class="btn btn-sm btn-soft-primary">Reset</a>
+                                    <a href="{{ route('duplicate.review') }}" data-duplicate-clients-load
+                                        id="duplicateClientsRefreshBtn" class="btn btn-sm btn-soft-primary">Reset</a>
                                     <select class="form-select form-select-sm w-auto" id="dupPerPageSelect"
                                         aria-label="Groups per page" title="Groups per page">
                                         @foreach ([10, 15, 25, 50, 100] as $size)
                                             <option value="{{ $size }}"
-                                                {{ ($perPage ?? 25) == $size ? 'selected' : '' }}>
+                                                {{ (($perPage ?? $perPage ?? 10)) == $size ? 'selected' : '' }}>
                                                 {{ $size }} / page</option>
                                         @endforeach
                                     </select>
                                 </div>
                             </div>
 
-                            <form method="GET" id="dupFiltersForm"
+                            <form method="GET" action="{{ route('duplicate.review') }}" id="dupFiltersForm"
                                 class="mt-3 {{ request()->anyFilled(['search', 'gender', 'civil_status', 'city', 'barangay', 'date_from', 'date_to']) ? '' : 'd-none' }}">
                                 <input type="hidden" name="duplicate_tab" id="dupActiveTab" value="{{ $activeTab }}">
+                                <input type="hidden" name="per_page" value="{{ $perPage ?? $perPage ?? 10 }}">
                                 <div class="row g-3">
                                     <div class="col-12 col-xl-4">
                                         <label for="dupKeywordInput"
@@ -127,7 +178,7 @@
                                             class="form-label fw-semibold text-uppercase small">Gender</label>
                                         <select class="form-select" id="dupGenderFilter" name="gender">
                                             <option value="">All Gender</option>
-                                            @foreach (($filterGenders ?? []) as $gender)
+                                            @foreach ($filterGenders ?? [] as $gender)
                                                 <option value="{{ $gender }}"
                                                     {{ strtolower(request('gender', '')) === strtolower($gender) ? 'selected' : '' }}>
                                                     {{ $gender }}</option>
@@ -139,7 +190,7 @@
                                             class="form-label fw-semibold text-uppercase small">Civil Status</label>
                                         <select class="form-select" id="dupCivilStatusFilter" name="civil_status">
                                             <option value="">All Statuses</option>
-                                            @foreach (($filterCivilStatuses ?? []) as $civilStatus)
+                                            @foreach ($filterCivilStatuses ?? [] as $civilStatus)
                                                 <option value="{{ $civilStatus }}"
                                                     {{ strtolower(request('civil_status', '')) === strtolower($civilStatus) ? 'selected' : '' }}>
                                                     {{ $civilStatus }}</option>
@@ -151,7 +202,7 @@
                                             class="form-label fw-semibold text-uppercase small">City</label>
                                         <select class="form-select" id="dupCityFilter" name="city">
                                             <option value="">All Cities</option>
-                                            @foreach (($filterCities ?? []) as $city)
+                                            @foreach ($filterCities ?? [] as $city)
                                                 <option value="{{ $city }}"
                                                     {{ strtolower(request('city', '')) === strtolower($city) ? 'selected' : '' }}>
                                                     {{ $city }}</option>
@@ -163,7 +214,7 @@
                                             class="form-label fw-semibold text-uppercase small">Barangay</label>
                                         <select class="form-select" id="dupBarangayFilter" name="barangay">
                                             <option value="">All Barangays</option>
-                                            @foreach (($filterBarangays ?? []) as $barangay)
+                                            @foreach ($filterBarangays ?? [] as $barangay)
                                                 <option value="{{ $barangay }}"
                                                     {{ strtolower(request('barangay', '')) === strtolower($barangay) ? 'selected' : '' }}>
                                                     {{ $barangay }}</option>
@@ -171,14 +222,14 @@
                                         </select>
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
-                                        <label for="dupDateFrom"
-                                            class="form-label fw-semibold text-uppercase small">Date From</label>
+                                        <label for="dupDateFrom" class="form-label fw-semibold text-uppercase small">Date
+                                            From</label>
                                         <input type="date" class="form-control" id="dupDateFrom" name="date_from"
                                             value="{{ request('date_from') }}">
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
-                                        <label for="dupDateTo"
-                                            class="form-label fw-semibold text-uppercase small">Date To</label>
+                                        <label for="dupDateTo" class="form-label fw-semibold text-uppercase small">Date
+                                            To</label>
                                         <input type="date" class="form-control" id="dupDateTo" name="date_to"
                                             value="{{ request('date_to') }}">
                                     </div>
@@ -200,36 +251,48 @@
 
                         <ul class="nav nav-tabs mb-4" role="tablist">
                             <li class="nav-item">
-                                <a class="nav-link {{ $showLikely || $showFullName ? '' : 'active' }}" data-bs-toggle="tab" href="#exact-tab" role="tab"
-                                    data-client-count="{{ $exactGroups->total() }}" data-record-count="{{ $exactCount }}">
+                                <a class="nav-link {{ $showLikely || $showFullName ? '' : 'active' }}"
+                                    data-bs-toggle="tab" href="#exact-tab" role="tab"
+                                    data-client-count="{{ $exactGroups->total() }}"
+                                    data-record-count="{{ $exactCount }}">
                                     Exact Match
-                                    <span class="badge bg-danger-subtle text-danger ms-1">{{ $exactGroupsTotal ?? $exactGroups->count() }}</span>
+                                    <span
+                                        class="badge bg-danger-subtle text-danger ms-1">{{ $exactGroupsTotal ?? $exactGroups->count() }}</span>
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link {{ $showLikely ? 'active' : '' }}" data-bs-toggle="tab" href="#likely-tab" role="tab"
-                                    data-client-count="{{ $likelyGroups->total() }}" data-record-count="{{ $likelyCount }}">
+                                <a class="nav-link {{ $showLikely ? 'active' : '' }}" data-bs-toggle="tab"
+                                    href="#likely-tab" role="tab" data-client-count="{{ $likelyGroups->total() }}"
+                                    data-record-count="{{ $likelyCount }}">
                                     Likely Match
-                                    <span class="badge bg-warning-subtle text-warning ms-1">{{ $likelyGroupsTotal ?? $likelyGroups->count() }}</span>
+                                    <span
+                                        class="badge bg-warning-subtle text-warning ms-1">{{ $likelyGroupsTotal ?? $likelyGroups->count() }}</span>
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link {{ $showFullName ? 'active' : '' }}" data-bs-toggle="tab" href="#similar-tab" role="tab"
-                                    data-client-count="{{ $similarGroups->total() }}" data-record-count="{{ $similarCount }}">
+                                <a class="nav-link {{ $showFullName ? 'active' : '' }}" data-bs-toggle="tab"
+                                    href="#similar-tab" role="tab" data-client-count="{{ $similarGroups->total() }}"
+                                    data-record-count="{{ $similarCount }}">
                                     Match Full Name
-                                    <span class="badge bg-info-subtle text-info ms-1">{{ $similarGroupsTotal ?? $similarGroups->count() }}</span>
+                                    <span
+                                        class="badge bg-info-subtle text-info ms-1">{{ $similarGroupsTotal ?? $similarGroups->count() }}</span>
                                 </a>
                             </li>
                         </ul>
                         <div class="d-flex gap-2">
-                                <span id="duplicateClientCount" class="badge bg-primary-subtle text-primary fs-13">{{ $totalGroups }} client group(s) in this tab</span>
-                                <span id="duplicateRecordCount" class="badge bg-danger-subtle text-danger fs-13">{{ $totalDuplicates }} record(s) in this tab</span>
-                            </div>
+                            <span id="duplicateClientCount" class="badge bg-primary-subtle text-primary fs-13">{{ $totalGroups }} client group(s) in this tab</span>
+                            <span id="duplicateRecordCount" class="badge bg-danger-subtle text-danger fs-13">{{ $totalDuplicates }} record(s) in this tab</span>
+                        </div>
                         <div class="tab-content">
-                            <div class="tab-pane fade {{ $showLikely || $showFullName ? '' : 'show active' }}" id="exact-tab" role="tabpanel">
-                                <div class="alert alert-danger-subtle alert-dismissible d-flex align-items-center mb-3 py-2" role="alert">
+                            <div class="tab-pane fade {{ $showLikely || $showFullName ? '' : 'show active' }}"
+                                id="exact-tab" role="tabpanel">
+                                <div class="alert alert-danger-subtle alert-dismissible d-flex align-items-center mb-3 py-2"
+                                    role="alert">
                                     <i class="ri-error-warning-line fs-4 me-2"></i>
-                                    <div class="small">Same Full Name. Each client must have at least one transaction.</div>
+                                    <div class="small">Same <strong>Lastname and Firstname</strong>,
+                                        <strong>Client Category</strong>, <strong>Transaction Category</strong>,
+                                        <strong>Transaction Type</strong>, and <strong>Event Date</strong>.
+                                    </div>
                                 </div>
                                 @forelse ($exactGroups as $group)
                                     {!! $renderGroup($group) !!}
@@ -241,14 +304,25 @@
                                 @endforelse
                                 @if ($exactGroups->total() > 0)
                                     <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between mt-3">
-                                        <div class="small text-muted">Showing {{ $exactGroups->firstItem() }}–{{ $exactGroups->lastItem() }} of {{ $exactGroups->total() }} groups</div>
-                                        {{ $exactGroups->links('pagination::bootstrap-5') }}
+                                        <div class="small text-muted">Showing
+                                            {{ $exactGroups->firstItem() }}–{{ $exactGroups->lastItem() }} of
+                                            {{ $exactGroups->total() }} groups</div>
+                                        @include(
+                                            'pages.transaction_events.partials.paginationWithPageJump',
+                                            [
+                                                'paginator' => $exactGroups,
+                                                'pageName' => 'exact_page',
+                                                'tab' => 'exact',
+                                            ]
+                                        )
                                     </div>
                                 @endif
                             </div>
 
-                            <div class="tab-pane fade {{ $showLikely ? 'show active' : '' }}" id="likely-tab" role="tabpanel">
-                                <div class="alert alert-warning-subtle d-flex align-items-center mb-3 py-2" role="alert">
+                            <div class="tab-pane fade {{ $showLikely ? 'show active' : '' }}" id="likely-tab"
+                                role="tabpanel">
+                                <div class="alert alert-warning-subtle d-flex align-items-center mb-3 py-2"
+                                    role="alert">
                                     <i class="ri-alert-line fs-4 me-2"></i>
                                     <div class="small">Same first and last name, with one client using a middle initial and another using a matching full middle name. Each client must have at least one transaction. Review before acting.</div>
                                 </div>
@@ -262,16 +336,28 @@
                                 @endforelse
                                 @if ($likelyGroups->total() > 0)
                                     <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between mt-3">
-                                        <div class="small text-muted">Showing {{ $likelyGroups->firstItem() }}–{{ $likelyGroups->lastItem() }} of {{ $likelyGroups->total() }} groups</div>
-                                        {{ $likelyGroups->links('pagination::bootstrap-5') }}
+                                        <div class="small text-muted">Showing
+                                            {{ $likelyGroups->firstItem() }}–{{ $likelyGroups->lastItem() }} of
+                                            {{ $likelyGroups->total() }} groups</div>
+                                        @include(
+                                            'pages.transaction_events.partials.paginationWithPageJump',
+                                            [
+                                                'paginator' => $likelyGroups,
+                                                'pageName' => 'likely_page',
+                                                'tab' => 'likely',
+                                            ]
+                                        )
                                     </div>
                                 @endif
                             </div>
 
-                            <div class="tab-pane fade {{ $showFullName ? 'show active' : '' }}" id="similar-tab" role="tabpanel">
+                            <div class="tab-pane fade {{ $showFullName ? 'show active' : '' }}" id="similar-tab"
+                                role="tabpanel">
                                 <div class="alert alert-info-subtle d-flex align-items-center mb-3 py-2" role="alert">
                                     <i class="ri-information-line fs-4 me-2"></i>
-                                    <div class="small">Same full name only: first, middle, and last names, including suffix when present. Letter case and leading or trailing spaces are ignored. Birth dates may differ.</div>
+                                    <div class="small">Same full name only: first, middle, and last names, including
+                                        suffix when present. Letter case and leading or trailing spaces are ignored. Birth
+                                        dates may differ.</div>
                                 </div>
                                 @forelse ($similarGroups as $group)
                                     {!! $renderGroup($group) !!}
@@ -283,13 +369,23 @@
                                 @endforelse
                                 @if ($similarGroups->total() > 0)
                                     <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between mt-3">
-                                        <div class="small text-muted">Showing {{ $similarGroups->firstItem() }}–{{ $similarGroups->lastItem() }} of {{ $similarGroups->total() }} groups</div>
-                                        {{ $similarGroups->links('pagination::bootstrap-5') }}
+                                        <div class="small text-muted">Showing
+                                            {{ $similarGroups->firstItem() }}–{{ $similarGroups->lastItem() }} of
+                                            {{ $similarGroups->total() }} groups</div>
+                                        @include(
+                                            'pages.transaction_events.partials.paginationWithPageJump',
+                                            [
+                                                'paginator' => $similarGroups,
+                                                'pageName' => 'similar_page',
+                                                'tab' => 'full_name',
+                                            ]
+                                        )
                                     </div>
                                 @endif
                             </div>
                         </div>
                     </div>
+                    <!-- duplicate-clients-content:end -->
                 </div>
             </div>
         </div>
@@ -299,7 +395,11 @@
 @push('scripts')
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            const tabNames = { '#exact-tab': 'exact', '#likely-tab': 'likely', '#similar-tab': 'full_name' };
+            const tabNames = {
+                '#exact-tab': 'exact',
+                '#likely-tab': 'likely',
+                '#similar-tab': 'full_name'
+            };
             const syncDuplicateTab = (tab) => {
                 if (!tab) return;
                 const name = tabNames[tab.getAttribute('href')];
@@ -309,11 +409,10 @@
                     tab.dataset.clientCount + ' client group(s) in this tab';
                 document.getElementById('duplicateRecordCount').textContent =
                     tab.dataset.recordCount + ' record(s) in this tab';
+                const url = new URL(window.location.href);
+                url.searchParams.set('duplicate_tab', name);
+                window.history.replaceState({}, '', url);
             };
-            document.querySelectorAll('.nav-tabs a[data-bs-toggle="tab"]').forEach(tab => {
-                tab.addEventListener('shown.bs.tab', event => syncDuplicateTab(event.target));
-            });
-            syncDuplicateTab(document.querySelector('.nav-tabs a.active'));
 
             const duplicateClientSortCollator = new Intl.Collator(undefined, {
                 numeric: true,
@@ -348,7 +447,11 @@
                 };
 
                 rows
-                    .map((row, originalIndex) => ({ row, originalIndex, value: valueFor(row) }))
+                    .map((row, originalIndex) => ({
+                        row,
+                        originalIndex,
+                        value: valueFor(row)
+                    }))
                     .sort((left, right) => {
                         if (left.value === null && right.value === null) {
                             return left.originalIndex - right.originalIndex;
@@ -356,13 +459,13 @@
                         if (left.value === null) return 1;
                         if (right.value === null) return -1;
 
-                        const comparison = type === 'text'
-                            ? duplicateClientSortCollator.compare(left.value, right.value)
-                            : left.value - right.value;
+                        const comparison = type === 'text' ?
+                            duplicateClientSortCollator.compare(left.value, right.value) :
+                            left.value - right.value;
 
-                        return comparison === 0
-                            ? left.originalIndex - right.originalIndex
-                            : (direction === 'asc' ? comparison : -comparison);
+                        return comparison === 0 ?
+                            left.originalIndex - right.originalIndex :
+                            (direction === 'asc' ? comparison : -comparison);
                     })
                     .forEach(item => tbody.appendChild(item.row));
 
@@ -371,7 +474,8 @@
                     button.closest('th')?.removeAttribute('aria-sort');
                     const icon = button.querySelector('i');
                     if (icon) icon.className = 'ri-arrow-up-down-line text-muted';
-                    button.setAttribute('aria-label', `Sort by ${button.textContent.trim()} ascending`);
+                    button.setAttribute('aria-label',
+                        `Sort by ${button.textContent.trim()} ascending`);
                 });
 
                 sortButton.dataset.sortDirection = direction;
@@ -381,9 +485,9 @@
                 );
                 const activeIcon = sortButton.querySelector('i');
                 if (activeIcon) {
-                    activeIcon.className = direction === 'asc'
-                        ? 'ri-arrow-up-line text-primary'
-                        : 'ri-arrow-down-line text-primary';
+                    activeIcon.className = direction === 'asc' ?
+                        'ri-arrow-up-line text-primary' :
+                        'ri-arrow-down-line text-primary';
                 }
                 sortButton.setAttribute(
                     'aria-label',
@@ -391,37 +495,131 @@
                 );
             });
 
-            const toggleBtn = document.getElementById('dupFiltersToggleBtn');
-            const formEl = document.getElementById('dupFiltersForm');
-            if (!toggleBtn || !formEl) {
-                return;
-            }
-            let filtersVisible = !formEl.classList.contains('d-none');
-            const syncToggleLabel = () => {
-                toggleBtn.innerHTML = filtersVisible ?
-                    'Hide Filters <i class="ri-arrow-up-s-line ms-1"></i>' :
-                    'Show Filters <i class="ri-arrow-down-s-line ms-1"></i>';
-            };
-            syncToggleLabel();
-            toggleBtn.addEventListener('click', function() {
-                filtersVisible = !filtersVisible;
-                formEl.classList.toggle('d-none', !filtersVisible);
-                syncToggleLabel();
-            });
-            document.getElementById('dupPerPageSelect')?.addEventListener('change', function() {
-                const url = new URL(window.location.href);
-                url.searchParams.set('per_page', this.value);
-                url.searchParams.set('duplicate_tab', document.getElementById('dupActiveTab').value);
-                ['exact_page', 'likely_page', 'similar_page', 'page'].forEach((k) => url.searchParams.delete(k));
-                window.location.href = url.toString();
-            });
-            const initialHash = window.location.hash;
-            if (tabNames[initialHash]) {
-                const tabTrigger = document.querySelector('a[data-bs-toggle="tab"][href="' + initialHash + '"]');
-                if (tabTrigger) {
-                    bootstrap.Tab.getOrCreateInstance(tabTrigger).show();
+            let duplicateClientsRequest;
+            const duplicatePageKeys = ['exact_page', 'likely_page', 'similar_page', 'page'];
+
+            const loadDuplicateClients = async (targetUrl, pushState = true) => {
+                const currentContent = document.getElementById('duplicateClientsContent');
+                if (!currentContent) {
+                    window.location.assign(targetUrl);
+                    return;
                 }
-            }
+                duplicateClientsRequest?.abort();
+                duplicateClientsRequest = new AbortController();
+                currentContent.setAttribute('aria-busy', 'true');
+                currentContent.classList.add('opacity-50');
+                currentContent.style.pointerEvents = 'none';
+
+                try {
+                    const response = await fetch(targetUrl, {
+                        credentials: 'same-origin',
+                        headers: {
+                            'Accept': 'text/html',
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                        signal: duplicateClientsRequest.signal,
+                    });
+                    if (!response.ok) throw new Error(`Refresh failed (${response.status})`);
+                    const template = document.createElement('template');
+                    template.innerHTML = (await response.text()).trim();
+                    const replacement = template.content.querySelector('#duplicateClientsContent');
+                    if (!replacement) throw new Error('Duplicate clients fragment was not returned.');
+
+                    currentContent.replaceWith(replacement);
+                    if (pushState) window.history.pushState({}, '', targetUrl);
+                    initializeDuplicateClientControls();
+                } catch (error) {
+                    if (error.name === 'AbortError') return;
+                    console.error(error);
+                    window.location.assign(targetUrl);
+                } finally {
+                    const content = document.getElementById('duplicateClientsContent');
+                    content?.removeAttribute('aria-busy');
+                    content?.classList.remove('opacity-50');
+                    if (content) content.style.pointerEvents = '';
+                }
+            };
+
+            const formUrl = (form) => {
+                const url = new URL(form.action, window.location.href);
+                url.search = '';
+                new FormData(form).forEach((value, key) => url.searchParams.append(key, value));
+                return url;
+            };
+
+            const initializeDuplicateClientControls = () => {
+                document.querySelectorAll('#duplicateClientsContent .nav-tabs a[data-bs-toggle="tab"]').forEach(
+                    tab => {
+                        tab.addEventListener('shown.bs.tab', event => syncDuplicateTab(event.target));
+                    });
+                syncDuplicateTab(document.querySelector('#duplicateClientsContent .nav-tabs a.active'));
+
+                const toggleBtn = document.getElementById('dupFiltersToggleBtn');
+                const formEl = document.getElementById('dupFiltersForm');
+                if (toggleBtn && formEl) {
+                    let filtersVisible = !formEl.classList.contains('d-none');
+                    const syncToggleLabel = () => {
+                        toggleBtn.innerHTML = filtersVisible ?
+                            'Hide Filters <i class="ri-arrow-up-s-line ms-1"></i>' :
+                            'Show Filters <i class="ri-arrow-down-s-line ms-1"></i>';
+                    };
+                    syncToggleLabel();
+                    toggleBtn.addEventListener('click', () => {
+                        filtersVisible = !filtersVisible;
+                        formEl.classList.toggle('d-none', !filtersVisible);
+                        syncToggleLabel();
+                    });
+                }
+
+                document.getElementById('dupPerPageSelect')?.addEventListener('change', function() {
+                    const url = new URL(window.location.href);
+                    url.searchParams.set('per_page', this.value);
+                    url.searchParams.set('duplicate_tab', document.getElementById('dupActiveTab')
+                    .value);
+                    duplicatePageKeys.forEach(key => url.searchParams.delete(key));
+                    loadDuplicateClients(url);
+                });
+                document.getElementById('duplicateClientsRefreshBtn')?.addEventListener('click', function() {
+                    const url = new URL(window.location.href);
+                    url.searchParams.set('duplicate_tab', document.getElementById('dupActiveTab')
+                    .value);
+                    this.disabled = true;
+                    this.innerHTML = '<i class="ri-loader-3-line ri-spin me-1"></i> Refreshing';
+                    loadDuplicateClients(url, false);
+                });
+
+                const initialHash = window.location.hash;
+                if (tabNames[initialHash]) {
+                    const tabTrigger = document.querySelector(
+                        `#duplicateClientsContent a[data-bs-toggle="tab"][href="${initialHash}"]`);
+                    if (tabTrigger) bootstrap.Tab.getOrCreateInstance(tabTrigger).show();
+                }
+            };
+
+            document.addEventListener('submit', event => {
+                const form = event.target;
+                if (!(form instanceof HTMLFormElement) || !form.closest('#duplicateClientsContent')) return;
+                if (form.id !== 'dupFiltersForm' && !form.matches('[data-page-jump-form]')) return;
+                event.preventDefault();
+                const url = formUrl(form);
+                if (form.id === 'dupFiltersForm') duplicatePageKeys.forEach(key => url.searchParams.delete(key));
+                loadDuplicateClients(url);
+            });
+
+            document.addEventListener('click', event => {
+                const link = event.target.closest(
+                    '#duplicateClientsContent .pagination a[href], #duplicateClientsContent [data-duplicate-clients-load]'
+                );
+                if (!link || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event
+                    .altKey) {
+                    return;
+                }
+                event.preventDefault();
+                loadDuplicateClients(new URL(link.href, window.location.href));
+            });
+
+            window.addEventListener('popstate', () => loadDuplicateClients(window.location.href, false));
+            initializeDuplicateClientControls();
         });
     </script>
 @endpush

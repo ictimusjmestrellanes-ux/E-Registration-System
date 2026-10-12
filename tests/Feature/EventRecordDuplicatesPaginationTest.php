@@ -394,8 +394,8 @@ class EventRecordDuplicatesPaginationTest extends TestCase
         }
         $response = $this->get(route('transaction-events.records-duplicates', [
             'exact_page' => 2, 'likely_page' => 2, 'similar_page' => 2, 'per_page' => 10,
-        ]))->assertOk()->assertSee('Each client appears once per tab');
-        foreach (['exactGroups' => 'exactRecordsTotal', 'likelyGroups' => 'likelyRecordsTotal', 'similarGroups' => 'similarRecordsTotal'] as $key => $total) {
+        ]))->assertOk()->assertSeeText('Each client appears')->assertSeeText('once per tab');
+        foreach (['exactGroups' => 'exactRecordsTotal', 'similarGroups' => 'similarRecordsTotal'] as $key => $total) {
             $groups = $response->viewData($key);
             $this->assertSame(12, $groups->total());
             $this->assertCount(2, $groups);
@@ -407,6 +407,8 @@ class EventRecordDuplicatesPaginationTest extends TestCase
                 $this->assertCount(1, $group['events']->pluck('full_name')->unique());
             }
         }
+        $this->assertSame(0, $response->viewData('likelyGroups')->total());
+        $this->assertSame(0, $response->viewData('likelyRecordsTotal'));
     }
 
     public function test_not_duplicate_review_uses_status_badge_colors(): void
@@ -454,6 +456,18 @@ class EventRecordDuplicatesPaginationTest extends TestCase
                 ]);
             }
             DB::table('transaction_events')->insert(['full_name' => 'Juan Santos', 'status' => $status, 'transaction_type' => 'TYPE-A']);
+            DB::table('transaction_events')->insert([
+                [
+                    'full_name' => 'Juan Gabriel Cruz'.$status, 'status' => $status,
+                    'event_date' => '2026-09-02', 'client_category' => 'PWD',
+                    'transaction_type' => 'TYPE-C', 'transferred_at' => '2026-09-01 12:00:00',
+                ],
+                [
+                    'full_name' => 'Juan G. Cruz'.$status, 'status' => $status,
+                    'event_date' => '2026-09-02', 'client_category' => 'SENIOR',
+                    'transaction_type' => 'TYPE-C', 'transferred_at' => '2026-09-01 12:00:00',
+                ],
+            ]);
         }
         foreach (['Pending', 'Claimed', 'Unclaimed'] as $status) {
             $response = $this->get(route('transaction-events.records-duplicates', ['status' => $status, 'search' => 'Juan']))
@@ -619,7 +633,9 @@ class EventRecordDuplicatesPaginationTest extends TestCase
 
             foreach ([['PWD', 'TYPE-A'], ['SENIOR', 'TYPE-B']] as [$clientCategory, $transactionType]) {
                 DB::table('transaction_events')->insert([
-                    'full_name' => 'Likely Jump Person '.$group,
+                    'full_name' => $clientCategory === 'PWD'
+                        ? 'Likely Santos Jump'.$group
+                        : 'Likely S. Jump'.$group,
                     'client_category' => $clientCategory,
                     'transaction_category' => 'EVENTS',
                     'transaction_type' => $transactionType,
@@ -665,9 +681,8 @@ class EventRecordDuplicatesPaginationTest extends TestCase
                 ];
             }
         }
-        // Likely-only pairs: same name + date + category, but different
-        // client category and transaction type, so they never form an
-        // exact group yet match three likely patterns each.
+        // Likely-only pairs: a full middle name and its matching initial,
+        // with the same event date but different category and type.
         foreach (['PWD|TYPE-A', 'SENIOR|TYPE-B'] as $copy => $combo) {
             [$clientCategory, $type] = explode('|', $combo);
             foreach ([0, 1, 2] as $group) {
@@ -676,7 +691,9 @@ class EventRecordDuplicatesPaginationTest extends TestCase
                     'transaction_date' => '2026-09-02', 'type' => $type, 'category' => 'EVENTS', 'status' => 'Claimed',
                 ]);
                 $rows[] = [
-                    'full_name' => 'Likely Person '.$group,
+                    'full_name' => $copy === 0
+                        ? 'Likely Santos Person'.$group
+                        : 'Likely S. Person'.$group,
                     'event_date' => '2026-09-02', 'client_category' => $clientCategory,
                     'transaction_category' => 'EVENTS', 'transaction_type' => $type,
                     'transferred_at' => '2026-09-01 12:00:00', 'transferred_transaction_id' => $history,
@@ -798,21 +815,20 @@ class EventRecordDuplicatesPaginationTest extends TestCase
         }
         DB::table('transaction_events')->insert([
             [
-                'full_name' => 'Likely Person', 'birth_date' => '2000-02-02', 'event_date' => '2026-09-02',
+                'full_name' => 'Likely Santos Person', 'birth_date' => '2000-02-02', 'event_date' => '2026-09-02',
                 'client_category' => 'PWD', 'transaction_category' => 'EVENTS', 'transaction_type' => 'TYPE-A',
                 'transferred_at' => '2026-09-01 12:00:00', 'transferred_transaction_id' => $historyIds[0],
             ],
             [
-                'full_name' => 'Likely Person', 'birth_date' => '1990-01-01', 'event_date' => '2026-09-02',
+                'full_name' => 'Likely S. Person', 'birth_date' => '1990-01-01', 'event_date' => '2026-09-02',
                 'client_category' => 'SENIOR', 'transaction_category' => 'EVENTS', 'transaction_type' => 'TYPE-B',
                 'transferred_at' => '2026-09-01 12:00:00', 'transferred_transaction_id' => $historyIds[1],
             ],
         ]);
 
         $response = $this->get(route('transaction-events.records-duplicates'))->assertOk();
-        // Same name/date/category but different birth date, client category,
-        // and type: not exact, but likely via date+category, date-only,
-        // and category-only.
+        // Initial/full-middle names with the same event date still match when
+        // birth date, client category, and transaction type differ.
         $this->assertSame(0, $response->viewData('exactGroups')->total());
         $this->assertSame(1, $response->viewData('likelyGroups')->total());
         foreach ($response->viewData('likelyGroups') as $group) {

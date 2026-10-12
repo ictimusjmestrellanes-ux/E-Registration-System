@@ -1670,8 +1670,9 @@ class TransactionEventsController extends Controller
     }
 
     /**
-     * Group records with the same parsed last and first name when at least
-     * one nonblank event date, transaction type, or client category matches.
+     * Group records when one name uses a middle initial and another uses a
+     * matching full middle name, provided at least one nonblank event date,
+     * transaction type, or client category also matches.
      */
     private function likelyRecordGroups(Request $request, int $perPage): array
     {
@@ -1699,35 +1700,52 @@ class TransactionEventsController extends Controller
         $people = [];
         foreach ($rows as $row) {
             $name = $this->splitImportFullName((string) $row->full_name);
-            $first = $normalized(preg_split('/\s+/u', trim($name['first']))[0] ?? '');
+            $firstParts = preg_split('/\s+/u', trim($name['first']), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+            $middle = $normalized($name['middle']);
+            // Comma-form imports can store a full middle name at the end of
+            // the parsed first name ("Cruz, Juan Santos"). Canonicalize that
+            // layout to the same parts as "Juan Santos Cruz".
+            if ($middle === '' && count($firstParts) > 1) {
+                $middle = $normalized(array_pop($firstParts));
+            }
+            $first = $normalized(implode(' ', $firstParts));
             $last = $normalized($name['last']);
-            if ($first === '' || $last === '') {
+            $suffix = $normalized($name['suffix']);
+            $compactMiddle = preg_replace('/[^\p{L}\p{N}]+/u', '', $middle) ?? '';
+            if ($first === '' || $last === '' || $compactMiddle === '') {
                 continue;
             }
-            $people[json_encode([$last, $first])][] = $row;
+            $row->likely_middle = $compactMiddle;
+            $row->likely_middle_initial = mb_substr($compactMiddle, 0, 1);
+            $row->likely_middle_is_initial = mb_strlen($compactMiddle) === 1;
+            $people[json_encode([$last, $first, $suffix, $row->likely_middle_initial])][] = $row;
         }
 
         $matches = collect();
         foreach ($people as $personRows) {
             $eventIds = [];
             $matchedFields = [];
+            $initialRows = array_filter($personRows, fn ($row) => $row->likely_middle_is_initial);
+            $fullMiddleRows = array_filter($personRows, fn ($row) => ! $row->likely_middle_is_initial);
+            if ($initialRows === [] || $fullMiddleRows === []) {
+                continue;
+            }
             foreach (['event_date' => 'Event Date', 'transaction_type' => 'Transaction Type',
                 'client_category' => 'Client Category'] as $field => $label) {
-                $buckets = [];
-                foreach ($personRows as $row) {
-                    $value = $field === 'event_date'
-                        ? substr(trim((string) $row->$field), 0, 10)
-                        : $normalized($row->$field);
-                    if ($value !== '') {
-                        $buckets[$value][] = (int) $row->id;
+                $buckets = [[], []];
+                foreach ([$initialRows, $fullMiddleRows] as $side => $sideRows) {
+                    foreach ($sideRows as $row) {
+                        $value = $field === 'event_date'
+                            ? substr(trim((string) $row->$field), 0, 10)
+                            : $normalized($row->$field);
+                        if ($value !== '') {
+                            $buckets[$side][$value][] = (int) $row->id;
+                        }
                     }
                 }
-                foreach ($buckets as $bucket) {
-                    if (count($bucket) < 2) {
-                        continue;
-                    }
+                foreach (array_intersect_key($buckets[0], $buckets[1]) as $value => $initialIds) {
                     $matchedFields[$field] = $label;
-                    foreach ($bucket as $eventId) {
+                    foreach ([...$initialIds, ...$buckets[1][$value]] as $eventId) {
                         $eventIds[$eventId] = true;
                     }
                 }
@@ -1862,7 +1880,7 @@ class TransactionEventsController extends Controller
             sort($cacheFilters['transaction_category']);
             sort($cacheFilters['transaction_type']);
             sort($cacheFilters['status']);
-            $cacheKey = 'transaction-events:duplicate-records:v3:'.hash('sha256', json_encode([
+            $cacheKey = 'transaction-events:duplicate-records:v4:'.hash('sha256', json_encode([
                 'state' => $state,
                 'filters' => $cacheFilters,
             ]));
@@ -1875,7 +1893,19 @@ class TransactionEventsController extends Controller
 
         $this->attachClientsToVisibleDuplicateEvents($duplicateData);
 
-        return view('pages.transaction_events.recordsDuplicates', $duplicateData + compact('perPage'));
+        $view = view('pages.transaction_events.recordsDuplicates', $duplicateData + compact('perPage'));
+        if ($request->ajax()) {
+            $html = $view->render();
+            $fragment = Str::between(
+                $html,
+                '<!-- duplicate-records-content:start -->',
+                '<!-- duplicate-records-content:end -->'
+            );
+
+            return response(trim($fragment));
+        }
+
+        return $view;
     }
 
     /**
