@@ -89,12 +89,15 @@ class EventRecordsPayrollXlsxTest extends TestCase
             'updated_at' => now(),
         ]);
         $this->event(['full_name' => 'ABAD, ANGELO', 'event_date' => '2026-03-10']);
-        $this->event(['transferred_transaction_id' => $historyId]);
+        $this->event([
+            'transferred_transaction_id' => $historyId,
+            'client_category' => 'SOLO PARENTS',
+        ]);
         $this->event(['full_name' => 'ABAD ARTJAY REYES']);
         $this->event(['full_name' => 'OTHER, CLIENT', 'client_category' => 'PWD']);
 
         [$sheet, $workbook, $styles] = $this->workbookParts($this->get(route('transaction-events.records.payroll-xlsx', [
-            'client_category' => 'INDIGENT',
+            'client_category' => ['INDIGENT', 'SOLO PARENTS'],
             'report_date' => 'March 2026',
             'prepared_by' => 'Payroll Officer',
             'reviewed_by' => 'Supervisor',
@@ -111,6 +114,7 @@ class EventRecordsPayrollXlsxTest extends TestCase
         $this->assertSame('ABAD, ANGELO', $this->cell($xpath, 'C5'));
         $this->assertSame('REYES, ABAD ARTJAY', $this->cell($xpath, 'C6'));
         $this->assertSame('FEMALE', $this->cell($xpath, 'E4'));
+        $this->assertSame('SOLO PARENT', $this->cell($xpath, 'G4'));
         $this->assertSame('FOOD ASSISTANCE', $this->cell($xpath, 'H4'));
         $this->assertSame('1', $this->cell($xpath, 'I4'));
         $this->assertSame('', $this->cell($xpath, 'J4'));

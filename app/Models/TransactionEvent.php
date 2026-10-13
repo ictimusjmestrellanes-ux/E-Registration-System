@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Support\ImportName;
+use App\Support\PayrollCategory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -20,6 +21,7 @@ class TransactionEvent extends Model
         'age',
         'birth_date',
         'client_category',
+        'payroll_category',
         'sector',
         'status',
         'imported_by',
@@ -64,6 +66,10 @@ class TransactionEvent extends Model
         static::saving(static function (self $event): void {
             if ($event->isDirty('full_name') || $event->display_name_sort === null) {
                 $event->display_name_sort = mb_strtolower(ImportName::format((string) $event->full_name));
+            }
+
+            if ($event->isDirty('client_category') || $event->payroll_category === null) {
+                $event->payroll_category = PayrollCategory::fromClientCategory($event->client_category);
             }
         });
 

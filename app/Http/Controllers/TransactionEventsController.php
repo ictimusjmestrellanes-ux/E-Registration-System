@@ -9,6 +9,7 @@ use App\Models\TransactionEvent;
 use App\Models\TransactionHistory;
 use App\Models\TransactionRequirement;
 use App\Support\ImportName;
+use App\Support\PayrollCategory;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
@@ -3848,6 +3849,7 @@ class TransactionEventsController extends Controller
                         ? \Carbon\Carbon::parse($birthDate)->startOfDay()->format('Y-m-d H:i:s')
                         : null,
                     'client_category' => trim((string) ($record['client_category'] ?? '')),
+                    'payroll_category' => PayrollCategory::fromClientCategory($record['client_category'] ?? null),
                     'transaction_category' => trim((string) ($record['transaction_category'] ?? '')),
                     'transaction_type' => trim((string) ($record['transaction_type'] ?? '')),
                     'event_date' => $databaseEventDate,
@@ -3967,6 +3969,7 @@ class TransactionEventsController extends Controller
                     'age' => isset($record['age']) && $record['age'] !== '' ? (int) $record['age'] : null,
                     'birth_date' => $databaseBirthDate,
                     'client_category' => trim((string) ($record['client_category'] ?? '')),
+                    'payroll_category' => PayrollCategory::fromClientCategory($record['client_category'] ?? null),
                     'transaction_category' => trim((string) ($record['transaction_category'] ?? '')),
                     'transaction_type' => trim((string) ($record['transaction_type'] ?? '')),
                     'event_date' => $databaseEventDate,

@@ -46,7 +46,7 @@
                     <td>{{ mb_strtoupper($event->address ?? '') }}</td>
                     <td class="center">{{ mb_strtoupper($event->export_sex ?? '') }}</td>
                     <td class="center">{{ $event->age }}</td>
-                    <td>{{ mb_strtoupper($event->client_category ?? '') }}</td>
+                    <td>{{ mb_strtoupper($event->payroll_category ?? '') }}</td>
                     <td class="center">{{ mb_strtoupper(trim((string) $event->transaction_category)) === 'BIGAY BIGAS SA MASA' ? 'FOOD ASSISTANCE' : mb_strtoupper($event->transaction_category ?? '') }}</td>
                     @for ($tranche = 1; $tranche <= 4; $tranche++)
                         <td>{{ in_array($tranche, $details['numbered_tranches'] ?? []) ? $recordNumber : '' }}</td>

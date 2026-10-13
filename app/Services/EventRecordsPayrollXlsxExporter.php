@@ -107,7 +107,7 @@ class EventRecordsPayrollXlsxExporter
                     mb_strtoupper((string) ($event->address ?? '')),
                     mb_strtoupper((string) ($event->export_sex ?? '')),
                     $event->age,
-                    mb_strtoupper((string) ($event->client_category ?? '')),
+                    mb_strtoupper((string) ($event->payroll_category ?? '')),
                     $category === 'BIGAY BIGAS SA MASA' ? 'FOOD ASSISTANCE' : $category,
                     in_array(1, $selectedTranches, true) ? $number : '',
                     in_array(2, $selectedTranches, true) ? $number : '',

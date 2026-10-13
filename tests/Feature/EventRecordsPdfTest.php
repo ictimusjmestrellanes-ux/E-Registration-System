@@ -55,6 +55,26 @@ class EventRecordsPdfTest extends TestCase
             ->assertOk()->assertHeader('Content-Type', 'application/pdf');
     }
 
+    public function test_pdf_client_category_column_displays_payroll_category(): void
+    {
+        $event = TransactionEvent::create([
+            'full_name' => 'TEST, CLIENT',
+            'client_category' => 'TODA',
+        ]);
+
+        $html = view('pages.transaction_events.recordsPdf', [
+            'events' => collect([$event]),
+            'isRice' => false,
+            'dateLabel' => '',
+        ])->render();
+        $document = new \DOMDocument;
+        @$document->loadHTML($html);
+        $cells = (new \DOMXPath($document))->query('//tbody/tr[1]/td');
+
+        $this->assertSame('TRANSPORT GROUP', trim($cells->item(6)->textContent));
+        $this->assertStringNotContainsString('>TODA<', $html);
+    }
+
     public function test_only_selected_signature_columns_are_numbered_across_pages(): void
     {
         $events = collect(range(1, 21))->map(fn () => new TransactionEvent(['full_name' => 'BENEFICIARY']));
