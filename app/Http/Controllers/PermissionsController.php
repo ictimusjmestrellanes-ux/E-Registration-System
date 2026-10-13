@@ -64,6 +64,88 @@ class PermissionsController extends Controller
     ];
 
     /**
+     * Map permissions to the pages shown in the sidebar. Feature names remain
+     * unchanged so existing role assignments and feature_allowed() checks are
+     * preserved. Features added by an administrator fall back to Other.
+     */
+    private const PERMISSION_GROUPS = [
+        'Dashboard' => [
+            'Dashboard',
+        ],
+        'Create Client' => [
+            'Create Client',
+        ],
+        'Client List' => [
+            'Client List',
+            'View Client',
+            'Edit Client',
+            'Archive Clients',
+            'Delete Clients Without Transactions',
+            'Send Transactions',
+        ],
+        'Archive Clients' => [
+            'Archive',
+            'Restore Archive',
+        ],
+        'Duplicate Clients Review' => [
+            'Duplicate Clients Review',
+        ],
+        'Import Events' => [
+            'Events',
+            'Import CSV',
+            'Preview Import',
+            'Download Template',
+            'Export Events',
+            'Transfer Selected',
+            'Transfer to Client',
+            'Force Create Client',
+            'Transfer Event',
+            'Delete Event',
+            'Duplicate Review',
+            'Events - Duplicate Review',
+            'Mark Not Duplicate',
+            'View Archive Files',
+            'Download Archive',
+        ],
+        'Event Records' => [
+            'Event Records',
+            'Events Records Duplicates',
+            'View Payroll Category',
+            'Export Transaction Event Records',
+            'Print Payroll Transaction PDF',
+            'Edit Transaction Event Record',
+            'Tag Transaction Event Record Status',
+            'Undo Transfer',
+            'Completed Merges',
+            'Not a Duplicate Review',
+            'View Removed Duplicates',
+            'Reset Duplicate Review',
+            'Merge to Oldest Client',
+            'Not a duplicate',
+        ],
+        'Users' => [
+            'Manage Users',
+            'Edit User Roles',
+            'Update User Status',
+        ],
+        'Roles' => [
+            'Roles',
+            'Add Roles',
+            'Delete Roles',
+        ],
+        'Permissions' => [
+            'Permissions',
+            'Add Permissions',
+            'Save Permissions',
+            'Delete Permissions',
+        ],
+        'Activity Logs' => [
+            'Activity Logs',
+            'View Activity Logs',
+        ],
+    ];
+
+    /**
      * A brand-new role starts with every feature denied, except these which
      * default to allowed. New users land on the Viewer role, so keep the
      * dashboard visible out of the box.
@@ -90,8 +172,25 @@ class PermissionsController extends Controller
             return $row;
         })->values();
 
+        $permissionsByFeature = $permissions->keyBy('feature');
+        $permissionGroups = collect(self::PERMISSION_GROUPS)
+            ->map(fn ($features) => collect($features)
+                ->map(fn ($feature) => $permissionsByFeature->get($feature))
+                ->filter()
+                ->values())
+            ->filter(fn ($group) => $group->isNotEmpty());
+        $mappedFeatures = collect(self::PERMISSION_GROUPS)->flatten()->all();
+        $otherPermissions = $permissions
+            ->reject(fn ($permission) => in_array($permission['feature'], $mappedFeatures, true))
+            ->sortBy('feature', SORT_NATURAL | SORT_FLAG_CASE)
+            ->values();
+        if ($otherPermissions->isNotEmpty()) {
+            $permissionGroups->put('Other Permissions', $otherPermissions);
+        }
+
         return view('pages.permissions.index', [
             'permissions' => $permissions,
+            'permissionGroups' => $permissionGroups,
             'roles' => $roles,
         ]);
     }

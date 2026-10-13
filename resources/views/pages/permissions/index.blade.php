@@ -10,7 +10,7 @@
                         <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
                             <div>
                                 <h4 class="mb-1">Permissions</h4>
-                                <p class="text-muted mb-0">Feature access matrix per role.</p>
+                                <p class="text-muted mb-0">Feature access matrix per role, grouped by page and module.</p>
                             </div>
                             <div class="d-flex align-items-center gap-2">
                                 @if ($canEdit)
@@ -63,45 +63,58 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    @foreach ($permissions as $permission)
-                                        <tr>
-                                            <td class="fw-medium">{{ $permission['feature'] }}</td>
-                                            @foreach ($roles as $role)
-                                                <td class="text-center">
-                                                    @if ($canEdit)
-                                                        <div
-                                                            class="form-check form-switch form-switch-lg d-inline-block mb-0">
-                                                            <input type="checkbox" class="form-check-input"
-                                                                id="perm-{{ $permission['feature'] }}-{{ $role }}"
-                                                                name="allowed[{{ $permission['feature'] }}][{{ $role }}]"
-                                                                @checked($permission[$role] ?? false)>
-                                                            <label class="form-check-label"
-                                                                for="perm-{{ $permission['feature'] }}-{{ $role }}"></label>
-                                                        </div>
-                                                    @else
-                                                        @if ($permission[$role] ?? false)
-                                                            <span class="badge bg-success-subtle text-success"><i
-                                                                    class="ri-check-line align-bottom"></i> Allowed</span>
-                                                        @else
-                                                            <span class="badge bg-danger-subtle text-danger"><i
-                                                                    class="ri-close-line align-bottom"></i> Denied</span>
-                                                        @endif
-                                                    @endif
-                                                </td>
-                                            @endforeach
-                                            @if ($canEdit)
-                                                <td class="text-center">
-                                                    @if (feature_allowed('Delete Permissions'))
-                                                        <button type="button" class="btn btn-sm btn-soft-danger"
-                                                            data-bs-toggle="modal"
-                                                            data-bs-target="#deletePermissionModal-{{ str_replace(' ', '-', $permission['feature']) }}"
-                                                            title="Delete Permission">
-                                                            <i class="ri-delete-bin-line"></i> Delete
-                                                        </button>
-                                                    @endif
-                                                </td>
-                                            @endif
+                                    @foreach ($permissionGroups as $groupName => $groupPermissions)
+                                        <tr class="table-primary" data-permission-group="{{ $groupName }}">
+                                            <th colspan="{{ count($roles) + ($canEdit ? 2 : 1) }}" class="py-2">
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <i class="ri-folder-3-line"></i>
+                                                    <span>{{ $groupName }}</span>
+                                                    <span class="badge bg-primary-subtle text-primary">
+                                                        {{ $groupPermissions->count() }}
+                                                    </span>
+                                                </div>
+                                            </th>
                                         </tr>
+                                        @foreach ($groupPermissions as $permission)
+                                            <tr data-permission-feature="{{ $permission['feature'] }}">
+                                                <td class="fw-medium ps-4">{{ $permission['feature'] }}</td>
+                                                @foreach ($roles as $role)
+                                                    <td class="text-center">
+                                                        @if ($canEdit)
+                                                            <div
+                                                                class="form-check form-switch form-switch-lg d-inline-block mb-0">
+                                                                <input type="checkbox" class="form-check-input"
+                                                                    id="perm-{{ $permission['feature'] }}-{{ $role }}"
+                                                                    name="allowed[{{ $permission['feature'] }}][{{ $role }}]"
+                                                                    @checked($permission[$role] ?? false)>
+                                                                <label class="form-check-label"
+                                                                    for="perm-{{ $permission['feature'] }}-{{ $role }}"></label>
+                                                            </div>
+                                                        @else
+                                                            @if ($permission[$role] ?? false)
+                                                                <span class="badge bg-success-subtle text-success"><i
+                                                                        class="ri-check-line align-bottom"></i> Allowed</span>
+                                                            @else
+                                                                <span class="badge bg-danger-subtle text-danger"><i
+                                                                        class="ri-close-line align-bottom"></i> Denied</span>
+                                                            @endif
+                                                        @endif
+                                                    </td>
+                                                @endforeach
+                                                @if ($canEdit)
+                                                    <td class="text-center">
+                                                        @if (feature_allowed('Delete Permissions'))
+                                                            <button type="button" class="btn btn-sm btn-soft-danger"
+                                                                data-bs-toggle="modal"
+                                                                data-bs-target="#deletePermissionModal-{{ str_replace(' ', '-', $permission['feature']) }}"
+                                                                title="Delete Permission">
+                                                                <i class="ri-delete-bin-line"></i> Delete
+                                                            </button>
+                                                        @endif
+                                                    </td>
+                                                @endif
+                                            </tr>
+                                        @endforeach
                                     @endforeach
                                 </tbody>
                             </table>

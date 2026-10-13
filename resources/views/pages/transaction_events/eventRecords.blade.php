@@ -113,7 +113,7 @@
             'contact' => 'Contact No.',
             'address' => 'Address',
             'client_category' => 'Category',
-            'payroll_category' => 'Payroll Category',
+            ...(feature_allowed('View Payroll Category') ? ['payroll_category' => 'Payroll Category'] : []),
             'transaction_category' => 'Transaction Category',
             'transaction_type' => 'Transaction Type',
             'event_date' => 'Event Date',
@@ -541,8 +541,6 @@
                                                 <td data-column="payroll_category" class="small">
                                                     {{ $event->payroll_category ?? '-' }}</td>
                                             @endif
-                                            <td data-column="payroll_category" class="small">
-                                                {{ $event->payroll_category ?? '-' }}</td>
                                             <td data-column="transaction_category" class="small">
                                                 {{ $event->transaction_category ?? '-' }}</td>
                                             <td data-column="transaction_type" class="small">
