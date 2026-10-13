@@ -395,7 +395,7 @@ class DuplicateReviewController extends Controller
         $loadPage = fn (int $page) => DB::query()->fromSub(clone $query, 'duplicate_groups')
             ->select('duplicate_groups.*')
             ->selectRaw('COUNT(*) OVER () as groups_total, COALESCE(SUM(records) OVER (), 0) as records_total')
-            ->orderBy('first_id')->forPage($page, $perPage)->get();
+            ->orderByDesc('records')->orderBy('first_id')->forPage($page, $perPage)->get();
         $rows = $loadPage($requestedPage);
 
         if ($rows->isNotEmpty()) {

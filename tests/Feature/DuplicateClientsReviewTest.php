@@ -287,6 +287,60 @@ class DuplicateClientsReviewTest extends TestCase
             ->assertSee('duplicateClientSortCollator', false);
     }
 
+    public function test_groups_with_the_most_records_appear_first_in_every_tab(): void
+    {
+        foreach ([2, 4] as $groupSize) {
+            foreach (range(1, $groupSize) as $copy) {
+                $client = Client::create([
+                    'client_id' => "EXACT-{$groupSize}-{$copy}",
+                    'first_name' => "Exact {$groupSize}",
+                    'middle_name' => 'Client',
+                    'last_name' => 'Group',
+                ]);
+                $this->createTransaction($client);
+            }
+        }
+
+        foreach ([
+            'SMALL' => ['S.', 'Santos'],
+            'LARGE' => ['R.', 'Reyes', 'R', 'Rivera'],
+        ] as $group => $middleNames) {
+            foreach ($middleNames as $copy => $middleName) {
+                $client = Client::create([
+                    'client_id' => "LIKELY-{$group}-{$copy}",
+                    'first_name' => $group,
+                    'middle_name' => $middleName,
+                    'last_name' => 'Likely',
+                ]);
+                $this->createTransaction($client);
+            }
+        }
+
+        foreach ([2, 5] as $groupSize) {
+            foreach (range(1, $groupSize) as $copy) {
+                Client::create([
+                    'client_id' => "FULL-{$groupSize}-{$copy}",
+                    'first_name' => "Full {$groupSize}",
+                    'middle_name' => 'Name',
+                    'last_name' => 'Group',
+                ]);
+            }
+        }
+
+        $response = $this->get('/duplicate-review')->assertOk();
+
+        foreach (['exactGroups', 'likelyGroups', 'similarGroups'] as $viewKey) {
+            $totals = collect($response->viewData($viewKey)->items())->pluck('total')->values()->all();
+            $descending = $totals;
+            rsort($descending);
+
+            $this->assertSame($descending, $totals, "{$viewKey} is not sorted by record count.");
+        }
+        $this->assertSame(4, $response->viewData('exactGroups')->first()['total']);
+        $this->assertSame(4, $response->viewData('likelyGroups')->first()['total']);
+        $this->assertSame(5, $response->viewData('similarGroups')->first()['total']);
+    }
+
     public function test_database_pagination_preserves_groups_and_filters_on_repeated_requests(): void
     {
         for ($group = 0; $group < 12; $group++) {
