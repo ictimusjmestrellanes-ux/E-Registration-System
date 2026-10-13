@@ -302,10 +302,9 @@
                                 <div class="alert alert-danger-subtle alert-dismissible d-flex align-items-center mb-3 py-2"
                                     role="alert">
                                     <i class="ri-error-warning-line fs-4 me-2"></i>
-                                    <div class="small">Same <strong>Lastname and Firstname</strong>,
-                                        <strong>Client Category</strong>, <strong>Transaction Category</strong>,
-                                        <strong>Transaction Type</strong>, and <strong>Event Date</strong>.
-                                    </div>
+                                    <div class="small">Same first and last name, with one client using a middle
+                                        initial and another using a matching full middle name. Each client must have
+                                        at least one transaction.</div>
                                 </div>
                                 @if ($loadedDuplicateTabs['exact'])
                                     @forelse ($exactGroups as $group)
@@ -343,7 +342,8 @@
                                 <div class="alert alert-warning-subtle d-flex align-items-center mb-3 py-2"
                                     role="alert">
                                     <i class="ri-alert-line fs-4 me-2"></i>
-                                    <div class="small">Same first and last name, with one client using a middle initial and another using a matching full middle name. Each client must have at least one transaction. Review before acting.</div>
+                                    <div class="small">Same first and last name, with one client using a middle
+                                        initial and another using a matching full middle name only.</div>
                                 </div>
                                 @if ($loadedDuplicateTabs['likely'])
                                     @forelse ($likelyGroups as $group)

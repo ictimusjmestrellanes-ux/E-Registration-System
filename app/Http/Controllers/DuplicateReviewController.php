@@ -13,10 +13,6 @@ use Throwable;
 class DuplicateReviewController extends Controller
 {
     private const FULL_NAME_KEY = "CONCAT_WS('|', LOWER(TRIM(first_name)), LOWER(TRIM(COALESCE(middle_name,''))), LOWER(TRIM(last_name)), LOWER(TRIM(COALESCE(suffix,''))))";
-    private const EXACT_NAME_KEY = "CONCAT_WS('|', LOWER(TRIM(first_name)), LOWER(TRIM(last_name)))";
-    private const EXACT_MATCH_KEY = "CONCAT_WS('|', exact_name_key, client_category_key, transaction_category_key, transaction_type_key, event_date_key)";
-
-    private ?bool $hasLegacyTransactionRows = null;
 
     public function __construct()
     {
@@ -116,74 +112,6 @@ class DuplicateReviewController extends Controller
         return $transactionsOnly ? $this->transactionClients() : DB::table('clients')->select('clients.*');
     }
 
-    /**
-     * One row per client and normalized transaction signature. Current rows
-     * use the indexed client_id join; only unlinked legacy rows need to derive
-     * ownership from transaction_id.
-     */
-    private function exactClientTransactionRows(bool $withClientDetails = true)
-    {
-        $addSignature = function ($query) use ($withClientDetails) {
-            $query->select($withClientDetails ? ['clients.*'] : [
-                'clients.id', 'clients.first_name', 'clients.last_name',
-            ]);
-
-            return $query
-                ->selectRaw(self::EXACT_NAME_KEY.' as exact_name_key')
-                ->selectRaw("LOWER(TRIM(COALESCE(transaction_history.client_category,''))) as client_category_key")
-                ->selectRaw("COALESCE(DATE(transaction_history.transaction_date),'') as event_date_key")
-                ->selectRaw("LOWER(TRIM(COALESCE(transaction_history.category,''))) as transaction_category_key")
-                ->selectRaw("LOWER(TRIM(COALESCE(NULLIF(transaction_history.events_transaction_type,''), transaction_history.type, ''))) as transaction_type_key")
-                ->distinct();
-        };
-
-        $current = $addSignature(DB::table('clients')
-            ->join('transaction_history', 'transaction_history.client_id', '=', 'clients.client_id')
-            ->whereNotNull('transaction_history.client_id')
-            ->where('transaction_history.client_id', '<>', ''));
-
-        $this->hasLegacyTransactionRows ??= DB::table('transaction_history')
-            ->where(function ($query) {
-                $query->whereNull('client_id')->orWhereRaw("TRIM(client_id) = ''");
-            })
-            ->where('transaction_id', 'like', '%-%')
-            ->exists();
-        if (!$this->hasLegacyTransactionRows) {
-            return $current;
-        }
-
-        $legacyOwner = DB::connection()->getDriverName() === 'sqlite'
-            ? "SUBSTR(transaction_history.transaction_id, 1, INSTR(transaction_history.transaction_id, '-') - 1)"
-            : "SUBSTRING_INDEX(transaction_history.transaction_id, '-', 1)";
-        $legacy = $addSignature(DB::table('clients')
-            ->join('transaction_history', function ($join) use ($legacyOwner) {
-                $join->on('clients.client_id', '=', DB::raw($legacyOwner));
-            })
-            ->where(function ($query) {
-                $query->whereNull('transaction_history.client_id')
-                    ->orWhereRaw("TRIM(transaction_history.client_id) = ''");
-            })
-            ->where('transaction_history.transaction_id', 'like', '%-%'));
-
-        return $current->unionAll($legacy);
-    }
-
-    private function exactMatchGroupQuery(?Request $request = null)
-    {
-        $hasFilters = $request && $request->anyFilled([
-            'search', 'gender', 'civil_status', 'city', 'barangay', 'date_from', 'date_to',
-        ]);
-        $eligible = DB::query()->fromSub($this->exactClientTransactionRows($hasFilters), 'clients');
-        if ($hasFilters) {
-            $matching = DB::query()->fromSub($this->exactClientTransactionRows(), 'clients');
-            $this->applyClientFilters($matching, $request);
-            $eligible->whereIn(DB::raw(self::EXACT_MATCH_KEY), $matching->selectRaw(self::EXACT_MATCH_KEY));
-        }
-
-        return $eligible->selectRaw(self::EXACT_MATCH_KEY.' as match_key, COUNT(*) as records, MIN(id) as first_id')
-            ->groupBy('match_key')->havingRaw('COUNT(*) > 1');
-    }
-
     private function nameGroupQuery(string $keyExpression, bool $transactionsOnly, ?Request $request = null)
     {
         $eligible = DB::query()->fromSub($this->nameClients($transactionsOnly), 'clients');
@@ -202,12 +130,12 @@ class DuplicateReviewController extends Controller
      * Candidates whose first, last, and suffix match while one middle name is
      * an initial and another is a full name beginning with the same letter.
      */
-    private function initialNameGroupQuery(?Request $request = null)
+    private function initialNameGroupQuery(?Request $request = null, bool $transactionsOnly = false)
     {
         $expressions = $this->initialNameExpressions();
-        $eligible = DB::query()->fromSub($this->transactionClients(), 'clients');
+        $eligible = DB::query()->fromSub($this->nameClients($transactionsOnly), 'clients');
         if ($request && $request->anyFilled(['search', 'gender', 'civil_status', 'city', 'barangay', 'date_from', 'date_to'])) {
-            $matching = DB::query()->fromSub($this->transactionClients(), 'clients');
+            $matching = DB::query()->fromSub($this->nameClients($transactionsOnly), 'clients');
             $this->applyClientFilters($matching, $request);
             // A matching member includes the whole likely-match group.
             $eligible->whereIn(DB::raw($expressions['key']), $matching->selectRaw($expressions['key']));
@@ -232,10 +160,11 @@ class DuplicateReviewController extends Controller
      */
     private function initialNameExpressions(): array
     {
-        $compactMiddle = "REPLACE(REPLACE(TRIM(COALESCE(middle_name,'')), '.', ''), ' ', '')";
-        $hasEmbeddedMiddle = "($compactMiddle = '' AND INSTR(TRIM(COALESCE(first_name,'')), ' ') > 0)";
-        $givenName = "LOWER(CASE WHEN $hasEmbeddedMiddle THEN SUBSTR(TRIM(first_name), 1, INSTR(TRIM(first_name), ' ') - 1) ELSE TRIM(COALESCE(first_name,'')) END)";
-        $middleLetter = "LOWER(CASE WHEN $compactMiddle <> '' THEN SUBSTR($compactMiddle, 1, 1) WHEN $hasEmbeddedMiddle THEN SUBSTR(TRIM(SUBSTR(TRIM(first_name), INSTR(TRIM(first_name), ' ') + 1)), 1, 1) ELSE '' END)";
+        [$displayLastName, $displayFirstName, $displayMiddleName] = Client::listDisplaySortExpressions('clients');
+        $compactMiddle = "REPLACE(REPLACE(TRIM($displayMiddleName), '.', ''), ' ', '')";
+        $hasEmbeddedMiddle = "($compactMiddle = '' AND INSTR(TRIM($displayFirstName), ' ') > 0)";
+        $givenName = "CASE WHEN $hasEmbeddedMiddle THEN SUBSTR(TRIM($displayFirstName), 1, INSTR(TRIM($displayFirstName), ' ') - 1) ELSE TRIM($displayFirstName) END";
+        $middleLetter = "CASE WHEN $compactMiddle <> '' THEN SUBSTR($compactMiddle, 1, 1) WHEN $hasEmbeddedMiddle THEN SUBSTR(TRIM(SUBSTR(TRIM($displayFirstName), INSTR(TRIM($displayFirstName), ' ') + 1)), 1, 1) ELSE '' END";
         $length = DB::connection()->getDriverName() === 'sqlite' ? 'LENGTH' : 'CHAR_LENGTH';
 
         return [
@@ -243,7 +172,7 @@ class DuplicateReviewController extends Controller
             'full_middle_condition' => "$length($compactMiddle) > 1 OR $hasEmbeddedMiddle",
             'given_name' => $givenName,
             'middle_letter' => $middleLetter,
-            'key' => "CONCAT_WS('|', $givenName, LOWER(TRIM(last_name)), LOWER(TRIM(COALESCE(suffix,''))), $middleLetter)",
+            'key' => "CONCAT_WS('|', $givenName, $displayLastName, LOWER(TRIM(COALESCE(suffix,''))), $middleLetter)",
         ];
     }
 
@@ -321,45 +250,20 @@ class DuplicateReviewController extends Controller
 
     private function paginateExactNameGroups(Request $request, int $perPage): array
     {
-        $query = $this->exactMatchGroupQuery($request);
-        $pageData = $this->groupPage($query, $request, $perPage, 'exact_page', 'match_key');
-        $total = $pageData['total'];
-        $page = $pageData['page'];
-        $keys = $pageData['keys'];
-        $groups = collect();
-        if ($keys->isNotEmpty()) {
-            $case = 'CASE';
-            $bindings = [];
-            foreach ($keys as $key) {
-                $case .= ' WHEN '.self::EXACT_MATCH_KEY.' = ? THEN ?';
-                array_push($bindings, $key, $key);
-            }
-            $members = Client::query()->fromSub($this->exactClientTransactionRows(), 'clients')->select([
-                'clients.id', 'client_id', 'first_name', 'middle_name', 'last_name', 'suffix',
-                'age', 'birth_date', 'gender', 'civil_status', 'sector', 'email', 'contact',
-                'contact_2', 'address', 'province', 'city', 'barangay', 'photo_path', 'created_at',
-            ])->whereIn(DB::raw(self::EXACT_MATCH_KEY), $keys)
-                ->selectRaw($case.' END as duplicate_match_key', $bindings)->orderBy('clients.id')->get()
-                ->groupBy('duplicate_match_key');
-            $groups = $keys->map(fn ($key) => $this->groupPayload($members->get($key, collect())));
-        }
-
-        return ['paginator' => $this->namePaginator(
-            $request,
-            $groups,
-            $total,
-            $perPage,
-            $page,
-            'exact_page',
-            'exact-tab'
-        ), 'total' => $total, 'records' => $pageData['records']];
+        return $this->paginateInitialNameGroups($request, $perPage, true, 'exact_page', 'exact-tab');
     }
 
-    private function paginateInitialNameGroups(Request $request, int $perPage): array
+    private function paginateInitialNameGroups(
+        Request $request,
+        int $perPage,
+        bool $transactionsOnly = false,
+        string $pageName = 'likely_page',
+        string $fragment = 'likely-tab'
+    ): array
     {
         $keyExpression = $this->initialNameExpressions()['key'];
-        $query = $this->initialNameGroupQuery($request);
-        $pageData = $this->groupPage($query, $request, $perPage, 'likely_page', 'name_key');
+        $query = $this->initialNameGroupQuery($request, $transactionsOnly);
+        $pageData = $this->groupPage($query, $request, $perPage, $pageName, 'name_key');
         $total = $pageData['total'];
         $page = $pageData['page'];
         $keys = $pageData['keys'];
@@ -371,7 +275,7 @@ class DuplicateReviewController extends Controller
                 $case .= ' WHEN '.$keyExpression.' = ? THEN ?';
                 array_push($bindings, $key, $key);
             }
-            $members = Client::query()->fromSub($this->transactionClients(), 'clients')->select([
+            $members = Client::query()->fromSub($this->nameClients($transactionsOnly), 'clients')->select([
                 'clients.id', 'client_id', 'first_name', 'middle_name', 'last_name', 'suffix',
                 'age', 'birth_date', 'gender', 'civil_status', 'sector', 'email', 'contact',
                 'contact_2', 'address', 'province', 'city', 'barangay', 'photo_path', 'created_at',
@@ -381,7 +285,7 @@ class DuplicateReviewController extends Controller
             $groups = $keys->map(fn ($key) => $this->groupPayload($members->get($key, collect())));
         }
 
-        return ['paginator' => $this->namePaginator($request, $groups, $total, $perPage, $page, 'likely_page', 'likely-tab'),
+        return ['paginator' => $this->namePaginator($request, $groups, $total, $perPage, $page, $pageName, $fragment),
             'total' => $total, 'records' => $pageData['records']];
     }
 

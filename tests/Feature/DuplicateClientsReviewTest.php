@@ -26,7 +26,7 @@ class DuplicateClientsReviewTest extends TestCase
         $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
     }
 
-    public function test_exact_match_uses_name_client_category_transaction_fields_and_event_date(): void
+    public function test_exact_match_uses_same_first_last_and_matching_middle_initial_and_full_name(): void
     {
         $first = Client::create([
             'client_id' => 'EXACT-1',
@@ -72,7 +72,6 @@ class DuplicateClientsReviewTest extends TestCase
             ]);
             $this->createTransaction($differentTransaction, $transactionChanges);
         }
-        $secondSignatureIds = [];
         foreach (['Alpha', 'Beta'] as $middleName) {
             $client = Client::create([
                 'client_id' => 'SECOND-SIGNATURE-'.strtoupper($middleName),
@@ -84,33 +83,27 @@ class DuplicateClientsReviewTest extends TestCase
                 'client_category' => 'senior citizen',
                 'transaction_date' => '2026-03-01',
             ]);
-            $secondSignatureIds[] = $client->id;
         }
 
         $response = $this->get('/duplicate-review')->assertOk();
 
-        $this->assertSame(2, $response->viewData('exactGroups')->total());
-        $this->assertSame(7, $response->viewData('exactRecordsTotal'));
+        $this->assertSame(1, $response->viewData('exactGroups')->total());
+        $this->assertSame(3, $response->viewData('exactRecordsTotal'));
         $this->assertSame(1, $response->viewData('likelyGroups')->total());
         $this->assertSame(3, $response->viewData('likelyRecordsTotal'));
         $this->assertEqualsCanonicalizing(
-            $expectedIds,
+            [$first->id, $second->id, $expectedIds[4]],
             $response->viewData('exactGroups')->first()['clients']->pluck('id')->all()
         );
-        $this->assertEqualsCanonicalizing(
-            $secondSignatureIds,
-            $response->viewData('exactGroups')->last()['clients']->pluck('id')->all()
-        );
-        $response->assertSee('Lastname and Firstname')
-            ->assertSee('Client Category')
-            ->assertSee('Transaction Category')
-            ->assertSee('Transaction Type')
-            ->assertSee('Event Date');
+        $response->assertSee('Same first and last name')
+            ->assertSee('one client using a middle')
+            ->assertSee('matching full middle name')
+            ->assertSee('Each client must have');
         $this->assertSame(1, $response->viewData('similarGroupsTotal'));
         $this->assertSame(2, $response->viewData('similarRecordsTotal'));
     }
 
-    public function test_exact_match_ignores_suffix_and_middle_name(): void
+    public function test_exact_match_requires_a_middle_initial_and_full_middle_name_pair(): void
     {
         $first = Client::create(['client_id' => 'EXACT-SUFFIX-1', 'first_name' => 'Juan', 'middle_name' => null,
             'last_name' => 'Cruz', 'suffix' => 'Jr.']);
@@ -119,20 +112,38 @@ class DuplicateClientsReviewTest extends TestCase
         foreach ([$first, $second] as $client) {
             $this->createTransaction($client);
         }
-        $expectedIds = [$first->id, $second->id];
         foreach (['Sr.', null] as $index => $suffix) {
             $other = Client::create(['client_id' => 'EXACT-SUFFIX-OTHER-'.$index,
                 'first_name' => 'Juan', 'last_name' => 'Cruz', 'suffix' => $suffix]);
             $this->createTransaction($other);
-            $expectedIds[] = $other->id;
         }
         $response = $this->get('/duplicate-review')->assertOk();
-        $this->assertSame(1, $response->viewData('exactGroupsTotal'));
-        $this->assertSame(4, $response->viewData('exactRecordsTotal'));
-        $this->assertEqualsCanonicalizing($expectedIds,
-            $response->viewData('exactGroups')->first()['clients']->pluck('id')->all());
+        $this->assertSame(0, $response->viewData('exactGroupsTotal'));
+        $this->assertSame(0, $response->viewData('exactRecordsTotal'));
         $this->assertSame(1, $response->viewData('similarGroupsTotal'));
         $this->assertSame(2, $response->viewData('similarRecordsTotal'));
+    }
+
+    public function test_exact_match_uses_the_corrected_names_shown_for_legacy_imports(): void
+    {
+        foreach (['Candylaria', 'Carolina', 'Edlyn', 'Feliciano', 'Priscila'] as $index => $givenName) {
+            // Legacy imports stored "LARA, GIVEN C." in the wrong columns.
+            // Client::full_name corrects these values to the names users see.
+            $client = Client::create([
+                'client_id' => 'LEGACY-DISPLAY-'.$index,
+                'first_name' => 'Lara',
+                'middle_name' => $givenName,
+                'last_name' => 'C.',
+            ]);
+            $this->createTransaction($client);
+        }
+
+        $response = $this->get('/duplicate-review')->assertOk();
+
+        $this->assertSame(0, $response->viewData('exactGroupsTotal'));
+        $this->assertSame(0, $response->viewData('exactRecordsTotal'));
+        $this->assertSame(0, $response->viewData('likelyGroupsTotal'));
+        $this->assertSame(0, $response->viewData('likelyRecordsTotal'));
     }
 
     public function test_match_full_name_excludes_spelling_variations(): void
@@ -146,10 +157,8 @@ class DuplicateClientsReviewTest extends TestCase
             $this->createTransaction($client);
         }
         $response = $this->get('/duplicate-review?duplicate_tab=full_name')->assertOk();
-        // Exact Match intentionally ignores the middle name, while Match Full
-        // Name still rejects all spelling variations.
-        $this->assertSame(1, $response->viewData('exactGroupsTotal'));
-        $this->assertSame(2, $response->viewData('exactRecordsTotal'));
+        $this->assertSame(0, $response->viewData('exactGroupsTotal'));
+        $this->assertSame(0, $response->viewData('exactRecordsTotal'));
         $this->assertSame(0, $response->viewData('similarGroupsTotal'));
         $response->assertSee('No records with matching full names found.');
     }
@@ -159,16 +168,19 @@ class DuplicateClientsReviewTest extends TestCase
         $first = Client::create([
             'client_id' => 'WITH-TX-1',
             'first_name' => 'Maria',
+            'middle_name' => 'S.',
             'last_name' => 'Santos',
         ]);
         $second = Client::create([
             'client_id' => 'WITH-TX-2',
             'first_name' => 'Maria',
+            'middle_name' => 'Sofia',
             'last_name' => 'Santos',
         ]);
         Client::create([
             'client_id' => 'NO-TX-1',
             'first_name' => 'Maria',
+            'middle_name' => 'Sonia',
             'last_name' => 'Santos',
         ]);
         $this->createTransaction($first);
@@ -209,23 +221,52 @@ class DuplicateClientsReviewTest extends TestCase
             'middle_name' => 'Reyes', 'last_name' => 'Cruz',
         ]);
         $this->createTransaction($differentInitial);
-        Client::create([
+        $withoutTransaction = Client::create([
             'client_id' => 'LIKELY-NO-TX', 'first_name' => 'Juan',
             'middle_name' => 'S', 'last_name' => 'Cruz',
         ]);
 
         $response = $this->get('/duplicate-review?duplicate_tab=likely&city=Imus')->assertOk();
 
-        $this->assertSame(0, $response->viewData('exactGroupsTotal'));
+        $this->assertSame(1, $response->viewData('exactGroupsTotal'));
         $this->assertSame(0, $response->viewData('similarGroupsTotal'));
+        $this->assertSame(1, $response->viewData('likelyGroupsTotal'));
+        $this->assertSame(3, $response->viewData('likelyRecordsTotal'));
+        $this->assertEqualsCanonicalizing(
+            [$fullMiddle->id, $middleInitial->id, $withoutTransaction->id],
+            $response->viewData('likelyGroups')->first()['clients']->pluck('id')->all()
+        );
+        $response->assertSee('one client using a middle')
+            ->assertSee('initial and another using a matching')
+            ->assertSee('matching full middle name only.');
+    }
+
+    public function test_likely_match_uses_corrected_legacy_first_last_and_middle_names(): void
+    {
+        $middleInitial = Client::create([
+            'client_id' => 'LIKELY-LEGACY-INITIAL',
+            'first_name' => 'Lara',
+            'middle_name' => 'Candylaria',
+            'last_name' => 'C.',
+        ]);
+        $fullMiddle = Client::create([
+            'client_id' => 'LIKELY-LEGACY-FULL',
+            'first_name' => 'Candylaria',
+            'middle_name' => 'Cruz',
+            'last_name' => 'Lara',
+        ]);
+        foreach ([$middleInitial, $fullMiddle] as $client) {
+            $this->createTransaction($client);
+        }
+
+        $response = $this->get('/duplicate-review?duplicate_tab=likely')->assertOk();
+
         $this->assertSame(1, $response->viewData('likelyGroupsTotal'));
         $this->assertSame(2, $response->viewData('likelyRecordsTotal'));
         $this->assertEqualsCanonicalizing(
-            [$fullMiddle->id, $middleInitial->id],
+            [$middleInitial->id, $fullMiddle->id],
             $response->viewData('likelyGroups')->first()['clients']->pluck('id')->all()
         );
-        $response->assertSee('one client using a middle initial')
-            ->assertSee('Each client must have at least one transaction.');
     }
 
     public function test_exact_match_recognizes_legacy_transaction_id_links(): void
@@ -233,11 +274,13 @@ class DuplicateClientsReviewTest extends TestCase
         $first = Client::create([
             'client_id' => '2601001',
             'first_name' => 'Legacy',
+            'middle_name' => 'M.',
             'last_name' => 'Client',
         ]);
         $second = Client::create([
             'client_id' => '2601002',
             'first_name' => 'Legacy',
+            'middle_name' => 'Middle',
             'last_name' => 'Client',
         ]);
         $this->createTransaction($first);
@@ -265,6 +308,7 @@ class DuplicateClientsReviewTest extends TestCase
             $client = Client::create([
                 'client_id' => 'SORT-'.$index,
                 'first_name' => 'Sortable',
+                'middle_name' => $index === 0 ? 'M.' : 'Middle',
                 'last_name' => 'Client',
                 'age' => $age,
                 'birth_date' => '1990-01-0'.($index + 1),
@@ -348,6 +392,7 @@ class DuplicateClientsReviewTest extends TestCase
                 $client = Client::create([
                     'client_id' => 'TEST-'.$group.'-'.$copy,
                     'first_name' => 'Person '.$group, 'last_name' => 'Example',
+                    'middle_name' => $copy === 0 ? 'M.' : 'Middle',
                     'birth_date' => '1990-01-01', 'city' => $group === 0 ? 'Imus' : 'Other',
                 ]);
                 $this->createTransaction($client);
@@ -376,6 +421,7 @@ class DuplicateClientsReviewTest extends TestCase
                 $client = Client::create([
                     'client_id' => 'VISIBLE-'.$group.'-'.$copy,
                     'first_name' => 'Visible '.$group,
+                    'middle_name' => $copy === 0 ? 'M.' : 'Middle',
                     'last_name' => 'Client',
                     'birth_date' => '1990-01-01',
                 ]);
@@ -429,8 +475,10 @@ class DuplicateClientsReviewTest extends TestCase
     public function test_filters_match_one_member_but_keep_the_whole_transaction_group(): void
     {
         $first = Client::create(['client_id' => 'FILTER-1', 'first_name' => ' Juan ', 'last_name' => ' CRUZ ',
+            'middle_name' => ' S. ',
             'city' => ' Imus ', 'gender' => 'Male', 'birth_date' => '1990-01-01', 'address' => '100% real']);
         $second = Client::create(['client_id' => 'FILTER-2', 'first_name' => 'juan', 'last_name' => 'cruz',
+            'middle_name' => 'Santos',
             'city' => 'Other', 'gender' => 'Female']);
         $this->createTransaction($first);
         $this->createTransaction($second);
@@ -445,8 +493,8 @@ class DuplicateClientsReviewTest extends TestCase
 
     public function test_extra_transactions_do_not_inflate_duplicate_counts_and_new_transactions_are_immediately_visible(): void
     {
-        $first = Client::create(['client_id' => 'LIVE-1', 'first_name' => 'Live', 'last_name' => 'Match']);
-        $second = Client::create(['client_id' => 'LIVE-2', 'first_name' => 'Live', 'last_name' => 'Match']);
+        $first = Client::create(['client_id' => 'LIVE-1', 'first_name' => 'Live', 'middle_name' => 'M.', 'last_name' => 'Match']);
+        $second = Client::create(['client_id' => 'LIVE-2', 'first_name' => 'Live', 'middle_name' => 'Middle', 'last_name' => 'Match']);
         $this->createTransaction($first);
         $this->assertSame(0, $this->get('/duplicate-review')->assertOk()->viewData('exactGroupsTotal'));
         $this->createTransaction($second);
@@ -477,7 +525,7 @@ class DuplicateClientsReviewTest extends TestCase
         $this->assertArrayNotHasKey('similarScanPending', $response->original->getData());
         $this->assertSame(1, $response->viewData('similarGroupsTotal'));
         $this->assertSame(3, $response->viewData('similarRecordsTotal'));
-        $this->assertSame(2, $response->viewData('exactRecordsTotal'));
+        $this->assertSame(0, $response->viewData('exactRecordsTotal'));
         $this->assertEqualsCanonicalizing($ids, $response->viewData('similarGroups')->first()['clients']->pluck('id')->all());
         $this->assertFalse(\Illuminate\Support\Facades\Route::has('duplicate.review.similar-scan'));
         $this->postJson('/duplicate-review/similar-scan')->assertNotFound();
@@ -525,7 +573,7 @@ class DuplicateClientsReviewTest extends TestCase
     {
         foreach (['Exact City A', 'Exact City B'] as $index => $city) {
             $client = Client::create(['client_id' => 'EXACT-CITY-'.$index, 'first_name' => 'Juan',
-                'middle_name' => 'Santos', 'last_name' => 'Cruz', 'city' => $city]);
+                'middle_name' => $index === 0 ? 'S.' : 'Santos', 'last_name' => 'Cruz', 'city' => $city]);
             $this->createTransaction($client);
         }
         foreach (['Full City A', 'Full City B'] as $index => $city) {
@@ -535,7 +583,7 @@ class DuplicateClientsReviewTest extends TestCase
         $response = $this->get('/duplicate-review?city=Exact%20City%20A')->assertOk();
         $this->assertSame(1, $response->viewData('exactGroupsTotal'));
         $this->assertSame(2, $response->viewData('exactRecordsTotal'));
-        $this->assertSame(1, $response->viewData('similarGroupsTotal'));
+        $this->assertSame(0, $response->viewData('similarGroupsTotal'));
         $this->assertEqualsCanonicalizing(['Exact City A', 'Exact City B', 'Full City A', 'Full City B'],
             $response->viewData('filterCities'));
 
@@ -562,8 +610,8 @@ class DuplicateClientsReviewTest extends TestCase
         $this->assertSame(12, $response->viewData('similarGroupsTotal'));
         $this->assertSame(24, $response->viewData('similarRecordsTotal'));
         $this->assertCount(2, $response->viewData('similarGroups'));
-        $this->assertCount(1, $response->viewData('exactGroups'));
-        $this->assertSame(1, $response->viewData('exactGroupsTotal'));
+        $this->assertCount(0, $response->viewData('exactGroups'));
+        $this->assertSame(0, $response->viewData('exactGroupsTotal'));
         $response->assertSee('tab-pane fade show active" id="similar-tab"', false)
             ->assertSee('name="duplicate_tab" id="dupActiveTab" value="full_name"', false);
         $this->assertStringContainsString('duplicate_tab=full_name', $response->viewData('similarGroups')->url(1));
@@ -602,7 +650,7 @@ class DuplicateClientsReviewTest extends TestCase
         $response = $this->get('/duplicate-review?duplicate_tab=full_name')->assertOk()
             ->assertSee('1 client group(s) in this tab')->assertSee('3 record(s) in this tab')
             ->assertDontSee('5 record(s) in this tab');
-        $this->assertSame(2, $response->viewData('exactRecordsTotal'));
+        $this->assertSame(0, $response->viewData('exactRecordsTotal'));
         $this->assertSame(3, $response->viewData('similarRecordsTotal'));
         $this->get('/duplicate-review?duplicate_tab=likely')->assertOk()
             ->assertSee('0 client group(s) in this tab')->assertSee('0 record(s) in this tab');
@@ -673,10 +721,14 @@ class DuplicateClientsReviewTest extends TestCase
             $transactions = [];
             for ($id = $offset + 1; $id <= $offset + 1000; $id++) {
                 $publicId = 'LARGE-'.$id;
+                $group = intdiv($id - 1, 2);
+                $copy = ($id - 1) % 2;
                 $clients[] = ['id' => $id, 'client_id' => $publicId,
-                    'first_name' => 'Person '.intdiv($id - 1, 2), 'last_name' => 'Example'];
+                    'first_name' => 'Person '.$group,
+                    'middle_name' => $group % 2 === 0 ? ($copy === 0 ? 'M.' : 'Middle') : 'Middle',
+                    'last_name' => 'Example'];
                 // Half of the duplicate groups have no transactions at all.
-                if (intdiv($id - 1, 2) % 2 === 0) {
+                if ($group % 2 === 0) {
                     $transactions[] = ['client_id' => $publicId, 'transaction_id' => $publicId.'-26-0001',
                         'transaction_date' => '2026-01-01', 'category' => 'others', 'type' => 'test'];
                 }
@@ -695,8 +747,8 @@ class DuplicateClientsReviewTest extends TestCase
         $this->assertSame(31000, $response->viewData('exactRecordsTotal'));
         $this->assertCount(10, $response->viewData('exactGroups'));
         $this->assertSame(20, $response->viewData('exactGroups')->sum(fn ($group) => $group['clients']->count()));
-        $this->assertSame(31000, $response->viewData('similarGroupsTotal'));
-        $this->assertSame(62000, $response->viewData('similarRecordsTotal'));
+        $this->assertSame(15500, $response->viewData('similarGroupsTotal'));
+        $this->assertSame(31000, $response->viewData('similarRecordsTotal'));
         $this->assertCount(10, $response->viewData('similarGroups'));
         $this->assertFalse($queries->contains(fn ($query) => str_contains(strtolower($query['query']), 'soundex')));
         $this->assertFalse($queries->contains(fn ($query) => str_contains($query['query'], '"middle_name"') && !str_contains($query['query'], 'where')));
