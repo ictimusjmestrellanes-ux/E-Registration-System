@@ -55,7 +55,7 @@
                                     <tr>
                                         <th>Feature</th>
                                         @foreach ($roles as $role)
-                                            <th class="text-center">{{ $role }}</th>
+                                            <th class="text-center" style="width: 150px">{{ $role }}</th>
                                         @endforeach
                                         @if ($canEdit)
                                             <th class="text-center">Actions</th>
@@ -81,8 +81,7 @@
                                                 @foreach ($roles as $role)
                                                     <td class="text-center">
                                                         @if ($canEdit)
-                                                            <div
-                                                                class="form-check form-switch form-switch-lg d-inline-block mb-0">
+                                                            <div class="form-check form-switch form-switch-lg d-inline-block mb-0">
                                                                 <input type="checkbox" class="form-check-input"
                                                                     id="perm-{{ $permission['feature'] }}-{{ $role }}"
                                                                     name="allowed[{{ $permission['feature'] }}][{{ $role }}]"
