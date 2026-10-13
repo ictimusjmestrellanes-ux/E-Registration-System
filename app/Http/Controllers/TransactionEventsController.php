@@ -112,6 +112,7 @@ class TransactionEventsController extends Controller
             'contact_asc', 'contact_desc',
             'address_asc', 'address_desc',
             'clientcat_asc', 'clientcat_desc',
+            'payrollcat_asc', 'payrollcat_desc',
             'category_asc', 'category_desc',
             'type_asc', 'type_desc',
             'eventdate_asc', 'eventdate_desc',
@@ -979,6 +980,7 @@ class TransactionEventsController extends Controller
             'contact' => 'contact',
             'address' => 'address',
             'client_category' => 'clientcat',
+            'payroll_category' => 'payrollcat',
             'transaction_category' => 'category',
             'transaction_type' => 'type',
             'event_date' => 'eventdate',
@@ -1024,6 +1026,7 @@ class TransactionEventsController extends Controller
             str_starts_with($sort, 'contact_') => 'contact_no',
             str_starts_with($sort, 'address_') => 'address',
             str_starts_with($sort, 'clientcat_') => 'client_category',
+            str_starts_with($sort, 'payrollcat_') => 'payroll_category',
             str_starts_with($sort, 'category_') => 'transaction_category',
             str_starts_with($sort, 'type_') => 'transaction_type',
             str_starts_with($sort, 'eventdate_') => 'event_date',
@@ -1032,7 +1035,7 @@ class TransactionEventsController extends Controller
             default => 'full_name',
         };
 
-        $textColumns = ['contact_no', 'address', 'client_category', 'transaction_category', 'transaction_type', 'status'];
+        $textColumns = ['contact_no', 'address', 'client_category', 'payroll_category', 'transaction_category', 'transaction_type', 'status'];
 
         if ($column === 'full_name') {
             $query->orderByRaw('COALESCE(display_name_sort, LOWER(TRIM(full_name))) '.$direction);

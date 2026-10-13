@@ -59,7 +59,8 @@ class PermissionsController extends Controller
         ['feature' => 'View Activity Logs', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
         ['feature' => 'Transfer to Client', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
         ['feature' => 'Merge to Oldest Client', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
-        ['feature' => 'Not a duplicate', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true]
+        ['feature' => 'Not a duplicate', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
+        ['feature' => 'View Payroll Category', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
     ];
 
     /**

@@ -113,6 +113,7 @@
             'contact' => 'Contact No.',
             'address' => 'Address',
             'client_category' => 'Category',
+            'payroll_category' => 'Payroll Category',
             'transaction_category' => 'Transaction Category',
             'transaction_type' => 'Transaction Type',
             'event_date' => 'Event Date',
@@ -317,13 +318,16 @@
                                     </div>
                                     <div class="col-12 col-md-6 col-xl-2">
                                         <label class="form-label fw-semibold text-uppercase small">Status</label>
-                                        @include('pages.transaction_events.partials.multiSelectSearchDropdown', [
-                                            'dropdownId' => 'recordStatus',
-                                            'fieldName' => 'status',
-                                            'options' => \App\Models\TransactionEvent::STATUSES,
-                                            'allLabel' => 'All statuses',
-                                            'searchPlaceholder' => 'Search statuses...',
-                                        ])
+                                        @include(
+                                            'pages.transaction_events.partials.multiSelectSearchDropdown',
+                                            [
+                                                'dropdownId' => 'recordStatus',
+                                                'fieldName' => 'status',
+                                                'options' => \App\Models\TransactionEvent::STATUSES,
+                                                'allLabel' => 'All statuses',
+                                                'searchPlaceholder' => 'Search statuses...',
+                                            ]
+                                        )
                                     </div>
                                     <div class="col-6 col-xl-2 d-flex gap-2 justify-content-end">
                                         <button type="submit" class="btn btn-sm btn-primary px-4">
@@ -458,6 +462,15 @@
                                             'current' => $currentSort,
                                             'column' => 'client_category',
                                         ])
+                                        @if (feature_allowed('View Payroll Category'))
+                                            @include('pages.transaction_events.partials.sortableHeader', [
+                                                'label' => 'Payroll Category',
+                                                'asc' => 'payrollcat_asc',
+                                                'desc' => 'payrollcat_desc',
+                                                'current' => $currentSort,
+                                                'column' => 'payroll_category',
+                                            ])
+                                        @endif
                                         @include('pages.transaction_events.partials.sortableHeader', [
                                             'label' => 'Transaction Category',
                                             'asc' => 'category_asc',
@@ -524,6 +537,12 @@
                                             <td data-column="address" class="small">{{ $event->address ?? '-' }}</td>
                                             <td data-column="client_category" class="small">
                                                 {{ $event->client_category ?? '-' }}</td>
+                                            @if (feature_allowed('View Payroll Category'))
+                                                <td data-column="payroll_category" class="small">
+                                                    {{ $event->payroll_category ?? '-' }}</td>
+                                            @endif
+                                            <td data-column="payroll_category" class="small">
+                                                {{ $event->payroll_category ?? '-' }}</td>
                                             <td data-column="transaction_category" class="small">
                                                 {{ $event->transaction_category ?? '-' }}</td>
                                             <td data-column="transaction_type" class="small">
@@ -685,9 +704,8 @@
         </div>
     </div>
     @if (feature_allowed('Export Transaction Event Records'))
-        <div class="modal fade" id="recordXlsxProgressModal" tabindex="-1"
-            aria-labelledby="recordXlsxProgressTitle" aria-hidden="true" data-bs-backdrop="static"
-            data-bs-keyboard="false">
+        <div class="modal fade" id="recordXlsxProgressModal" tabindex="-1" aria-labelledby="recordXlsxProgressTitle"
+            aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content">
                     <div class="modal-header">
@@ -790,8 +808,8 @@
                 </div>
                 <div class="modal-footer">
                     <a class="btn btn-sm btn-primary d-none" id="recordPdfDownload">Download PDF</a>
-                    <button type="button" class="btn btn-sm btn-light" id="recordPdfProgressClose" data-bs-dismiss="modal"
-                        disabled>Close</button>
+                    <button type="button" class="btn btn-sm btn-light" id="recordPdfProgressClose"
+                        data-bs-dismiss="modal" disabled>Close</button>
                 </div>
             </div>
         </div>
@@ -1006,7 +1024,8 @@
                     if (activeStatusFilters.length === 0) return;
 
                     const row = eventRecordsTable?.querySelector(`tr[data-event-id="${eventId}"]`);
-                    const matchesBaseStatus = activeStatusFilters.includes(row?.dataset.baseStatus || '');
+                    const matchesBaseStatus = activeStatusFilters.includes(row?.dataset.baseStatus ||
+                        '');
                     const matchesNotDuplicate = activeStatusFilters.includes('Not a Duplicate') &&
                         row?.dataset.notDuplicate === '1';
                     if (!matchesBaseStatus && !matchesNotDuplicate) {
@@ -1276,7 +1295,8 @@
                     });
 
                     // Handle filters which can have multiple values
-                    ['address', 'client_category', 'transaction_category', 'transaction_type', 'status'].forEach((
+                    ['address', 'client_category', 'transaction_category', 'transaction_type', 'status']
+                    .forEach((
                         name) => {
                         const values = Array.from(params.entries())
                             .filter(([key]) => key === name || key.startsWith(name + '['))
@@ -1422,7 +1442,8 @@
                             payload[name] = value;
                         }
                     });
-                    ['address', 'client_category', 'transaction_category', 'transaction_type', 'status'].forEach((
+                    ['address', 'client_category', 'transaction_category', 'transaction_type', 'status']
+                    .forEach((
                         name) => {
                         const values = Array.from(params.entries())
                             .filter(([key]) => key === name || key.startsWith(name + '['))

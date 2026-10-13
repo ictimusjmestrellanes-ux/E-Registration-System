@@ -198,6 +198,33 @@ class EventRecordsFilterTest extends TestCase
         $response->assertSee('INDIGENT', false);
     }
 
+    public function test_event_records_displays_and_sorts_the_payroll_category_column(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+
+        TransactionEvent::create([
+            'full_name' => 'Transport Client',
+            'client_category' => 'TODA',
+            'transferred_at' => now(),
+        ]);
+        TransactionEvent::create([
+            'full_name' => 'Solo Client',
+            'client_category' => 'SOLO PARENTS',
+            'transferred_at' => now(),
+        ]);
+
+        $this->get(route('transaction-events.records', ['sort' => 'payrollcat_asc']))
+            ->assertOk()
+            ->assertSee('id="col-payroll_category"', false)
+            ->assertSee('data-column="payroll_category"', false)
+            ->assertSee('SOLO PARENT')
+            ->assertSee('TRANSPORT GROUP')
+            ->assertViewHas('events', fn ($events) => $events->pluck('full_name')->all() === [
+                'Solo Client',
+                'Transport Client',
+            ]);
+    }
+
     public function test_undo_ids_respects_client_category_filter(): void
     {
         $this->actingAs(User::factory()->create());
