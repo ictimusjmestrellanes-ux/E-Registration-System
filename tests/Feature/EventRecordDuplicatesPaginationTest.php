@@ -4,7 +4,9 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use RuntimeException;
 use Tests\TestCase;
 
 class EventRecordDuplicatesPaginationTest extends TestCase
@@ -141,6 +143,80 @@ class EventRecordDuplicatesPaginationTest extends TestCase
             ->assertSee('duplicate-records-flash-alert', false)
             ->assertSee('data-auto-dismiss-ms="5000"', false)
             ->assertSee('bootstrap.Alert.getOrCreateInstance(alertElement).close()', false);
+    }
+
+    public function test_duplicate_records_ajax_request_returns_one_replaceable_fragment(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+
+        $response = $this->withHeader('X-Requested-With', 'XMLHttpRequest')
+            ->get(route('transaction-events.records-duplicates'))
+            ->assertOk();
+
+        $content = $response->getContent();
+        $this->assertSame(1, substr_count($content, 'id="duplicateRecordsContent"'));
+        $this->assertStringNotContainsString('<html', $content);
+        $this->assertStringNotContainsString('duplicate-records-content:start', $content);
+    }
+
+    public function test_duplicate_records_reset_uses_only_the_delegated_ajax_handler(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+
+        $response = $this->get(route('transaction-events.records-duplicates'))->assertOk();
+
+        $response->assertSee('id="duplicateRecordsResetLink"', false)
+            ->assertSee('data-duplicate-records-load', false)
+            ->assertDontSee("getElementById('duplicateRecordsRefreshBtn')", false);
+    }
+
+    public function test_duplicate_records_still_render_when_the_optional_cache_is_unavailable(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+        $this->app->detectEnvironment(fn () => 'production');
+
+        Cache::shouldReceive('get')->once()->andThrow(new RuntimeException('Cache read failed.'));
+        Cache::shouldReceive('put')->once()->andThrow(new RuntimeException('Cache write failed.'));
+
+        $this->get(route('transaction-events.records-duplicates'))->assertOk();
+    }
+
+    public function test_web_requests_load_only_the_requested_duplicate_tab(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+        $this->app->detectEnvironment(fn () => 'production');
+
+        foreach (['Juan Santos Cruz', 'Juan S. Cruz'] as $index => $name) {
+            DB::table('transaction_events')->insert([
+                'full_name' => $name,
+                'client_category' => 'PWD',
+                'transaction_category' => 'EVENTS',
+                'transaction_type' => $index === 0 ? 'TYPE-A' : 'TYPE-B',
+                'event_date' => '2026-09-20',
+                'transferred_at' => '2026-09-20 12:00:00',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
+        $exact = $this->get(route('transaction-events.records-duplicates'))->assertOk();
+        $this->assertSame([
+            'exact' => true,
+            'likely' => false,
+            'full_name' => false,
+        ], $exact->viewData('loadedDuplicateTabs'));
+        $exact->assertSee('data-duplicate-tab="likely"', false)
+            ->assertSee('data-loaded="0"', false);
+
+        $likely = $this->get(route('transaction-events.records-duplicates', [
+            'duplicate_tab' => 'likely',
+        ]))->assertOk();
+        $this->assertSame([
+            'exact' => false,
+            'likely' => true,
+            'full_name' => false,
+        ], $likely->viewData('loadedDuplicateTabs'));
+        $this->assertSame(1, $likely->viewData('likelyGroups')->total());
     }
 
     public function test_records_inside_each_duplicate_group_have_sortable_columns(): void

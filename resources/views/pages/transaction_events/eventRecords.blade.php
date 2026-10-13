@@ -150,16 +150,7 @@
                                             <span class="input-group-text"><i class="ri-search-line"></i></span>
                                             <input type="text" class="form-control" id="recordKeywordInput"
                                                 name="search" placeholder="Full name or transaction ID"
-                                                value="{{ request('search') }}" autocomplete="off"
-                                                aria-describedby="recordKeywordHelp recordAutoSearchStatus">
-                                        </div>
-                                        <div class="d-flex align-items-center gap-2 mt-1">
-                                            <small class="text-muted" id="recordKeywordHelp">Search runs automatically
-                                                after you stop typing.</small>
-                                            <small class="text-primary d-none" id="recordAutoSearchStatus"
-                                                role="status" aria-live="polite">
-                                                <i class="ri-loader-3-line ri-spin me-1"></i>Searching...
-                                            </small>
+                                                value="{{ request('search') }}" autocomplete="off">
                                         </div>
                                     </div>
                                     {{-- <div class="col-12 col-md-2 col-xl-2">
@@ -872,39 +863,6 @@
 
             filtersToggleBtn?.addEventListener('click', function() {
                 setFiltersVisible(filtersForm.classList.contains('d-none'));
-            });
-
-            // ----- Debounced server-side keyword search -----
-            // Event Records is paginated, so submit the filter form instead of
-            // filtering only the rows that happen to be visible on this page.
-            const recordKeywordInput = document.getElementById('recordKeywordInput');
-            const recordAutoSearchStatus = document.getElementById('recordAutoSearchStatus');
-            const initialKeyword = recordKeywordInput?.value.trim() || '';
-            let keywordSearchTimer = null;
-            let keywordSearchSubmitting = false;
-
-            const submitKeywordSearch = (force = false) => {
-                if (!filtersForm || !recordKeywordInput || keywordSearchSubmitting) return;
-
-                const keyword = recordKeywordInput.value.trim();
-                if (!force && keyword === initialKeyword) return;
-
-                keywordSearchSubmitting = true;
-                recordKeywordInput.value = keyword;
-                recordAutoSearchStatus?.classList.remove('d-none');
-                filtersForm.requestSubmit();
-            };
-
-            recordKeywordInput?.addEventListener('input', function() {
-                window.clearTimeout(keywordSearchTimer);
-                keywordSearchTimer = window.setTimeout(submitKeywordSearch, 600);
-            });
-
-            recordKeywordInput?.addEventListener('keydown', function(event) {
-                if (event.key !== 'Enter' || event.isComposing) return;
-                event.preventDefault();
-                window.clearTimeout(keywordSearchTimer);
-                submitKeywordSearch(true);
             });
 
             // ----- Per page selector -----

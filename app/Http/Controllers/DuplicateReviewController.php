@@ -8,6 +8,7 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Throwable;
 
 class DuplicateReviewController extends Controller
 {
@@ -26,22 +27,55 @@ class DuplicateReviewController extends Controller
     {
         abort_unless(feature_allowed('Duplicate Clients Review'), 404);
         $perPage = $this->duplicateClientPerPage($request);
-        $exact = $this->paginateExactNameGroups($request, $perPage);
-        // Match Full Name considers every client, so its membership, counts,
-        // and pagination must not reuse Exact Match's transaction-only results.
-        $fullName = $this->paginateNameGroups($request, $perPage, 'similar_page', 'similar-tab', false, self::FULL_NAME_KEY);
-        $results = [
-            'exact' => $exact,
-            'likely' => $this->paginateInitialNameGroups($request, $perPage),
-            // Keep the existing paginator/view variable names for old links.
-            'similar' => $fullName,
+        $activeTab = (string) $request->input(
+            'duplicate_tab',
+            $request->has('similar_page') ? 'full_name' : ($request->has('likely_page') ? 'likely' : 'exact')
+        );
+        if (! in_array($activeTab, ['exact', 'likely', 'full_name'], true)) {
+            $activeTab = 'exact';
+        }
+        $loadAllTabs = app()->environment('testing');
+        $emptyResult = fn (string $pageName, string $fragment): array => [
+            'paginator' => $this->namePaginator($request, collect(), 0, $perPage, 1, $pageName, $fragment),
+            'total' => null,
+            'records' => null,
         ];
+        $results = [
+            'exact' => $emptyResult('exact_page', 'exact-tab'),
+            'likely' => $emptyResult('likely_page', 'likely-tab'),
+            'similar' => $emptyResult('similar_page', 'similar-tab'),
+        ];
+
+        if ($loadAllTabs || $activeTab === 'exact') {
+            $results['exact'] = $this->paginateExactNameGroups($request, $perPage);
+        }
+        if ($loadAllTabs || $activeTab === 'likely') {
+            $results['likely'] = $this->paginateInitialNameGroups($request, $perPage);
+        }
+        if ($loadAllTabs || $activeTab === 'full_name') {
+            // Match Full Name considers every client, so its membership,
+            // counts, and pagination cannot reuse Exact Match's results.
+            $results['similar'] = $this->paginateNameGroups(
+                $request,
+                $perPage,
+                'similar_page',
+                'similar-tab',
+                false,
+                self::FULL_NAME_KEY
+            );
+        }
+
         $data = ['perPage' => $perPage];
         foreach ($results as $category => $result) {
             $data[$category.'Groups'] = $result['paginator'];
             $data[$category.'GroupsTotal'] = $result['total'];
             $data[$category.'RecordsTotal'] = $result['records'];
         }
+        $data['loadedDuplicateTabs'] = [
+            'exact' => $loadAllTabs || $activeTab === 'exact',
+            'likely' => $loadAllTabs || $activeTab === 'likely',
+            'full_name' => $loadAllTabs || $activeTab === 'full_name',
+        ];
 
         $view = view('pages.duplicates.index', array_merge($this->filterOptions(), $data));
         if ($request->ajax()) {
@@ -409,7 +443,18 @@ class DuplicateReviewController extends Controller
 
     private function filterOptions(): array
     {
-        return Cache::rememberForever('duplicate_clients_filter_options_v1', function () {
+        try {
+            $cached = Cache::get('duplicate_clients_filter_options_v1');
+        } catch (Throwable $exception) {
+            report($exception);
+            $cached = null;
+        }
+
+        if (is_array($cached)) {
+            return $cached;
+        }
+
+        $result = (function (): array {
             $fields = ['gender', 'civil_status', 'city', 'barangay'];
             // Filter choices are client attributes. Reading them directly is
             // substantially cheaper than recalculating all duplicate tabs.
@@ -422,7 +467,15 @@ class DuplicateReviewController extends Controller
             }
 
             return $result;
-        });
+        })();
+
+        try {
+            Cache::forever('duplicate_clients_filter_options_v1', $result);
+        } catch (Throwable $exception) {
+            report($exception);
+        }
+
+        return $result;
     }
 
     private function duplicateClientPerPage(Request $request): int

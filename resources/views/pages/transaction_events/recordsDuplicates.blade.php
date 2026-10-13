@@ -65,9 +65,20 @@
                             );
                             $showLikely = $activeTab === 'likely';
                             $showFullName = $activeTab === 'full_name';
-                            $exactCount = $exactRecordsTotal ?? $exactGroups->sum('total');
-                            $likelyCount = $likelyRecordsTotal ?? $likelyGroups->sum('total');
-                            $similarCount = $similarRecordsTotal ?? $similarGroups->sum('total');
+                            $loadedDuplicateTabs = $loadedDuplicateTabs ?? [
+                                'exact' => true,
+                                'likely' => true,
+                                'full_name' => true,
+                            ];
+                            $exactCount = $loadedDuplicateTabs['exact']
+                                ? ($exactRecordsTotal ?? $exactGroups->sum('total'))
+                                : null;
+                            $likelyCount = $loadedDuplicateTabs['likely']
+                                ? ($likelyRecordsTotal ?? $likelyGroups->sum('total'))
+                                : null;
+                            $similarCount = $loadedDuplicateTabs['full_name']
+                                ? ($similarRecordsTotal ?? $similarGroups->sum('total'))
+                                : null;
 
                             $renderGroup = function ($group, $tab) {
                                 $events = $group['events']
@@ -396,7 +407,7 @@
                                         Show Filters <i class="ri-arrow-down-s-line ms-1"></i>
                                     </button>
                                     <a href="{{ route('transaction-events.records-duplicates') }}"
-                                        data-duplicate-records-load id="duplicateRecordsRefreshBtn"
+                                        data-duplicate-records-load id="duplicateRecordsResetLink"
                                         class="btn btn-sm btn-soft-primary">Reset</a>
                                     <select class="form-select form-select-sm w-auto" id="dupPerPageSelect"
                                         aria-label="Groups per page" title="Groups per page">
@@ -627,30 +638,36 @@
                             <li class="nav-item">
                                 <a class="nav-link {{ $showLikely || $showFullName ? '' : 'active' }}"
                                     data-bs-toggle="tab" href="#rexact-tab" role="tab"
+                                    data-duplicate-tab="exact"
+                                    data-loaded="{{ $loadedDuplicateTabs['exact'] ? '1' : '0' }}"
                                     data-client-count="{{ $exactGroups->total() }}"
-                                    data-record-count="{{ $exactCount }}">
+                                    data-record-count="{{ $exactCount ?? '' }}">
                                     Exact Match
                                     <span
-                                        class="badge bg-danger-subtle text-danger ms-1">{{ $exactGroupsTotal ?? $exactGroups->count() }}</span>
+                                        class="badge bg-danger-subtle text-danger ms-1">{{ $loadedDuplicateTabs['exact'] ? ($exactGroupsTotal ?? $exactGroups->count()) : '…' }}</span>
                                 </a>
                             </li>
                             <li class="nav-item">
                                 <a class="nav-link {{ $showLikely ? 'active' : '' }}" data-bs-toggle="tab"
+                                    data-duplicate-tab="likely"
+                                    data-loaded="{{ $loadedDuplicateTabs['likely'] ? '1' : '0' }}"
                                     href="#rlikely-tab" role="tab" data-client-count="{{ $likelyGroups->total() }}"
-                                    data-record-count="{{ $likelyCount }}">
+                                    data-record-count="{{ $likelyCount ?? '' }}">
                                     Likely Match
                                     <span
-                                        class="badge bg-warning-subtle text-warning ms-1">{{ $likelyGroupsTotal ?? $likelyGroups->count() }}</span>
+                                        class="badge bg-warning-subtle text-warning ms-1">{{ $loadedDuplicateTabs['likely'] ? ($likelyGroupsTotal ?? $likelyGroups->count()) : '…' }}</span>
                                 </a>
                             </li>
                             <li class="nav-item">
                                 <a class="nav-link {{ $showFullName ? 'active' : '' }}" data-bs-toggle="tab"
+                                    data-duplicate-tab="full_name"
+                                    data-loaded="{{ $loadedDuplicateTabs['full_name'] ? '1' : '0' }}"
                                     href="#rsimilar-tab" role="tab"
                                     data-client-count="{{ $similarGroups->total() }}"
-                                    data-record-count="{{ $similarCount }}">
+                                    data-record-count="{{ $similarCount ?? '' }}">
                                     Match Full Name
                                     <span
-                                        class="badge bg-info-subtle text-info ms-1">{{ $similarGroupsTotal ?? $similarGroups->count() }}</span>
+                                        class="badge bg-info-subtle text-info ms-1">{{ $loadedDuplicateTabs['full_name'] ? ($similarGroupsTotal ?? $similarGroups->count()) : '…' }}</span>
                                 </a>
                             </li>
                         </ul>
@@ -674,14 +691,20 @@
                                             Type</strong>, and <strong>Event Date</strong>. High confidence duplicates.
                                     </div>
                                 </div>
-                                @forelse ($exactGroups as $group)
-                                    {!! $renderGroup($group, 'exact') !!}
-                                @empty
+                                @if ($loadedDuplicateTabs['exact'])
+                                    @forelse ($exactGroups as $group)
+                                        {!! $renderGroup($group, 'exact') !!}
+                                    @empty
+                                        <div class="text-center text-muted py-5">
+                                            <i class="ri-check-double-line fs-1 d-block mb-2"></i>
+                                            No exact duplicate records found.
+                                        </div>
+                                    @endforelse
+                                @else
                                     <div class="text-center text-muted py-5">
-                                        <i class="ri-check-double-line fs-1 d-block mb-2"></i>
-                                        No exact duplicate records found.
+                                        Select this tab to load its duplicate records.
                                     </div>
-                                @endforelse
+                                @endif
                                 @if ($exactGroups->total() > 0)
                                     <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between mt-3">
                                         <div class="small text-muted">Showing
@@ -713,14 +736,20 @@
                                         acting.
                                     </div>
                                 </div>
-                                @forelse ($likelyGroups as $group)
-                                    {!! $renderGroup($group, 'likely') !!}
-                                @empty
+                                @if ($loadedDuplicateTabs['likely'])
+                                    @forelse ($likelyGroups as $group)
+                                        {!! $renderGroup($group, 'likely') !!}
+                                    @empty
+                                        <div class="text-center text-muted py-5">
+                                            <i class="ri-check-double-line fs-1 d-block mb-2"></i>
+                                            No likely duplicate records found.
+                                        </div>
+                                    @endforelse
+                                @else
                                     <div class="text-center text-muted py-5">
-                                        <i class="ri-check-double-line fs-1 d-block mb-2"></i>
-                                        No likely duplicate records found.
+                                        Select this tab to load its duplicate records.
                                     </div>
-                                @endforelse
+                                @endif
                                 @if ($likelyGroups->total() > 0)
                                     <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between mt-3">
                                         <div class="small text-muted">Showing
@@ -745,14 +774,20 @@
                                     <div class="small">Same <strong>Full Name</strong> only, ignoring letter case and
                                         leading or trailing spaces. Birth dates and transaction details may differ.</div>
                                 </div>
-                                @forelse ($similarGroups as $group)
-                                    {!! $renderGroup($group, 'full_name') !!}
-                                @empty
+                                @if ($loadedDuplicateTabs['full_name'])
+                                    @forelse ($similarGroups as $group)
+                                        {!! $renderGroup($group, 'full_name') !!}
+                                    @empty
+                                        <div class="text-center text-muted py-5">
+                                            <i class="ri-check-double-line fs-1 d-block mb-2"></i>
+                                            No records with matching full names found.
+                                        </div>
+                                    @endforelse
+                                @else
                                     <div class="text-center text-muted py-5">
-                                        <i class="ri-check-double-line fs-1 d-block mb-2"></i>
-                                        No records with matching full names found.
+                                        Select this tab to load its duplicate records.
                                     </div>
-                                @endforelse
+                                @endif
                                 @if ($similarGroups->total() > 0)
                                     <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between mt-3">
                                         <div class="small text-muted">Showing
@@ -1308,12 +1343,18 @@
 
             const initializeDuplicateRecordsControls = () => {
                 document.querySelectorAll('#duplicateRecordsContent [data-client-count]').forEach(tab => {
+                    tab.addEventListener('click', event => {
+                        if (tab.dataset.loaded !== '0') return;
+
+                        event.preventDefault();
+                        event.stopImmediatePropagation();
+                        const url = new URL(window.location.href);
+                        url.searchParams.set('duplicate_tab', tab.dataset.duplicateTab);
+                        duplicatePageKeys.forEach(key => url.searchParams.delete(key));
+                        loadDuplicateRecords(url);
+                    });
                     tab.addEventListener('shown.bs.tab', () => {
-                        const selectedTab = ({
-                            '#rexact-tab': 'exact',
-                            '#rlikely-tab': 'likely',
-                            '#rsimilar-tab': 'full_name',
-                        })[tab.getAttribute('href')];
+                        const selectedTab = tab.dataset.duplicateTab;
                         document.getElementById('duplicateClientCount').textContent =
                             `${tab.dataset.clientCount} client group(s) in this tab`;
                         document.getElementById('duplicateRecordCount').textContent =
@@ -1349,14 +1390,6 @@
                     duplicatePageKeys.forEach(key => url.searchParams.delete(key));
                     loadDuplicateRecords(url);
                 });
-                document.getElementById('duplicateRecordsRefreshBtn')?.addEventListener('click', function() {
-                    const url = new URL(window.location.href);
-                    url.searchParams.set('duplicate_tab', document.getElementById('dupActiveTab').value);
-                    this.disabled = true;
-                    this.innerHTML = '<i class="ri-loader-3-line ri-spin me-1"></i> Refreshing';
-                    loadDuplicateRecords(url, false);
-                });
-
                 setupDupMultiSelect('dupClientCategoryAll', 'dup-client-category-checkbox',
                     'dupClientCategoryLabel', 'All client categories');
                 setupDupMultiSelect('dupTransactionCategoryAll', 'dup-transaction-category-checkbox',

@@ -11,6 +11,19 @@ class EventRecordsFilterTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_event_records_keyword_search_uses_manual_filter_submission(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+
+        $this->get(route('transaction-events.records'))
+            ->assertOk()
+            ->assertSee('id="recordKeywordInput"', false)
+            ->assertSee('Apply Filters')
+            ->assertDontSee('Search runs automatically')
+            ->assertDontSee('recordAutoSearchStatus', false)
+            ->assertDontSee('submitKeywordSearch', false);
+    }
+
     public function test_event_records_pagination_has_a_page_number_jump_input(): void
     {
         $this->actingAs(User::factory()->create(['role_name' => 'Admin']));

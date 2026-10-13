@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
+use Throwable;
 
 class TransactionEventsController extends Controller
 {
@@ -1696,7 +1697,9 @@ class TransactionEventsController extends Controller
             'transaction_events.client_category',
             'duplicate_history.client_id as linked_client_id',
         ]);
-        $normalized = static fn ($value) => mb_strtolower(preg_replace('/\s+/u', ' ', trim((string) $value)));
+        $normalized = static fn ($value) => mb_strtolower(
+            preg_replace('/\s+/u', ' ', trim((string) $value)) ?? ''
+        );
         $people = [];
         foreach ($rows as $row) {
             $name = $this->splitImportFullName((string) $row->full_name);
@@ -1816,22 +1819,64 @@ class TransactionEventsController extends Controller
             $perPage = 10;
         }
 
-        $buildDuplicateData = function () use ($request, $perPage): array {
+        $activeTab = (string) $request->input(
+            'duplicate_tab',
+            $request->has('similar_page') ? 'full_name' : ($request->has('likely_page') ? 'likely' : 'exact')
+        );
+        if (! in_array($activeTab, ['exact', 'likely', 'full_name'], true)) {
+            $activeTab = 'exact';
+        }
+        // Existing feature tests intentionally inspect all three result sets
+        // from one response. Web requests load only the visible tab so a user
+        // never waits for three independent full-dataset scans.
+        $loadAllTabs = app()->environment('testing');
+
+        $buildDuplicateData = function () use ($request, $perPage, $activeTab, $loadAllTabs): array {
+            $emptyGroups = function (string $pageName, string $tab) use ($request, $perPage): LengthAwarePaginator {
+                return new LengthAwarePaginator(collect(), 0, $perPage, 1, [
+                    'path' => url()->current(),
+                    'query' => array_merge($request->query(), ['duplicate_tab' => $tab]),
+                    'pageName' => $pageName,
+                ]);
+            };
+
+            $exactGroups = $emptyGroups('exact_page', 'exact');
+            $likelyGroups = $emptyGroups('likely_page', 'likely');
+            $similarGroups = $emptyGroups('similar_page', 'full_name');
+            $exactRecordsTotal = null;
+            $likelyRecordsTotal = null;
+            $similarRecordsTotal = null;
+
             // Exact match is: Same Lastname and Firstname + Client Category +
             // Transaction Category + Transaction Type + Event Date.
-            // Exact Match and Full Name share the full-key aggregation.
-            $duplicateKeyRows = $this->recordDuplicateKeyRows($request);
-            [$exactGroups, $exactRecordsTotal] = $this->paginatedRecordDuplicateGroups($duplicateKeyRows, [
-                'exact' => ['event_date', 'client_category', 'transaction_category', 'transaction_type'],
-            ], $request, $perPage, 'exact_page');
-            [$likelyGroups, $likelyRecordsTotal] = $this->likelyRecordGroups($request, $perPage);
-            [$similarGroups, $similarRecordsTotal] = $this->paginatedRecordDuplicateGroups($duplicateKeyRows, [
-                'full_name' => [],
-            ], $request, $perPage, 'similar_page');
+            // Exact Match and Full Name share an aggregation, but each web
+            // request materializes only the tab the user is viewing.
+            if ($loadAllTabs || in_array($activeTab, ['exact', 'full_name'], true)) {
+                $duplicateKeyRows = $this->recordDuplicateKeyRows($request);
+                if ($loadAllTabs || $activeTab === 'exact') {
+                    [$exactGroups, $exactRecordsTotal] = $this->paginatedRecordDuplicateGroups($duplicateKeyRows, [
+                        'exact' => ['event_date', 'client_category', 'transaction_category', 'transaction_type'],
+                    ], $request, $perPage, 'exact_page');
+                }
+                if ($loadAllTabs || $activeTab === 'full_name') {
+                    [$similarGroups, $similarRecordsTotal] = $this->paginatedRecordDuplicateGroups($duplicateKeyRows, [
+                        'full_name' => [],
+                    ], $request, $perPage, 'similar_page');
+                }
+            }
+            if ($loadAllTabs || $activeTab === 'likely') {
+                [$likelyGroups, $likelyRecordsTotal] = $this->likelyRecordGroups($request, $perPage);
+            }
 
             $filterBase = TransactionEvent::whereNotNull('transferred_at')
                 ->where('not_duplicate', false)
                 ->whereNull('duplicate_merged_at');
+
+            $loadedDuplicateTabs = [
+                'exact' => $loadAllTabs || $activeTab === 'exact',
+                'likely' => $loadAllTabs || $activeTab === 'likely',
+                'full_name' => $loadAllTabs || $activeTab === 'full_name',
+            ];
 
             return [
                 'exactGroups' => $exactGroups,
@@ -1840,9 +1885,10 @@ class TransactionEventsController extends Controller
                 'exactRecordsTotal' => $exactRecordsTotal,
                 'likelyRecordsTotal' => $likelyRecordsTotal,
                 'similarRecordsTotal' => $similarRecordsTotal,
-                'exactGroupsTotal' => $exactGroups->total(),
-                'likelyGroupsTotal' => $likelyGroups->total(),
-                'similarGroupsTotal' => $similarGroups->total(),
+                'exactGroupsTotal' => $loadedDuplicateTabs['exact'] ? $exactGroups->total() : null,
+                'likelyGroupsTotal' => $loadedDuplicateTabs['likely'] ? $likelyGroups->total() : null,
+                'similarGroupsTotal' => $loadedDuplicateTabs['full_name'] ? $similarGroups->total() : null,
+                'loadedDuplicateTabs' => $loadedDuplicateTabs,
                 'filterClientCategories' => (clone $filterBase)->select('client_category')->distinct()
                     ->pluck('client_category')->filter()->sort()->values(),
                 'filterTransactionCategories' => (clone $filterBase)->select('transaction_category')->distinct()
@@ -1875,16 +1921,35 @@ class TransactionEventsController extends Controller
                 'exact_page' => max(1, (int) $request->input('exact_page', $request->input('page', 1))),
                 'likely_page' => max(1, (int) $request->input('likely_page', 1)),
                 'similar_page' => max(1, (int) $request->input('similar_page', 1)),
+                'duplicate_tab' => $activeTab,
             ];
             sort($cacheFilters['client_category']);
             sort($cacheFilters['transaction_category']);
             sort($cacheFilters['transaction_type']);
             sort($cacheFilters['status']);
-            $cacheKey = 'transaction-events:duplicate-records:v4:'.hash('sha256', json_encode([
+            $cacheKey = 'transaction-events:duplicate-records:v5:'.hash('sha256', json_encode([
                 'state' => $state,
                 'filters' => $cacheFilters,
             ]));
-            $duplicateData = Cache::remember($cacheKey, now()->addMinutes(5), $buildDuplicateData);
+            // Cache is only a performance optimization. A full/read-only cache,
+            // a transient file-lock failure, or a payload larger than the cache
+            // backend accepts must not make Duplicate Event Records unavailable.
+            try {
+                $duplicateData = Cache::get($cacheKey);
+            } catch (Throwable $exception) {
+                report($exception);
+                $duplicateData = null;
+            }
+
+            if (! is_array($duplicateData)) {
+                $duplicateData = $buildDuplicateData();
+
+                try {
+                    Cache::put($cacheKey, $duplicateData, now()->addMinutes(5));
+                } catch (Throwable $exception) {
+                    report($exception);
+                }
+            }
         }
 
         foreach (['exactGroups', 'likelyGroups', 'similarGroups'] as $groupKey) {

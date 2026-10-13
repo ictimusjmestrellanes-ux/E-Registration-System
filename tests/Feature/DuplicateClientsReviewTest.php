@@ -580,6 +580,38 @@ class DuplicateClientsReviewTest extends TestCase
             ->assertSee("'X-Requested-With': 'XMLHttpRequest'", false);
     }
 
+    public function test_web_requests_load_only_the_requested_client_duplicate_tab(): void
+    {
+        foreach (['LAZY-1', 'LAZY-2'] as $clientId) {
+            $client = Client::create([
+                'client_id' => $clientId,
+                'first_name' => 'Juan',
+                'last_name' => 'Cruz',
+            ]);
+            $this->createTransaction($client);
+        }
+        $this->app->detectEnvironment(fn () => 'production');
+
+        $exact = $this->get('/duplicate-review')->assertOk();
+        $this->assertSame([
+            'exact' => true,
+            'likely' => false,
+            'full_name' => false,
+        ], $exact->viewData('loadedDuplicateTabs'));
+        $exact->assertSee('data-duplicate-tab="likely"', false)
+            ->assertSee('data-loaded="0"', false)
+            ->assertSee('id="duplicateClientsResetLink"', false)
+            ->assertDontSee("getElementById('duplicateClientsRefreshBtn')", false);
+
+        $fullName = $this->get('/duplicate-review?duplicate_tab=full_name')->assertOk();
+        $this->assertSame([
+            'exact' => false,
+            'likely' => false,
+            'full_name' => true,
+        ], $fullName->viewData('loadedDuplicateTabs'));
+        $this->assertSame(1, $fullName->viewData('similarGroups')->total());
+    }
+
     public function test_62000_clients_are_paginated_in_sql_with_immediate_full_name_results(): void
     {
         for ($offset = 0; $offset < 62000; $offset += 1000) {
