@@ -25,7 +25,8 @@ class EventRecordsFilterTest extends TestCase
             ->assertSee("const autoSearchStorageKey = 'eventRecordsAutoSearchEnabled-{$user->id}'", false)
             ->assertSee("recordKeywordInput.addEventListener('input', scheduleKeywordSearch)", false)
             ->assertSee('filtersForm.requestSubmit()', false)
-            ->assertSee("if (!recordAutoSearchToggle.checked) return", false);
+            ->assertSee("if (!recordAutoSearchToggle.checked) return", false)
+            ->assertDontSee('if (this.checked) scheduleKeywordSearch()', false);
     }
 
     public function test_event_records_pagination_has_a_page_number_jump_input(): void

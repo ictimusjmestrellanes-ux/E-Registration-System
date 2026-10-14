@@ -1068,7 +1068,6 @@
                     } catch (error) {
                         // The toggle still works for the current page without storage.
                     }
-                    if (this.checked) scheduleKeywordSearch();
                 });
             }
 
