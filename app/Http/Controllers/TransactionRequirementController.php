@@ -5,7 +5,10 @@ namespace App\Http\Controllers;
 use App\Models\ActivityLog;
 use App\Models\TransactionHistory;
 use App\Models\TransactionRequirement;
+use App\Models\User;
+use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
@@ -44,7 +47,7 @@ class TransactionRequirementController extends Controller
                 ->first();
 
             if ($existing && $existing->file_path) {
-                Storage::disk('public')->delete($existing->file_path);
+                $this->publicDisk()->delete($existing->file_path);
             }
 
             if ($noFile) {
@@ -62,7 +65,7 @@ class TransactionRequirementController extends Controller
                 );
 
                 ActivityLog::create([
-                    'user_id' => auth()->id(),
+                    'user_id' => $this->authenticatedUser()->id,
                     'action' => 'requirement_updated',
                     'description' => "Saved requirement '{$validated['requirement_type']}' without a file for transaction {$transaction->transaction_id}.",
                     'subject_type' => 'TransactionRequirement',
@@ -101,7 +104,7 @@ class TransactionRequirementController extends Controller
             );
 
             ActivityLog::create([
-                'user_id' => auth()->id(),
+                'user_id' => $this->authenticatedUser()->id,
                 'action' => 'requirement_uploaded',
                 'description' => "Uploaded requirement '{$validated['requirement_type']}' ({$file->getClientOriginalName()}) for transaction {$transaction->transaction_id}.",
                 'subject_type' => 'TransactionRequirement',
@@ -163,13 +166,13 @@ class TransactionRequirementController extends Controller
             $transaction = TransactionHistory::find($requirement->transaction_id);
 
             if ($requirement->file_path) {
-                Storage::disk('public')->delete($requirement->file_path);
+                $this->publicDisk()->delete($requirement->file_path);
             }
 
             $requirement->delete();
 
             ActivityLog::create([
-                'user_id' => auth()->id(),
+                'user_id' => $this->authenticatedUser()->id,
                 'action' => 'requirement_deleted',
                 'description' => "Deleted requirement '{$requirement->requirement_type}'" . ($transaction ? " for transaction {$transaction->transaction_id}" : '') . '.',
                 'subject_type' => 'TransactionRequirement',
@@ -197,19 +200,37 @@ class TransactionRequirementController extends Controller
         try {
             $requirement = TransactionRequirement::findOrFail($requirementId);
 
-            if (!$requirement->file_path || !Storage::disk('public')->exists($requirement->file_path)) {
+            $publicDisk = $this->publicDisk();
+
+            if (! $requirement->file_path || ! $publicDisk->exists($requirement->file_path)) {
                 return response()->json([
                     'success' => false,
                     'message' => 'File not found.',
                 ], 404);
             }
 
-            return Storage::disk('public')->download($requirement->file_path, $requirement->file_name);
+            return $publicDisk->download($requirement->file_path, $requirement->file_name);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage(),
             ], 500);
         }
+    }
+
+    private function authenticatedUser(): User
+    {
+        /** @var User $user */
+        $user = Auth::user();
+
+        return $user;
+    }
+
+    private function publicDisk(): FilesystemAdapter
+    {
+        /** @var FilesystemAdapter $disk */
+        $disk = Storage::disk('public');
+
+        return $disk;
     }
 }

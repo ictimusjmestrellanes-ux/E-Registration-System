@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Traits\HandlesClientStorage;
 use App\Models\Client;
 use App\Services\FingerprintBridgeService;
+use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
@@ -37,15 +38,17 @@ class FingerprintController extends Controller
         }
 
         $clients = [];
+        /** @var FilesystemAdapter $publicDisk */
+        $publicDisk = Storage::disk('public');
         Client::query()
             ->select(['id', 'first_name', 'middle_name', 'last_name', 'suffix', 'fingerprint_template', 'fingerprint_path'])
-            ->chunk(200, function ($chunk) use (&$clients) {
+            ->chunk(200, function ($chunk) use (&$clients, $publicDisk) {
                 foreach ($chunk as $client) {
                     $fingerprintImageDataUrl = null;
 
-                    if (empty($client->fingerprint_template) && !empty($client->fingerprint_path) && Storage::disk('public')->exists($client->fingerprint_path)) {
-                        $mimeType = Storage::disk('public')->mimeType($client->fingerprint_path) ?: 'image/png';
-                        $fingerprintImageDataUrl = 'data:' . $mimeType . ';base64,' . base64_encode(Storage::disk('public')->get($client->fingerprint_path));
+                    if (empty($client->fingerprint_template) && !empty($client->fingerprint_path) && $publicDisk->exists($client->fingerprint_path)) {
+                        $mimeType = $publicDisk->mimeType($client->fingerprint_path) ?: 'image/png';
+                        $fingerprintImageDataUrl = 'data:' . $mimeType . ';base64,' . base64_encode($publicDisk->get($client->fingerprint_path));
                     }
 
                     if (!empty($client->fingerprint_template) || !empty($fingerprintImageDataUrl)) {

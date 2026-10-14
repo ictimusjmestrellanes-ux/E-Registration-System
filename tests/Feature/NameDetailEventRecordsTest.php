@@ -105,6 +105,36 @@ class NameDetailEventRecordsTest extends TestCase
         $this->assertSame(0, $filtered->viewData('likelyGroups')->total());
     }
 
+    public function test_likely_group_includes_other_records_for_the_qualified_person(): void
+    {
+        $expectedIds = [
+            $this->event('DELOS SANTOS, DANILO CAMABALISA', 'INDIGENT', 'C1', [
+                'event_date' => '2026-09-05',
+                'transaction_type' => 'SIR ALLEN',
+            ]),
+            $this->event('DELOS SANTOS, DANILO C.', 'WALKIN', 'C2', [
+                'event_date' => '2026-09-05',
+                'transaction_type' => 'TRANCHE 2',
+            ]),
+            $this->event('DELOS SANTOS, DANILO C.', 'PODA', 'C3', [
+                'event_date' => '2026-10-08',
+                'transaction_type' => 'TRANCHE 2',
+            ]),
+        ];
+
+        $response = $this->get(route('transaction-events.records-duplicates', [
+            'duplicate_tab' => 'likely',
+        ]))->assertOk();
+
+        $groups = $response->viewData('likelyGroups');
+        $this->assertSame(1, $groups->total());
+        $this->assertSame(3, $response->viewData('likelyRecordsTotal'));
+        $this->assertSame(
+            collect($expectedIds)->sort()->values()->all(),
+            $groups->first()['events']->pluck('id')->sort()->values()->all()
+        );
+    }
+
     public function test_tab_paginates_by_name_and_keeps_tab_active(): void
     {
         for ($person = 0; $person < 12; $person++) {

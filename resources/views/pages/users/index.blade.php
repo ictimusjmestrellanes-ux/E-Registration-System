@@ -117,55 +117,63 @@
                                                 </div>
                                             </td>
                                             <td class="text-center">
-                                                <span class="badge bg-primary-subtle text-primary py-2 px-3">{{ $user->role_name ?? '-' }}</span>
+                                                <span
+                                                    class="badge bg-primary-subtle text-primary py-2 px-3">{{ $user->role_name ?? '-' }}</span>
                                             </td>
                                             <td class="text-center">
                                                 @if ($user->status === 'Active')
-                                                    <span class="badge bg-success-subtle text-success py-2 px-3">Active</span>
+                                                    <span
+                                                        class="badge bg-success-subtle text-success py-2 px-3">Active</span>
                                                 @else
                                                     <span
                                                         class="badge bg-secondary-subtle text-secondary py-2 px-3">{{ $user->status ?? 'Inactive' }}</span>
                                                 @endif
                                             </td>
-                                            <td class="text-center"><span class="badge bg-info-subtle text-info py-2 px-3">{{ ucfirst($user->auth_provider ?? 'local') }}</span></td>
+                                            <td class="text-center"><span
+                                                    class="badge bg-info-subtle text-info py-2 px-3">{{ ucfirst($user->auth_provider ?? 'local') }}</span>
+                                            </td>
                                             <td>{{ $user->last_login ?? '-' }}</td>
-                                            @if ($canEditRole)
-                                                <td class="text-center">
-                                                    @if (feature_allowed('Edit User Roles'))
-                                                        <button type="button" class="btn btn-sm btn-soft-primary"
-                                                            data-bs-toggle="modal"
-                                                            data-bs-target="#editRoleModal-{{ $user->id }}">
-                                                            <i class="ri-edit-box-line align-bottom"></i> Edit Role
-                                                        </button>
-                                                    @endif
-
-                                                    @if (feature_allowed('Update User Status'))
-                                                        @if ($user->status === 'Active')
-                                                            <form method="POST" class="d-inline"
-                                                                action="{{ route('users.updateStatus', $user) }}"
-                                                                onsubmit="return confirm('Deactivate {{ $user->name }}? This will prevent them from signing in.');">
-                                                                @csrf
-                                                                @method('PUT')
-                                                                <input type="hidden" name="status" value="Inactive">
-                                                                <button type="submit" class="btn btn-sm btn-soft-danger">
-                                                                    <i class="ri-user-unfollow-line align-bottom"></i>
-                                                                    Deactivate
-                                                                </button>
-                                                            </form>
-                                                        @else
-                                                            <form method="POST" class="d-inline"
-                                                                action="{{ route('users.updateStatus', $user) }}">
-                                                                @csrf
-                                                                @method('PUT')
-                                                                <input type="hidden" name="status" value="Active">
-                                                                <button type="submit" class="btn btn-sm btn-soft-success">
-                                                                    <i class="ri-user-follow-line align-bottom"></i>
-                                                                    Activate
-                                                                </button>
-                                                            </form>
+                                            @if (feature_allowed('Edit and Update user'))
+                                                @if ($canEditRole)
+                                                    <td class="text-center">
+                                                        @if (feature_allowed('Edit User Roles'))
+                                                            <button type="button" class="btn btn-sm btn-soft-primary"
+                                                                data-bs-toggle="modal"
+                                                                data-bs-target="#editRoleModal-{{ $user->id }}">
+                                                                <i class="ri-edit-box-line align-bottom"></i> Edit Role
+                                                            </button>
                                                         @endif
-                                                    @endif
-                                                </td>
+
+                                                        @if (feature_allowed('Update User Status'))
+                                                            @if ($user->status === 'Active')
+                                                                <form method="POST" class="d-inline"
+                                                                    action="{{ route('users.updateStatus', $user) }}"
+                                                                    onsubmit="return confirm('Deactivate {{ $user->name }}? This will prevent them from signing in.');">
+                                                                    @csrf
+                                                                    @method('PUT')
+                                                                    <input type="hidden" name="status" value="Inactive">
+                                                                    <button type="submit"
+                                                                        class="btn btn-sm btn-soft-danger">
+                                                                        <i class="ri-user-unfollow-line align-bottom"></i>
+                                                                        Deactivate
+                                                                    </button>
+                                                                </form>
+                                                            @else
+                                                                <form method="POST" class="d-inline"
+                                                                    action="{{ route('users.updateStatus', $user) }}">
+                                                                    @csrf
+                                                                    @method('PUT')
+                                                                    <input type="hidden" name="status" value="Active">
+                                                                    <button type="submit"
+                                                                        class="btn btn-sm btn-soft-success">
+                                                                        <i class="ri-user-follow-line align-bottom"></i>
+                                                                        Activate
+                                                                    </button>
+                                                                </form>
+                                                            @endif
+                                                        @endif
+                                                    </td>
+                                                @endif
                                             @endif
                                         </tr>
 
@@ -181,7 +189,7 @@
                         </div>
 
                         <div class="mt-3">
-                            {{ $users->links() }}
+                            {{ $users->links('pagination::bootstrap-5') }}
                         </div>
                     </div>
                 </div>

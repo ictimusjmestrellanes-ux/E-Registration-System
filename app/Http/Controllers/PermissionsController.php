@@ -7,6 +7,7 @@ use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 
 class PermissionsController extends Controller
@@ -61,6 +62,7 @@ class PermissionsController extends Controller
         ['feature' => 'Merge to Oldest Client', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
         ['feature' => 'Not a duplicate', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
         ['feature' => 'View Payroll Category', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
+        ['feature' => 'Edit and Update user', 'DSWD' => false, 'Staff' => false, 'Admin' => true, 'Super Admin' => true],
     ];
 
     /**
@@ -126,6 +128,7 @@ class PermissionsController extends Controller
         'Users' => [
             'Manage Users',
             'Edit User Roles',
+            'Edit and Update user',
             'Update User Status',
         ],
         'Roles' => [
@@ -163,7 +166,7 @@ class PermissionsController extends Controller
         $this->syncMissingFeatureRows();
 
         $rows = Permission::all();
-        $roles = Role::orderBy('name')->pluck('name')->all() ?: User::ROLES;
+        $roles = $this->roleNames();
         $permissions = $rows->groupBy('feature')->map(function ($items) {
             $row = ['feature' => $items->first()->feature];
             foreach ($items as $item) {
@@ -197,23 +200,27 @@ class PermissionsController extends Controller
 
     public function update(Request $request)
     {
-        $authUser = auth()->user();
-        if (!in_array($authUser->role_name, ['Admin', 'Super Admin'])) {
+        /** @var User|null $authUser */
+        $authUser = Auth::user();
+        if (! $authUser || ! in_array($authUser->role_name, ['Admin', 'Super Admin'], true)) {
             abort(403);
         }
 
         $this->seedDefaultsIfEmpty();
         $this->syncMissingFeatureRows();
 
-        $features = Permission::select('feature')->distinct()->pluck('feature');
+        $features = Permission::query()->select('feature')->distinct()->pluck('feature');
 
         $allowedMap = $request->input('allowed', []);
         $changed = [];
 
         foreach ($features as $feature) {
-            foreach (Role::pluck('name')->all() ?: User::ROLES as $role) {
+            foreach ($this->roleNames() as $role) {
                 $allowed = !empty($allowedMap[$feature][$role]);
-                $existing = Permission::where('feature', $feature)->where('role_name', $role)->first();
+                $existing = Permission::query()
+                    ->where('feature', $feature)
+                    ->where('role_name', $role)
+                    ->first();
 
                 if ($existing && (bool) $existing->allowed !== $allowed) {
                     $changed[] = "{$role}:{$feature}";
@@ -227,7 +234,7 @@ class PermissionsController extends Controller
         }
 
         ActivityLog::create([
-            'user_id' => auth()->id(),
+            'user_id' => $authUser->id,
             'action' => 'permissions_updated',
             'description' => 'Updated permission matrix for ' . $features->count() . ' feature(s).',
             'subject_type' => 'Permission',
@@ -240,8 +247,9 @@ class PermissionsController extends Controller
 
     public function store(Request $request)
     {
-        $authUser = auth()->user();
-        if (!in_array($authUser->role_name, ['Admin', 'Super Admin'])) {
+        /** @var User|null $authUser */
+        $authUser = Auth::user();
+        if (! $authUser || ! in_array($authUser->role_name, ['Admin', 'Super Admin'], true)) {
             abort(403);
         }
 
@@ -249,7 +257,7 @@ class PermissionsController extends Controller
             'feature' => ['required', 'string', 'max:100', Rule::unique('permissions', 'feature')],
         ]);
 
-        foreach (Role::pluck('name')->all() ?: User::ROLES as $role) {
+        foreach ($this->roleNames() as $role) {
             Permission::create([
                 'feature' => $validated['feature'],
                 'role_name' => $role,
@@ -258,7 +266,7 @@ class PermissionsController extends Controller
         }
 
         ActivityLog::create([
-            'user_id' => auth()->id(),
+            'user_id' => $authUser->id,
             'action' => 'permission_created',
             'description' => "Added permission \"{$validated['feature']}\".",
             'subject_type' => 'Permission',
@@ -271,8 +279,9 @@ class PermissionsController extends Controller
 
     public function destroy(Request $request)
     {
-        $authUser = auth()->user();
-        if (!in_array($authUser->role_name, ['Admin', 'Super Admin'])) {
+        /** @var User|null $authUser */
+        $authUser = Auth::user();
+        if (! $authUser || ! in_array($authUser->role_name, ['Admin', 'Super Admin'], true)) {
             abort(403);
         }
 
@@ -280,10 +289,13 @@ class PermissionsController extends Controller
             'feature' => ['required', 'string', 'max:100'],
         ]);
 
-        Permission::where('feature', $validated['feature'])->get()->each->delete();
+        Permission::query()
+            ->where('feature', $validated['feature'])
+            ->get()
+            ->each->delete();
 
         ActivityLog::create([
-            'user_id' => auth()->id(),
+            'user_id' => $authUser->id,
             'action' => 'permission_deleted',
             'description' => "Deleted permission \"{$validated['feature']}\".",
             'subject_type' => 'Permission',
@@ -300,7 +312,7 @@ class PermissionsController extends Controller
             return;
         }
 
-        $roles = Role::pluck('name')->all() ?: User::ROLES;
+        $roles = $this->roleNames();
 
         foreach (self::DEFAULT_PERMISSIONS as $row) {
             foreach ($roles as $role) {
@@ -328,13 +340,14 @@ class PermissionsController extends Controller
 
         $features = array_unique(array_merge(
             array_keys($defaults),
-            Permission::select('feature')->distinct()->pluck('feature')->all()
+            Permission::query()->select('feature')->distinct()->pluck('feature')->all()
         ));
-        $roles = Role::pluck('name')->all() ?: User::ROLES;
+        $roles = $this->roleNames();
 
         foreach ($features as $feature) {
             foreach ($roles as $role) {
-                $exists = Permission::where('feature', $feature)
+                $exists = Permission::query()
+                    ->where('feature', $feature)
                     ->where('role_name', $role)
                     ->exists();
 
@@ -347,5 +360,16 @@ class PermissionsController extends Controller
                 }
             }
         }
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function roleNames(): array
+    {
+        return Role::query()
+            ->orderBy('name', 'asc')
+            ->pluck('name')
+            ->all() ?: User::ROLES;
     }
 }

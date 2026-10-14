@@ -3,9 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\Client;
+use App\Models\User;
 use App\Http\Controllers\Traits\HandlesClientStorage;
 use App\Support\ImportName;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
@@ -20,7 +22,9 @@ class ClientEditController extends Controller
 
     public function edit(Client $client)
     {
-        if (auth()->user()->role_name === 'Viewer') {
+        /** @var User $authUser */
+        $authUser = Auth::user();
+        if ($authUser->role_name === 'Viewer') {
             abort(403, 'Viewer role is read-only.');
         }
 

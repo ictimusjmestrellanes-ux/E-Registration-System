@@ -16,8 +16,8 @@
                                 <span class="badge bg-primary-subtle text-primary fs-13">
                                     {{ $totalUsers }} Total User(s)
                                 </span>
-                                @if ($canManage)
-                                    @if (feature_allowed('Add Roles'))
+                                @if (feature_allowed('Add Roles'))
+                                    @if ($canManage)
                                         <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal"
                                             data-bs-target="#addRoleModal">
                                             <i class="ri-add-line align-bottom me-1"></i> Add Role
@@ -48,8 +48,10 @@
                                     <tr>
                                         <th>Role</th>
                                         <th class="text-center" style="width: 220px;">Assigned Users</th>
-                                        @if ($canManage)
-                                            <th class="text-center" style="width: 140px;">Actions</th>
+                                        @if (feature_allowed('Delete Roles'))
+                                            @if ($canManage)
+                                                <th class="text-center" style="width: 140px;">Actions</th>
+                                            @endif
                                         @endif
                                     </tr>
                                 </thead>
@@ -72,17 +74,19 @@
                                                     {{ $role['users_count'] }}
                                                 </span>
                                             </td>
-                                            @if ($canManage)
-                                                <td class="text-center">
-                                                    @if (feature_allowed('Delete Roles'))
+                                            @if (feature_allowed('Delete Roles'))
+                                                @if ($canManage)
+                                                    <td class="text-center">
+
                                                         <button type="button" class="btn btn-sm btn-soft-danger"
                                                             data-bs-toggle="modal"
                                                             data-bs-target="#deleteRoleModal-{{ $role['id'] }}"
                                                             title="Delete Role">
                                                             <i class="ri-delete-bin-line align-bottom"></i> Delete
                                                         </button>
-                                                    @endif
-                                                </td>
+
+                                                    </td>
+                                                @endif
                                             @endif
                                         </tr>
                                     @empty

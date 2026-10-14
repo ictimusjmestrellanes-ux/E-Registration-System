@@ -56,7 +56,7 @@ class ArchiveController extends Controller
             'fingerprint_template' => $archivedClient->fingerprint_template,
         ]);
 
-        $archivedClient->delete();
+        ArchivedClient::destroy($archivedClient->getKey());
         $this->recordActivity(
             'client_restored',
             'Restored archived client ' . $this->clientDisplayName($client) . '.',

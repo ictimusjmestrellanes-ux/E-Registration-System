@@ -171,7 +171,7 @@
                                     '<h6 class="mb-0 fw-semibold">' .
                                     e($first->full_name) .
                                     ' - <span class="fw-bold"> Transaction ID: ' .
-                                    e($first->transferredTransaction?->transaction_id ?? '-') .
+                                    e($first->transaction_id ?? '-') .
                                     ' </span> <span class="badge bg-danger-subtle text-danger ms-1">' .
                                     (int) $group['total'] .
                                     ' records</span></h6>';
@@ -266,7 +266,7 @@
                                 }
                                 $out .= '</tr></thead><tbody>';
                                 foreach ($events as $event) {
-                                    $txId = $event->transferredTransaction?->transaction_id ?? '-';
+                                    $txId = $event->transaction_id ?? '-';
                                     $eventSummary = implode(
                                         ' · ',
                                         array_filter([
@@ -729,11 +729,9 @@
                                     <i class="ri-alert-line fs-4 me-2"></i>
                                     <div class="small">
                                         One name uses a <strong>middle initial</strong> and another uses the matching
-                                        <strong>full middle name</strong> (for example, Juan Santos Cruz / Juan S.
-                                        Cruz), plus at least one matching
+                                        <strong>full middle name</strong>, plus at least one matching
                                         <strong>Event Date</strong>, <strong>Transaction Type</strong>, or <strong>Client
-                                            Category</strong>. Exact-only groups appear in Exact Match. Review before
-                                        acting.
+                                            Category</strong>. Review before acting.
                                     </div>
                                 </div>
                                 @if ($loadedDuplicateTabs['likely'])

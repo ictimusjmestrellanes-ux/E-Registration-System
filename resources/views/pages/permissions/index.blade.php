@@ -57,8 +57,10 @@
                                         @foreach ($roles as $role)
                                             <th class="text-center" style="width: 150px">{{ $role }}</th>
                                         @endforeach
-                                        @if ($canEdit)
-                                            <th class="text-center">Actions</th>
+                                        @if (feature_allowed('Delete Permissions'))
+                                            @if ($canEdit)
+                                                <th class="text-center">Actions</th>
+                                            @endif
                                         @endif
                                     </tr>
                                 </thead>
@@ -81,7 +83,8 @@
                                                 @foreach ($roles as $role)
                                                     <td class="text-center">
                                                         @if ($canEdit)
-                                                            <div class="form-check form-switch form-switch-lg d-inline-block mb-0">
+                                                            <div
+                                                                class="form-check form-switch form-switch-lg d-inline-block mb-0">
                                                                 <input type="checkbox" class="form-check-input"
                                                                     id="perm-{{ $permission['feature'] }}-{{ $role }}"
                                                                     name="allowed[{{ $permission['feature'] }}][{{ $role }}]"
@@ -92,25 +95,27 @@
                                                         @else
                                                             @if ($permission[$role] ?? false)
                                                                 <span class="badge bg-success-subtle text-success"><i
-                                                                        class="ri-check-line align-bottom"></i> Allowed</span>
+                                                                        class="ri-check-line align-bottom"></i>
+                                                                    Allowed</span>
                                                             @else
                                                                 <span class="badge bg-danger-subtle text-danger"><i
-                                                                        class="ri-close-line align-bottom"></i> Denied</span>
+                                                                        class="ri-close-line align-bottom"></i>
+                                                                    Denied</span>
                                                             @endif
                                                         @endif
                                                     </td>
                                                 @endforeach
-                                                @if ($canEdit)
-                                                    <td class="text-center">
-                                                        @if (feature_allowed('Delete Permissions'))
+                                                @if (feature_allowed('Delete Permissions'))
+                                                    @if ($canEdit)
+                                                        <td class="text-center">
                                                             <button type="button" class="btn btn-sm btn-soft-danger"
                                                                 data-bs-toggle="modal"
                                                                 data-bs-target="#deletePermissionModal-{{ str_replace(' ', '-', $permission['feature']) }}"
                                                                 title="Delete Permission">
                                                                 <i class="ri-delete-bin-line"></i> Delete
                                                             </button>
-                                                        @endif
-                                                    </td>
+                                                        </td>
+                                                    @endif
                                                 @endif
                                             </tr>
                                         @endforeach
@@ -175,7 +180,8 @@
                                 </p>
                             </div>
                             <div class="modal-footer">
-                                <button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal">Cancel</button>
+                                <button type="button" class="btn btn-sm btn-light"
+                                    data-bs-dismiss="modal">Cancel</button>
                                 <button type="submit" class="btn btn-sm btn-danger">Delete</button>
                             </div>
                         </form>

@@ -11,17 +11,21 @@ class EventRecordsFilterTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_event_records_keyword_search_uses_manual_filter_submission(): void
+    public function test_event_records_keyword_search_can_be_automatic_or_disabled(): void
     {
-        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+        $user = User::factory()->create(['role_name' => 'Admin']);
+        $this->actingAs($user);
 
         $this->get(route('transaction-events.records'))
             ->assertOk()
             ->assertSee('id="recordKeywordInput"', false)
+            ->assertSee('id="recordAutoSearchToggle"', false)
+            ->assertSee('Auto search')
             ->assertSee('Apply Filters')
-            ->assertDontSee('Search runs automatically')
-            ->assertDontSee('recordAutoSearchStatus', false)
-            ->assertDontSee('submitKeywordSearch', false);
+            ->assertSee("const autoSearchStorageKey = 'eventRecordsAutoSearchEnabled-{$user->id}'", false)
+            ->assertSee("recordKeywordInput.addEventListener('input', scheduleKeywordSearch)", false)
+            ->assertSee('filtersForm.requestSubmit()', false)
+            ->assertSee("if (!recordAutoSearchToggle.checked) return", false);
     }
 
     public function test_event_records_pagination_has_a_page_number_jump_input(): void

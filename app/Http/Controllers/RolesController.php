@@ -7,6 +7,7 @@ use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 
 class RolesController extends Controller
@@ -18,11 +19,11 @@ class RolesController extends Controller
 
     public function index()
     {
-        $roles = Role::orderBy('name')->get()->map(function ($role) {
+        $roles = Role::query()->orderBy('name', 'asc')->get()->map(function ($role) {
             return [
                 'id' => $role->id,
                 'name' => $role->name,
-                'users_count' => User::where('role_name', $role->name)->count(),
+                'users_count' => User::query()->where('role_name', $role->name)->count(),
             ];
         });
 
@@ -34,8 +35,8 @@ class RolesController extends Controller
 
     public function store(Request $request)
     {
-        $authUser = auth()->user();
-        if (!in_array($authUser->role_name, ['Admin', 'Super Admin'])) {
+        $authUser = $this->authenticatedUser();
+        if (! in_array($authUser->role_name, ['Admin', 'Super Admin'], true)) {
             abort(403);
         }
 
@@ -45,7 +46,7 @@ class RolesController extends Controller
 
         $role = Role::create(['name' => $validated['name']]);
 
-        foreach (Permission::select('feature')->distinct()->pluck('feature') as $feature) {
+        foreach (Permission::query()->select('feature')->distinct()->pluck('feature') as $feature) {
             Permission::create([
                 'feature' => $feature,
                 'role_name' => $role->name,
@@ -54,7 +55,7 @@ class RolesController extends Controller
         }
 
         ActivityLog::create([
-            'user_id' => auth()->id(),
+            'user_id' => $authUser->id,
             'action' => 'role_created',
             'description' => "Created role \"{$role->name}\".",
             'subject_type' => 'Role',
@@ -67,15 +68,15 @@ class RolesController extends Controller
 
     public function destroy(Role $role)
     {
-        $authUser = auth()->user();
-        if (!in_array($authUser->role_name, ['Admin', 'Super Admin'])) {
+        $authUser = $this->authenticatedUser();
+        if (! in_array($authUser->role_name, ['Admin', 'Super Admin'], true)) {
             abort(403);
         }
 
         $roleName = $role->name;
 
         ActivityLog::create([
-            'user_id' => auth()->id(),
+            'user_id' => $authUser->id,
             'action' => 'role_deleted',
             'description' => "Deleted role \"{$roleName}\".",
             'subject_type' => 'Role',
@@ -83,9 +84,17 @@ class RolesController extends Controller
             'properties' => json_encode(['role' => $roleName]),
         ]);
 
-        $role->delete();
-        Permission::where('role_name', $roleName)->get()->each->delete();
+        Role::destroy($role->getKey());
+        Permission::query()->where('role_name', $roleName)->get()->each->delete();
 
         return redirect()->route('roles.index')->with('success', "Role \"{$roleName}\" deleted successfully.");
+    }
+
+    private function authenticatedUser(): User
+    {
+        /** @var User $user */
+        $user = Auth::user();
+
+        return $user;
     }
 }

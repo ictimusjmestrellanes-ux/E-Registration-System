@@ -9,6 +9,7 @@ use App\Models\TransactionHistory;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -25,7 +26,10 @@ class ActivityLogsController extends Controller
     {
         $timezone = 'Asia/Manila';
         $manilaNow = now($timezone);
-        $viewOwnOnly = !in_array(auth()->user()->role_name, ['Admin', 'Super Admin']);
+        /** @var User $authUser */
+        $authUser = Auth::user();
+        $authUserId = $authUser->id;
+        $viewOwnOnly = ! in_array($authUser->role_name, ['Admin', 'Super Admin'], true);
         $liveLatestIds = $this->liveLatestIds($request);
 
         $activityRelations = [
@@ -36,8 +40,8 @@ class ActivityLogsController extends Controller
         ];
 
         $baseQuery = ActivityLog::with($activityRelations)
-            ->where('user_id', auth()->id())
-            ->whereNotIn('action', self::HIDDEN_ACTIONS)
+            ->where('user_id', $authUserId)
+            ->whereNotIn('action', self::HIDDEN_ACTIONS, 'and')
             ->latest()
             ->orderByDesc('id');
 
@@ -90,9 +94,9 @@ class ActivityLogsController extends Controller
         })->values();
 
         $activitiesQuery = ActivityLog::with($activityRelations)
-            ->whereNotIn('action', self::HIDDEN_ACTIONS);
+            ->whereNotIn('action', self::HIDDEN_ACTIONS, 'and');
         if ($viewOwnOnly) {
-            $activitiesQuery->where('user_id', auth()->id());
+            $activitiesQuery->where('user_id', $authUserId);
         }
 
         $normalizeMultiSelect = static function ($values): array {
@@ -137,11 +141,11 @@ class ActivityLogsController extends Controller
             : 'desc';
 
         if ($userFilters !== []) {
-            $activitiesQuery->whereIn('user_id', $userFilters);
+            $activitiesQuery->whereIn('user_id', $userFilters, 'and', false);
         }
 
         if ($actionFilters !== []) {
-            $activitiesQuery->whereIn('action', $actionFilters);
+            $activitiesQuery->whereIn('action', $actionFilters, 'and', false);
         }
 
         if ($dateFrom !== '') {
@@ -186,7 +190,7 @@ class ActivityLogsController extends Controller
                                 ->select('id')
                                 ->where(function ($clientQuery) use ($terms) {
                                     $this->applyClientSearchTerms($clientQuery, $terms);
-                                }));
+                                }), 'and', false);
                     })
                     ->orWhere(function ($subjectQuery) use ($terms) {
                         $subjectQuery->where('subject_type', 'TransactionHistory')
@@ -194,7 +198,7 @@ class ActivityLogsController extends Controller
                                 ->select('id')
                                 ->where(function ($historyQuery) use ($terms) {
                                     $this->applyTransactionSearchTerms($historyQuery, $terms);
-                                }));
+                                }), 'and', false);
                     })
                     ->orWhere(function ($subjectQuery) use ($terms) {
                         $subjectQuery->where('subject_type', 'TransactionEvent')
@@ -210,7 +214,7 @@ class ActivityLogsController extends Controller
                                                 });
                                         });
                                     }
-                                }));
+                                }), 'and', false);
                     });
             });
         }
@@ -219,8 +223,8 @@ class ActivityLogsController extends Controller
         $this->applyActivitiesSort($activitiesQuery, $sort, $sortDirection);
         $activities = $activitiesQuery->paginate(15)->withQueryString();
         $filterOptionsQuery = ActivityLog::query()
-            ->when($viewOwnOnly, fn ($query) => $query->where('user_id', auth()->id()))
-            ->whereNotIn('action', self::HIDDEN_ACTIONS);
+            ->when($viewOwnOnly, fn ($query) => $query->where('user_id', $authUserId))
+            ->whereNotIn('action', self::HIDDEN_ACTIONS, 'and');
         $uniqueActions = (clone $filterOptionsQuery)
             ->distinct()
             ->pluck('action')
@@ -230,9 +234,9 @@ class ActivityLogsController extends Controller
         $filterableUsers = User::query()
             ->whereIn('id', (clone $filterOptionsQuery)
                 ->select('user_id')
-                ->whereNotNull('user_id')
-                ->distinct())
-            ->orderBy('name')
+                ->whereNotNull('user_id', 'and')
+                ->distinct(), 'and', false)
+            ->orderBy('name', 'asc')
             ->get(['id', 'name', 'email']);
         return view('pages.activity_logs.activityLogs', compact(
             'activities',
@@ -336,7 +340,7 @@ class ActivityLogsController extends Controller
 
     private function liveLatestIds(Request $request): array
     {
-        $visibleQuery = ActivityLog::query()->whereNotIn('action', self::HIDDEN_ACTIONS);
+        $visibleQuery = ActivityLog::query()->whereNotIn('action', self::HIDDEN_ACTIONS, 'and');
         if (!in_array($request->user()->role_name, ['Admin', 'Super Admin'], true)) {
             $visibleQuery->where('user_id', $request->user()->id);
         }
@@ -344,7 +348,7 @@ class ActivityLogsController extends Controller
         return [
             'overview_latest_id' => (int) ActivityLog::query()
                 ->where('user_id', $request->user()->id)
-                ->whereNotIn('action', self::HIDDEN_ACTIONS)
+                ->whereNotIn('action', self::HIDDEN_ACTIONS, 'and')
                 ->max('id'),
             'activities_latest_id' => (int) $visibleQuery->max('id'),
         ];
@@ -400,7 +404,7 @@ class ActivityLogsController extends Controller
 
         if ($request->wantsJson()) {
             $unreadQuery = ActivityLog::query()
-                ->whereIn('action', ActivityLog::NOTIFICATION_ACTIONS)
+                ->whereIn('action', ActivityLog::NOTIFICATION_ACTIONS, 'and', false)
                 ->where('id', '>', $readId);
             if (! in_array($user->role_name, ['Admin', 'Super Admin'], true)) {
                 $unreadQuery->where('user_id', $user->id);
@@ -418,7 +422,7 @@ class ActivityLogsController extends Controller
     public function notificationState(Request $request)
     {
         $user = $request->user();
-        $query = ActivityLog::query()->whereIn('action', ActivityLog::NOTIFICATION_ACTIONS);
+        $query = ActivityLog::query()->whereIn('action', ActivityLog::NOTIFICATION_ACTIONS, 'and', false);
         if (! in_array($user->role_name, ['Admin', 'Super Admin'], true)) {
             $query->where('user_id', $user->id);
         }

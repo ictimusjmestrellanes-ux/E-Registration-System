@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ActivityLog;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 
 class UsersController extends Controller
@@ -49,9 +51,10 @@ class UsersController extends Controller
 
     public function updateRole(Request $request, User $user)
     {
-        $authUser = auth()->user();
+        /** @var User $authUser */
+        $authUser = Auth::user();
 
-        if (!in_array($authUser->role_name, ['Admin', 'Super Admin'])) {
+        if (! in_array($authUser->role_name, ['Admin', 'Super Admin'], true)) {
             abort(403);
         }
 
@@ -62,8 +65,8 @@ class UsersController extends Controller
         $oldRole = $user->role_name;
         $user->update(['role_name' => $validated['role_name']]);
 
-        \App\Models\ActivityLog::create([
-            'user_id' => auth()->id(),
+        ActivityLog::create([
+            'user_id' => $authUser->id,
             'action' => 'user_role_updated',
             'description' => "Changed role of {$user->name} from {$oldRole} to {$validated['role_name']}.",
             'subject_type' => 'User',
@@ -76,9 +79,10 @@ class UsersController extends Controller
 
     public function updateStatus(Request $request, User $user)
     {
-        $authUser = auth()->user();
+        /** @var User $authUser */
+        $authUser = Auth::user();
 
-        if (!in_array($authUser->role_name, ['Admin', 'Super Admin'])) {
+        if (! in_array($authUser->role_name, ['Admin', 'Super Admin'], true)) {
             abort(403);
         }
 
@@ -106,8 +110,8 @@ class UsersController extends Controller
         $oldStatus = $user->status ?: 'Inactive';
         $user->update(['status' => $validated['status']]);
 
-        \App\Models\ActivityLog::create([
-            'user_id' => auth()->id(),
+        ActivityLog::create([
+            'user_id' => $authUser->id,
             'action' => 'user_status_updated',
             'description' => "Changed status of {$user->name} from {$oldStatus} to {$validated['status']}.",
             'subject_type' => 'User',

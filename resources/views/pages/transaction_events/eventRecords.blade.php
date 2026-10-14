@@ -145,8 +145,18 @@
                                 <input type="hidden" name="per_page" value="{{ request('per_page', 10) }}">
                                 <div class="row g-3 mt-1 align-items-end">
                                     <div class="col-12 col-xl-4">
-                                        <label for="recordKeywordInput"
-                                            class="form-label fw-semibold text-uppercase small">Keyword Search</label>
+                                        <div class="d-flex align-items-center justify-content-between gap-2">
+                                            <label for="recordKeywordInput"
+                                                class="form-label fw-semibold text-uppercase small mb-0">Keyword
+                                                Search</label>
+                                            <div class="form-check form-switch mb-1">
+                                                <input class="form-check-input" type="checkbox"
+                                                    id="recordAutoSearchToggle" checked>
+                                                <label class="form-check-label small" for="recordAutoSearchToggle">
+                                                    Auto search
+                                                </label>
+                                            </div>
+                                        </div>
                                         <div class="input-group">
                                             <span class="input-group-text"><i class="ri-search-line"></i></span>
                                             <input type="text" class="form-control" id="recordKeywordInput"
@@ -526,7 +536,7 @@
                                                 </td>
                                             @endif
                                             <td data-column="transaction_id" class="fw-semibold" style="width: 150px">
-                                                {{ $event->transferredTransaction?->transaction_id ?? '-' }}</td>
+                                                {{ $event->transaction_id ?? '-' }}</td>
                                             <td data-column="full_name" class="fw-semibold"
                                                 title="{{ $event->full_name }}">{{ $event->display_name }}</td>
                                             <td data-column="age">{{ $event->age ?? '-' }}</td>
@@ -612,7 +622,7 @@
                                                                 data-bs-target="#editRecordModal"
                                                                 data-update-url="{{ route('transaction-events.records.update', array_merge(request()->query(), ['event' => $event->id])) }}"
                                                                 data-record="{{ json_encode(array_merge($event->only(['id', 'full_name', 'age', 'contact_no', 'address', 'client_category', 'transaction_category', 'transaction_type', 'remarks']), ['birth_date' => $event->birth_date?->format('Y-m-d'), 'event_date' => $event->event_date?->format('Y-m-d')])) }}"
-                                                                class="btn btn-sm btn-soft-primary d-inline-flex align-items-center justify-content-center gap-1 text-nowrap">
+                                                                class="btn btn-sm btn-soft-primary d-inline-flex align-items-center justify-content-center gap-1 text-nowrap edit-record-button">
                                                                 <i class="ri-pencil-line" aria-hidden="true"></i> Edit
                                                             </button>
                                                         @endif
@@ -845,21 +855,175 @@
             const editModal = document.getElementById('editRecordModal');
             const editForm = document.getElementById('editRecordForm');
             if (editModal && editForm) {
+                const editModalInstance = bootstrap.Modal.getOrCreateInstance(editModal);
+                const saveEditRecordBtn = document.getElementById('saveEditRecordBtn');
+
+                const clearEditRecordErrors = () => {
+                    editForm.querySelectorAll('.is-invalid').forEach((input) => input.classList.remove(
+                        'is-invalid'));
+                    editForm.querySelectorAll('.invalid-feedback').forEach((message) => message.remove());
+                };
+
+                const showEditRecordErrors = (errors) => {
+                    Object.entries(errors || {}).forEach(([field, messages]) => {
+                        const input = editForm.elements.namedItem(field);
+                        if (!input) return;
+                        input.classList.add('is-invalid');
+                        const feedback = document.createElement('div');
+                        feedback.className = 'invalid-feedback';
+                        feedback.textContent = Array.isArray(messages) ? messages[0] : messages;
+                        input.insertAdjacentElement('afterend', feedback);
+                    });
+                };
+
+                const updateEditedRecordRow = (record) => {
+                    const row = document.querySelector(
+                        `#eventRecordsTable tr[data-event-id="${record.id}"]`);
+                    if (!row) return;
+
+                    const values = {
+                        full_name: record.display_name || record.full_name,
+                        age: record.age,
+                        birth_date: record.birth_date_display,
+                        contact: record.contact_no,
+                        address: record.address,
+                        client_category: record.client_category,
+                        payroll_category: record.payroll_category,
+                        transaction_category: record.transaction_category,
+                        transaction_type: record.transaction_type,
+                        event_date: record.event_date_display,
+                    };
+
+                    Object.entries(values).forEach(([column, value]) => {
+                        const cell = row.querySelector(`[data-column="${column}"]`);
+                        if (cell) cell.textContent = value === null || value === '' ? '-' : value;
+                    });
+
+                    const nameCell = row.querySelector('[data-column="full_name"]');
+                    if (nameCell) nameCell.title = record.full_name || '';
+
+                    const editButton = row.querySelector('.edit-record-button');
+                    if (editButton) {
+                        editButton.dataset.record = JSON.stringify({
+                            id: record.id,
+                            full_name: record.full_name,
+                            age: record.age,
+                            birth_date: record.birth_date,
+                            contact_no: record.contact_no,
+                            address: record.address,
+                            client_category: record.client_category,
+                            transaction_category: record.transaction_category,
+                            transaction_type: record.transaction_type,
+                            event_date: record.event_date,
+                            remarks: record.remarks,
+                        });
+                    }
+                };
+
+                const updateSharedClientFields = (record, recordIds) => {
+                    (recordIds || []).forEach((recordId) => {
+                        const row = document.querySelector(
+                            `#eventRecordsTable tr[data-event-id="${recordId}"]`);
+                        if (!row) return;
+
+                        const values = {
+                            full_name: record.display_name || record.full_name,
+                            age: record.age,
+                            birth_date: record.birth_date_display,
+                            contact: record.contact_no,
+                            address: record.address,
+                            client_category: record.client_category,
+                            payroll_category: record.payroll_category,
+                        };
+
+                        Object.entries(values).forEach(([column, value]) => {
+                            const cell = row.querySelector(`[data-column="${column}"]`);
+                            if (cell) cell.textContent = value === null || value === '' ? '-' : value;
+                        });
+
+                        const nameCell = row.querySelector('[data-column="full_name"]');
+                        if (nameCell) nameCell.title = record.full_name || '';
+
+                        const editButton = row.querySelector('.edit-record-button');
+                        if (editButton) {
+                            const rowRecord = JSON.parse(editButton.dataset.record || '{}');
+                            Object.assign(rowRecord, {
+                                full_name: record.full_name,
+                                age: record.age,
+                                birth_date: record.birth_date,
+                                contact_no: record.contact_no,
+                                address: record.address,
+                                client_category: record.client_category,
+                            });
+                            editButton.dataset.record = JSON.stringify(rowRecord);
+                        }
+                    });
+                };
+
                 editModal.addEventListener('show.bs.modal', function(event) {
                     if (!event.relatedTarget) return;
                     const button = event.relatedTarget;
                     const record = JSON.parse(button.dataset.record);
                     editForm.action = button.dataset.updateUrl;
                     editForm.reset();
-                    editForm.querySelectorAll('.is-invalid').forEach(input => input.classList.remove(
-                        'is-invalid'));
-                    editForm.querySelectorAll('.invalid-feedback').forEach(message => message.remove());
+                    clearEditRecordErrors();
                     for (const [field, value] of Object.entries(record)) {
                         const input = editForm.elements.namedItem(field === 'id' ? 'edit_record_id' :
                             field);
                         if (input) input.value = value ?? '';
                     }
                 });
+
+                editForm.addEventListener('submit', async function(event) {
+                    event.preventDefault();
+                    clearEditRecordErrors();
+
+                    const originalButtonHtml = saveEditRecordBtn?.innerHTML;
+                    if (saveEditRecordBtn) {
+                        saveEditRecordBtn.disabled = true;
+                        saveEditRecordBtn.innerHTML =
+                            '<i class="ri-loader-3-line ri-spin me-1"></i> Saving...';
+                    }
+
+                    try {
+                        const response = await fetch(editForm.action, {
+                            method: 'POST',
+                            credentials: 'same-origin',
+                            headers: {
+                                'Accept': 'application/json',
+                                'X-Requested-With': 'XMLHttpRequest',
+                            },
+                            body: new FormData(editForm),
+                        });
+                        const data = await response.json().catch(() => ({}));
+
+                        if (!response.ok || !data.success) {
+                            if (response.status === 422 && data.errors) {
+                                showEditRecordErrors(data.errors);
+                                editForm.querySelector('.is-invalid')?.focus();
+                                return;
+                            }
+                            throw new Error(data.message || 'The event record could not be updated.');
+                        }
+
+                        updateEditedRecordRow(data.record);
+                        updateSharedClientFields(data.record, data.synchronized_record_ids);
+                        editModalInstance.hide();
+                        new Message('imessage').show(
+                            data.message || 'Event record updated successfully.',
+                            'success', 'top-center');
+                    } catch (error) {
+                        new Message('imessage').show(
+                            error.message || 'The event record could not be updated.',
+                            'fail', 'top-center');
+                    } finally {
+                        if (saveEditRecordBtn) {
+                            saveEditRecordBtn.disabled = false;
+                            saveEditRecordBtn.innerHTML = originalButtonHtml;
+                        }
+                    }
+                });
+
                 @if ($errors->any() && old('edit_record_id'))
                     bootstrap.Modal.getOrCreateInstance(editModal).show();
                 @endif
@@ -868,6 +1032,45 @@
             // ----- Filter Records card toggle (Client List style) -----
             const filtersToggleBtn = document.getElementById('recordFiltersToggleBtn');
             const filtersForm = document.getElementById('recordFiltersForm');
+            const recordKeywordInput = document.getElementById('recordKeywordInput');
+            const recordAutoSearchToggle = document.getElementById('recordAutoSearchToggle');
+
+            if (filtersForm && recordKeywordInput && recordAutoSearchToggle) {
+                const autoSearchStorageKey = 'eventRecordsAutoSearchEnabled-{{ auth()->id() }}';
+                let storedAutoSearchPreference = null;
+                try {
+                    storedAutoSearchPreference = localStorage.getItem(autoSearchStorageKey);
+                } catch (error) {
+                    // Storage can be unavailable in private/restricted browser sessions.
+                }
+                recordAutoSearchToggle.checked = storedAutoSearchPreference !== 'false';
+
+                let autoSearchTimer = null;
+                let submittedKeyword = recordKeywordInput.value;
+                const submitKeywordSearch = () => {
+                    window.clearTimeout(autoSearchTimer);
+                    autoSearchTimer = null;
+                    if (!recordAutoSearchToggle.checked || recordKeywordInput.value === submittedKeyword) return;
+                    submittedKeyword = recordKeywordInput.value;
+                    filtersForm.requestSubmit();
+                };
+                const scheduleKeywordSearch = () => {
+                    window.clearTimeout(autoSearchTimer);
+                    if (!recordAutoSearchToggle.checked) return;
+                    autoSearchTimer = window.setTimeout(submitKeywordSearch, 500);
+                };
+
+                recordKeywordInput.addEventListener('input', scheduleKeywordSearch);
+                recordAutoSearchToggle.addEventListener('change', function() {
+                    window.clearTimeout(autoSearchTimer);
+                    try {
+                        localStorage.setItem(autoSearchStorageKey, this.checked ? 'true' : 'false');
+                    } catch (error) {
+                        // The toggle still works for the current page without storage.
+                    }
+                    if (this.checked) scheduleKeywordSearch();
+                });
+            }
 
             const setFiltersVisible = (visible) => {
                 if (!filtersForm || !filtersToggleBtn) return;

@@ -6,8 +6,10 @@ use App\Models\ActivityLog;
 use App\Models\Client;
 use App\Models\TransactionEvent;
 use App\Models\TransactionHistory;
+use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
@@ -357,10 +359,12 @@ class ProfileController extends Controller
             return collect();
         }
 
-        $viewOwnOnly = ! in_array(auth()->user()->role_name, ['Admin', 'Super Admin']);
+        /** @var User $authUser */
+        $authUser = Auth::user();
+        $viewOwnOnly = ! in_array($authUser->role_name, ['Admin', 'Super Admin'], true);
 
-        return ActivityLog::with('user')->latest()
-            ->when($viewOwnOnly, fn ($query) => $query->where('user_id', auth()->id()))
+        return ActivityLog::query()->with('user')->latest('created_at')
+            ->when($viewOwnOnly, fn ($query) => $query->where('user_id', $authUser->id))
             ->take($limit)
             ->get();
     }

@@ -6,7 +6,9 @@ use App\Models\ActivityLog;
 use App\Models\Client;
 use App\Models\TransactionEvent;
 use App\Models\TransactionHistory;
+use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class TransactionController extends Controller
 {
@@ -251,6 +253,7 @@ class TransactionController extends Controller
 
     public function store(Request $request)
     {
+        $authUser = $this->authenticatedUser();
         $validated = $request->validate([
             'client_id' => 'required|string|exists:clients,client_id',
             'transaction_date' => 'required|date',
@@ -270,10 +273,10 @@ class TransactionController extends Controller
         $validated['source'] = 'E-Registration';
         $validated['category'] = TransactionHistory::normalizeCategory($validated['category']);
         $validated['status'] = 'Pending';
-        $validated['clerk'] = auth()->user()->name ?? null;
+        $validated['clerk'] = $authUser->name;
         $validated['amount'] = (float) ($validated['amount'] ?? 0);
 
-        $client = Client::where('client_id', $validated['client_id'])->first();
+        $client = Client::query()->where('client_id', $validated['client_id'])->first();
 
         if (!$client) {
             return redirect()->route('client.list')->with('error', 'Client not found.');
@@ -286,12 +289,14 @@ class TransactionController extends Controller
 
         $transaction = TransactionHistory::create($validated);
 
-        \App\Models\TransactionEvent::create([
+        TransactionEvent::create([
             'full_name'                  => $client->full_name,
             'contact_no'                 => $client->contact ?? '',
             'address'                    => $client->address ?? '',
             'age'                        => $client->age ?? null,
-            'birth_date'                 => $client->birth_date ? $client->birth_date->format('Y-m-d') : null,
+            'birth_date'                 => $client->birth_date instanceof \DateTimeInterface
+                ? $client->birth_date->format('Y-m-d')
+                : ($client->birth_date ?: null),
             'client_category'            => $client->sector ?? '',
             'transaction_category'       => $validated['category'],
             'transaction_type'           => $validated['type'],
@@ -304,7 +309,7 @@ class TransactionController extends Controller
         TransactionHistory::flushDashboardCache();
 
         ActivityLog::create([
-            'user_id' => auth()->id(),
+            'user_id' => $authUser->id,
             'action' => 'transaction_created',
             'description' => 'Created transaction for client ' . $validated['client_id'],
             'subject_type' => 'TransactionHistory',
@@ -325,19 +330,19 @@ class TransactionController extends Controller
             ->with('show_transaction', $transaction->id);
     }
 
-    public function edit($id)
+    public function edit(string $id)
     {
-        if (auth()->user()->role_name === 'Viewer') {
+        if ($this->authenticatedUser()->role_name === 'Viewer') {
             abort(403, 'Viewer role is read-only.');
         }
 
-        $transaction = TransactionHistory::with('requirements')->find($id);
+        $transaction = TransactionHistory::query()->with('requirements')->find($id);
 
         if (!$transaction) {
             abort(404);
         }
 
-        $client = Client::where('client_id', $transaction->client_id)->first();
+        $client = Client::query()->where('client_id', $transaction->client_id)->first();
 
         if (!$client) {
             abort(404);
@@ -346,9 +351,9 @@ class TransactionController extends Controller
         return view('pages.client_transaction.transactionEdit', compact('transaction', 'client'));
     }
 
-    public function update(Request $request, $id)
+    public function update(Request $request, string $id)
     {
-        $transaction = TransactionHistory::findOrFail($id);
+        $transaction = TransactionHistory::query()->findOrFail($id);
 
         $validated = $request->validate([
             'client_id' => 'required|string|exists:clients,client_id',
@@ -372,14 +377,14 @@ class TransactionController extends Controller
 
         $transaction->update($validated);
 
-        \App\Models\TransactionEvent::query()
+        TransactionEvent::query()
             ->where('transferred_transaction_id', $transaction->id)
             ->update(['remarks' => $validated['remarks'] ?? null]);
 
         TransactionHistory::flushDashboardCache();
 
         ActivityLog::create([
-            'user_id' => auth()->id(),
+            'user_id' => $this->authenticatedUser()->id,
             'action' => 'transaction_updated',
             'description' => 'Updated transaction ' . $transaction->transaction_id,
             'subject_type' => 'TransactionHistory',
@@ -387,7 +392,7 @@ class TransactionController extends Controller
             'properties' => json_encode(['transaction_id' => $transaction->id]),
         ]);
 
-        $client = Client::where('client_id', $transaction->client_id)->first();
+        $client = Client::query()->where('client_id', $transaction->client_id)->first();
 
         if ($request->wantsJson()) {
             return response()->json([
@@ -419,9 +424,9 @@ class TransactionController extends Controller
         return $prefix . str_pad((string) ($maxSequence + 1), 4, '0', STR_PAD_LEFT);
     }
 
-    public function show($id)
+    public function show(string $id)
     {
-        $transaction = TransactionHistory::find($id);
+        $transaction = TransactionHistory::query()->find($id);
 
         if (!$transaction) {
             return response()->json(['error' => 'Transaction not found'], 404);
@@ -447,15 +452,15 @@ class TransactionController extends Controller
         ]);
     }
 
-    public function process($id)
+    public function process(string $id)
     {
-        $transaction = TransactionHistory::with('requirements')->find($id);
+        $transaction = TransactionHistory::query()->with('requirements')->find($id);
 
         if (!$transaction) {
             abort(404);
         }
 
-        $client = Client::where('client_id', $transaction->client_id)->first();
+        $client = Client::query()->where('client_id', $transaction->client_id)->first();
 
         $requirementLabels = [
             'valid_id' => 'Valid Id of Claimant with Address to Imus (Back to Back)',
@@ -519,9 +524,9 @@ class TransactionController extends Controller
         return view('pages.client_transaction.transactionProcess', compact('transaction', 'client', 'requirements', 'processSteps', 'hasSubject'));
     }
 
-    public function storeSubject(Request $request, $id)
+    public function storeSubject(Request $request, string $id)
     {
-        $transaction = TransactionHistory::find($id);
+        $transaction = TransactionHistory::query()->find($id);
 
         if (!$transaction) {
             return response()->json([
@@ -557,7 +562,7 @@ class TransactionController extends Controller
         ]);
 
         ActivityLog::create([
-            'user_id' => auth()->id(),
+            'user_id' => $this->authenticatedUser()->id,
             'action' => 'transaction_subject_updated',
             'description' => "Saved subject information for transaction {$transaction->transaction_id}.",
             'subject_type' => 'TransactionHistory',
@@ -575,5 +580,13 @@ class TransactionController extends Controller
                 'subject_summary' => $transaction->fresh()->subject_summary,
             ],
         ]);
+    }
+
+    private function authenticatedUser(): User
+    {
+        /** @var User $user */
+        $user = Auth::user();
+
+        return $user;
     }
 }

@@ -85,10 +85,9 @@ class EventRecordsXlsxProcess
                 $ids = json_decode(File::get($directory.'/ids.json'), true, 512, JSON_THROW_ON_ERROR);
                 $batchIds = array_slice($ids, $state['completed'], self::BATCH_SIZE);
                 $events = TransactionEvent::query()
-                    ->with('transferredTransaction:id,transaction_id')
                     ->whereIn('id', $batchIds)
                     ->get([
-                        'id', 'full_name', 'age', 'birth_date', 'contact_no', 'address',
+                        'id', 'transaction_id', 'full_name', 'age', 'birth_date', 'contact_no', 'address',
                         'client_category', 'transaction_category', 'transaction_type',
                         'event_date', 'transferred_at', 'transferred_transaction_id', 'status',
                     ])
@@ -104,7 +103,7 @@ class EventRecordsXlsxProcess
                     $state['rows']++;
                     $xml .= $this->rowXml($state['rows'] + 1, [
                         $event->id,
-                        $event->transferredTransaction?->transaction_id ?? '',
+                        $event->transaction_id ?? '',
                         $event->full_name ?? '',
                         $event->age ?? '',
                         $event->birth_date?->format('Y-m-d') ?? '',

@@ -15,6 +15,7 @@ class TransactionEvent extends Model
     protected $table = 'transaction_events';
 
     protected $fillable = [
+        'transaction_id',
         'full_name',
         'contact_no',
         'address',
@@ -64,6 +65,12 @@ class TransactionEvent extends Model
     protected static function booted(): void
     {
         static::saving(static function (self $event): void {
+            if ($event->isDirty('transferred_transaction_id')) {
+                $event->transaction_id = $event->transferred_transaction_id
+                    ? TransactionHistory::whereKey($event->transferred_transaction_id)->value('transaction_id')
+                    : null;
+            }
+
             if ($event->isDirty('full_name') || $event->display_name_sort === null) {
                 $event->display_name_sort = mb_strtolower(ImportName::format((string) $event->full_name));
             }

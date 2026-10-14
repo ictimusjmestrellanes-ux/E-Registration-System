@@ -125,6 +125,12 @@ class TransactionHistory extends Model
         });
 
         static::updated(static function (self $transaction): void {
+            if ($transaction->wasChanged('transaction_id')) {
+                TransactionEvent::query()
+                    ->where('transferred_transaction_id', $transaction->id)
+                    ->update(['transaction_id' => $transaction->transaction_id]);
+            }
+
             self::flushDashboardCache();
         });
 

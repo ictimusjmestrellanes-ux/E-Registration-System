@@ -48,7 +48,9 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-sm btn-primary">Save Changes</button>
+                    <button type="submit" class="btn btn-sm btn-primary" id="saveEditRecordBtn">
+                        <span class="edit-record-save-label">Save Changes</span>
+                    </button>
                 </div>
             </form>
         </div>

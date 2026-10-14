@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\Client;
 use App\Models\TransactionHistory;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -176,7 +178,7 @@ class ClientListController extends Controller
 
     public function destroyWithoutTransactions(Request $request)
     {
-        abort_if(auth()->user()?->role_name === 'Viewer' || !feature_allowed('Archive Clients'), 403);
+        abort_if($this->authenticatedUser()->role_name === 'Viewer' || !feature_allowed('Archive Clients'), 403);
 
         $request->validate([
             'select_all' => ['required', 'boolean'],
@@ -294,7 +296,7 @@ class ClientListController extends Controller
 
     public function deletionProgress(string $operationId)
     {
-        abort_if(auth()->user()?->role_name === 'Viewer' || !feature_allowed('Archive Clients'), 403);
+        abort_if($this->authenticatedUser()->role_name === 'Viewer' || !feature_allowed('Archive Clients'), 403);
         abort_unless(Str::isUuid($operationId), 404);
 
         return response()->json(Cache::store('file')->get(
@@ -317,12 +319,12 @@ class ClientListController extends Controller
 
     private function deletionProgressKey(string $operationId): string
     {
-        return 'client_delete_progress:' . auth()->id() . ':' . $operationId;
+        return 'client_delete_progress:' . $this->authenticatedUser()->id . ':' . $operationId;
     }
 
     public function previewWithoutTransactions(Request $request)
     {
-        abort_if(auth()->user()?->role_name === 'Viewer' || !feature_allowed('Archive Clients'), 403);
+        abort_if($this->authenticatedUser()->role_name === 'Viewer' || !feature_allowed('Archive Clients'), 403);
 
         $request->validate([
             'max_client_id' => ['nullable', 'integer', 'min:0'],
@@ -405,6 +407,14 @@ class ClientListController extends Controller
                     ->from('transaction_history')
                     ->whereColumn('transaction_history.client_id', 'clients.client_id');
             });
+    }
+
+    private function authenticatedUser(): User
+    {
+        /** @var User $user */
+        $user = Auth::user();
+
+        return $user;
     }
 
     private function parseJsonClientIds(string $json): array

@@ -260,7 +260,7 @@
                                 <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
                                     <h6 class="mb-0 fw-semibold">
                                         {{ $first->full_name }} -
-                                        <span class="fw-bold">Transaction ID: {{ $first->transferredTransaction?->transaction_id ?? '-' }}</span>
+                                        <span class="fw-bold">Transaction ID: {{ $first->transaction_id ?? '-' }}</span>
                                         <span class="badge bg-danger-subtle text-danger ms-1">
                                             {{ $group['total'] }} records
                                         </span>
@@ -310,8 +310,8 @@
                                             @foreach ($events as $event)
                                                 <tr>
                                                     <td class="fw-semibold"
-                                                        data-sort-value="{{ $event->transferredTransaction?->transaction_id ?? '' }}">
-                                                        {{ $event->transferredTransaction?->transaction_id ?? '-' }}
+                                                        data-sort-value="{{ $event->transaction_id ?? '' }}">
+                                                        {{ $event->transaction_id ?? '-' }}
                                                     </td>
                                                     <td class="fw-semibold" data-sort-value="{{ $event->full_name }}">
                                                         {{ $event->full_name }}

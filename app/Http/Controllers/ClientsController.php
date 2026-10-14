@@ -6,10 +6,12 @@ use App\Models\ActivityLog;
 use App\Models\ArchivedClient;
 use App\Models\Client;
 use App\Models\TransactionHistory;
+use App\Models\User;
 use App\Services\ClientIdCompactor;
 use App\Http\Controllers\Traits\HandlesClientStorage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
@@ -26,7 +28,7 @@ class ClientsController extends Controller
 
     public function create()
     {
-        if (auth()->user()->role_name === 'Viewer') {
+        if ($this->authenticatedUser()->role_name === 'Viewer') {
             abort(403, 'Viewer role is read-only.');
         }
 
@@ -142,7 +144,7 @@ class ClientsController extends Controller
 
     public function destroy(Client $client, ClientIdCompactor $compactor)
     {
-        abort_if(auth()->user()?->role_name === 'Viewer' || !feature_allowed('Archive Clients'), 403);
+        abort_if($this->authenticatedUser()->role_name === 'Viewer' || !feature_allowed('Archive Clients'), 403);
 
         $result = DB::transaction(function () use ($client, $compactor) {
             $client = Client::query()->lockForUpdate()->findOrFail($client->id);
@@ -284,5 +286,13 @@ class ClientsController extends Controller
             ->sortBy('name', SORT_NATURAL | SORT_FLAG_CASE)
             ->values()
             ->all();
+    }
+
+    private function authenticatedUser(): User
+    {
+        /** @var User $user */
+        $user = Auth::user();
+
+        return $user;
     }
 }

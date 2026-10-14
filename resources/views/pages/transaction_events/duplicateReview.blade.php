@@ -23,7 +23,7 @@
                 '<h6 class="mb-0">' .
                 e($first->full_name) .
                 ' (' .
-                e($first->transferredTransaction?->transaction_id ?? '-') .
+                e($first->transaction_id ?? '-') .
                 ')';
             $out .=
                 ' <span class="badge bg-danger-subtle text-danger ms-1">' . $group['total'] . ' records</span></h6>';
