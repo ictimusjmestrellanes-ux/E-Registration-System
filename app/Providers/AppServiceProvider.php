@@ -88,7 +88,7 @@ class AppServiceProvider extends ServiceProvider
         }
 
         if (!app()->environment('production')) {
-            $this->autoStartFingerprintBridge();
+            $this->scheduleFingerprintBridgeCheck();
         }
 
         if (app()->environment('production')) {
@@ -96,7 +96,15 @@ class AppServiceProvider extends ServiceProvider
         }
     }
 
-    private function autoStartFingerprintBridge(): void
+    /**
+     * Keep bridge maintenance out of the request's critical path.
+     *
+     * Cache::remember() previously stored `true`, which meant every request
+     * repeated the health check and could synchronously spend several seconds
+     * starting the bridge. Cache::add() is an atomic throttle: only the first
+     * request in each window schedules the work, after its response is sent.
+     */
+    private function scheduleFingerprintBridgeCheck(): void
     {
         if (!config('fingerprint.auto_start', true)) {
             return;
@@ -104,24 +112,22 @@ class AppServiceProvider extends ServiceProvider
 
         $checkKey = 'fingerprint_bridge_health_check';
 
-        $shouldCheck = Cache::remember($checkKey, now()->addSeconds(30), function () {
-            return true;
-        });
-
-        if (!$shouldCheck) {
+        if (! Cache::add($checkKey, true, now()->addSeconds(30))) {
             return;
         }
 
-        try {
-            $bridge = app(FingerprintBridgeService::class);
+        defer(function (): void {
+            try {
+                $bridge = app(FingerprintBridgeService::class);
 
-            if ($bridge->isHealthy()) {
-                return;
+                if ($bridge->isHealthy()) {
+                    return;
+                }
+
+                $bridge->start();
+            } catch (\Throwable $e) {
+                logger()->error('Auto-start fingerprint bridge failed: ' . $e->getMessage());
             }
-
-            $bridge->start();
-        } catch (\Throwable $e) {
-            logger()->error('Auto-start fingerprint bridge failed: ' . $e->getMessage());
-        }
+        }, 'fingerprint-bridge-health-check');
     }
 }

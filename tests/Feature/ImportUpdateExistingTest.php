@@ -2,10 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Models\ActivityLog;
 use App\Models\TransactionEvent;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -336,10 +338,11 @@ class ImportUpdateExistingTest extends TestCase
         $first = $this->upload()->get();
         $second = explode("\n", trim($this->upload()->get()))[1];
         $third = explode("\n", trim($this->upload(['full_name' => 'NEW CLIENT'])->get()))[1];
-        $token = $this->postJson(route('transaction-events.import.prepare'), [
+        $prepare = $this->postJson(route('transaction-events.import.prepare'), [
             'csv_file' => UploadedFile::fake()->createWithContent('mixed.csv', $first.$second."\n".$third."\n"),
             'events_only' => 1, 'update_existing' => 1,
-        ])->assertOk()->json('token');
+        ])->assertOk()->assertJsonPath('chunk_size', 1000);
+        $token = $prepare->json('token');
         $this->postJson(route('transaction-events.import.process'), ['token' => $token, 'offset' => 0, 'limit' => 1])->assertOk();
         $this->postJson(route('transaction-events.import.finish'), ['token' => $token])->assertOk()
             ->assertJsonPath('updated', 1)->assertJsonPath('unchanged', 1)->assertJsonPath('created', 0)->assertJsonPath('skipped', 1);
@@ -349,6 +352,51 @@ class ImportUpdateExistingTest extends TestCase
         $this->assertDatabaseCount('transaction_history', 0);
         $this->get(route('transaction-events.index'))->assertOk()
             ->assertSee('Update Matching Records')
-            ->assertSee('const CHUNK_SIZE = Number(prepareData.chunk_size || (updateExisting ? 100 : 1000));', false);
+            ->assertSee('const CHUNK_SIZE = Number(prepareData.chunk_size || 1000);', false);
+    }
+
+    public function test_update_matching_records_processes_one_thousand_rows_with_bounded_queries(): void
+    {
+        $this->post(route('transaction-events.import'), [
+            'csv_file' => $this->upload(),
+            'events_only' => 1,
+        ])->assertRedirect();
+
+        [$header, $row] = explode("\n", trim($this->upload()->get()));
+        $file = UploadedFile::fake()->createWithContent(
+            'one-thousand-updates.csv',
+            $header."\n".str_repeat($row."\n", 1000)
+        );
+        $prepare = $this->postJson(route('transaction-events.import.prepare'), [
+            'csv_file' => $file,
+            'events_only' => 1,
+            'update_existing' => 1,
+        ])->assertOk()->assertJsonPath('total', 1000)->assertJsonPath('chunk_size', 1000);
+
+        $queryCount = 0;
+        DB::listen(function () use (&$queryCount): void {
+            $queryCount++;
+        });
+
+        $this->postJson(route('transaction-events.import.process'), [
+            'token' => $prepare->json('token'),
+            'offset' => 0,
+            'limit' => 1000,
+        ])->assertOk()
+            ->assertJsonPath('processed', 1000)
+            ->assertJsonPath('imported', 1000)
+            ->assertJsonPath('failed', 0);
+
+        $this->assertLessThan(20, $queryCount);
+        $this->postJson(route('transaction-events.import.finish'), [
+            'token' => $prepare->json('token'),
+        ])->assertOk()
+            ->assertJsonPath('updated', 1)
+            ->assertJsonPath('unchanged', 999)
+            ->assertJsonPath('skipped', 0);
+
+        $statusLog = ActivityLog::where('action', 'transaction_event_updated')->firstOrFail();
+        $this->assertSame('Pending', $statusLog->properties['before']['status']);
+        $this->assertSame('Claimed', $statusLog->properties['after']['status']);
     }
 }

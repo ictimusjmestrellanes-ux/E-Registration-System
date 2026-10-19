@@ -291,11 +291,9 @@
                                     {{-- caret removed: bootstrap provides dropdown indicator --}}
                                 </span>
                             </button>
-                            <div class="dropdown-menu dropdown-menu-end" aria-labelledby="topbar-user-dropdown">
+                            <div class="dropdown-menu dropdown-menu-end w-100" aria-labelledby="topbar-user-dropdown">
                                 <!-- item-->
-                                <h6 class="dropdown-header">Welcome {{ auth()->user()->name ?? 'User' }}!</h6>
-                                <div class="dropdown-divider"></div>
-                                <a class="dropdown-item" href="{{ route('settings') }}"><i class="mdi mdi-cog-outline text-muted fs-16 align-middle me-1"></i> <span class="align-middle">Settings</span></a>
+                                <a class="dropdown-item" href="{{ route('settings') }}"><i class="mdi mdi-cog-outline text-muted fs-16 align-middle me-1"></i> <span class="align-middle">Profile</span></a>
                                 <form method="POST" action="{{ route('logout') }}" class="m-0">
                                     @csrf
                                     <button type="submit" class="dropdown-item">

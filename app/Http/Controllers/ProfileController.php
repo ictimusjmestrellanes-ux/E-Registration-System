@@ -213,13 +213,17 @@ class ProfileController extends Controller
 
     private function transactionDateOptions(array $categories = [], array $types = []): array
     {
-        return TransactionHistory::query()
+        $loadOptions = fn () => TransactionHistory::query()
             ->when($categories !== [], fn ($query) => $query->whereIn('category', $categories))
             ->when($types !== [], fn ($query) => $query->whereIn(DB::raw($this->transactionTypeExpression()), $types))
             ->whereNotNull('transaction_date')
             ->selectRaw($this->transactionDayExpression().' as transaction_day')
             ->distinct()->orderByDesc('transaction_day')
             ->toBase()->pluck('transaction_day')->all();
+
+        return $categories === [] && $types === []
+            ? Cache::remember('dashboard.transaction_date_options', 300, $loadOptions)
+            : $loadOptions();
     }
 
     private function transactionDayExpression(): string
@@ -428,10 +432,14 @@ class ProfileController extends Controller
 
     private function eventDistributionOptions(string $column, array $categories = []): array
     {
-        return TransactionEvent::query()->whereNotNull('transferred_at')
+        $loadOptions = fn () => TransactionEvent::query()->whereNotNull('transferred_at')
             ->when($categories !== [], fn ($query) => $query->whereIn('transaction_category', $categories))
             ->whereNotNull($column)->where($column, '<>', '')
             ->distinct()->orderBy($column)->pluck($column)->all();
+
+        return $categories === []
+            ? Cache::remember('dashboard.event_distribution_options.'.$column, 300, $loadOptions)
+            : $loadOptions();
     }
 
     private function txTypesForCategories(array $categories): array

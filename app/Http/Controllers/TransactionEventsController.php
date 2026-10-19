@@ -1511,10 +1511,9 @@ class TransactionEventsController extends Controller
      * Paginate group descriptors in SQL, then fetch the visible groups in one
      * joined query. Query count is independent of the number of duplicates.
      *
-     * Exact match is: Same Lastname and Firstname + Client Category +
-     * Transaction Category + Transaction Type + Event Date (normalized:
-     * case-insensitive, trimmed, date-only so "PWD" = "pwd" and datetimes
-     * on the same day still match).
+     * Exact match is: the same normalized name (including an identical middle
+     * name or a middle-initial/full-middle variation), plus matching Client
+     * Category, Transaction Category, Transaction Type, and Event Date.
      */
     private function recordDuplicateNormalizedExpression(string $column): string
     {
@@ -1543,6 +1542,45 @@ class TransactionEventsController extends Controller
         $b = $b ?? '';
 
         return (string) $a === (string) $b;
+    }
+
+    /**
+     * Parse a record name into the identity used by the initial/full-middle
+     * duplicate flows. Comma-form imports may leave the middle name at the end
+     * of the parsed first-name value, so normalize that representation too.
+     *
+     * @return array{last: string, first: string, suffix: string, middle: string, middle_initial: string, middle_is_initial: bool}|null
+     */
+    private function recordDuplicateMiddleNameIdentity(string $fullName): ?array
+    {
+        $normalize = static fn ($value) => mb_strtolower(
+            preg_replace('/\s+/u', ' ', trim((string) $value)) ?? ''
+        );
+        $name = $this->splitImportFullName($fullName);
+        $firstParts = preg_split('/\s+/u', trim($name['first']), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        $middle = $normalize($name['middle']);
+
+        if ($middle === '' && count($firstParts) > 1) {
+            $middle = $normalize(array_pop($firstParts));
+        }
+
+        $first = $normalize(implode(' ', $firstParts));
+        $last = $normalize($name['last']);
+        $suffix = $normalize($name['suffix']);
+        $compactMiddle = preg_replace('/[^\p{L}\p{N}]+/u', '', $middle) ?? '';
+
+        if ($first === '' || $last === '') {
+            return null;
+        }
+
+        return [
+            'last' => $last,
+            'first' => $first,
+            'suffix' => $suffix,
+            'middle' => $compactMiddle,
+            'middle_initial' => $compactMiddle === '' ? '' : mb_substr($compactMiddle, 0, 1),
+            'middle_is_initial' => $compactMiddle !== '' && mb_strlen($compactMiddle) === 1,
+        ];
     }
 
     /**
@@ -1633,21 +1671,60 @@ class TransactionEventsController extends Controller
     }
 
     /**
-     * Regroup full-key rows into tab descriptors. Exact combines parsed first/last
-     * names; Full Name combines normalized names.
+     * Regroup full-key rows into tab descriptors. Exact combines compatible
+     * initial/full-middle names; Full Name combines normalized names.
      *
      * @return Collection<int, object>
      */
     private function buildRecordDuplicateDescriptors(Collection $keyRows, array $patterns, bool $excludeExact): Collection
     {
         $columns = ['event_date', 'client_category', 'transaction_category', 'transaction_type'];
+        $exactInitialKeys = $keyRows->mapWithKeys(function ($row) use ($columns) {
+            $identity = $this->recordDuplicateMiddleNameIdentity($row->fullname);
+            if ($identity === null || ! $identity['middle_is_initial']) {
+                return [];
+            }
+
+            return [json_encode([
+                $identity['last'],
+                $identity['first'],
+                $identity['suffix'],
+                $identity['middle_initial'],
+                ...array_map(fn ($column) => (string) $row->$column, $columns),
+            ]) => true];
+        });
+        $exactNameGroupKey = function ($row) use ($columns, $exactInitialKeys): string {
+            $identity = $this->recordDuplicateMiddleNameIdentity($row->fullname);
+            if ($identity === null) {
+                return 'ineligible-exact-'.$row->group_id;
+            }
+
+            $initialLookupKey = json_encode([
+                $identity['last'],
+                $identity['first'],
+                $identity['suffix'],
+                $identity['middle_initial'],
+                ...array_map(fn ($column) => (string) $row->$column, $columns),
+            ]);
+            $middleKey = match (true) {
+                $identity['middle'] === '' => '',
+                $identity['middle_is_initial'] || $exactInitialKeys->has($initialLookupKey) => $identity['middle_initial'],
+                default => 'full:'.$identity['middle'],
+            };
+
+            return json_encode([
+                $identity['last'],
+                $identity['first'],
+                $identity['suffix'],
+                $middleKey,
+            ]);
+        };
         $descriptors = collect();
         foreach ($patterns as $pattern => $groupColumns) {
-            $grouped = $keyRows->groupBy(function ($row) use ($pattern, $groupColumns) {
+            $grouped = $keyRows->groupBy(function ($row) use ($pattern, $groupColumns, $exactNameGroupKey) {
                 $nameKey = $row->fullname;
                 if ($pattern === 'exact') {
-                    $name = $this->splitImportFullName($row->fullname);
-                    $nameKey = $name['last']."\0".$name['first'];
+                    $nameKey = $exactNameGroupKey($row);
                 }
 
                 return $nameKey."\0".implode("\0", array_map(fn ($c) => (string) $row->$c, $groupColumns));
@@ -1672,6 +1749,9 @@ class TransactionEventsController extends Controller
                 $descriptor->has_unlinked_client = $members->contains(
                     fn ($member) => blank($member->linked_client_id)
                 );
+                if ($pattern === 'exact') {
+                    $descriptor->name_group_key = $exactNameGroupKey($first);
+                }
                 foreach ($columns as $column) {
                     $descriptor->$column = in_array($column, $groupColumns, true) ? $first->$column : null;
                 }
@@ -1696,16 +1776,15 @@ class TransactionEventsController extends Controller
         $columns = ['event_date', 'client_category', 'transaction_category', 'transaction_type'];
         $keyRowsById = $keyRows->keyBy('group_id');
         // Match rules identify records first; display and paginate once per client.
-        // Exact groups parsed last and first names. Full Name groups the
-        // normalized full name.
+        // Exact groups use the normalized person + middle-initial identity.
+        // Full Name groups the normalized full name.
         $descriptors = $this->buildRecordDuplicateDescriptors($keyRows, $patterns, $excludeExact)
             ->groupBy(function ($descriptor) use ($pageName) {
                 if ($pageName !== 'exact_page') {
                     return $descriptor->fullname;
                 }
-                $name = $this->splitImportFullName($descriptor->fullname);
 
-                return json_encode([$name['last'], $name['first']]);
+                return $descriptor->name_group_key;
             })
             ->map(function ($matches) use ($keyRowsById) {
                 $memberIds = $matches->flatMap(fn ($match) => $match->member_ids)->unique()->values();
@@ -1810,26 +1889,19 @@ class TransactionEventsController extends Controller
         );
         $people = [];
         foreach ($rows as $row) {
-            $name = $this->splitImportFullName((string) $row->full_name);
-            $firstParts = preg_split('/\s+/u', trim($name['first']), -1, PREG_SPLIT_NO_EMPTY) ?: [];
-            $middle = $normalized($name['middle']);
-            // Comma-form imports can store a full middle name at the end of
-            // the parsed first name ("Cruz, Juan Santos"). Canonicalize that
-            // layout to the same parts as "Juan Santos Cruz".
-            if ($middle === '' && count($firstParts) > 1) {
-                $middle = $normalized(array_pop($firstParts));
-            }
-            $first = $normalized(implode(' ', $firstParts));
-            $last = $normalized($name['last']);
-            $suffix = $normalized($name['suffix']);
-            $compactMiddle = preg_replace('/[^\p{L}\p{N}]+/u', '', $middle) ?? '';
-            if ($first === '' || $last === '' || $compactMiddle === '') {
+            $identity = $this->recordDuplicateMiddleNameIdentity((string) $row->full_name);
+            if ($identity === null || $identity['middle'] === '') {
                 continue;
             }
-            $row->likely_middle = $compactMiddle;
-            $row->likely_middle_initial = mb_substr($compactMiddle, 0, 1);
-            $row->likely_middle_is_initial = mb_strlen($compactMiddle) === 1;
-            $people[json_encode([$last, $first, $suffix, $row->likely_middle_initial])][] = $row;
+            $row->likely_middle = $identity['middle'];
+            $row->likely_middle_initial = $identity['middle_initial'];
+            $row->likely_middle_is_initial = $identity['middle_is_initial'];
+            $people[json_encode([
+                $identity['last'],
+                $identity['first'],
+                $identity['suffix'],
+                $identity['middle_initial'],
+            ])][] = $row;
         }
 
         $matches = collect();
@@ -1879,10 +1951,10 @@ class TransactionEventsController extends Controller
             // Exact-only groups belong in Exact Match, not Likely Match.
             $exactKeys = $matchedRows
                 ->map(function ($row) use ($normalized) {
-                    $name = $this->splitImportFullName((string) $row->full_name);
+                    $identity = $this->recordDuplicateMiddleNameIdentity((string) $row->full_name);
 
                     return json_encode([
-                        $normalized($name['first']),
+                        $identity['first'],
                         substr(trim((string) $row->event_date), 0, 10),
                         $normalized($row->client_category),
                         $normalized($row->transaction_category),
@@ -1958,7 +2030,8 @@ class TransactionEventsController extends Controller
             $likelyRecordsTotal = null;
             $similarRecordsTotal = null;
 
-            // Exact match is: Same Lastname and Firstname + Client Category +
+            // Exact match is: identical normalized names or matching
+            // middle-initial/full-middle names, plus Client Category +
             // Transaction Category + Transaction Type + Event Date.
             // Exact Match and Full Name share an aggregation, but each web
             // request materializes only the tab the user is viewing.
@@ -2038,7 +2111,7 @@ class TransactionEventsController extends Controller
             sort($cacheFilters['transaction_category']);
             sort($cacheFilters['transaction_type']);
             sort($cacheFilters['status']);
-            $cacheKey = 'transaction-events:duplicate-records:v6:'.hash('sha256', json_encode([
+            $cacheKey = 'transaction-events:duplicate-records:v7:'.hash('sha256', json_encode([
                 'state' => $state,
                 'filters' => $cacheFilters,
             ]));
@@ -3043,7 +3116,7 @@ class TransactionEventsController extends Controller
             'headers' => $parsed['headers'] ?? [],
             'skipped_examples' => $parsed['skipped_examples'] ?? [],
             'preview_rows' => array_slice($parsed['rows'] ?? [], 0, 10),
-            'chunk_size' => $request->boolean('update_existing') ? 100 : 1000,
+            'chunk_size' => 1000,
         ]);
     }
 
@@ -3068,7 +3141,7 @@ class TransactionEventsController extends Controller
         $request->validate([
             'token' => ['required', 'string'],
             'offset' => ['required', 'integer', 'min:0'],
-            'limit' => ['required', 'integer', 'min:1'],
+            'limit' => ['required', 'integer', 'min:1', 'max:1000'],
         ]);
 
         $offset = (int) $request->input('offset');
@@ -3092,7 +3165,32 @@ class TransactionEventsController extends Controller
             && ! $updateExisting
             && ! collect($chunkRows)->contains(fn (array $record): bool => (bool) ($record['_stage_duplicate_in_import_events'] ?? false));
 
-        if ($canUseFastInsert && $chunkRows !== []) {
+        if ($updateExisting && $chunkRows !== []) {
+            try {
+                $result = $this->updateMatchingImportRowsFast($chunkRows, $offset);
+                foreach (['updated', 'unchanged'] as $outcome) {
+                    $count = (int) ($result[$outcome] ?? 0);
+                    $payload[$outcome] = (int) ($payload[$outcome] ?? 0) + $count;
+                    $imported += $count;
+                }
+                $failed += (int) ($result['failed'] ?? 0);
+                foreach ($result['errors'] ?? [] as $error) {
+                    if (count($errorSamples) >= 50) {
+                        break;
+                    }
+                    $errorSamples[] = $error;
+                }
+                $chunkRows = [];
+            } catch (Throwable $e) {
+                // Unexpected batch failures fall back to the established
+                // row path, preserving precise errors without losing work.
+                Log::warning('Fast matching-record update failed; retrying rows individually', [
+                    'offset' => $offset,
+                    'rows' => count($chunkRows),
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        } elseif ($canUseFastInsert && $chunkRows !== []) {
             try {
                 $created = $forceNewClients
                     ? $this->storeForceImportRowsFast($chunkRows)
@@ -3184,26 +3282,48 @@ class TransactionEventsController extends Controller
             // prepared before chunked inserts existed) still get imported.
             $processedUpto = (int) ($payload['processed_upto'] ?? 0);
             $forceNewClients = (bool) ($payload['force_new_clients'] ?? false);
-            foreach (array_slice($rows, $processedUpto) as $index => $record) {
-                try {
-                    $outcome = $this->storeImportRow($record, (bool) ($payload['events_only'] ?? false), $forceNewClients, (bool) ($payload['update_existing'] ?? false));
-                    $payload[$outcome] = (int) ($payload[$outcome] ?? 0) + 1;
-                    $imported++;
-                } catch (Throwable $e) {
-                    if (count($errors) < 50) {
-                        $errors[] = [
-                            'row' => $processedUpto + $index + 1,
-                            'error' => $e->getMessage(),
-                            'data' => $record['full_name'] ?? 'Unknown',
-                        ];
+            $remainingRows = array_slice($rows, $processedUpto);
+            if ((bool) ($payload['update_existing'] ?? false)) {
+                foreach (array_chunk($remainingRows, 1000) as $chunkIndex => $chunkRows) {
+                    $result = $this->updateMatchingImportRowsFast(
+                        $chunkRows,
+                        $processedUpto + ($chunkIndex * 1000)
+                    );
+                    foreach (['updated', 'unchanged'] as $outcome) {
+                        $count = (int) ($result[$outcome] ?? 0);
+                        $payload[$outcome] = (int) ($payload[$outcome] ?? 0) + $count;
+                        $imported += $count;
                     }
-                    Log::error('Import row processing failed', [
-                        'row_index' => $processedUpto + $index,
-                        'record' => $record,
-                        'error' => $e->getMessage(),
-                        'trace' => $e->getTraceAsString(),
-                    ]);
-                    $skipped++;
+                    $skipped += (int) ($result['failed'] ?? 0);
+                    foreach ($result['errors'] ?? [] as $error) {
+                        if (count($errors) >= 50) {
+                            break;
+                        }
+                        $errors[] = $error;
+                    }
+                }
+            } else {
+                foreach ($remainingRows as $index => $record) {
+                    try {
+                        $outcome = $this->storeImportRow($record, (bool) ($payload['events_only'] ?? false), $forceNewClients, false);
+                        $payload[$outcome] = (int) ($payload[$outcome] ?? 0) + 1;
+                        $imported++;
+                    } catch (Throwable $e) {
+                        if (count($errors) < 50) {
+                            $errors[] = [
+                                'row' => $processedUpto + $index + 1,
+                                'error' => $e->getMessage(),
+                                'data' => $record['full_name'] ?? 'Unknown',
+                            ];
+                        }
+                        Log::error('Import row processing failed', [
+                            'row_index' => $processedUpto + $index,
+                            'record' => $record,
+                            'error' => $e->getMessage(),
+                            'trace' => $e->getTraceAsString(),
+                        ]);
+                        $skipped++;
+                    }
                 }
             }
 
@@ -3481,19 +3601,27 @@ class TransactionEventsController extends Controller
         $imported = 0;
         $outcomes = [];
         $reviewErrors = [];
-        foreach ($parsed['rows'] as $index => $record) {
-            try {
-                $outcome = $this->storeImportRow($record, $request->boolean('events_only'), $forceNewClients, $request->boolean('update_existing'));
+        if ($request->boolean('update_existing')) {
+            foreach (array_chunk($parsed['rows'], 1000) as $chunkIndex => $chunkRows) {
+                $result = $this->updateMatchingImportRowsFast($chunkRows, $chunkIndex * 1000);
+                foreach (['updated', 'unchanged'] as $outcome) {
+                    $count = (int) ($result[$outcome] ?? 0);
+                    $outcomes[$outcome] = ($outcomes[$outcome] ?? 0) + $count;
+                    $imported += $count;
+                }
+                $parsed['skipped'] += (int) ($result['failed'] ?? 0);
+                foreach ($result['errors'] ?? [] as $error) {
+                    if (count($reviewErrors) >= 10) {
+                        break;
+                    }
+                    $reviewErrors[] = 'Row '.$error['row'].': '.$error['error'];
+                }
+            }
+        } else {
+            foreach ($parsed['rows'] as $record) {
+                $outcome = $this->storeImportRow($record, $request->boolean('events_only'), $forceNewClients, false);
                 $outcomes[$outcome] = ($outcomes[$outcome] ?? 0) + 1;
                 $imported++;
-            } catch (Throwable $e) {
-                if (! $request->boolean('update_existing')) {
-                    throw $e;
-                }
-                $parsed['skipped']++;
-                if (count($reviewErrors) < 10) {
-                    $reviewErrors[] = 'Row '.($index + 1).': '.$e->getMessage();
-                }
             }
         }
 
@@ -3857,6 +3985,276 @@ class TransactionEventsController extends Controller
         }
 
         return $this->setEventStatus($event, 'Claimed') ? 'updated' : 'unchanged';
+    }
+
+    /**
+     * Resolve and claim one prepared import chunk with a bounded number of
+     * queries. Matching remains identical to the row path, but events,
+     * histories, and audit entries are written in batches instead of opening
+     * a transaction and re-running the same lookups for every spreadsheet row.
+     *
+     * @return array{updated: int, unchanged: int, failed: int, errors: array<int, array{row: int, error: string, data: string}>}
+     */
+    private function updateMatchingImportRowsFast(array $records, int $rowOffset = 0): array
+    {
+        $result = DB::transaction(function () use ($records, $rowOffset): array {
+            $required = ['full_name', 'client_category', 'transaction_category', 'transaction_type', 'event_date'];
+            $validRows = [];
+            $wantedKeys = [];
+            $candidateNames = [];
+            $rawNamesByCandidate = [];
+            $errors = [];
+
+            foreach ($records as $index => $record) {
+                $missing = false;
+                foreach ($required as $field) {
+                    if (trim((string) ($record[$field] ?? '')) === '') {
+                        $missing = true;
+                        break;
+                    }
+                }
+                if ($missing) {
+                    $errors[] = [
+                        'row' => $rowOffset + $index + 1,
+                        'error' => 'Full name, client category, transaction category, transaction type, and event date are required when updating matching records.',
+                        'data' => (string) ($record['full_name'] ?? 'Unknown'),
+                    ];
+
+                    continue;
+                }
+
+                try {
+                    $key = $this->importMatchKey($record);
+                } catch (Throwable $e) {
+                    $errors[] = [
+                        'row' => $rowOffset + $index + 1,
+                        'error' => $e->getMessage(),
+                        'data' => (string) ($record['full_name'] ?? 'Unknown'),
+                    ];
+
+                    continue;
+                }
+
+                $fullName = trim((string) $record['full_name']);
+                $candidate = mb_strtolower(ImportName::format($fullName));
+                $candidateNames[$candidate] = true;
+                $rawNamesByCandidate[$candidate][mb_strtolower($fullName)] = true;
+                $wantedKeys[$key] = true;
+                $validRows[] = [
+                    'index' => $index,
+                    'record' => $record,
+                    'key' => $key,
+                ];
+            }
+
+            $eventsByKey = [];
+            foreach (array_chunk(array_keys($candidateNames), 400) as $nameChunk) {
+                $rawNameChunk = [];
+                foreach ($nameChunk as $candidate) {
+                    foreach (array_keys($rawNamesByCandidate[$candidate] ?? []) as $rawName) {
+                        $rawNameChunk[$rawName] = true;
+                    }
+                }
+
+                $events = DB::table('transaction_events')
+                    ->select([
+                        'id', 'full_name', 'client_category', 'transaction_category',
+                        'transaction_type', 'event_date', 'status', 'transferred_at',
+                        'transferred_transaction_id',
+                    ])
+                    ->where(function ($query) use ($nameChunk, $rawNameChunk): void {
+                        $query->whereIn('display_name_sort', $nameChunk);
+                        if ($rawNameChunk !== []) {
+                            $query->orWhere(function ($legacy) use ($rawNameChunk): void {
+                                $legacy->whereNull('display_name_sort')
+                                    ->whereIn(DB::raw('LOWER(TRIM(full_name))'), array_keys($rawNameChunk));
+                            });
+                        }
+                    })
+                    ->orderBy('id')
+                    ->lockForUpdate()
+                    ->get();
+
+                foreach ($events as $event) {
+                    $key = $this->importMatchKey((array) $event);
+                    if (isset($wantedKeys[$key])) {
+                        $eventsByKey[$key][(int) $event->id] = $event;
+                    }
+                }
+            }
+
+            $matchedEvents = [];
+            foreach ($validRows as $row) {
+                $matches = $eventsByKey[$row['key']] ?? [];
+                if (count($matches) === 1) {
+                    $event = reset($matches);
+                    $matchedEvents[(int) $event->id] = $event;
+                }
+            }
+
+            $historyIds = collect($matchedEvents)
+                ->pluck('transferred_transaction_id')
+                ->filter()
+                ->map(fn ($id) => (int) $id)
+                ->unique()
+                ->values()
+                ->all();
+            $histories = $historyIds === []
+                ? collect()
+                : DB::table('transaction_history')
+                    ->whereIn('id', $historyIds)
+                    ->lockForUpdate()
+                    ->get(['id', 'transaction_id', 'status'])
+                    ->keyBy('id');
+
+            $eventStatuses = collect($matchedEvents)
+                ->mapWithKeys(fn ($event, $id) => [(int) $id => (string) $event->status])
+                ->all();
+            $historyStatuses = $histories
+                ->mapWithKeys(fn ($history, $id) => [(int) $id => (string) $history->status])
+                ->all();
+            $changedEventIds = [];
+            $changedHistoryIds = [];
+            $auditRows = [];
+            $updated = 0;
+            $unchanged = 0;
+            $now = now();
+
+            foreach ($validRows as $row) {
+                $record = $row['record'];
+                $matches = $eventsByKey[$row['key']] ?? [];
+                if (count($matches) > 1) {
+                    $errors[] = [
+                        'row' => $rowOffset + $row['index'] + 1,
+                        'error' => 'Multiple existing records match this row. Resolve the duplicates before updating.',
+                        'data' => (string) ($record['full_name'] ?? 'Unknown'),
+                    ];
+
+                    continue;
+                }
+                if ($matches === []) {
+                    $errors[] = [
+                        'row' => $rowOffset + $row['index'] + 1,
+                        'error' => 'No existing event matches the full name, client category, transaction category, transaction type, and event date. No record was created.',
+                        'data' => (string) ($record['full_name'] ?? 'Unknown'),
+                    ];
+
+                    continue;
+                }
+
+                $event = reset($matches);
+                $eventId = (int) $event->id;
+                $historyId = $event->transferred_transaction_id
+                    ? (int) $event->transferred_transaction_id
+                    : null;
+                $history = $historyId ? $histories->get($historyId) : null;
+                if ($event->transferred_at && ! $history) {
+                    $errors[] = [
+                        'row' => $rowOffset + $row['index'] + 1,
+                        'error' => 'The linked transaction history is missing. Review this record before updating.',
+                        'data' => (string) ($record['full_name'] ?? 'Unknown'),
+                    ];
+
+                    continue;
+                }
+
+                $changed = false;
+                if ($history && ($historyStatuses[$historyId] ?? '') !== 'Claimed') {
+                    $before = $historyStatuses[$historyId] ?? '';
+                    $historyStatuses[$historyId] = 'Claimed';
+                    $changedHistoryIds[$historyId] = true;
+                    $auditRows[] = $this->importStatusAuditRow(
+                        'TransactionHistory',
+                        $historyId,
+                        (string) $history->transaction_id,
+                        $before,
+                        $now
+                    );
+                    $changed = true;
+                }
+                if (($eventStatuses[$eventId] ?? '') !== 'Claimed') {
+                    $before = $eventStatuses[$eventId] ?? '';
+                    $eventStatuses[$eventId] = 'Claimed';
+                    $changedEventIds[$eventId] = true;
+                    $auditRows[] = $this->importStatusAuditRow(
+                        'TransactionEvent',
+                        $eventId,
+                        (string) $event->full_name,
+                        $before,
+                        $now
+                    );
+                    $changed = true;
+                }
+
+                if ($changed) {
+                    $updated++;
+                } else {
+                    $unchanged++;
+                }
+            }
+
+            foreach (array_chunk(array_keys($changedHistoryIds), 500) as $ids) {
+                DB::table('transaction_history')->whereIn('id', $ids)->update([
+                    'status' => 'Claimed',
+                    'updated_at' => $now,
+                ]);
+            }
+            foreach (array_chunk(array_keys($changedEventIds), 500) as $ids) {
+                DB::table('transaction_events')->whereIn('id', $ids)->update([
+                    'status' => 'Claimed',
+                    'updated_at' => $now,
+                ]);
+            }
+            foreach (array_chunk(array_values(array_filter($auditRows)), 100) as $rows) {
+                ActivityLog::query()->insert($rows);
+            }
+
+            return [
+                'updated' => $updated,
+                'unchanged' => $unchanged,
+                'failed' => count($errors),
+                'errors' => $errors,
+            ];
+        });
+
+        if ($result['updated'] > 0) {
+            TransactionHistory::flushDashboardCache();
+        }
+
+        return $result;
+    }
+
+    /** @return array<string, mixed>|null */
+    private function importStatusAuditRow(
+        string $subjectType,
+        int $subjectId,
+        string $label,
+        string $beforeStatus,
+        Carbon $now
+    ): ?array {
+        if (! Auth::check() || ! request()->route()) {
+            return null;
+        }
+
+        $headline = Str::headline($subjectType);
+
+        return [
+            'user_id' => Auth::id(),
+            'action' => Str::snake($subjectType).'_updated',
+            'subject_type' => $subjectType,
+            'subject_id' => $subjectId,
+            'description' => 'Updated '.$headline.' #'.$subjectId.($label !== '' ? ' ('.$label.').' : '.'),
+            'properties' => json_encode([
+                'route' => request()->route()?->getName(),
+                'before' => ['status' => $beforeStatus],
+                'after' => ['status' => 'Claimed'],
+                'changed_fields' => ['status'],
+            ], JSON_THROW_ON_ERROR),
+            'ip_address' => request()->ip(),
+            'user_agent' => request()->userAgent(),
+            'created_at' => $now,
+            'updated_at' => $now,
+        ];
     }
 
     private function setEventStatus(TransactionEvent $event, string $status): bool

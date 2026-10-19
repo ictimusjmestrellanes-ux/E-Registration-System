@@ -75,13 +75,11 @@
             </button>
         </div>
         <div class="dropdown sidebar-user m-1 rounded">
-            <div class="dropdown-menu dropdown-menu-end" aria-labelledby="sidebar-user-dropdown">
+            <div class="dropdown-menu dropdown-menu-end w-100" aria-labelledby="sidebar-user-dropdown">
                 <!-- item-->
-                <h6 class="dropdown-header">Welcome {{ auth()->user()->name ?? 'User' }}!</h6>
-                <div class="dropdown-divider"></div>
                 <a class="dropdown-item" href="{{ route('profile') }}"><i
                         class="mdi mdi-cog-outline text-muted fs-16 align-middle me-1"></i> <span
-                        class="align-middle">Settings</span></a>
+                        class="align-middle">Profile</span></a>
                 <a class="dropdown-item" href="auth-logout-basic.html"><i
                         class="mdi mdi-logout text-muted fs-16 align-middle me-1"></i> <span class="align-middle"
                         data-key="t-logout">Logout</span></a>
@@ -245,7 +243,7 @@
                     <li class="nav-item">
                         <a class="nav-link menu-link {{ set_active(['settings']) }}"
                             href="{{ route('settings') }}">
-                            <i class="ri-user-line"></i> <span data-key="t-settings">Profile Page</span>
+                            <i class="ri-user-line"></i> <span data-key="t-settings">Profile</span>
                         </a>
                     </li>
 

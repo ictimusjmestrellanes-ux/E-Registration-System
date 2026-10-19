@@ -261,7 +261,7 @@
                                                 <label for="age" class="form-label">Age</label>
                                                 <input type="number" class="form-control" id="age" name="age"
                                                     placeholder="Enter age" required min="0"
-                                                    value="{{ old('age', optional($editingClient)->age ?? '') }}">
+                                                    value="{{ old('age', optional($editingClient)->age ?? '') }}" disabled>
                                             </div>
 
                                             <div class="col-lg-3">

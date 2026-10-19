@@ -42,15 +42,28 @@ function feature_allowed(string $feature): bool
         return true;
     }
 
-    $permission = \App\Models\Permission::where('feature', $feature)
-        ->where('role_name', $role)
-        ->first();
+    // The sidebar checks several features while rendering. Keep the role's
+    // permission matrix on the current request so this remains one query,
+    // rather than one query for every navigation item.
+    $request = request();
+    $cacheKey = '_feature_permissions_'.sha1($role);
 
-    if ($permission === null) {
+    if (! $request->attributes->has($cacheKey)) {
+        $request->attributes->set(
+            $cacheKey,
+            \App\Models\Permission::query()
+                ->where('role_name', $role)
+                ->pluck('allowed', 'feature')
+        );
+    }
+
+    $permissions = $request->attributes->get($cacheKey);
+
+    if (! $permissions->has($feature)) {
         return true;
     }
 
-    return (bool) $permission->allowed;
+    return (bool) $permissions->get($feature);
 }
 
 /**

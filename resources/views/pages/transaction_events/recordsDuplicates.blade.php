@@ -686,9 +686,11 @@
                                 id="rexact-tab" role="tabpanel">
                                 <div class="alert alert-danger-subtle d-flex align-items-center mb-3 py-2" role="alert">
                                     <i class="ri-error-warning-line fs-4 me-2"></i>
-                                    <div class="small">Same <strong>Lastname and Firstname</strong>, <strong>Client
-                                            Category</strong>, <strong>Transaction Category</strong>, <strong>Transaction
-                                            Type</strong>, and <strong>Event Date</strong>. High confidence duplicates.
+                                    <div class="small">The same normalized name, including when one record uses a
+                                        <strong>middle initial</strong> and another uses the matching <strong>full middle
+                                            name</strong>, with the same <strong>Client Category</strong>, <strong>Transaction
+                                            Category</strong>, <strong>Transaction Type</strong>, and <strong>Event
+                                            Date</strong>. High confidence duplicates.
                                     </div>
                                 </div>
                                 @if ($loadedDuplicateTabs['exact'])

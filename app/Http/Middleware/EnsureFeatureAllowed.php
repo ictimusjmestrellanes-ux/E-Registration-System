@@ -2,7 +2,6 @@
 
 namespace App\Http\Middleware;
 
-use App\Models\Permission;
 use Closure;
 use Illuminate\Http\Request;
 
@@ -22,15 +21,7 @@ class EnsureFeatureAllowed
             return $next($request);
         }
 
-        $allowed = Permission::where('feature', $feature)
-            ->where('role_name', $user->role_name)
-            ->value('allowed');
-
-        if ($allowed === null) {
-            return $next($request);
-        }
-
-        if (! (bool) $allowed) {
+        if (! feature_allowed($feature)) {
             // Feature disabled for this role — show 404 so the module's
             // existence stays hidden.
             abort(404);

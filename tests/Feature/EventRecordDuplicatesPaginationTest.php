@@ -599,7 +599,7 @@ class EventRecordDuplicatesPaginationTest extends TestCase
         }
     }
 
-    public function test_exact_match_uses_first_last_names_and_event_fields_except_birth_date(): void
+    public function test_exact_match_requires_matching_middle_initial_full_name_and_event_fields(): void
     {
         $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
         $base = [
@@ -610,7 +610,7 @@ class EventRecordDuplicatesPaginationTest extends TestCase
         ];
         $expected = [DB::table('transaction_events')->insertGetId($base)];
         $expected[] = DB::table('transaction_events')->insertGetId(array_replace($base, [
-            'full_name' => '  DELA CRUZ, JUAN B. JR.  ', 'sector' => ' education ',
+            'full_name' => '  DELA CRUZ, JUAN ALFONSO  ', 'sector' => ' education ',
             'client_category' => 'pwd', 'transaction_category' => 'events', 'transaction_type' => 'type',
         ]));
         $expected[] = DB::table('transaction_events')->insertGetId(array_replace($base, ['sector' => 'Health']));
@@ -623,14 +623,40 @@ class EventRecordDuplicatesPaginationTest extends TestCase
         ] as $field => $value) {
             DB::table('transaction_events')->insert(array_replace($base, [$field => $value]));
         }
+        DB::table('transaction_events')->insert(array_replace($base, ['full_name' => 'Juan B. Dela Cruz']));
         DB::table('transaction_events')->insert(array_replace($base, ['full_name' => 'Juan A. Santos']));
 
         $response = $this->get(route('transaction-events.records-duplicates'))->assertOk()
-            ->assertSee('Lastname and Firstname')->assertDontSee('<strong>Sector</strong>', false);
+            ->assertSee('middle initial')->assertDontSee('<strong>Sector</strong>', false);
         $groups = $response->viewData('exactGroups');
         $this->assertSame(1, $groups->total());
         $this->assertSame(4, $response->viewData('exactRecordsTotal'));
         $this->assertSame($expected, $groups->first()['events']->pluck('id')->sort()->values()->all());
+    }
+
+    public function test_matching_middle_initial_and_full_middle_name_pair_is_only_an_exact_match(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+        $event = [
+            'client_category' => 'PWD',
+            'transaction_category' => 'EVENTS',
+            'transaction_type' => 'TYPE-A',
+            'event_date' => '2026-09-01',
+            'transferred_at' => '2026-09-01 12:00:00',
+        ];
+        $expected = [
+            DB::table('transaction_events')->insertGetId(array_merge($event, ['full_name' => 'Maria S. Santos'])),
+            DB::table('transaction_events')->insertGetId(array_merge($event, ['full_name' => 'Maria Sofia Santos'])),
+        ];
+
+        $response = $this->get(route('transaction-events.records-duplicates'))->assertOk();
+        $groups = $response->viewData('exactGroups');
+
+        $this->assertSame(1, $groups->total());
+        $this->assertSame(2, $response->viewData('exactRecordsTotal'));
+        $this->assertSame($expected, $groups->first()['events']->pluck('id')->sort()->values()->all());
+        $this->assertSame(0, $response->viewData('likelyGroups')->total());
+        $this->assertSame(0, $response->viewData('likelyRecordsTotal'));
     }
 
     public function test_match_full_name_uses_only_name_and_excludes_similar_spellings_and_pending_rows(): void

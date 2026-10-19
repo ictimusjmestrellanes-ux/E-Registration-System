@@ -71,7 +71,7 @@
 
         <div class="row">
             <div class="col-xl-3">
-                <div class="card mt-n9 profile-settings-panel" style="height: 300px">
+                <div class="card mt-n9 profile-settings-panel">
                     <div class="card-body p-4">
                         <div class="text-center">
                             @php
@@ -88,36 +88,16 @@
                                     </label>
                                 </div>
                             </div>
-                            <h5 class="fs-16 mb-1">{{ auth()->user()->name ?? 'User' }}</h5>
-                            <p class="text-muted mb-0">{{ auth()->user()->email ?? 'No email provided' }}</p>
+                            <h5 class="fs-16 mb-1" style="text-transform: uppercase;">{{ auth()->user()->name ?? 'User' }}</h5>
+                            <p class="text-muted mb-0" style="text-transform: uppercase;">{{ auth()->user()->email ?? 'No email provided' }}</p>
                             @php
                                 $user = auth()->user();
                             @endphp
-                            <span class="badge bg-primary py-2 px-3 fs-8">{{ $user->role_name ?? '-' }}</span>
+                            <span class="badge bg-primary py-2 px-3 fs-8" style="text-transform: uppercase;">{{ $user->role_name ?? '-' }}</span>
                         </div>
                     </div>
                 </div>
                 <!--end card-->
-
-                <!-- Analog Clock Card -->
-                <div class="card profile-settings-panel">
-                    <div class="card-body p-4">
-                        <h6 class="text-muted text-uppercase fw-semibold mb-3 text-center">
-                            <i class="ri-time-line me-1"></i> Clock
-                        </h6>
-                        <div class="d-flex justify-content-center">
-                            <canvas id="analogClock" width="250" height="250" style="max-width: 100%;"></canvas>
-                        </div>
-                        <div class="text-center mt-3">
-                            <span id="digitalClockDisplay" class="fs-5 fw-semibold text-primary"></span>
-                            <br>
-                            <span id="digitalDateDisplay" class="text-muted small"></span>
-                        </div>
-                    </div>
-                </div>
-                <!--end clock card-->
-
-                
             </div>
             <!--end col-->
             <div class="col-xxl-9">
@@ -145,30 +125,30 @@
                                     <input type="hidden" id="profile-cover-photo-data" name="cover_photo_data" value="">
                                     <div class="row">
                                         <div class="col-lg-6">
-                                            <div class="mb-3">
+                                            <div class="mb-3" style="text-transform: uppercase;">
                                                 <label for="nameInput" class="form-label">Name</label>
-                                                <input type="text" class="form-control" id="nameInput" name="name" placeholder="Enter your name" value="{{ old('name', auth()->user()->name ?? '') }}">
+                                                <input type="text" class="form-control" style="text-transform: uppercase;" id="nameInput" name="name" placeholder="Enter your name" value="{{ old('name', auth()->user()->name ?? '') }}">
                                             </div>
                                         </div>
                                         <!--end col-->
                                         <div class="col-lg-6">
-                                            <div class="mb-3">
+                                            <div class="mb-3" style="text-transform: uppercase;">
                                                 <label for="phoneInput" class="form-label">Phone Number</label>
-                                                <input type="text" class="form-control" id="phoneInput" name="phone_number" placeholder="Enter your phone number" value="{{ old('phone_number', auth()->user()->phone_number ?? '') }}">
+                                                <input type="text" class="form-control" style="text-transform: uppercase;" id="phoneInput" name="phone_number" placeholder="Enter your phone number" value="{{ old('phone_number', auth()->user()->phone_number ?? '') }}">
                                             </div>
                                         </div>
                                         <!--end col-->
                                         <div class="col-lg-12">
-                                            <div class="mb-3">
+                                            <div class="mb-3" style="text-transform: uppercase;">
                                                 <label for="emailInput" class="form-label">Email Address</label>
-                                                <input type="email" class="form-control" id="emailInput" name="email" placeholder="Enter your email" value="{{ old('email', auth()->user()->email ?? '') }}">
+                                                <input type="email" class="form-control" style="text-transform: uppercase;" id="emailInput" name="email" placeholder="Enter your email" value="{{ old('email', auth()->user()->email ?? '') }}" disabled>
                                             </div>
                                         </div>
                                         <!--end col-->
                                         <div class="col-lg-12">
                                             <div class="d-grid gap-2 d-md-flex justify-content-md-end">
                                                 <button type="submit" class="btn btn-sm btn-primary">Update</button>
-                                                <button type="reset" class="btn btn-sm btn-soft-secondary" >Cancel</button>
+                                                <button type="reset" class="btn btn-sm btn-soft-primary" >Cancel</button>
                                             </div>
                                         </div>
                                         <!--end col-->
@@ -221,36 +201,6 @@
                         </div>
                     </div>
                 </div>
-                
-                <!-- Calendar Card -->
-                <div class="card profile-settings-panel">
-                    <div class="card-body p-3" style="height: 335px;">
-                        <h6 class="text-muted text-uppercase fw-semibold mb-3 text-center">
-                            <i class="ri-calendar-line me-1"></i> Calendar
-                        </h6>
-                        <div id="profileCalendar">
-                            <div class="d-flex justify-content-between align-items-center mb-2">
-                                <button type="button" class="btn btn-sm btn-soft-primary" id="calPrevMonth">
-                                    <i class="ri-arrow-left-s-line"></i>
-                                </button>
-                                <span id="calMonthYear" class="fw-semibold"></span>
-                                <button type="button" class="btn btn-sm btn-soft-primary" id="calNextMonth">
-                                    <i class="ri-arrow-right-s-line"></i>
-                                </button>
-                            </div>
-                            <table class="table table-sm table-borderless text-center mb-0" id="calTable">
-                                <thead>
-                                    <tr class="text-muted small">
-                                        <th>Su</th><th>Mo</th><th>Tu</th><th>We</th><th>Th</th><th>Fr</th><th>Sa</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="calBody" style="height: 220px"></tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-                <!--end calendar card-->
-
             </div>
             <!--end col-->
         </div>
@@ -453,14 +403,23 @@
                     td.textContent = d;
                     td.style.cursor = 'default';
                     td.style.borderRadius = '50%';
-                    td.style.padding = '4px 0';
+                    td.style.padding = '20px 0';
 
                     const isToday = d === today.getDate() && month === today.getMonth() && year === today.getFullYear();
                     if (isToday) {
-                        td.style.background = '#405189';
-                        td.style.color = '#fff';
-                        td.style.fontWeight = 'bold';
-                        td.style.borderRadius = '50%';
+                        Object.assign(td.style, {
+                            background: '#0ab39c',
+                            color: '#fff',
+                            fontWeight: 'bold',
+                            borderRadius: '50%',
+                            width: '26px',
+                            height: '26px',
+                            lineHeight: '26px',
+                            padding: '0',
+                            margin: 'auto',
+                            display: 'inline-block',
+                            marginTop: '18px'
+                        });
                     }
 
                     row.appendChild(td);

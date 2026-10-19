@@ -56,7 +56,17 @@ class OAuthUserService
         $user->save();
 
         if ($provider === 'azure') {
-            $this->refreshAzureAvatar($user, (string) $socialiteUser->token);
+            $token = (string) $socialiteUser->token;
+
+            if ($token !== '') {
+                // The profile photo is optional and Microsoft Graph can be
+                // slow or unavailable. Refresh it after the login response
+                // so a successful authentication never waits for an avatar.
+                defer(
+                    fn () => $this->refreshAzureAvatar($user, $token),
+                    'azure-avatar-refresh-'.$user->getKey()
+                );
+            }
         }
 
         return $user;
@@ -67,7 +77,9 @@ class OAuthUserService
         try {
             $response = Http::withHeaders([
                 'Authorization' => 'Bearer ' . $token,
-            ])->get('https://graph.microsoft.com/v1.0/me/photo/$value');
+            ])->connectTimeout(2)
+                ->timeout(5)
+                ->get('https://graph.microsoft.com/v1.0/me/photo/$value');
 
             if (!$response->successful()) {
                 return;

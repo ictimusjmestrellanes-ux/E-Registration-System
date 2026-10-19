@@ -12,3 +12,6 @@ C:\xampp\htdocs\E-Reg-System\fingerprint-bridge\obj\Release\net48\FingerprintBri
 C:\xampp\htdocs\E-Reg-System\fingerprint-bridge\bin\capture-diagnostic\FingerprintBridge.exe.config
 C:\xampp\htdocs\E-Reg-System\fingerprint-bridge\bin\capture-diagnostic\FingerprintBridge.exe
 C:\xampp\htdocs\E-Reg-System\fingerprint-bridge\bin\capture-diagnostic\FingerprintBridge.pdb
+C:\xampp\htdocs\E-Reg-System\fingerprint-bridge\bin\Release\net48\DPUruNet.dll
+C:\xampp\htdocs\E-Reg-System\fingerprint-bridge\bin\Release\net48\DPUruNet.xml
+C:\xampp\htdocs\E-Reg-System\fingerprint-bridge\obj\Release\net48\Fingerpr.836082F7.Up2Date

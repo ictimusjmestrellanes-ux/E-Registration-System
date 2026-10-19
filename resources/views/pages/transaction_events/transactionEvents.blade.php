@@ -3187,9 +3187,9 @@
                         throw new Error(msg);
                     }
 
-                    // Status updates lock matching event/history rows, so keep
-                    // Update Matching Records requests small and predictable.
-                    const CHUNK_SIZE = Number(prepareData.chunk_size || (updateExisting ? 100 : 1000));
+                    // The server batches matching-event/history lookups and
+                    // updates, so every import mode can use 1,000-row chunks.
+                    const CHUNK_SIZE = Number(prepareData.chunk_size || 1000);
                     let offset = 0;
 
                     while (offset < total) {
