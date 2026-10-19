@@ -293,7 +293,8 @@ class ActivityLogsOverviewTest extends TestCase
             ]))
             ->assertOk()
             ->assertViewHas('activities', function ($activities) {
-                return $activities->total() === 1
+                return $activities instanceof \Illuminate\Pagination\Paginator
+                    && $activities->count() === 1
                     && $activities->first()->action === 'event_status_tagged';
             });
 
@@ -305,7 +306,8 @@ class ActivityLogsOverviewTest extends TestCase
             ]))
             ->assertOk()
             ->assertViewHas('activities', function ($activities) {
-                return $activities->total() === 1
+                return $activities instanceof \Illuminate\Pagination\Paginator
+                    && $activities->count() === 1
                     && $activities->first()->action === 'event_status_tagged';
             })
             ->assertSee('Client ID / Full Name')

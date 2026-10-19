@@ -10,6 +10,7 @@ use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -45,13 +46,16 @@ class ActivityLogsController extends Controller
             ->latest()
             ->orderByDesc('id');
 
-        $overviewActions = (clone $baseQuery)
-            ->reorder()
-            ->distinct()
-            ->pluck('action')
-            ->filter()
-            ->sort()
-            ->values();
+        $overviewActions = $this->rememberFilterOptions(
+            "activity-logs:overview-actions:{$authUserId}",
+            fn () => (clone $baseQuery)
+                ->reorder()
+                ->distinct()
+                ->pluck('action')
+                ->filter()
+                ->sort()
+                ->values()
+        );
         $overviewSearch = trim((string) $request->input('overview_search', ''));
         $overviewAction = (string) $request->input('overview_action', '');
 
@@ -168,13 +172,12 @@ class ActivityLogsController extends Controller
             $terms = preg_split('/[\s,]+/u', $search, -1, PREG_SPLIT_NO_EMPTY) ?: [$search];
 
             $activitiesQuery->where(function ($q) use ($search, $terms) {
-                $q->where('description', 'like', "%{$search}%")
-                    ->orWhere('action', 'like', "%{$search}%")
+                $q->where('action', 'like', "%{$search}%")
                     ->orWhere('ip_address', 'like', "%{$search}%")
-                    ->orWhere('properties', 'like', "%{$search}%")
                     // A full name may be split across several audit fields or
                     // stored in a different order, so require every term
-                    // rather than relying only on one contiguous JSON string.
+                    // rather than repeating a contiguous description/JSON
+                    // scan and then scanning the same columns term by term.
                     ->orWhere(function ($logQuery) use ($terms) {
                         foreach ($terms as $term) {
                             $like = "%{$term}%";
@@ -219,25 +222,42 @@ class ActivityLogsController extends Controller
             });
         }
 
-        $filteredTotal = (clone $activitiesQuery)->count();
         $this->applyActivitiesSort($activitiesQuery, $sort, $sortDirection);
-        $activities = $activitiesQuery->paginate(15)->withQueryString();
+        if ($search !== '') {
+            // Counting a broad JSON/relationship search is the expensive part
+            // of this page on large audit tables. Simple pagination retrieves
+            // one extra row to determine whether a next page exists and avoids
+            // a multi-second full count while preserving filtered navigation.
+            $activities = $activitiesQuery->simplePaginate(15)->withQueryString();
+            $filteredTotal = null;
+        } else {
+            $activities = $activitiesQuery->paginate(15)->withQueryString();
+            $filteredTotal = $activities->total();
+        }
+
         $filterOptionsQuery = ActivityLog::query()
             ->when($viewOwnOnly, fn ($query) => $query->where('user_id', $authUserId))
             ->whereNotIn('action', self::HIDDEN_ACTIONS, 'and');
-        $uniqueActions = (clone $filterOptionsQuery)
-            ->distinct()
-            ->pluck('action')
-            ->filter()
-            ->sort()
-            ->values();
-        $filterableUsers = User::query()
-            ->whereIn('id', (clone $filterOptionsQuery)
-                ->select('user_id')
-                ->whereNotNull('user_id', 'and')
-                ->distinct(), 'and', false)
-            ->orderBy('name', 'asc')
-            ->get(['id', 'name', 'email']);
+        $filterScope = $viewOwnOnly ? "user-{$authUserId}" : 'all';
+        $uniqueActions = $this->rememberFilterOptions(
+            "activity-logs:filter-actions:{$filterScope}",
+            fn () => (clone $filterOptionsQuery)
+                ->distinct()
+                ->pluck('action')
+                ->filter()
+                ->sort()
+                ->values()
+        );
+        $filterableUsers = $this->rememberFilterOptions(
+            "activity-logs:filter-users:{$filterScope}",
+            fn () => User::query()
+                ->whereIn('id', (clone $filterOptionsQuery)
+                    ->select('user_id')
+                    ->whereNotNull('user_id', 'and')
+                    ->distinct(), 'and', false)
+                ->orderBy('name', 'asc')
+                ->get(['id', 'name', 'email'])
+        );
         return view('pages.activity_logs.activityLogs', compact(
             'activities',
             'allActivities',
@@ -259,6 +279,18 @@ class ActivityLogsController extends Controller
             'filteredTotal',
             'liveLatestIds'
         ));
+    }
+
+    private function rememberFilterOptions(string $key, callable $resolver)
+    {
+        // Tests rebuild the database between methods, so bypass application
+        // cache there. Production options may lag new action types by at most
+        // one minute, while repeated filtering avoids three full-table scans.
+        if (app()->environment('testing')) {
+            return $resolver();
+        }
+
+        return Cache::remember($key, now()->addMinute(), $resolver);
     }
 
     private function applyActivitiesSort($query, string $sort, string $direction): void

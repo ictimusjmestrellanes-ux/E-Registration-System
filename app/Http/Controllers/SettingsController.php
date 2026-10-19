@@ -6,7 +6,6 @@ use App\Http\Controllers\Traits\HandlesClientStorage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Validation\Rule;
 
 class SettingsController extends Controller
 {
@@ -28,12 +27,6 @@ class SettingsController extends Controller
 
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'email' => [
-                'required',
-                'email',
-                'max:255',
-                Rule::unique('users', 'email')->ignore($user->id),
-            ],
             'phone_number' => ['nullable', 'string', 'max:30'],
             'avatar' => ['nullable', 'image', 'max:2048'],
             'cover_photo_file' => ['nullable', 'image', 'max:4096'],
@@ -42,7 +35,6 @@ class SettingsController extends Controller
         ]);
 
         $user->name = $validated['name'];
-        $user->email = $validated['email'];
         $user->phone_number = $validated['phone_number'] ?? null;
 
         if ($request->hasFile('avatar')) {

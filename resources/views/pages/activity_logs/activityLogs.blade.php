@@ -6,7 +6,10 @@
         $user = auth()->user();
         $profileAvatar = $user?->avatar_url;
         $profileCover = $user?->cover_url ?? asset('assets/images/city-hall1.jpg');
-        $totalLogs = $activities->total();
+        $totalLogs = $filteredTotal;
+        $totalLogsLabel = $totalLogs !== null
+            ? number_format($totalLogs)
+            : number_format($activities->lastItem() ?? 0) . ($activities->hasMorePages() ? '+' : '');
         $todayCount = $todayActivities->count();
         $weeklyCount = $weeklyActivities->count();
         $monthlyCount = $monthlyActivities->count();
@@ -158,7 +161,7 @@
             overflow: hidden;
             border-radius: 20px;
             min-height: 0;
-            aspect-ratio: 2571 / 727;
+            aspect-ratio: 80 / 21;
             background-color: #192452;
             color: #fff;
         }
@@ -176,7 +179,7 @@
             position: absolute;
             inset: 0;
             background-image: url('{{ $profileCover }}');
-            background-size: contain;
+            background-size: cover;
             background-repeat: no-repeat;
             background-position: center;
             opacity: 1;
@@ -331,7 +334,9 @@
                     </li>
                 </ul>
                 <div class="d-flex flex-wrap gap-2">
-                    <div class="badge rounded-pill bg-light text-primary px-3 py-2">{{ $totalLogs }} total logs</div>
+                    <div class="badge rounded-pill bg-light text-primary px-3 py-2">
+                        {{ $totalLogsLabel }} {{ $totalLogs === null ? 'matching logs' : 'total logs' }}
+                    </div>
                     <div class="badge rounded-pill bg-light text-primary px-3 py-2">{{ $todayCount }} today</div>
                 </div>
             </div>
@@ -361,8 +366,9 @@
                                     <table class="table table-borderless mb-0 align-middle">
                                         <tbody>
                                             <tr>
-                                                <th class="ps-0" scope="row">Total Logs :</th>
-                                                <td class="text-muted">{{ $totalLogs }}</td>
+                                                <th class="ps-0" scope="row">
+                                                    {{ $totalLogs === null ? 'Matching Logs' : 'Total Logs' }} :</th>
+                                                <td class="text-muted">{{ $totalLogsLabel }}</td>
                                             </tr>
                                             <tr>
                                                 <th class="ps-0" scope="row">Today :</th>
@@ -485,8 +491,8 @@
                                 <p class="text-muted mb-0">Filter and search through system actions.</p>
                             </div>
                             <div class="badge rounded-pill bg-primary-subtle text-primary px-3 py-2">
-                                Showing {{ $activities->firstItem() ?? 0 }} - {{ $activities->lastItem() ?? 0 }} of
-                                {{ $filteredTotal }}
+                                Showing {{ $activities->firstItem() ?? 0 }} - {{ $activities->lastItem() ?? 0 }}
+                                {{ $filteredTotal === null ? 'matching logs' : 'of ' . number_format($filteredTotal) }}
                             </div>
                         </div>
 

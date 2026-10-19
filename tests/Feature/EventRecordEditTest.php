@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Client;
+use App\Models\Permission;
 use App\Models\TransactionEvent;
 use App\Models\TransactionHistory;
 use App\Models\User;
@@ -207,6 +208,57 @@ class EventRecordEditTest extends TestCase
             ->assertJsonPath('record.event_date_display', 'Oct 14, 2026');
 
         $this->assertSame('Updated Name', $event->fresh()->full_name);
+    }
+
+    public function test_record_name_can_be_saved_when_additional_field_permission_is_denied(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+        Permission::create([
+            'feature' => 'Edit Transaction Event Record Fields',
+            'role_name' => 'Admin',
+            'allowed' => false,
+        ]);
+        $history = TransactionHistory::create([
+            'client_id' => '2600104',
+            'transaction_id' => '2600104-26-0001',
+            'transaction_date' => '2026-10-01',
+            'category' => 'ORIGINAL CATEGORY',
+            'type' => 'ORIGINAL TYPE',
+        ]);
+        $event = TransactionEvent::create([
+            'full_name' => 'Original Name',
+            'age' => 40,
+            'transaction_category' => 'ORIGINAL CATEGORY',
+            'transaction_type' => 'ORIGINAL TYPE',
+            'event_date' => '2026-10-01',
+            'transferred_at' => now(),
+            'transferred_transaction_id' => $history->id,
+        ]);
+
+        $this->get(route('transaction-events.records'))
+            ->assertOk()
+            ->assertSee('id="edit_record_full_name"', false)
+            ->assertDontSee('id="edit_record_age"', false);
+
+        $this->putJson(route('transaction-events.records.update', $event), [
+            'full_name' => 'Updated Name',
+            'age' => 21,
+            'transaction_category' => 'UNAUTHORIZED CHANGE',
+            'transaction_type' => 'UNAUTHORIZED CHANGE',
+            'event_date' => '2026-10-19',
+        ])->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('record.full_name', 'Updated Name');
+
+        $event->refresh();
+        $history->refresh();
+        $this->assertSame('Updated Name', $event->full_name);
+        $this->assertSame(40, $event->age);
+        $this->assertSame('ORIGINAL CATEGORY', $event->transaction_category);
+        $this->assertSame('ORIGINAL TYPE', $event->transaction_type);
+        $this->assertSame('2026-10-01', $event->event_date?->toDateString());
+        $this->assertSame('ORIGINAL CATEGORY', $history->category);
+        $this->assertSame('ORIGINAL TYPE', $history->type);
     }
 
     public function test_invalid_asynchronous_record_changes_return_json_errors(): void

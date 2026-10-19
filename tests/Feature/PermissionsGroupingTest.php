@@ -61,6 +61,7 @@ class PermissionsGroupingTest extends TestCase
                     'Export Transaction Event Records',
                     'Print Payroll Transaction PDF',
                     'Edit Transaction Event Record',
+                    'Edit Transaction Event Record Fields',
                     'Tag Transaction Event Record Status',
                     'Undo Transfer',
                     'View Removed Duplicates',

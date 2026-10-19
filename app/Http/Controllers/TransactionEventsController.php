@@ -648,18 +648,25 @@ class TransactionEventsController extends Controller
         abort_if($event->transferred_at === null, 404);
         $hasLinkedTransaction = filled($event->transferred_transaction_id);
 
-        $validated = $request->validate([
+        $rules = [
             'full_name' => 'required|string|max:150',
-            'contact_no' => 'nullable|string|max:30',
-            'address' => 'nullable|string|max:255',
-            'age' => 'nullable|integer|min:0|max:150',
-            'birth_date' => 'nullable|date',
-            'client_category' => 'nullable|string|max:100',
-            'transaction_category' => ($hasLinkedTransaction ? 'required' : 'nullable').'|string|max:100',
-            'transaction_type' => ($hasLinkedTransaction ? 'required' : 'nullable').'|string|max:100',
-            'event_date' => ($hasLinkedTransaction ? 'required' : 'nullable').'|date',
-            'remarks' => 'nullable|string',
-        ]);
+        ];
+
+        if (feature_allowed('Edit Transaction Event Record Fields')) {
+            $rules = array_merge($rules, [
+                'contact_no' => 'nullable|string|max:30',
+                'address' => 'nullable|string|max:255',
+                'age' => 'nullable|integer|min:0|max:150',
+                'birth_date' => 'nullable|date',
+                'client_category' => 'nullable|string|max:100',
+                'transaction_category' => ($hasLinkedTransaction ? 'required' : 'nullable').'|string|max:100',
+                'transaction_type' => ($hasLinkedTransaction ? 'required' : 'nullable').'|string|max:100',
+                'event_date' => ($hasLinkedTransaction ? 'required' : 'nullable').'|date',
+                'remarks' => 'nullable|string',
+            ]);
+        }
+
+        $validated = $request->validate($rules);
 
         $synchronizedRecordIds = [];
         $updated = DB::transaction(function () use ($event, $validated, &$synchronizedRecordIds): bool {

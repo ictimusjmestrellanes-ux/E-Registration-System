@@ -5,22 +5,35 @@
     <style>
         .profile-setting-img {
             position: relative;
+            height: auto;
             max-height: none;
+            aspect-ratio: 80 / 21;
+            overflow: hidden;
+            border-radius: 20px;
+            background-color: #192452;
         }
 
-        .profile-setting-img::before,
+        .profile-setting-img::before {
+            content: '' !important;
+            display: block !important;
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(180deg, rgba(25, 36, 82, 0.2), rgba(25, 36, 82, 0.36)) !important;
+            z-index: 1;
+            pointer-events: none;
+        }
+
         .profile-setting-img::after {
             content: none !important;
             display: none !important;
-            background: none !important;
         }
 
         .profile-setting-img .profile-wid-img {
             display: block;
             width: 100%;
-            height: auto;
+            height: 100%;
             max-height: none;
-            object-fit: contain;
+            object-fit: cover;
             opacity: 1 !important;
             filter: none !important;
         }
@@ -43,9 +56,37 @@
             backdrop-filter: blur(8px);
             -webkit-backdrop-filter: blur(8px);
         }
+
+        .cover-crop-stage {
+            position: relative;
+            overflow: hidden;
+            aspect-ratio: 80 / 21;
+            background: #1f2937;
+            user-select: none;
+        }
+
+        .cover-crop-stage::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            background-image:
+                linear-gradient(to right, transparent 33.2%, rgba(255, 255, 255, 0.5) 33.2%, rgba(255, 255, 255, 0.5) 33.5%, transparent 33.5%, transparent 66.5%, rgba(255, 255, 255, 0.5) 66.5%, rgba(255, 255, 255, 0.5) 66.8%, transparent 66.8%),
+                linear-gradient(to bottom, transparent 33.2%, rgba(255, 255, 255, 0.5) 33.2%, rgba(255, 255, 255, 0.5) 33.5%, transparent 33.5%, transparent 66.5%, rgba(255, 255, 255, 0.5) 66.5%, rgba(255, 255, 255, 0.5) 66.8%, transparent 66.8%);
+            box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.85);
+        }
+
+        #coverPhotoEditorCanvas {
+            height: 100%;
+            cursor: grab;
+        }
+
+        #coverPhotoEditorCanvas.is-dragging {
+            cursor: grabbing;
+        }
     </style>
     <div class="container-fluid">
-        <div class="position-relative mx-n4 mt-n4">
+        <div class="position-relative mb-4">
             <div class="profile-setting-img">
                 @php
                     $profileCover = auth()->user()?->cover_url ?? asset('assets/images/city-hall1.jpg');
@@ -71,7 +112,7 @@
 
         <div class="row">
             <div class="col-xl-3">
-                <div class="card mt-n9 profile-settings-panel">
+                <div class="card mt-0 profile-settings-panel">
                     <div class="card-body p-4">
                         <div class="text-center">
                             @php
@@ -101,7 +142,7 @@
             </div>
             <!--end col-->
             <div class="col-xxl-9">
-                <div class="card mt-xxl-n9 profile-settings-panel">
+                <div class="card mt-0 profile-settings-panel">
                     <div class="card-header">
                         <ul class="nav nav-tabs-custom rounded card-header-tabs border-bottom-0" role="tablist">
                             <li class="nav-item">
@@ -124,21 +165,21 @@
                                     @method('PUT')
                                     <input type="hidden" id="profile-cover-photo-data" name="cover_photo_data" value="">
                                     <div class="row">
-                                        <div class="col-lg-6">
+                                        <div class="col-lg-4">
                                             <div class="mb-3" style="text-transform: uppercase;">
                                                 <label for="nameInput" class="form-label">Name</label>
                                                 <input type="text" class="form-control" style="text-transform: uppercase;" id="nameInput" name="name" placeholder="Enter your name" value="{{ old('name', auth()->user()->name ?? '') }}">
                                             </div>
                                         </div>
                                         <!--end col-->
-                                        <div class="col-lg-6">
+                                        <div class="col-lg-4">
                                             <div class="mb-3" style="text-transform: uppercase;">
                                                 <label for="phoneInput" class="form-label">Phone Number</label>
                                                 <input type="text" class="form-control" style="text-transform: uppercase;" id="phoneInput" name="phone_number" placeholder="Enter your phone number" value="{{ old('phone_number', auth()->user()->phone_number ?? '') }}">
                                             </div>
                                         </div>
                                         <!--end col-->
-                                        <div class="col-lg-12">
+                                        <div class="col-lg-4">
                                             <div class="mb-3" style="text-transform: uppercase;">
                                                 <label for="emailInput" class="form-label">Email Address</label>
                                                 <input type="email" class="form-control" style="text-transform: uppercase;" id="emailInput" name="email" placeholder="Enter your email" value="{{ old('email', auth()->user()->email ?? '') }}" disabled>
@@ -213,18 +254,19 @@
         <div class="modal-dialog modal-dialog-centered modal-xl">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="coverPhotoEditorModalLabel">Adjust Cover Photo</h5>
+                    <h5 class="modal-title" id="coverPhotoEditorModalLabel">Crop Cover Photo</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
                     <div class="row g-4">
                         <div class="col-lg-8">
-                            <div class="border rounded-3 bg-dark-subtle p-2 overflow-hidden">
-                                <canvas id="coverPhotoEditorCanvas" class="w-100 d-block" style="cursor: move; touch-action: none;"></canvas>
+                            <div class="cover-crop-stage border rounded-3">
+                                <canvas id="coverPhotoEditorCanvas" class="w-100 d-block" style="touch-action: none;"></canvas>
                             </div>
                             <div class="d-flex flex-wrap gap-3 align-items-center mt-3">
                                 <label for="coverPhotoZoomRange" class="form-label mb-0 fw-semibold">Zoom</label>
                                 <input type="range" id="coverPhotoZoomRange" class="form-range flex-grow-1" min="1" max="3" step="0.01" value="1">
+                                <span id="coverPhotoZoomValue" class="text-muted small" style="min-width: 3rem;">100%</span>
                                 <div class="btn-group" role="group" aria-label="Cover move controls">
                                     <button type="button" class="btn btn-soft-secondary" id="coverPhotoMoveUpBtn">
                                         <i class="ri-arrow-up-line"></i>
@@ -235,13 +277,13 @@
                                 </div>
                                 <button type="button" class="btn btn-soft-secondary" id="coverPhotoResetBtn">Reset</button>
                             </div>
-                            <p class="text-muted small mb-0 mt-2">Drag the image to move it. Use the slider to resize the cover before saving. Use the arrows to move it up or down.</p>
+                            <p class="text-muted small mb-0 mt-2">Drag the photo to choose the cropped area. Use the slider to zoom. Everything inside the frame will be saved.</p>
                         </div>
                         <div class="col-lg-4">
                             <div class="card shadow-none border h-100 mb-0">
                                 <div class="card-body">
                                     <h6 class="card-title mb-2">Preview</h6>
-                                    <img id="coverPhotoEditorPreview" src="" alt="Cover preview" class="img-fluid rounded-3 border w-100" style="aspect-ratio: 16 / 5; object-fit: cover;">
+                                    <img id="coverPhotoEditorPreview" src="" alt="Cropped cover preview" class="img-fluid rounded-3 border w-100" style="aspect-ratio: 80 / 21; object-fit: fill;">
                                 </div>
                             </div>
                         </div>
@@ -460,12 +502,13 @@
             const coverEditorCanvas = document.getElementById('coverPhotoEditorCanvas');
             const coverEditorPreview = document.getElementById('coverPhotoEditorPreview');
             const coverZoomRange = document.getElementById('coverPhotoZoomRange');
+            const coverZoomValue = document.getElementById('coverPhotoZoomValue');
             const coverMoveUpBtn = document.getElementById('coverPhotoMoveUpBtn');
             const coverMoveDownBtn = document.getElementById('coverPhotoMoveDownBtn');
             const coverResetBtn = document.getElementById('coverPhotoResetBtn');
             const coverApplyBtn = document.getElementById('coverPhotoApplyBtn');
 
-            if (!coverInput || !coverDataInput || !coverPreview || !coverEditorModalEl || !coverEditorCanvas || !coverEditorPreview || !coverZoomRange || !coverMoveUpBtn || !coverMoveDownBtn || !coverResetBtn || !coverApplyBtn || !window.bootstrap) {
+            if (!coverInput || !coverDataInput || !coverPreview || !coverEditorModalEl || !coverEditorCanvas || !coverEditorPreview || !coverZoomRange || !coverZoomValue || !coverMoveUpBtn || !coverMoveDownBtn || !coverResetBtn || !coverApplyBtn || !window.bootstrap) {
                 return;
             }
 
@@ -491,10 +534,22 @@
                 fitScale: 1,
             };
 
-            const resizeCanvas = () => {
-                coverEditorCanvas.width = baseWidth;
-                coverEditorCanvas.height = baseHeight;
-                redraw();
+            const getDrawSize = () => ({
+                width: state.image.width * state.fitScale * state.scale,
+                height: state.image.height * state.fitScale * state.scale,
+            });
+
+            const constrainOffsets = () => {
+                if (!state.image) {
+                    return;
+                }
+
+                const drawSize = getDrawSize();
+                const maxOffsetX = Math.max(0, (drawSize.width - baseWidth) / 2);
+                const maxOffsetY = Math.max(0, (drawSize.height - baseHeight) / 2);
+
+                state.offsetX = Math.max(-maxOffsetX, Math.min(maxOffsetX, state.offsetX));
+                state.offsetY = Math.max(-maxOffsetY, Math.min(maxOffsetY, state.offsetY));
             };
 
             const redraw = () => {
@@ -503,17 +558,19 @@
                     return;
                 }
 
-                const drawWidth = state.image.width * state.fitScale * state.scale;
-                const drawHeight = state.image.height * state.fitScale * state.scale;
-                const x = (coverEditorCanvas.width - drawWidth) / 2 + state.offsetX;
-                const y = (coverEditorCanvas.height - drawHeight) / 2 + state.offsetY;
+                constrainOffsets();
+
+                const drawSize = getDrawSize();
+                const x = (coverEditorCanvas.width - drawSize.width) / 2 + state.offsetX;
+                const y = (coverEditorCanvas.height - drawSize.height) / 2 + state.offsetY;
 
                 ctx.clearRect(0, 0, coverEditorCanvas.width, coverEditorCanvas.height);
                 ctx.fillStyle = '#1f2937';
                 ctx.fillRect(0, 0, coverEditorCanvas.width, coverEditorCanvas.height);
-                ctx.drawImage(state.image, x, y, drawWidth, drawHeight);
+                ctx.drawImage(state.image, x, y, drawSize.width, drawSize.height);
 
                 coverEditorPreview.src = coverEditorCanvas.toDataURL('image/jpeg', 0.92);
+                coverZoomValue.textContent = `${Math.round(state.scale * 100)}%`;
             };
 
             const resetState = () => {
@@ -559,10 +616,6 @@
                 }
             });
 
-            coverEditorModalEl.addEventListener('shown.bs.modal', function () {
-                resizeCanvas();
-            });
-
             coverZoomRange.addEventListener('input', function () {
                 state.scale = parseFloat(this.value || '1');
                 redraw();
@@ -590,6 +643,7 @@
                 state.dragStartY = event.clientY;
                 state.startOffsetX = state.offsetX;
                 state.startOffsetY = state.offsetY;
+                coverEditorCanvas.classList.add('is-dragging');
                 coverEditorCanvas.setPointerCapture(event.pointerId);
             });
 
@@ -598,13 +652,18 @@
                     return;
                 }
 
-                state.offsetX = state.startOffsetX + (event.clientX - state.dragStartX);
-                state.offsetY = state.startOffsetY + (event.clientY - state.dragStartY);
+                const bounds = coverEditorCanvas.getBoundingClientRect();
+                const scaleX = coverEditorCanvas.width / bounds.width;
+                const scaleY = coverEditorCanvas.height / bounds.height;
+
+                state.offsetX = state.startOffsetX + (event.clientX - state.dragStartX) * scaleX;
+                state.offsetY = state.startOffsetY + (event.clientY - state.dragStartY) * scaleY;
                 redraw();
             });
 
             const endDrag = (event) => {
                 state.dragging = false;
+                coverEditorCanvas.classList.remove('is-dragging');
                 try {
                     coverEditorCanvas.releasePointerCapture(event.pointerId);
                 } catch (error) {
@@ -614,9 +673,6 @@
 
             coverEditorCanvas.addEventListener('pointerup', endDrag);
             coverEditorCanvas.addEventListener('pointercancel', endDrag);
-            coverEditorCanvas.addEventListener('pointerleave', function () {
-                state.dragging = false;
-            });
 
             coverApplyBtn.addEventListener('click', function () {
                 if (!state.image) {
