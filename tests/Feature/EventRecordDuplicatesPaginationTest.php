@@ -219,6 +219,46 @@ class EventRecordDuplicatesPaginationTest extends TestCase
         $this->assertSame(1, $likely->viewData('likelyGroups')->total());
     }
 
+    public function test_full_name_web_request_groups_and_paginates_names_in_sql(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+        $this->app->detectEnvironment(fn () => 'production');
+
+        foreach (range(1, 12) as $group) {
+            foreach ([1, 2] as $copy) {
+                DB::table('transaction_events')->insert([
+                    'full_name' => 'SQL PAGINATED PERSON '.$group,
+                    'client_category' => $copy === 1 ? 'PWD' : 'SENIOR',
+                    'transaction_category' => 'EVENTS',
+                    'transaction_type' => 'TYPE-'.$copy,
+                    'event_date' => '2026-09-20',
+                    'transferred_at' => '2026-09-20 12:00:00',
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+        }
+
+        DB::enableQueryLog();
+        DB::flushQueryLog();
+        $response = $this->get(route('transaction-events.records-duplicates', [
+            'duplicate_tab' => 'full_name',
+            'per_page' => 10,
+        ]))->assertOk();
+        $queries = collect(DB::getQueryLog())->pluck('query');
+        DB::disableQueryLog();
+
+        $this->assertSame(12, $response->viewData('similarGroups')->total());
+        $this->assertCount(10, $response->viewData('similarGroups'));
+        $this->assertTrue($queries->contains(
+            fn (string $query) => str_contains($query, 'duplicate_full_name_groups')
+        ));
+        $this->assertFalse($queries->contains(
+            fn (string $query) => str_contains($query, 'group by')
+                && str_contains($query, "COALESCE(DATE(transaction_events.event_date),'')")
+        ), 'The Full Name tab must not materialize the full exact-match aggregation.');
+    }
+
     public function test_records_inside_each_duplicate_group_have_sortable_columns(): void
     {
         $this->actingAs(User::factory()->create(['role_name' => 'Admin']));

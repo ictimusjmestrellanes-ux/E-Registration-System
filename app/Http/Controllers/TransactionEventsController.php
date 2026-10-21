@@ -1635,9 +1635,9 @@ class TransactionEventsController extends Controller
     }
 
     /**
-     * One shared aggregation for Exact Match and Full Name: transferred (and
-     * pre-filtered) rows grouped by the full normalized duplicate key.
-     * Both tabs regroup these rows in PHP.
+     * Aggregate Exact Match candidates: transferred (and pre-filtered) rows
+     * grouped by the full normalized duplicate key. Exact matching then
+     * combines compatible middle-initial/full-middle identities in PHP.
      *
      * @return Collection<int, object>
      */
@@ -1865,6 +1865,86 @@ class TransactionEventsController extends Controller
     }
 
     /**
+     * Paginate Full Name duplicate groups in SQL.
+     *
+     * The previous implementation first grouped every eligible event by all
+     * duplicate fields, copied the complete result set into PHP, and only then
+     * collapsed and paginated it by name. On a large live data set that cold
+     * request can exceed the web server gateway timeout. The database can
+     * reduce the same data to one row per normalized name before Laravel reads
+     * anything, so only the requested page is hydrated into models.
+     */
+    private function paginatedFullNameRecordDuplicateGroups(Request $request, int $perPage): array
+    {
+        $normalizedName = $this->recordDuplicateNormalizedExpression('transaction_events.full_name');
+        $unlinkedClient = "duplicate_history.client_id IS NULL OR TRIM(duplicate_history.client_id) = ''";
+        $linkedClient = "NULLIF(TRIM(duplicate_history.client_id), '')";
+        $grouped = DB::table('transaction_events')
+            ->leftJoin(
+                'transaction_history as duplicate_history',
+                'duplicate_history.id',
+                '=',
+                'transaction_events.transferred_transaction_id'
+            )
+            ->whereNotNull('transaction_events.transferred_at')
+            ->where('transaction_events.not_duplicate', false)
+            ->whereNull('transaction_events.duplicate_merged_at');
+        $this->applyRecordDuplicatePrefilters($grouped, $request, 'transaction_events.');
+        $grouped->selectRaw("{$normalizedName} as fullname")
+            ->selectRaw('COUNT(*) as total, MIN(transaction_events.id) as group_id')
+            ->selectRaw("COUNT(DISTINCT {$linkedClient}) as linked_client_count")
+            ->selectRaw("SUM(CASE WHEN {$unlinkedClient} THEN 1 ELSE 0 END) as unlinked_count")
+            ->groupBy(DB::raw($normalizedName))
+            ->havingRaw('COUNT(*) > 1')
+            ->havingRaw(
+                "(SUM(CASE WHEN {$unlinkedClient} THEN 1 ELSE 0 END) > 0 "
+                ."OR COUNT(DISTINCT {$linkedClient}) <> 1)"
+            );
+
+        $summary = DB::query()
+            ->fromSub(clone $grouped, 'duplicate_full_name_groups')
+            ->selectRaw('COUNT(*) as groups_total, COALESCE(SUM(total), 0) as records_total')
+            ->first();
+        $groupsTotal = (int) ($summary->groups_total ?? 0);
+        $recordsTotal = (int) ($summary->records_total ?? 0);
+        $page = max(1, (int) $request->input('similar_page', 1));
+        $descriptors = (clone $grouped)
+            ->orderByDesc('total')
+            ->orderBy('group_id')
+            ->forPage($page, $perPage)
+            ->get();
+
+        $groups = collect();
+        if ($descriptors->isNotEmpty()) {
+            $groupIdsByName = $descriptors->mapWithKeys(
+                fn ($descriptor) => [(string) $descriptor->fullname => (int) $descriptor->group_id]
+            );
+            $events = TransactionEvent::query()
+                ->whereNotNull('transferred_at')
+                ->where('not_duplicate', false)
+                ->whereNull('duplicate_merged_at')
+                ->whereIn(DB::raw($this->recordDuplicateNormalizedExpression('full_name')), $groupIdsByName->keys()->all())
+                ->select('transaction_events.*')
+                ->selectRaw($this->recordDuplicateNormalizedExpression('full_name').' as duplicate_fullname');
+            $this->applyRecordDuplicatePrefilters($events, $request);
+            $events = $events->with('transferredTransaction:id,client_id,transaction_id')
+                ->orderByDesc('transaction_events.id')
+                ->get()
+                ->groupBy(fn ($event) => $groupIdsByName->get((string) $event->duplicate_fullname, 'unmatched'));
+            $groups = $descriptors->map(fn ($descriptor) => [
+                'events' => $events->get((int) $descriptor->group_id, collect())->unique('id')->values(),
+                'total' => (int) $descriptor->total,
+            ]);
+        }
+
+        return [new LengthAwarePaginator($groups, $groupsTotal, $perPage, $page, [
+            'path' => url()->current(),
+            'query' => array_merge($request->query(), ['duplicate_tab' => 'full_name']),
+            'pageName' => 'similar_page',
+        ]), $recordsTotal];
+    }
+
+    /**
      * Group records when one name uses a middle initial and another uses a
      * matching full middle name, provided at least one nonblank event date,
      * transaction type, or client category also matches.
@@ -2040,20 +2120,21 @@ class TransactionEventsController extends Controller
             // Exact match is: identical normalized names or matching
             // middle-initial/full-middle names, plus Client Category +
             // Transaction Category + Transaction Type + Event Date.
-            // Exact Match and Full Name share an aggregation, but each web
-            // request materializes only the tab the user is viewing.
-            if ($loadAllTabs || in_array($activeTab, ['exact', 'full_name'], true)) {
+            // Exact Match needs the detailed duplicate keys for its name
+            // parsing rules. Full Name uses its own SQL-paginated aggregation.
+            if ($loadAllTabs || $activeTab === 'exact') {
                 $duplicateKeyRows = $this->recordDuplicateKeyRows($request);
                 if ($loadAllTabs || $activeTab === 'exact') {
                     [$exactGroups, $exactRecordsTotal] = $this->paginatedRecordDuplicateGroups($duplicateKeyRows, [
                         'exact' => ['event_date', 'client_category', 'transaction_category', 'transaction_type'],
                     ], $request, $perPage, 'exact_page');
                 }
-                if ($loadAllTabs || $activeTab === 'full_name') {
-                    [$similarGroups, $similarRecordsTotal] = $this->paginatedRecordDuplicateGroups($duplicateKeyRows, [
-                        'full_name' => [],
-                    ], $request, $perPage, 'similar_page');
-                }
+            }
+            if ($loadAllTabs || $activeTab === 'full_name') {
+                [$similarGroups, $similarRecordsTotal] = $this->paginatedFullNameRecordDuplicateGroups(
+                    $request,
+                    $perPage
+                );
             }
             if ($loadAllTabs || $activeTab === 'likely') {
                 [$likelyGroups, $likelyRecordsTotal] = $this->likelyRecordGroups($request, $perPage);
@@ -2118,7 +2199,7 @@ class TransactionEventsController extends Controller
             sort($cacheFilters['transaction_category']);
             sort($cacheFilters['transaction_type']);
             sort($cacheFilters['status']);
-            $cacheKey = 'transaction-events:duplicate-records:v7:'.hash('sha256', json_encode([
+            $cacheKey = 'transaction-events:duplicate-records:v8:'.hash('sha256', json_encode([
                 'state' => $state,
                 'filters' => $cacheFilters,
             ]));
