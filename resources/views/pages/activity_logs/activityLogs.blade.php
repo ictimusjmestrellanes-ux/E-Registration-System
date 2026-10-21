@@ -333,7 +333,7 @@
                             href="#overview-tab" role="tab">Overview</a>
                     </li>
                 </ul>
-                <div class="d-flex flex-wrap gap-2">
+                <div class="d-flex flex-wrap gap-2" id="activityLogsSummary">
                     <div class="badge rounded-pill bg-light text-primary px-3 py-2">
                         {{ $totalLogsLabel }} {{ $totalLogs === null ? 'matching logs' : 'total logs' }}
                     </div>
@@ -490,7 +490,8 @@
                                 <h5 class="card-title mb-1">All Activity Logs</h5>
                                 <p class="text-muted mb-0">Filter and search through system actions.</p>
                             </div>
-                            <div class="badge rounded-pill bg-primary-subtle text-primary px-3 py-2">
+                            <div class="badge rounded-pill bg-primary-subtle text-primary px-3 py-2"
+                                id="activityLogsResultsSummary">
                                 Showing {{ $activities->firstItem() ?? 0 }} - {{ $activities->lastItem() ?? 0 }}
                                 {{ $filteredTotal === null ? 'matching logs' : 'of ' . number_format($filteredTotal) }}
                             </div>
@@ -604,7 +605,7 @@
                                         </th>
                                     </tr>
                                 </thead>
-                                <tbody>
+                                <tbody id="activityLogsTableBody">
                                     @forelse ($activities as $activity)
                                         @php
                                             [$label, $badgeClass] = $actionMeta(
@@ -667,7 +668,7 @@
                             </table>
                         </div>
 
-                        <div class="d-flex justify-content-end mt-3">
+                        <div class="d-flex justify-content-end mt-3" id="activityLogsPagination">
                             {{ $activities->links('pagination::bootstrap-5') }}
                         </div>
                     </div>
@@ -691,36 +692,11 @@
             };
             let filtersDirty = false;
             let polling = false;
+            let refreshing = false;
             let timer = null;
 
             const activeScope = () => document.getElementById('activities-tab')?.classList.contains('show') ?
                 'activities' : 'overview';
-
-            const rememberActiveTabs = () => {
-                const top = document.querySelector('.activity-hero-tabs .nav-link.active')?.getAttribute(
-                'href');
-                const recent = document.querySelector('.activity-tabs .nav-link.active')?.getAttribute('href');
-                sessionStorage.setItem('activityLogsLiveTabs', JSON.stringify({
-                    top,
-                    recent
-                }));
-            };
-
-            const restoreActiveTabs = () => {
-                let saved = null;
-                try {
-                    saved = JSON.parse(sessionStorage.getItem('activityLogsLiveTabs') || 'null');
-                } catch (error) {
-                    saved = null;
-                }
-                sessionStorage.removeItem('activityLogsLiveTabs');
-                [saved?.top, saved?.recent].filter(Boolean).forEach(selector => {
-                    const trigger = document.querySelector(
-                        `a[data-bs-toggle="tab"][href="${selector}"]`);
-                    if (trigger && window.bootstrap?.Tab) bootstrap.Tab.getOrCreateInstance(trigger)
-                        .show();
-                });
-            };
 
             const onFirstPage = (scope) => {
                 const url = new URL(window.location.href);
@@ -730,16 +706,90 @@
             };
 
             const showNotice = () => notice.classList.replace('d-none', 'd-flex');
+            const hideNotice = () => notice.classList.replace('d-flex', 'd-none');
 
-            const refresh = () => {
-                rememberActiveTabs();
-                window.location.reload();
+            const bindFilterTracking = () => {
+                document.querySelectorAll(
+                        '#activityLogsLive form input, #activityLogsLive form select, #activityLogsLive form textarea')
+                    .forEach(control => {
+                        if (control.dataset.liveDirtyBound === 'true') return;
+                        control.dataset.liveDirtyBound = 'true';
+                        control.addEventListener('input', () => {
+                            filtersDirty = true;
+                        });
+                        control.addEventListener('change', () => {
+                            filtersDirty = true;
+                        });
+                    });
             };
 
-            const handleNewLogs = (scope) => {
-                if (onFirstPage(scope) && !filtersDirty && !document.hidden) {
-                    refresh();
+            const refreshScope = async (scope, targetUrl = window.location.href, updateHistory = false) => {
+                if (refreshing) return false;
+                refreshing = true;
+
+                const recentTab = scope === 'overview' ?
+                    document.querySelector('.activity-tabs .nav-link.active')?.getAttribute('href') : null;
+
+                try {
+                    const response = await fetch(targetUrl, {
+                        headers: {
+                            'Accept': 'text/html',
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                        cache: 'no-store',
+                    });
+                    if (!response.ok) return false;
+
+                    const nextDocument = new DOMParser().parseFromString(await response.text(), 'text/html');
+                    const currentPanel = document.getElementById(`${scope}-tab`);
+                    const nextPanel = nextDocument.getElementById(`${scope}-tab`);
+                    const nextRoot = nextDocument.getElementById('activityLogsLive');
+                    if (!currentPanel || !nextPanel || !nextRoot) return false;
+
+                    if (scope === 'activities') {
+                        const replacePanelSection = (id) => {
+                            const currentSection = currentPanel.querySelector(`#${id}`);
+                            const nextSection = nextPanel.querySelector(`#${id}`);
+                            if (currentSection && nextSection) currentSection.innerHTML = nextSection.innerHTML;
+                        };
+                        replacePanelSection('activityLogsResultsSummary');
+                        replacePanelSection('activityLogsTableBody');
+                        replacePanelSection('activityLogsPagination');
+                    } else {
+                        currentPanel.innerHTML = nextPanel.innerHTML;
+                    }
+
+                    const currentSummary = document.getElementById('activityLogsSummary');
+                    const nextSummary = nextDocument.getElementById('activityLogsSummary');
+                    if (currentSummary && nextSummary) currentSummary.innerHTML = nextSummary.innerHTML;
+
+                    const latestKey = `${scope}LatestId`;
+                    latestIds[scope] = Number(nextRoot.dataset[latestKey]) || latestIds[scope];
+                    liveRoot.dataset[latestKey] = String(latestIds[scope]);
+
+                    if (recentTab) {
+                        const trigger = currentPanel.querySelector(
+                            `.activity-tabs a[data-bs-toggle="tab"][href="${recentTab}"]`);
+                        if (trigger && window.bootstrap?.Tab) {
+                            bootstrap.Tab.getOrCreateInstance(trigger).show();
+                        }
+                    }
+
+                    if (updateHistory) window.history.replaceState({}, '', targetUrl);
+                    filtersDirty = false;
+                    hideNotice();
+                    bindFilterTracking();
                     return true;
+                } catch (error) {
+                    return false;
+                } finally {
+                    refreshing = false;
+                }
+            };
+
+            const handleNewLogs = async (scope) => {
+                if (onFirstPage(scope) && !filtersDirty && !document.hidden) {
+                    if (await refreshScope(scope)) return true;
                 }
                 showNotice();
                 return false;
@@ -759,7 +809,7 @@
                     const state = await response.json();
                     const scope = activeScope();
                     const newestId = Number(state[`${scope}_latest_id`]) || 0;
-                    if (newestId > latestIds[scope] && handleNewLogs(scope)) return;
+                    if (newestId > latestIds[scope] && await handleNewLogs(scope)) return;
                 } catch (error) {
                     // A temporary polling failure should not disrupt the page.
                 } finally {
@@ -767,29 +817,21 @@
                 }
             };
 
-            document.querySelectorAll(
-                    '#activityLogsLive form input, #activityLogsLive form select, #activityLogsLive form textarea')
-                .forEach(control => {
-                    control.addEventListener('input', () => {
-                        filtersDirty = true;
-                    });
-                    control.addEventListener('change', () => {
-                        filtersDirty = true;
-                    });
-                });
+            bindFilterTracking();
 
-            showNewest.addEventListener('click', () => {
+            showNewest.addEventListener('click', async () => {
+                const scope = activeScope();
                 const url = new URL(window.location.href);
-                url.searchParams.delete(activeScope() === 'activities' ? 'page' : 'overview_page');
-                rememberActiveTabs();
-                window.location.assign(url.toString());
+                url.searchParams.delete(scope === 'activities' ? 'page' : 'overview_page');
+                showNewest.disabled = true;
+                if (!await refreshScope(scope, url.toString(), true)) showNotice();
+                showNewest.disabled = false;
             });
 
             document.addEventListener('visibilitychange', () => {
                 if (!document.hidden) poll();
             });
 
-            restoreActiveTabs();
             timer = window.setInterval(poll, 5000);
             window.addEventListener('beforeunload', () => window.clearInterval(timer), {
                 once: true

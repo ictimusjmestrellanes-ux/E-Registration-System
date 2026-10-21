@@ -233,6 +233,9 @@ class ActivityLogsOverviewTest extends TestCase
             ->assertOk()
             ->assertSee('id="activityLogsLive"', false)
             ->assertSee('data-live-url="'.route('activity.logs.live-state').'"', false)
+            ->assertSee("replacePanelSection('activityLogsTableBody');", false)
+            ->assertDontSee('window.location.reload();', false)
+            ->assertDontSee('window.location.assign(url.toString());', false)
             ->assertSee('New activity logs are available.');
         $this->getJson(route('activity.logs.live-state'))
             ->assertOk()
