@@ -6,10 +6,12 @@ use App\Models\ActivityLog;
 use App\Models\Client;
 use App\Models\TransactionEvent;
 use App\Models\User;
+use App\Services\EventRecordsPayrollXlsxExporter;
 use DOMDocument;
 use DOMXPath;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
 use Tests\TestCase;
 use ZipArchive;
 
@@ -71,7 +73,9 @@ class EventRecordsPayrollXlsxTest extends TestCase
 
         $this->get(route('transaction-events.records'))
             ->assertOk()
-            ->assertSee('<input type="date" class="form-control" id="recordPdfDate" name="report_date">', false);
+            ->assertSee('<input type="date" class="form-control" id="recordPdfDate" name="report_date">', false)
+            ->assertSee('id="recordPdfTranche1"', false)
+            ->assertSee('id="recordPdfTranche4"', false);
     }
 
     public function test_payroll_excel_uses_filters_report_details_and_printable_layout(): void
@@ -88,12 +92,17 @@ class EventRecordsPayrollXlsxTest extends TestCase
             'created_at' => now(),
             'updated_at' => now(),
         ]);
-        $this->event(['full_name' => 'ABAD, ANGELO', 'event_date' => '2026-03-10']);
+        $this->event([
+            'full_name' => 'ABAD, ANGELO',
+            'event_date' => '2026-03-10',
+            'transaction_type' => 'TRANCHE 2',
+        ]);
         $this->event([
             'transferred_transaction_id' => $historyId,
             'client_category' => 'SOLO PARENTS',
+            'transaction_type' => 'C/O List',
         ]);
-        $this->event(['full_name' => 'ABAD ARTJAY REYES']);
+        $this->event(['full_name' => 'ABAD ARTJAY REYES', 'transaction_type' => 'TRANCHE 4']);
         $this->event(['full_name' => 'OTHER, CLIENT', 'client_category' => 'PWD']);
 
         [$sheet, $workbook, $styles] = $this->workbookParts($this->get(route('transaction-events.records.payroll-xlsx', [
@@ -116,10 +125,12 @@ class EventRecordsPayrollXlsxTest extends TestCase
         $this->assertSame('FEMALE', $this->cell($xpath, 'E4'));
         $this->assertSame('SOLO PARENT', $this->cell($xpath, 'G4'));
         $this->assertSame('FOOD ASSISTANCE', $this->cell($xpath, 'H4'));
-        $this->assertSame('1', $this->cell($xpath, 'I4'));
+        $this->assertSame('CLAIMED', $this->cell($xpath, 'I4'));
         $this->assertSame('', $this->cell($xpath, 'J4'));
         $this->assertSame('1', $this->cell($xpath, 'K4'));
         $this->assertSame('', $this->cell($xpath, 'L4'));
+        $this->assertSame('CLAIMED', $this->cell($xpath, 'J5'));
+        $this->assertSame('CLAIMED', $this->cell($xpath, 'L6'));
         $this->assertStringNotContainsString('OTHER, CLIENT', $sheet);
         $this->assertStringContainsString('Payroll Officer', $sheet);
         $this->assertStringContainsString('Supervisor', $sheet);
@@ -130,9 +141,13 @@ class EventRecordsPayrollXlsxTest extends TestCase
         $this->assertSame('14', $xpath->evaluate('string(//x:pageSetup/@paperSize)'));
         $this->assertSame('0', $xpath->evaluate('string(//x:pageMargins/@bottom)'));
         $this->assertSame('5', $xpath->evaluate('string(//x:c[@r="A4"]/@s)'));
-        $this->assertSame('8', $xpath->evaluate('string(//x:c[@r="I4"]/@s)'));
+        $this->assertSame('5', $xpath->evaluate('string(//x:c[@r="I4"]/@s)'));
         $this->assertSame('8', $xpath->evaluate('string(//x:c[@r="K4"]/@s)'));
         $this->assertStringContainsString('<sz val="7"/>', $styles);
+        $this->assertStringContainsString(
+            '<alignment horizontal="left" vertical="bottom" wrapText="1"/>',
+            $styles
+        );
         $this->assertStringNotContainsString('_xlnm.Print_Titles', $workbook);
         $log = ActivityLog::where('action', 'payroll_xlsx_exported')->sole();
         $this->assertSame(3, $log->properties['record_count']);
@@ -168,5 +183,40 @@ class EventRecordsPayrollXlsxTest extends TestCase
         $this->assertSame('25', $xpath->evaluate('string(//x:rowBreaks/x:brk/@id)'));
         $this->assertSame('1', $xpath->evaluate('string(//x:rowBreaks/@manualBreakCount)'));
         $this->assertSame('2', $xpath->evaluate('string(//x:pageSetup/@fitToHeight)'));
+    }
+
+    public function test_large_payroll_is_split_before_excel_page_break_limit(): void
+    {
+        $events = collect(range(1, 21))->map(fn ($number) => new TransactionEvent([
+            'full_name' => sprintf('PERSON, %02d', $number),
+            'transaction_category' => 'BIGAY BIGAS SA MASA',
+        ]));
+        $directory = storage_path('framework/testing/payroll-xlsx');
+        File::ensureDirectoryExists($directory);
+        $path = (new EventRecordsPayrollXlsxExporter(
+            maxPagesPerSheet: 1,
+            temporaryDirectory: $directory
+        ))->render($events, true, '', []);
+
+        try {
+            $zip = new ZipArchive;
+            $this->assertTrue($zip->open($path));
+            $sheet1 = $zip->getFromName('xl/worksheets/sheet1.xml');
+            $sheet2 = $zip->getFromName('xl/worksheets/sheet2.xml');
+            $workbook = $zip->getFromName('xl/workbook.xml');
+            $relationships = $zip->getFromName('xl/_rels/workbook.xml.rels');
+            $contentTypes = $zip->getFromName('[Content_Types].xml');
+            $zip->close();
+
+            $this->assertNotFalse($sheet1);
+            $this->assertNotFalse($sheet2);
+            $this->assertStringContainsString('name="Payroll 2" sheetId="2" r:id="rId2"', $workbook);
+            $this->assertStringContainsString('Target="worksheets/sheet2.xml"', $relationships);
+            $this->assertStringContainsString('PartName="/xl/worksheets/sheet2.xml"', $contentTypes);
+            $this->assertSame('1', $this->xpath($sheet1)->evaluate('string(//x:pageSetup/@fitToHeight)'));
+            $this->assertSame('21', $this->cell($this->xpath($sheet2), 'A4'));
+        } finally {
+            @unlink($path);
+        }
     }
 }

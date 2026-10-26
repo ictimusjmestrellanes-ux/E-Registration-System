@@ -772,18 +772,25 @@
                         <input type="text" class="form-control" id="recordPdfApproved" name="approved_by"
                             maxlength="100" placeholder="ALEX L. ADVINCULA">
                     </div>
+                    <div class="alert alert-info mt-3 mb-0 small">
+                        The payroll automatically places <strong>CLAIMED</strong> in the matching signature tranche
+                        column based on each record's transaction type.
+                    </div>
                     <fieldset class="mt-3">
                         <legend class="fs-6">Number signature columns</legend>
-                        <p class="text-muted small">Select the tranches that should display each beneficiary's row number.
-                            Unselected columns stay blank.</p>
-                        @foreach ([1 => '1st', 2 => '2nd', 3 => '3rd', 4 => '4th'] as $tranche => $label)
-                            <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="checkbox" id="recordPdfTranche{{ $tranche }}"
-                                    name="numbered_tranches" value="{{ $tranche }}">
-                                <label class="form-check-label"
-                                    for="recordPdfTranche{{ $tranche }}">{{ $label }} tranche</label>
-                            </div>
-                        @endforeach
+                        <p class="text-muted small">Select the tranches that should also display each beneficiary's row
+                            number. The automatic CLAIMED tag remains visible in its matching tranche.</p>
+                        <div class="d-flex flex-nowrap justify-content-between gap-2 overflow-auto pb-1">
+                            @foreach ([1 => '1st', 2 => '2nd', 3 => '3rd', 4 => '4th'] as $tranche => $label)
+                                <div class="form-check mb-0 text-nowrap flex-shrink-0">
+                                    <input class="form-check-input" type="checkbox"
+                                        id="recordPdfTranche{{ $tranche }}" name="numbered_tranches"
+                                        value="{{ $tranche }}">
+                                    <label class="form-check-label"
+                                        for="recordPdfTranche{{ $tranche }}">{{ $label }} TRANCHE</label>
+                                </div>
+                            @endforeach
+                        </div>
                     </fieldset>
                     <div id="recordPayrollExcelError" class="alert alert-danger d-none mt-3 mb-0" role="alert"></div>
                 </div>

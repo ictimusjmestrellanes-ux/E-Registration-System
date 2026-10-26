@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\EventDuplicateName;
 use App\Support\ImportName;
 use App\Support\PayrollCategory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -34,6 +35,9 @@ class TransactionEvent extends Model
         'transferred_transaction_id',
         'not_duplicate',
         'duplicate_merged_at',
+        'duplicate_person_key',
+        'duplicate_middle_is_initial',
+        'duplicate_name_parsed',
     ];
 
     protected $casts = [
@@ -44,6 +48,8 @@ class TransactionEvent extends Model
         'age' => 'integer',
         'not_duplicate' => 'boolean',
         'duplicate_merged_at' => 'datetime',
+        'duplicate_middle_is_initial' => 'boolean',
+        'duplicate_name_parsed' => 'boolean',
     ];
 
     protected $attributes = [
@@ -73,6 +79,7 @@ class TransactionEvent extends Model
 
             if ($event->isDirty('full_name') || $event->display_name_sort === null) {
                 $event->display_name_sort = mb_strtolower(ImportName::format((string) $event->full_name));
+                $event->forceFill(EventDuplicateName::attributes((string) $event->full_name));
             }
 
             if ($event->isDirty('client_category') || $event->payroll_category === null) {

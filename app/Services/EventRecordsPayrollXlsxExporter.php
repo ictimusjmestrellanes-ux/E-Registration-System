@@ -2,33 +2,63 @@
 
 namespace App\Services;
 
+use App\Support\PayrollClaimedTranche;
 use Illuminate\Support\Collection;
 use RuntimeException;
 use ZipArchive;
 
 class EventRecordsPayrollXlsxExporter
 {
+    private const RECORDS_PER_PAGE = 20;
+
+    // Excel allows at most 1,026 horizontal manual page breaks per worksheet.
+    private const MAX_PAGES_PER_SHEET = 1000;
+
+    public function __construct(
+        private readonly int $maxPagesPerSheet = self::MAX_PAGES_PER_SHEET,
+        private readonly ?string $temporaryDirectory = null
+    ) {}
+
     /**
      * Create a printable payroll workbook and return its temporary file path.
      */
     public function render(Collection $events, bool $isRice, string $dateLabel, array $details): string
     {
-        $sheetPath = tempnam(sys_get_temp_dir(), 'payroll_sheet_');
-        $zipPath = tempnam(sys_get_temp_dir(), 'payroll_xlsx_');
-        if ($sheetPath === false || $zipPath === false) {
+        $temporaryDirectory = $this->temporaryDirectory ?? sys_get_temp_dir();
+        $zipPath = tempnam($temporaryDirectory, 'payroll_xlsx_');
+        if ($zipPath === false) {
             throw new RuntimeException('Unable to create a temporary payroll file.');
         }
+        $sheetPaths = [];
 
         try {
-            $sheet = fopen($sheetPath, 'wb');
-            if ($sheet === false) {
-                throw new RuntimeException('Unable to write the payroll worksheet.');
-            }
+            $recordsPerSheet = max(1, $this->maxPagesPerSheet) * self::RECORDS_PER_PAGE;
+            $worksheets = $events->isEmpty() ? collect([collect()]) : $events->chunk($recordsPerSheet);
 
-            try {
-                $this->writeSheet($sheet, $events, $isRice, $dateLabel, $details);
-            } finally {
-                fclose($sheet);
+            foreach ($worksheets as $sheetIndex => $sheetEvents) {
+                $sheetPath = tempnam($temporaryDirectory, 'payroll_sheet_');
+                if ($sheetPath === false) {
+                    throw new RuntimeException('Unable to create a temporary payroll worksheet.');
+                }
+                $sheetPaths[] = $sheetPath;
+
+                $sheet = fopen($sheetPath, 'wb');
+                if ($sheet === false) {
+                    throw new RuntimeException('Unable to write the payroll worksheet.');
+                }
+
+                try {
+                    $this->writeSheet(
+                        $sheet,
+                        $sheetEvents,
+                        $isRice,
+                        $dateLabel,
+                        $details,
+                        $sheetIndex * $recordsPerSheet
+                    );
+                } finally {
+                    fclose($sheet);
+                }
             }
 
             $zip = new ZipArchive;
@@ -37,11 +67,14 @@ class EventRecordsPayrollXlsxExporter
             }
 
             try {
-                $zip->addFile($sheetPath, 'xl/worksheets/sheet1.xml');
-                $zip->addFromString('[Content_Types].xml', $this->contentTypes());
+                foreach ($sheetPaths as $sheetIndex => $sheetPath) {
+                    $zip->addFile($sheetPath, 'xl/worksheets/sheet'.($sheetIndex + 1).'.xml');
+                }
+                $sheetCount = count($sheetPaths);
+                $zip->addFromString('[Content_Types].xml', $this->contentTypes($sheetCount));
                 $zip->addFromString('_rels/.rels', $this->packageRelationships());
-                $zip->addFromString('xl/workbook.xml', $this->workbook());
-                $zip->addFromString('xl/_rels/workbook.xml.rels', $this->workbookRelationships());
+                $zip->addFromString('xl/workbook.xml', $this->workbook($sheetCount));
+                $zip->addFromString('xl/_rels/workbook.xml.rels', $this->workbookRelationships($sheetCount));
                 $zip->addFromString('xl/styles.xml', $this->styles());
             } finally {
                 $zip->close();
@@ -52,11 +85,20 @@ class EventRecordsPayrollXlsxExporter
             @unlink($zipPath);
             throw $exception;
         } finally {
-            @unlink($sheetPath);
+            foreach ($sheetPaths as $sheetPath) {
+                @unlink($sheetPath);
+            }
         }
     }
 
-    private function writeSheet($sheet, Collection $events, bool $isRice, string $dateLabel, array $details): void
+    private function writeSheet(
+        $sheet,
+        Collection $events,
+        bool $isRice,
+        string $dateLabel,
+        array $details,
+        int $recordOffset = 0
+    ): void
     {
         fwrite($sheet, '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
             .'<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
@@ -76,9 +118,9 @@ class EventRecordsPayrollXlsxExporter
             ? 'ASSISTANCE TO INDIGENT INDIVIDUALS OR FAMILIES - FOOD ASSISTANCE / RICE DISTRIBUTION PROJECT'
             : 'EVENT RECORDS - ASSISTANCE DISTRIBUTION';
         $selectedTranches = array_map('intval', $details['numbered_tranches'] ?? []);
-        $pages = $events->isEmpty() ? collect([collect()]) : $events->chunk(20);
+        $pages = $events->isEmpty() ? collect([collect()]) : $events->chunk(self::RECORDS_PER_PAGE);
         $rowNumber = 1;
-        $recordNumber = 0;
+        $recordNumber = $recordOffset;
         $merges = [];
         $breaks = [];
 
@@ -100,6 +142,24 @@ class EventRecordsPayrollXlsxExporter
             foreach ($pageEvents as $event) {
                 $number = ++$recordNumber;
                 $category = mb_strtoupper(trim((string) $event->transaction_category));
+                $claimedTranches = $event->getAttribute('payroll_claimed_tranches');
+                if (! is_array($claimedTranches)) {
+                    $claimedTranche = PayrollClaimedTranche::fromTransactionType($event->transaction_type);
+                    $claimedTranches = $claimedTranche === null ? [] : [$claimedTranche];
+                }
+                $numberOnlySignatureColumns = [];
+                foreach (range(1, 4) as $tranche) {
+                    if (in_array($tranche, $selectedTranches, true) && ! in_array($tranche, $claimedTranches, true)) {
+                        $numberOnlySignatureColumns[] = 8 + $tranche;
+                    }
+                }
+                $signatureValue = static function (int $tranche) use ($claimedTranches, $number, $selectedTranches): string {
+                    if (in_array($tranche, $claimedTranches, true)) {
+                        return 'CLAIMED';
+                    }
+
+                    return in_array($tranche, $selectedTranches, true) ? (string) $number : '';
+                };
                 $this->row($sheet, $rowNumber++, [
                     $number,
                     '',
@@ -109,11 +169,11 @@ class EventRecordsPayrollXlsxExporter
                     $event->age,
                     mb_strtoupper((string) ($event->payroll_category ?? '')),
                     $category === 'BIGAY BIGAS SA MASA' ? 'FOOD ASSISTANCE' : $category,
-                    in_array(1, $selectedTranches, true) ? $number : '',
-                    in_array(2, $selectedTranches, true) ? $number : '',
-                    in_array(3, $selectedTranches, true) ? $number : '',
-                    in_array(4, $selectedTranches, true) ? $number : '',
-                ], 4, 28, [1, 5, 6], [9, 10, 11, 12]);
+                    $signatureValue(1),
+                    $signatureValue(2),
+                    $signatureValue(3),
+                    $signatureValue(4),
+                ], 4, 28, [1, 5, 6, 9, 10, 11, 12], $numberOnlySignatureColumns);
             }
 
             if ($pageEvents->isEmpty()) {
@@ -206,14 +266,19 @@ class EventRecordsPayrollXlsxExporter
         return htmlspecialchars(preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F]/', '', $value), ENT_XML1 | ENT_QUOTES, 'UTF-8');
     }
 
-    private function contentTypes(): string
+    private function contentTypes(int $sheetCount): string
     {
+        $worksheets = '';
+        foreach (range(1, $sheetCount) as $sheetNumber) {
+            $worksheets .= '<Override PartName="/xl/worksheets/sheet'.$sheetNumber.'.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>';
+        }
+
         return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
             .'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
             .'<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
             .'<Default Extension="xml" ContentType="application/xml"/>'
             .'<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
-            .'<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+            .$worksheets
             .'<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'
             .'</Types>';
     }
@@ -226,20 +291,31 @@ class EventRecordsPayrollXlsxExporter
             .'</Relationships>';
     }
 
-    private function workbook(): string
+    private function workbook(int $sheetCount): string
     {
+        $sheets = '';
+        foreach (range(1, $sheetCount) as $sheetNumber) {
+            $name = $sheetNumber === 1 ? 'Payroll' : 'Payroll '.$sheetNumber;
+            $sheets .= '<sheet name="'.$name.'" sheetId="'.$sheetNumber.'" r:id="rId'.$sheetNumber.'"/>';
+        }
+
         return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
             .'<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
-            .'<sheets><sheet name="Payroll" sheetId="1" r:id="rId1"/></sheets>'
+            .'<sheets>'.$sheets.'</sheets>'
             .'</workbook>';
     }
 
-    private function workbookRelationships(): string
+    private function workbookRelationships(int $sheetCount): string
     {
+        $relationships = '';
+        foreach (range(1, $sheetCount) as $sheetNumber) {
+            $relationships .= '<Relationship Id="rId'.$sheetNumber.'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet'.$sheetNumber.'.xml"/>';
+        }
+
         return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
             .'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
-            .'<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'
-            .'<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
+            .$relationships
+            .'<Relationship Id="rId'.($sheetCount + 1).'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
             .'</Relationships>';
     }
 
@@ -264,7 +340,7 @@ class EventRecordsPayrollXlsxExporter
             .'<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>'
             .'<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
             .'<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/>'
-            .'<xf numFmtId="0" fontId="3" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1"><alignment horizontal="left" vertical="center"/></xf>'
+            .'<xf numFmtId="0" fontId="3" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1"><alignment horizontal="left" vertical="bottom" wrapText="1"/></xf>'
             .'</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>'
             .'</styleSheet>';
     }

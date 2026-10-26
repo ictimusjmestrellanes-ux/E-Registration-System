@@ -1288,8 +1288,82 @@
                 syncLabel();
             };
 
-            let duplicateRecordsRequest;
+            let duplicateRecordsLoadSequence = 0;
+            let duplicateRecordsPrefetchScheduled = false;
+            const duplicateRecordsFragments = new Map();
+            const duplicateRecordsRequests = new Map();
             const duplicatePageKeys = ['exact_page', 'likely_page', 'similar_page', 'page'];
+
+            const duplicateRecordsTabUrl = (tabName) => {
+                const url = new URL(window.location.href);
+                url.searchParams.set('duplicate_tab', tabName);
+                duplicatePageKeys.forEach(key => url.searchParams.delete(key));
+
+                return url;
+            };
+
+            const requestDuplicateRecordsFragment = (targetUrl) => {
+                const url = new URL(targetUrl, window.location.href);
+                const key = url.href;
+                if (duplicateRecordsFragments.has(key)) {
+                    return Promise.resolve(duplicateRecordsFragments.get(key));
+                }
+                if (duplicateRecordsRequests.has(key)) {
+                    return duplicateRecordsRequests.get(key);
+                }
+
+                const request = fetch(url, {
+                    credentials: 'same-origin',
+                    headers: {
+                        'Accept': 'text/html',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                }).then(async response => {
+                    if (!response.ok) throw new Error(`Refresh failed (${response.status})`);
+                    const html = (await response.text()).trim();
+                    const template = document.createElement('template');
+                    template.innerHTML = html;
+                    if (!template.content.querySelector('#duplicateRecordsContent')) {
+                        throw new Error('Duplicate records fragment was not returned.');
+                    }
+                    duplicateRecordsFragments.set(key, html);
+
+                    return html;
+                }).finally(() => duplicateRecordsRequests.delete(key));
+
+                duplicateRecordsRequests.set(key, request);
+
+                return request;
+            };
+
+            const prefetchDuplicateRecordsTabs = () => {
+                if (duplicateRecordsPrefetchScheduled) return;
+                duplicateRecordsPrefetchScheduled = true;
+
+                const run = async () => {
+                    duplicateRecordsPrefetchScheduled = false;
+                    const tabs = Array.from(document.querySelectorAll(
+                        '#duplicateRecordsContent [data-duplicate-tab][data-loaded="0"]'
+                    ));
+                    await Promise.all(tabs.map(async tab => {
+                        try {
+                            await requestDuplicateRecordsFragment(
+                                duplicateRecordsTabUrl(tab.dataset.duplicateTab)
+                            );
+                        } catch (error) {
+                            // A foreground click retries failed prefetches and
+                            // retains the existing full-page fallback.
+                            console.debug('Duplicate tab prefetch failed.', error);
+                        }
+                    }));
+                };
+
+                if ('requestIdleCallback' in window) {
+                    window.requestIdleCallback(run, { timeout: 500 });
+                } else {
+                    window.setTimeout(run, 100);
+                }
+            };
 
             const loadDuplicateRecords = async (targetUrl, pushState = true) => {
                 const currentContent = document.getElementById('duplicateRecordsContent');
@@ -1297,36 +1371,29 @@
                     window.location.assign(targetUrl);
                     return;
                 }
-                duplicateRecordsRequest?.abort();
-                duplicateRecordsRequest = new AbortController();
+                const loadSequence = ++duplicateRecordsLoadSequence;
+                const url = new URL(targetUrl, window.location.href);
                 currentContent.setAttribute('aria-busy', 'true');
                 currentContent.classList.add('opacity-50');
                 currentContent.style.pointerEvents = 'none';
 
                 try {
-                    const response = await fetch(targetUrl, {
-                        credentials: 'same-origin',
-                        headers: {
-                            'Accept': 'text/html',
-                            'X-Requested-With': 'XMLHttpRequest',
-                        },
-                        signal: duplicateRecordsRequest.signal,
-                    });
-                    if (!response.ok) throw new Error(`Refresh failed (${response.status})`);
+                    const html = await requestDuplicateRecordsFragment(url);
+                    if (loadSequence !== duplicateRecordsLoadSequence) return;
                     const template = document.createElement('template');
-                    template.innerHTML = (await response.text()).trim();
+                    template.innerHTML = html;
                     const replacement = template.content.querySelector('#duplicateRecordsContent');
-                    if (!replacement) throw new Error('Duplicate records fragment was not returned.');
 
                     currentContent.replaceWith(replacement);
-                    if (pushState) window.history.pushState({}, '', targetUrl);
+                    if (pushState) window.history.pushState({}, '', url);
                     initializeDuplicateRecordsControls();
                     window.wireDropdownSearch?.(replacement);
                 } catch (error) {
-                    if (error.name === 'AbortError') return;
+                    if (loadSequence !== duplicateRecordsLoadSequence) return;
                     console.error(error);
-                    window.location.assign(targetUrl);
+                    window.location.assign(url);
                 } finally {
+                    if (loadSequence !== duplicateRecordsLoadSequence) return;
                     const content = document.getElementById('duplicateRecordsContent');
                     content?.removeAttribute('aria-busy');
                     content?.classList.remove('opacity-50');
@@ -1348,10 +1415,7 @@
 
                         event.preventDefault();
                         event.stopImmediatePropagation();
-                        const url = new URL(window.location.href);
-                        url.searchParams.set('duplicate_tab', tab.dataset.duplicateTab);
-                        duplicatePageKeys.forEach(key => url.searchParams.delete(key));
-                        loadDuplicateRecords(url);
+                        loadDuplicateRecords(duplicateRecordsTabUrl(tab.dataset.duplicateTab));
                     });
                     tab.addEventListener('shown.bs.tab', () => {
                         const selectedTab = tab.dataset.duplicateTab;
@@ -1403,6 +1467,11 @@
                         `#duplicateRecordsContent a[data-bs-toggle="tab"][href="${initialHash}"]`);
                     if (tabTrigger) bootstrap.Tab.getOrCreateInstance(tabTrigger).show();
                 }
+
+                // Build the other two tab responses while the user reads the
+                // current tab. Subsequent tab clicks then use memory instead of
+                // waiting for another full duplicate scan and network round trip.
+                prefetchDuplicateRecordsTabs();
             };
 
             document.addEventListener('submit', event => {

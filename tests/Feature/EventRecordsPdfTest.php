@@ -3,9 +3,11 @@
 namespace Tests\Feature;
 
 use App\Models\ActivityLog;
+use App\Models\Client;
 use App\Models\TransactionEvent;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\View;
 use Tests\TestCase;
 
@@ -55,6 +57,51 @@ class EventRecordsPdfTest extends TestCase
             ->assertOk()->assertHeader('Content-Type', 'application/pdf');
     }
 
+    public function test_pdf_merges_records_with_the_same_client_id_into_one_row(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+        Client::create([
+            'client_id' => 'C1',
+            'first_name' => 'Ana',
+            'last_name' => 'Able',
+            'gender' => 'Female',
+        ]);
+        foreach (['SIR ALLEN', 'TRANCHE 2'] as $index => $type) {
+            $historyId = DB::table('transaction_history')->insertGetId([
+                'transaction_id' => 'C1-26-000'.($index + 1),
+                'client_id' => 'C1',
+                'transaction_date' => '2026-10-23',
+                'category' => 'BIGAY BIGAS SA MASA',
+                'type' => $type,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+            TransactionEvent::create([
+                'full_name' => 'ABLE, ANA',
+                'transaction_category' => 'BIGAY BIGAS SA MASA',
+                'transaction_type' => $type,
+                'event_date' => '2026-10-23',
+                'transferred_at' => now(),
+                'transferred_transaction_id' => $historyId,
+            ]);
+        }
+
+        $data = null;
+        View::composer('pages.transaction_events.recordsPdf', function ($view) use (&$data) {
+            $data = $view->getData();
+        });
+
+        $this->get(route('transaction-events.records.export-pdf'))->assertOk();
+
+        $this->assertCount(1, $data['events']);
+        $this->assertSame([1, 2], $data['events']->first()->payroll_claimed_tranches);
+        $this->assertSame('FEMALE', mb_strtoupper($data['events']->first()->export_sex));
+        $this->assertDatabaseHas('activity_logs', [
+            'action' => 'payroll_pdf_exported',
+            'description' => 'Printed payroll PDF for 1 Event Record(s).',
+        ]);
+    }
+
     public function test_pdf_client_category_column_displays_payroll_category(): void
     {
         $event = TransactionEvent::create([
@@ -75,26 +122,73 @@ class EventRecordsPdfTest extends TestCase
         $this->assertStringNotContainsString('>TODA<', $html);
     }
 
-    public function test_only_selected_signature_columns_are_numbered_across_pages(): void
+    public function test_claimed_tag_is_placed_in_the_signature_column_for_each_transaction_type(): void
     {
-        $events = collect(range(1, 21))->map(fn () => new TransactionEvent(['full_name' => 'BENEFICIARY']));
-        foreach ([[], [2, 4], [1, 2, 3, 4]] as $selected) {
-            $html = view('pages.transaction_events.recordsPdf', [
-                'events' => $events, 'isRice' => true, 'dateLabel' => '', 'rowOffset' => 100,
-                'details' => ['numbered_tranches' => $selected],
-            ])->render();
-            $document = new \DOMDocument();
-            @$document->loadHTML($html);
-            $rows = (new \DOMXPath($document))->query('//tbody/tr');
-            $this->assertCount(40, $rows);
-            foreach ($rows as $index => $row) {
-                $cells = $row->getElementsByTagName('td');
-                for ($tranche = 1; $tranche <= 4; $tranche++) {
-                    $expected = $index < 21 && in_array($tranche, $selected) ? (string) (101 + $index) : '';
-                    $this->assertSame($expected, trim($cells->item(7 + $tranche)->textContent));
-                }
+        $types = [
+            'C/O List' => 1,
+            'CLAIMED - TRANCHE 1' => 1,
+            'SIR ALLEN' => 1,
+            'TRANCHE 1' => 1,
+            'TRANCHE 2' => 2,
+            'TRANCHE 3' => 3,
+            'TRANCHE 4' => 4,
+            'OTHER' => null,
+        ];
+        $events = collect(array_keys($types))->map(fn ($type) => new TransactionEvent([
+            'full_name' => 'BENEFICIARY',
+            'transaction_type' => $type,
+        ]));
+
+        $html = view('pages.transaction_events.recordsPdf', [
+            'events' => $events, 'isRice' => true, 'dateLabel' => '', 'rowOffset' => 100,
+        ])->render();
+        $document = new \DOMDocument();
+        @$document->loadHTML($html);
+        $rows = (new \DOMXPath($document))->query('//tbody/tr');
+        $this->assertCount(20, $rows);
+        foreach (array_values($types) as $index => $claimedTranche) {
+            $cells = $rows->item($index)->getElementsByTagName('td');
+            for ($tranche = 1; $tranche <= 4; $tranche++) {
+                $expected = $claimedTranche === $tranche ? 'CLAIMED' : '';
+                $this->assertSame($expected, trim($cells->item(7 + $tranche)->textContent));
             }
         }
+    }
+
+    public function test_selected_signature_columns_keep_the_row_number_alongside_claimed_tags(): void
+    {
+        $events = collect(range(1, 21))->map(fn ($number) => new TransactionEvent([
+            'full_name' => 'BENEFICIARY',
+            'transaction_type' => $number === 1 ? 'TRANCHE 2' : null,
+        ]));
+        $html = view('pages.transaction_events.recordsPdf', [
+            'events' => $events,
+            'isRice' => true,
+            'dateLabel' => '',
+            'rowOffset' => 100,
+            'details' => ['numbered_tranches' => [2, 4]],
+        ])->render();
+        $document = new \DOMDocument();
+        @$document->loadHTML($html);
+        $rows = (new \DOMXPath($document))->query('//tbody/tr');
+
+        $this->assertCount(40, $rows);
+        $firstCells = $rows->item(0)->getElementsByTagName('td');
+        $this->assertSame('CLAIMED', trim($firstCells->item(9)->textContent));
+        $this->assertSame('signature-cell', $firstCells->item(9)->getAttribute('class'));
+        $this->assertCount(0, $firstCells->item(9)->getElementsByTagName('span'));
+        $this->assertStringContainsString(
+            '.signature-number { position: absolute; left: 2px; bottom: 1px; font-size: 7px;',
+            $html
+        );
+        $this->assertSame('101', trim($firstCells->item(11)->textContent));
+        $this->assertSame(
+            'signature-number',
+            $firstCells->item(11)->getElementsByTagName('span')->item(0)->getAttribute('class')
+        );
+        $lastRecordCells = $rows->item(20)->getElementsByTagName('td');
+        $this->assertSame('121', trim($lastRecordCells->item(9)->textContent));
+        $this->assertSame('121', trim($lastRecordCells->item(11)->textContent));
     }
 
     public function test_invalid_signature_tranche_is_rejected(): void

@@ -219,6 +219,18 @@ class EventRecordDuplicatesPaginationTest extends TestCase
         $this->assertSame(1, $likely->viewData('likelyGroups')->total());
     }
 
+    public function test_inactive_duplicate_tabs_are_prefetched_for_fast_switching(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+
+        $this->get(route('transaction-events.records-duplicates'))
+            ->assertOk()
+            ->assertSee('requestDuplicateRecordsFragment', false)
+            ->assertSee('prefetchDuplicateRecordsTabs', false)
+            ->assertSee('requestIdleCallback', false)
+            ->assertSee('duplicateRecordsFragments', false);
+    }
+
     public function test_full_name_web_request_groups_and_paginates_names_in_sql(): void
     {
         $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
@@ -880,8 +892,9 @@ class EventRecordDuplicatesPaginationTest extends TestCase
         foreach ($likely as $group) {
             $this->assertNotContains($group['events']->pluck('id')->sort()->values()->all(), $exactMemberSets);
         }
-        // Likely Match adds a bounded lookup for its visible records and histories.
-        $this->assertLessThanOrEqual(13, $queries->count(), 'Duplicate queries must not grow with group count.');
+        // Likely Match adds bounded metadata maintenance plus SQL summaries and
+        // a lookup for only its visible records and histories.
+        $this->assertLessThanOrEqual(18, $queries->count(), 'Duplicate queries must not grow with group count.');
     }
 
     public function test_exact_matches_are_excluded_from_likely_tab(): void

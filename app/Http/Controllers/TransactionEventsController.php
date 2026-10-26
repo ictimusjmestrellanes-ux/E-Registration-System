@@ -14,7 +14,9 @@ use App\Services\ActivityLogger;
 use App\Services\EventRecordsPayrollXlsxExporter;
 use App\Services\EventRecordsPdfExporter;
 use App\Services\EventRecordsPdfProcess;
+use App\Services\EventRecordsPayrollRows;
 use App\Services\EventRecordsXlsxProcess;
+use App\Support\EventDuplicateName;
 use App\Support\ImportName;
 use App\Support\PayrollCategory;
 use Carbon\Carbon;
@@ -732,6 +734,9 @@ class TransactionEventsController extends Controller
                         $bulkSharedUpdates['display_name_sort'] = mb_strtolower(
                             ImportName::format((string) $bulkSharedUpdates['full_name'])
                         );
+                        $bulkSharedUpdates += EventDuplicateName::attributes(
+                            (string) $bulkSharedUpdates['full_name']
+                        );
                     }
                     if (array_key_exists('client_category', $bulkSharedUpdates)) {
                         $bulkSharedUpdates['payroll_category'] = PayrollCategory::fromClientCategory(
@@ -1180,15 +1185,6 @@ class TransactionEventsController extends Controller
         $this->applyRecordFilters($query, $request);
         $events = $query->orderByRaw('COALESCE(display_name_sort, LOWER(TRIM(full_name)))')->orderBy('id')->get();
 
-        // Sex is available only through the linked client; never infer it from a name.
-        $histories = TransactionHistory::whereIn('id', $events->pluck('transferred_transaction_id')->filter()->unique())
-            ->pluck('client_id', 'id');
-        $clients = Client::whereIn('client_id', $histories->values()->unique())
-            ->get(['client_id', 'gender'])->keyBy('client_id');
-        foreach ($events as $event) {
-            $event->setAttribute('export_sex', $clients->get($histories->get($event->transferred_transaction_id))?->gender ?? '');
-        }
-
         $categories = $events->pluck('transaction_category')->map(fn ($value) => mb_strtoupper(trim((string) $value)))->unique();
         $selectedCategories = collect($this->multiFilterValues($request, 'transaction_category'))
             ->map(fn ($value) => mb_strtoupper(trim($value)));
@@ -1196,6 +1192,7 @@ class TransactionEventsController extends Controller
         $dates = $events->pluck('event_date')->filter()->map(fn ($date) => $date->format('Y-m-d'))->unique()->sort()->values();
         $dateLabel = $dates->count() === 1 ? $dates->first() : ($dates->count() > 1 ? $dates->first().' to '.$dates->last() : '');
         $dateLabel = $details['report_date'] ?? $dateLabel;
+        $events = app(EventRecordsPayrollRows::class)->merge($events);
 
         if ($request->isMethod('post')) {
             return response()->json(app(EventRecordsPdfProcess::class)
@@ -1239,14 +1236,6 @@ class TransactionEventsController extends Controller
         $this->applyRecordFilters($query, $request);
         $events = $query->orderByRaw('COALESCE(display_name_sort, LOWER(TRIM(full_name)))')->orderBy('id')->get();
 
-        $histories = TransactionHistory::whereIn('id', $events->pluck('transferred_transaction_id')->filter()->unique())
-            ->pluck('client_id', 'id');
-        $clients = Client::whereIn('client_id', $histories->values()->unique())
-            ->get(['client_id', 'gender'])->keyBy('client_id');
-        foreach ($events as $event) {
-            $event->setAttribute('export_sex', $clients->get($histories->get($event->transferred_transaction_id))?->gender ?? '');
-        }
-
         $categories = $events->pluck('transaction_category')->map(fn ($value) => mb_strtoupper(trim((string) $value)))->unique();
         $selectedCategories = collect($this->multiFilterValues($request, 'transaction_category'))
             ->map(fn ($value) => mb_strtoupper(trim($value)));
@@ -1254,6 +1243,7 @@ class TransactionEventsController extends Controller
         $dates = $events->pluck('event_date')->filter()->map(fn ($date) => $date->format('Y-m-d'))->unique()->sort()->values();
         $dateLabel = $dates->count() === 1 ? $dates->first() : ($dates->count() > 1 ? $dates->first().' to '.$dates->last() : '');
         $dateLabel = $details['report_date'] ?? $dateLabel;
+        $events = app(EventRecordsPayrollRows::class)->merge($events);
 
         $path = app(EventRecordsPayrollXlsxExporter::class)
             ->render($events, $isRice, $dateLabel, $details);
@@ -1560,34 +1550,7 @@ class TransactionEventsController extends Controller
      */
     private function recordDuplicateMiddleNameIdentity(string $fullName): ?array
     {
-        $normalize = static fn ($value) => mb_strtolower(
-            preg_replace('/\s+/u', ' ', trim((string) $value)) ?? ''
-        );
-        $name = $this->splitImportFullName($fullName);
-        $firstParts = preg_split('/\s+/u', trim($name['first']), -1, PREG_SPLIT_NO_EMPTY) ?: [];
-        $middle = $normalize($name['middle']);
-
-        if ($middle === '' && count($firstParts) > 1) {
-            $middle = $normalize(array_pop($firstParts));
-        }
-
-        $first = $normalize(implode(' ', $firstParts));
-        $last = $normalize($name['last']);
-        $suffix = $normalize($name['suffix']);
-        $compactMiddle = preg_replace('/[^\p{L}\p{N}]+/u', '', $middle) ?? '';
-
-        if ($first === '' || $last === '') {
-            return null;
-        }
-
-        return [
-            'last' => $last,
-            'first' => $first,
-            'suffix' => $suffix,
-            'middle' => $compactMiddle,
-            'middle_initial' => $compactMiddle === '' ? '' : mb_substr($compactMiddle, 0, 1),
-            'middle_is_initial' => $compactMiddle !== '' && mb_strlen($compactMiddle) === 1,
-        ];
+        return EventDuplicateName::identity($fullName);
     }
 
     /**
@@ -1865,6 +1828,159 @@ class TransactionEventsController extends Controller
     }
 
     /**
+     * Paginate exact duplicate groups entirely in SQL. The persisted person
+     * key combines initial/full-middle variants only when the same event-detail
+     * combination has an initial record; other names retain exact full-name
+     * semantics.
+     */
+    private function paginatedExactRecordDuplicateGroups(Request $request, int $perPage): array
+    {
+        $columns = ['event_date', 'client_category', 'transaction_category', 'transaction_type'];
+        $candidates = DB::table('transaction_events')
+            ->leftJoin(
+                'transaction_history as duplicate_history',
+                'duplicate_history.id',
+                '=',
+                'transaction_events.transferred_transaction_id'
+            )
+            ->whereNotNull('transaction_events.transferred_at')
+            ->where('transaction_events.not_duplicate', false)
+            ->whereNull('transaction_events.duplicate_merged_at');
+        $this->applyRecordDuplicatePrefilters($candidates, $request, 'transaction_events.');
+        $candidates->select([
+            'transaction_events.id',
+            'transaction_events.duplicate_person_key as person_key',
+            'transaction_events.duplicate_middle_is_initial as middle_is_initial',
+            'duplicate_history.client_id as linked_client_id',
+        ])->selectRaw($this->recordDuplicateNormalizedExpression('transaction_events.full_name').' as fullname');
+        foreach ($columns as $column) {
+            $candidates->selectRaw(
+                $this->recordDuplicateNormalizedExpression('transaction_events.'.$column).' as '.$column
+            );
+        }
+
+        $initialVariants = DB::query()->fromSub(clone $candidates, 'initial_candidates')
+            ->whereNotNull('person_key')
+            ->where('middle_is_initial', true)
+            ->select(['person_key', ...$columns])
+            ->groupBy('person_key', ...$columns);
+
+        $driver = DB::connection()->getDriverName();
+        $personKey = $driver === 'sqlite'
+            ? "'person:' || exact_candidates.person_key"
+            : "CONCAT('person:', exact_candidates.person_key)";
+        $fullNameKey = $driver === 'sqlite'
+            ? "'name:' || exact_candidates.fullname"
+            : "CONCAT('name:', exact_candidates.fullname)";
+        $nameKey = "CASE WHEN exact_candidates.person_key IS NOT NULL "
+            .'AND (exact_candidates.middle_is_initial = 1 OR initial_variants.person_key IS NOT NULL) '
+            ."THEN {$personKey} ELSE {$fullNameKey} END";
+
+        $qualifyingVariants = DB::query()->fromSub(clone $candidates, 'exact_candidates')
+            ->leftJoinSub($initialVariants, 'initial_variants', function ($join) use ($columns) {
+                $join->on('initial_variants.person_key', '=', 'exact_candidates.person_key');
+                foreach ($columns as $column) {
+                    $join->on('initial_variants.'.$column, '=', 'exact_candidates.'.$column);
+                }
+            })
+            ->selectRaw($nameKey.' as name_key')
+            ->addSelect(array_map(fn ($column) => 'exact_candidates.'.$column, $columns))
+            ->selectRaw('COUNT(*) as total, MIN(exact_candidates.id) as group_id')
+            ->selectRaw("SUM(CASE WHEN exact_candidates.linked_client_id IS NULL OR TRIM(exact_candidates.linked_client_id) = '' THEN 1 ELSE 0 END) as unlinked_count")
+            ->selectRaw("MIN(NULLIF(TRIM(exact_candidates.linked_client_id), '')) as min_linked_client")
+            ->selectRaw("MAX(NULLIF(TRIM(exact_candidates.linked_client_id), '')) as max_linked_client")
+            ->groupBy(DB::raw($nameKey), ...array_map(fn ($column) => 'exact_candidates.'.$column, $columns))
+            ->havingRaw('COUNT(*) > 1');
+
+        // Match rules identify qualifying detail combinations first, then the
+        // UI displays and paginates once per person/name across those matches.
+        $grouped = DB::query()->fromSub(clone $qualifyingVariants, 'qualifying_variants')
+            ->select('name_key')
+            ->selectRaw('SUM(total) as total, MIN(group_id) as group_id')
+            ->groupBy('name_key')
+            ->havingRaw('SUM(unlinked_count) > 0 OR MIN(min_linked_client) <> MAX(max_linked_client)');
+
+        $summary = DB::query()->fromSub(clone $grouped, 'exact_groups')
+            ->selectRaw('COUNT(*) as groups_total, COALESCE(SUM(total), 0) as records_total')
+            ->first();
+        $groupsTotal = (int) ($summary->groups_total ?? 0);
+        $recordsTotal = (int) ($summary->records_total ?? 0);
+        $page = max(1, (int) $request->input('exact_page', $request->input('page', 1)));
+        $descriptors = (clone $grouped)->orderByDesc('total')->orderBy('group_id')
+            ->forPage($page, $perPage)->get();
+
+        $groups = collect();
+        if ($descriptors->isNotEmpty()) {
+            $descriptorIds = $descriptors->pluck('group_id', 'name_key');
+            $visibleVariants = DB::query()->fromSub(clone $qualifyingVariants, 'visible_variants')
+                ->whereIn('name_key', $descriptors->pluck('name_key')->all())
+                ->get();
+            $personKeys = $descriptors->pluck('name_key')->filter(
+                fn ($key) => str_starts_with((string) $key, 'person:')
+            )->map(fn ($key) => substr((string) $key, 7))->values();
+            $fullNames = $descriptors->pluck('name_key')->filter(
+                fn ($key) => str_starts_with((string) $key, 'name:')
+            )->map(fn ($key) => substr((string) $key, 5))->values();
+
+            $eventsQuery = TransactionEvent::query()
+                ->whereNotNull('transferred_at')
+                ->where('not_duplicate', false)
+                ->whereNull('duplicate_merged_at')
+                ->where(function ($names) use ($personKeys, $fullNames) {
+                    if ($personKeys->isNotEmpty()) {
+                        $names->whereIn('duplicate_person_key', $personKeys->all());
+                    }
+                    if ($fullNames->isNotEmpty()) {
+                        $method = $personKeys->isNotEmpty() ? 'orWhereIn' : 'whereIn';
+                        $names->{$method}(
+                            DB::raw($this->recordDuplicateNormalizedExpression('full_name')),
+                            $fullNames->all()
+                        );
+                    }
+                });
+            $this->applyRecordDuplicatePrefilters($eventsQuery, $request);
+            $events = $eventsQuery->with('transferredTransaction:id,client_id,transaction_id')
+                ->orderByDesc('id')->get();
+
+            $descriptorGroups = $visibleVariants->mapWithKeys(function ($variant) use ($columns, $descriptorIds) {
+                return [json_encode([
+                    (string) $variant->name_key,
+                    ...array_map(fn ($column) => (string) $variant->$column, $columns),
+                ]) => (int) $descriptorIds->get($variant->name_key)];
+            });
+            $normalized = static fn ($value) => mb_strtolower(trim((string) $value));
+            $events = $events->groupBy(function ($event) use ($columns, $descriptorGroups, $normalized) {
+                $values = array_map(function ($column) use ($event, $normalized) {
+                    if ($column === 'event_date') {
+                        return $event->event_date?->format('Y-m-d') ?? '';
+                    }
+
+                    return $normalized($event->$column);
+                }, $columns);
+                if ($event->duplicate_person_key) {
+                    $personDescriptor = json_encode(['person:'.$event->duplicate_person_key, ...$values]);
+                    if ($descriptorGroups->has($personDescriptor)) {
+                        return $descriptorGroups->get($personDescriptor);
+                    }
+                }
+                $nameDescriptor = json_encode(['name:'.$normalized($event->full_name), ...$values]);
+
+                return $descriptorGroups->get($nameDescriptor, 'unmatched');
+            });
+            $groups = $descriptors->map(fn ($descriptor) => [
+                'events' => $events->get((int) $descriptor->group_id, collect())->unique('id')->values(),
+                'total' => (int) $descriptor->total,
+            ]);
+        }
+
+        return [new LengthAwarePaginator($groups, $groupsTotal, $perPage, $page, [
+            'path' => url()->current(),
+            'query' => array_merge($request->query(), ['duplicate_tab' => 'exact']),
+            'pageName' => 'exact_page',
+        ]), $recordsTotal];
+    }
+
+    /**
      * Paginate Full Name duplicate groups in SQL.
      *
      * The previous implementation first grouped every eligible event by all
@@ -1945,13 +2061,40 @@ class TransactionEventsController extends Controller
     }
 
     /**
+     * Backfill metadata only for rows inserted outside the model/import paths.
+     * The migration handles all existing rows once; this normally performs a
+     * fast indexed empty check on web requests.
+     */
+    private function ensureRecordDuplicateNameMetadata(): void
+    {
+        DB::table('transaction_events')
+            ->select('id', 'full_name')
+            ->where('duplicate_name_parsed', false)
+            ->whereNotNull('transferred_at')
+            ->orderBy('id')
+            ->chunkById(1000, function ($events): void {
+                $values = $events->map(fn ($event) => [
+                    'id' => $event->id,
+                    'full_name' => $event->full_name,
+                ] + EventDuplicateName::attributes((string) $event->full_name))->all();
+                if ($values !== []) {
+                    DB::table('transaction_events')->upsert($values, ['id'], [
+                        'duplicate_person_key',
+                        'duplicate_middle_is_initial',
+                        'duplicate_name_parsed',
+                    ]);
+                }
+            });
+    }
+
+    /**
      * Group records when one name uses a middle initial and another uses a
      * matching full middle name, provided at least one nonblank event date,
      * transaction type, or client category also matches.
      */
     private function likelyRecordGroups(Request $request, int $perPage): array
     {
-        $base = DB::table('transaction_events')
+        $candidates = DB::table('transaction_events')
             ->leftJoin(
                 'transaction_history as duplicate_history',
                 'duplicate_history.id',
@@ -1960,123 +2103,110 @@ class TransactionEventsController extends Controller
             )
             ->whereNotNull('transaction_events.transferred_at')
             ->where('transaction_events.not_duplicate', false)
-            ->whereNull('transaction_events.duplicate_merged_at');
-        $this->applyRecordDuplicatePrefilters($base, $request, 'transaction_events.');
-        $rows = $base->get([
+            ->whereNull('transaction_events.duplicate_merged_at')
+            ->whereNotNull('transaction_events.duplicate_person_key');
+        $this->applyRecordDuplicatePrefilters($candidates, $request, 'transaction_events.');
+        $candidates->select([
             'transaction_events.id',
-            'transaction_events.full_name',
-            'transaction_events.event_date',
-            'transaction_events.transaction_category',
-            'transaction_events.transaction_type',
-            'transaction_events.client_category',
+            'transaction_events.duplicate_person_key as person_key',
+            'transaction_events.duplicate_middle_is_initial as middle_is_initial',
             'duplicate_history.client_id as linked_client_id',
-        ]);
-        $normalized = static fn ($value) => mb_strtolower(
-            preg_replace('/\s+/u', ' ', trim((string) $value)) ?? ''
-        );
-        $people = [];
-        foreach ($rows as $row) {
-            $identity = $this->recordDuplicateMiddleNameIdentity((string) $row->full_name);
-            if ($identity === null || $identity['middle'] === '') {
-                continue;
-            }
-            $row->likely_middle = $identity['middle'];
-            $row->likely_middle_initial = $identity['middle_initial'];
-            $row->likely_middle_is_initial = $identity['middle_is_initial'];
-            $people[json_encode([
-                $identity['last'],
-                $identity['first'],
-                $identity['suffix'],
-                $identity['middle_initial'],
-            ])][] = $row;
-        }
+        ])->selectRaw($this->recordDuplicateNormalizedExpression('transaction_events.event_date').' as event_date_key')
+            ->selectRaw($this->recordDuplicateNormalizedExpression('transaction_events.client_category').' as client_category_key')
+            ->selectRaw($this->recordDuplicateNormalizedExpression('transaction_events.transaction_category').' as transaction_category_key')
+            ->selectRaw($this->recordDuplicateNormalizedExpression('transaction_events.transaction_type').' as transaction_type_key');
 
-        $matches = collect();
-        foreach ($people as $personRows) {
-            $directlyMatchedEventIds = [];
-            $matchedFields = [];
-            $initialRows = array_filter($personRows, fn ($row) => $row->likely_middle_is_initial);
-            $fullMiddleRows = array_filter($personRows, fn ($row) => ! $row->likely_middle_is_initial);
-            if ($initialRows === [] || $fullMiddleRows === []) {
-                continue;
-            }
-            foreach (['event_date' => 'Event Date', 'transaction_type' => 'Transaction Type',
-                'client_category' => 'Client Category'] as $field => $label) {
-                $buckets = [[], []];
-                foreach ([$initialRows, $fullMiddleRows] as $side => $sideRows) {
-                    foreach ($sideRows as $row) {
-                        $value = $field === 'event_date'
-                            ? substr(trim((string) $row->$field), 0, 10)
-                            : $normalized($row->$field);
-                        if ($value !== '') {
-                            $buckets[$side][$value][] = (int) $row->id;
-                        }
-                    }
-                }
-                foreach (array_intersect_key($buckets[0], $buckets[1]) as $value => $initialIds) {
-                    $matchedFields[$field] = $label;
-                    foreach ([...$initialIds, ...$buckets[1][$value]] as $eventId) {
-                        $directlyMatchedEventIds[$eventId] = true;
-                    }
-                }
-            }
-            if (count($directlyMatchedEventIds) < 2) {
-                continue;
-            }
+        // One row per person/detail value. MIN/MAX proves the same nonblank
+        // value occurs on both the initial and full-middle sides without
+        // creating a potentially enormous event-to-event self join.
+        $matchingDetail = static function ($source, string $column, array $flags) {
+            return DB::query()->fromSub(clone $source, 'detail_candidates')
+                ->where($column, '<>', '')
+                ->select('person_key')
+                ->selectRaw($flags[0].' as date_match')
+                ->selectRaw($flags[1].' as type_match')
+                ->selectRaw($flags[2].' as category_match')
+                ->groupBy('person_key', $column)
+                ->havingRaw('MIN(CASE WHEN middle_is_initial = 1 THEN 1 ELSE 0 END) = 0')
+                ->havingRaw('MAX(CASE WHEN middle_is_initial = 1 THEN 1 ELSE 0 END) = 1');
+        };
+        $detailMatches = $matchingDetail($candidates, 'event_date_key', [1, 0, 0])
+            ->unionAll($matchingDetail($candidates, 'transaction_type_key', [0, 1, 0]))
+            ->unionAll($matchingDetail($candidates, 'client_category_key', [0, 0, 1]));
+        $matchedPeople = DB::query()->fromSub($detailMatches, 'matching_details')
+            ->select('person_key')
+            ->selectRaw('MAX(date_match) as date_match')
+            ->selectRaw('MAX(type_match) as type_match')
+            ->selectRaw('MAX(category_match) as category_match')
+            ->groupBy('person_key');
 
-            // A matching initial/full-middle pair establishes the likely
-            // identity for the person. Include every record with that same
-            // parsed name and middle initial, even when an individual row's
-            // event details do not directly match the qualifying pair.
-            $matchedRows = collect($personRows);
-            $eventIds = $matchedRows->pluck('id')->map(fn ($id) => (int) $id)->unique()->values()->all();
-            $linkedClientIds = $matchedRows->pluck('linked_client_id')->filter()->unique();
-            $hasUnlinkedClient = $matchedRows->contains(fn ($row) => blank($row->linked_client_id));
-            if (! $hasUnlinkedClient && $linkedClientIds->count() === 1) {
-                continue;
-            }
-            // Exact-only groups belong in Exact Match, not Likely Match.
-            $exactKeys = $matchedRows
-                ->map(function ($row) use ($normalized) {
-                    $identity = $this->recordDuplicateMiddleNameIdentity((string) $row->full_name);
+        $people = DB::query()->fromSub(clone $candidates, 'person_candidates')
+            ->select('person_key')
+            ->selectRaw('COUNT(*) as total, MIN(id) as group_id')
+            ->groupBy('person_key')
+            ->havingRaw('SUM(CASE WHEN middle_is_initial = 1 THEN 1 ELSE 0 END) > 0')
+            ->havingRaw('SUM(CASE WHEN middle_is_initial = 0 THEN 1 ELSE 0 END) > 0')
+            ->havingRaw("SUM(CASE WHEN linked_client_id IS NULL OR TRIM(linked_client_id) = '' THEN 1 ELSE 0 END) > 0 OR COUNT(DISTINCT NULLIF(TRIM(linked_client_id), '')) <> 1");
 
-                    return json_encode([
-                        $identity['first'],
-                        substr(trim((string) $row->event_date), 0, 10),
-                        $normalized($row->client_category),
-                        $normalized($row->transaction_category),
-                        $normalized($row->transaction_type),
-                    ]);
-                })->unique();
-            if ($exactKeys->count() === 1) {
-                continue;
-            }
-            $matches->push([
-                'event_ids' => $eventIds,
-                'total' => count($eventIds),
-                'matched_fields' => array_values($matchedFields),
+        // Exact-only people have just one event-detail combination and belong
+        // in Exact Match. Count combinations in SQL instead of retaining every
+        // event key in PHP.
+        $exactVariants = DB::query()->fromSub(clone $candidates, 'variant_candidates')
+            ->select(['person_key', 'event_date_key', 'client_category_key',
+                'transaction_category_key', 'transaction_type_key'])
+            ->groupBy('person_key', 'event_date_key', 'client_category_key',
+                'transaction_category_key', 'transaction_type_key');
+        $varyingPeople = DB::query()->fromSub($exactVariants, 'exact_variants')
+            ->select('person_key')
+            ->groupBy('person_key')
+            ->havingRaw('COUNT(*) > 1');
+
+        $matches = DB::query()->fromSub($people, 'likely_people')
+            ->joinSub($matchedPeople, 'matched_people', 'matched_people.person_key', '=', 'likely_people.person_key')
+            ->joinSub($varyingPeople, 'varying_people', 'varying_people.person_key', '=', 'likely_people.person_key')
+            ->select([
+                'likely_people.person_key',
+                'likely_people.total',
+                'likely_people.group_id',
+                'matched_people.date_match',
+                'matched_people.type_match',
+                'matched_people.category_match',
             ]);
-        }
-        $matches = $matches->sort(fn ($a, $b) => ($b['total'] <=> $a['total'])
-            ?: (min($a['event_ids']) <=> min($b['event_ids'])))->values();
-        $recordsTotal = $matches->sum('total');
+
+        $summary = DB::query()->fromSub(clone $matches, 'likely_matches')
+            ->selectRaw('COUNT(*) as groups_total, COALESCE(SUM(total), 0) as records_total')
+            ->first();
+        $groupsTotal = (int) ($summary->groups_total ?? 0);
+        $recordsTotal = (int) ($summary->records_total ?? 0);
         $page = max(1, (int) $request->input('likely_page', 1));
-        $visible = $matches->forPage($page, $perPage)->values();
-        $events = $visible->isEmpty() ? collect() : TransactionEvent::query()
-            ->with('transferredTransaction:id,client_id,transaction_id')
-            ->whereIn('id', $visible->flatMap(fn ($group) => $group['event_ids'])->all())
-            ->get()->keyBy('id');
+        $visible = (clone $matches)->orderByDesc('likely_people.total')
+            ->orderBy('likely_people.group_id')->forPage($page, $perPage)->get();
+        $events = collect();
+        if ($visible->isNotEmpty()) {
+            $eventQuery = TransactionEvent::query()
+                ->with('transferredTransaction:id,client_id,transaction_id')
+                ->whereIn('duplicate_person_key', $visible->pluck('person_key')->all());
+            $this->applyRecordDuplicatePrefilters($eventQuery, $request);
+            $events = $eventQuery->whereNotNull('transferred_at')
+                ->where('not_duplicate', false)
+                ->whereNull('duplicate_merged_at')
+                ->orderByDesc('id')->get()->groupBy('duplicate_person_key');
+        }
         $groups = $visible->map(fn ($group) => [
-            'events' => collect($group['event_ids'])->map(fn ($id) => $events->get($id))->filter()->values(),
-            'total' => $group['total'],
-            'matched_fields' => $group['matched_fields'],
+            'events' => $events->get($group->person_key, collect())->unique('id')->values(),
+            'total' => (int) $group->total,
+            'matched_fields' => array_values(array_filter([
+                $group->date_match ? 'Event Date' : null,
+                $group->type_match ? 'Transaction Type' : null,
+                $group->category_match ? 'Client Category' : null,
+            ])),
         ]);
 
-        return [new LengthAwarePaginator($groups, $matches->count(), $perPage, $page, [
+        return [new LengthAwarePaginator($groups, $groupsTotal, $perPage, $page, [
             'path' => url()->current(),
             'query' => array_merge($request->query(), ['duplicate_tab' => 'likely']),
             'pageName' => 'likely_page',
-        ]), (int) $recordsTotal];
+        ]), $recordsTotal];
     }
 
     public function recordsDuplicates(Request $request)
@@ -2117,18 +2247,15 @@ class TransactionEventsController extends Controller
             $likelyRecordsTotal = null;
             $similarRecordsTotal = null;
 
+            if ($loadAllTabs || in_array($activeTab, ['exact', 'likely'], true)) {
+                $this->ensureRecordDuplicateNameMetadata();
+            }
+
             // Exact match is: identical normalized names or matching
             // middle-initial/full-middle names, plus Client Category +
             // Transaction Category + Transaction Type + Event Date.
-            // Exact Match needs the detailed duplicate keys for its name
-            // parsing rules. Full Name uses its own SQL-paginated aggregation.
             if ($loadAllTabs || $activeTab === 'exact') {
-                $duplicateKeyRows = $this->recordDuplicateKeyRows($request);
-                if ($loadAllTabs || $activeTab === 'exact') {
-                    [$exactGroups, $exactRecordsTotal] = $this->paginatedRecordDuplicateGroups($duplicateKeyRows, [
-                        'exact' => ['event_date', 'client_category', 'transaction_category', 'transaction_type'],
-                    ], $request, $perPage, 'exact_page');
-                }
+                [$exactGroups, $exactRecordsTotal] = $this->paginatedExactRecordDuplicateGroups($request, $perPage);
             }
             if ($loadAllTabs || $activeTab === 'full_name') {
                 [$similarGroups, $similarRecordsTotal] = $this->paginatedFullNameRecordDuplicateGroups(
@@ -2199,7 +2326,7 @@ class TransactionEventsController extends Controller
             sort($cacheFilters['transaction_category']);
             sort($cacheFilters['transaction_type']);
             sort($cacheFilters['status']);
-            $cacheKey = 'transaction-events:duplicate-records:v8:'.hash('sha256', json_encode([
+            $cacheKey = 'transaction-events:duplicate-records:v9:'.hash('sha256', json_encode([
                 'state' => $state,
                 'filters' => $cacheFilters,
             ]));
@@ -4455,6 +4582,7 @@ class TransactionEventsController extends Controller
                 $eventRows[] = [
                     'full_name' => $fullName,
                     'display_name_sort' => mb_strtolower(ImportName::format($fullName)),
+                    ...EventDuplicateName::attributes($fullName),
                     'contact_no' => trim((string) ($record['contact_no'] ?? '')),
                     'address' => trim((string) ($record['address'] ?? '')),
                     'age' => isset($record['age']) && $record['age'] !== '' ? (int) $record['age'] : null,
@@ -4578,6 +4706,7 @@ class TransactionEventsController extends Controller
                 $eventRows[] = [
                     'full_name' => $fullName,
                     'display_name_sort' => mb_strtolower(ImportName::format($fullName)),
+                    ...EventDuplicateName::attributes($fullName),
                     'contact_no' => trim((string) ($record['contact_no'] ?? '')),
                     'address' => trim((string) ($record['address'] ?? '')),
                     'age' => isset($record['age']) && $record['age'] !== '' ? (int) $record['age'] : null,
@@ -5523,9 +5652,61 @@ class TransactionEventsController extends Controller
             $perPage = 10;
         }
 
-        $completedMerges = ActivityLog::query()
+        $mergeLogs = ActivityLog::query()
             ->with('user:id,name')
-            ->where('action', 'duplicate_event_clients_merged')
+            ->where('action', 'duplicate_event_clients_merged');
+        $mergeUsers = User::query()
+            ->whereIn('id', (clone $mergeLogs)->select('user_id')->whereNotNull('user_id'))
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        $search = trim((string) $request->input('search', ''));
+        $mergedBy = filter_var($request->input('merged_by'), FILTER_VALIDATE_INT, [
+            'options' => ['min_range' => 1],
+        ]);
+        $normalizeDate = static function ($value): string {
+            $value = trim((string) $value);
+            if (! preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
+                return '';
+            }
+
+            [$year, $month, $day] = array_map('intval', explode('-', $value));
+
+            return checkdate($month, $day, $year) ? $value : '';
+        };
+        $dateFrom = $normalizeDate($request->input('date_from'));
+        $dateTo = $normalizeDate($request->input('date_to'));
+
+        if ($search !== '') {
+            $terms = preg_split('/[\s,]+/u', $search, -1, PREG_SPLIT_NO_EMPTY) ?: [$search];
+            foreach ($terms as $term) {
+                $like = "%{$term}%";
+                $mergeLogs->where(function ($query) use ($like) {
+                    $query->where('description', 'like', $like)
+                        ->orWhere('properties', 'like', $like)
+                        ->orWhereHas('user', fn ($userQuery) => $userQuery
+                            ->where('name', 'like', $like))
+                        ->orWhereHas('subjectClient', function ($clientQuery) use ($like) {
+                            $clientQuery->where('client_id', 'like', $like)
+                                ->orWhere('first_name', 'like', $like)
+                                ->orWhere('middle_name', 'like', $like)
+                                ->orWhere('last_name', 'like', $like)
+                                ->orWhere('suffix', 'like', $like);
+                        });
+                });
+            }
+        }
+        if ($mergedBy !== false) {
+            $mergeLogs->where('user_id', $mergedBy);
+        }
+        if ($dateFrom !== '') {
+            $mergeLogs->whereDate('created_at', '>=', $dateFrom);
+        }
+        if ($dateTo !== '') {
+            $mergeLogs->whereDate('created_at', '<=', $dateTo);
+        }
+
+        $completedMerges = $mergeLogs
             ->orderByDesc('created_at')
             ->orderByDesc('id')
             ->paginate($perPage, ['*'], 'completed_page')
@@ -5540,8 +5721,11 @@ class TransactionEventsController extends Controller
             ->get()
             ->keyBy('client_id');
 
+        $hasMergeFilters = $search !== '' || $mergedBy !== false || $dateFrom !== '' || $dateTo !== '';
+
         return view('pages.transaction_events.mergeDuplicateGroups', compact(
-            'perPage', 'completedMerges', 'completedTargetClients'
+            'perPage', 'completedMerges', 'completedTargetClients', 'mergeUsers',
+            'search', 'mergedBy', 'dateFrom', 'dateTo', 'hasMergeFilters'
         ));
     }
 

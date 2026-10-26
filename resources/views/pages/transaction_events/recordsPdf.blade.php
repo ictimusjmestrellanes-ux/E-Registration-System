@@ -15,6 +15,8 @@
         th { font-size: 7pt; height: 35pt; text-align: center; }
         td { font-size: 6.5pt; height: 19.5pt; line-height: 8pt; vertical-align: middle; }
         .center { text-align: center; }
+        .signature-cell { position: relative; text-align: center; }
+        .signature-number { position: absolute; left: 2px; bottom: 1px; font-size: 7px; line-height: 7px; font-weight: normal; }
         .signoffs { margin-top: 5pt; }
         .signoffs td { border: 0; height: auto; font-size: 8pt; vertical-align: top; padding: 0; }
         .name { margin-top: 12pt; font-weight: bold; }
@@ -39,7 +41,14 @@
             </tr></thead>
             <tbody>
             @forelse ($pageEvents as $event)
-                @php($recordNumber = ($rowOffset ?? 0) + $pageIndex * 20 + $loop->iteration)
+                @php
+                    $recordNumber = ($rowOffset ?? 0) + $pageIndex * 20 + $loop->iteration;
+                    $claimedTranches = $event->getAttribute('payroll_claimed_tranches');
+                    if (! is_array($claimedTranches)) {
+                        $claimedTranche = \App\Support\PayrollClaimedTranche::fromTransactionType($event->transaction_type);
+                        $claimedTranches = $claimedTranche === null ? [] : [$claimedTranche];
+                    }
+                @endphp
                 <tr>
                     <td class="center">{{ $recordNumber }}</td><td></td>
                     <td>{{ mb_strtoupper($event->display_name) }}</td>
@@ -49,7 +58,12 @@
                     <td>{{ mb_strtoupper($event->payroll_category ?? '') }}</td>
                     <td class="center">{{ mb_strtoupper(trim((string) $event->transaction_category)) === 'BIGAY BIGAS SA MASA' ? 'FOOD ASSISTANCE' : mb_strtoupper($event->transaction_category ?? '') }}</td>
                     @for ($tranche = 1; $tranche <= 4; $tranche++)
-                        <td>{{ in_array($tranche, $details['numbered_tranches'] ?? []) ? $recordNumber : '' }}</td>
+                        <td class="signature-cell">
+                            @if (! in_array($tranche, $claimedTranches, true) && in_array($tranche, $details['numbered_tranches'] ?? [], true))
+                                <span class="signature-number">{{ $recordNumber }}</span>
+                            @endif
+                            @if (in_array($tranche, $claimedTranches, true))<strong>CLAIMED</strong>@endif
+                        </td>
                     @endfor
                 </tr>
             @empty

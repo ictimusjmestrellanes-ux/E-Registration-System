@@ -37,7 +37,7 @@
                         <div>
                             <h5 class="card-title mb-1">Completed Merges</h5>
                             <div class="text-muted small">
-                                {{ $completedMerges->total() }} completed client merge group(s)
+                                {{ $completedMerges->total() }} {{ $hasMergeFilters ? 'matching' : 'completed' }} client merge group(s)
                             </div>
                         </div>
                         <select class="form-select form-select-sm w-auto" id="completedMergesPerPage"
@@ -48,6 +48,61 @@
                         </select>
                     </div>
                     <div class="card-body">
+                        <form method="GET"
+                            action="{{ route('transaction-events.records-duplicates.merge-clients.index') }}"
+                            class="border rounded-3 bg-light-subtle p-3 mb-4" id="completedMergeFiltersForm">
+                            <input type="hidden" name="per_page" value="{{ $perPage }}">
+                            <div class="row g-3 align-items-end">
+                                <div class="col-xl-4 col-lg-6">
+                                    <label for="completedMergeSearch" class="form-label">Search merges</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text"><i class="ri-search-line"></i></span>
+                                        <input type="search" class="form-control" id="completedMergeSearch"
+                                            name="search" value="{{ $search }}"
+                                            placeholder="Client name, ID, or transaction ID">
+                                    </div>
+                                </div>
+                                <div class="col-xl-2 col-lg-6">
+                                    <label for="completedMergeUser" class="form-label">Merged by</label>
+                                    <select class="form-select" id="completedMergeUser" name="merged_by">
+                                        <option value="">All users</option>
+                                        @foreach ($mergeUsers as $mergeUser)
+                                            <option value="{{ $mergeUser->id }}" @selected((int) $mergedBy === (int) $mergeUser->id)>
+                                                {{ $mergeUser->name }}
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div class="col-xl-2 col-md-6">
+                                    <label for="completedMergeDateFrom" class="form-label">Merged from</label>
+                                    <input type="date" class="form-control" id="completedMergeDateFrom"
+                                        name="date_from" value="{{ $dateFrom }}">
+                                </div>
+                                <div class="col-xl-2 col-md-6">
+                                    <label for="completedMergeDateTo" class="form-label">Merged to</label>
+                                    <input type="date" class="form-control" id="completedMergeDateTo"
+                                        name="date_to" value="{{ $dateTo }}">
+                                </div>
+                                <div class="col-xl-2 d-flex gap-2">
+                                    <button type="submit" class="btn btn-primary flex-grow-1">
+                                        <i class="ri-filter-3-line me-1"></i> Apply
+                                    </button>
+                                    @if ($hasMergeFilters)
+                                        <a href="{{ route('transaction-events.records-duplicates.merge-clients.index', ['per_page' => $perPage]) }}"
+                                            class="btn btn-light" title="Clear filters">
+                                            <i class="ri-close-line me-1"></i> Clear
+                                        </a>
+                                    @endif
+                                </div>
+                            </div>
+                        </form>
+
+                        @if ($hasMergeFilters)
+                            <div class="alert alert-info py-2 mb-3">
+                                Showing {{ $completedMerges->total() }} completed merge group(s) matching the filters.
+                            </div>
+                        @endif
+
                         @forelse ($completedMerges as $merge)
                             @php
                                 $properties = $merge->properties ?? [];
@@ -149,8 +204,12 @@
                         @empty
                             <div class="text-center py-5">
                                 <i class="ri-history-line display-5 text-muted"></i>
-                                <h5 class="mt-3 mb-1">No completed merges yet</h5>
-                                <p class="text-muted mb-0">Finished client-group merges will be recorded here.</p>
+                                <h5 class="mt-3 mb-1">
+                                    {{ $hasMergeFilters ? 'No completed merges match the filters' : 'No completed merges yet' }}
+                                </h5>
+                                <p class="text-muted mb-0">
+                                    {{ $hasMergeFilters ? 'Try changing or clearing the current filters.' : 'Finished client-group merges will be recorded here.' }}
+                                </p>
                             </div>
                         @endforelse
                     </div>

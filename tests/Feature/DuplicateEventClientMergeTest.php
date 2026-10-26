@@ -53,6 +53,86 @@ class DuplicateEventClientMergeTest extends TestCase
                 && str_contains($merges->previousPageUrl(), 'per_page=10'));
     }
 
+    public function test_completed_merge_groups_can_be_filtered_by_client_user_and_date(): void
+    {
+        $admin = User::factory()->create(['role_name' => 'Admin', 'name' => 'Alpha Administrator']);
+        $otherAdmin = User::factory()->create(['role_name' => 'Admin', 'name' => 'Zulu Administrator']);
+        $this->actingAs($admin);
+
+        $alphaClient = Client::create([
+            'client_id' => '2600101',
+            'first_name' => 'Alpha',
+            'last_name' => 'Target',
+        ]);
+        $zuluClient = Client::create([
+            'client_id' => '2600102',
+            'first_name' => 'Zulu',
+            'last_name' => 'Target',
+        ]);
+        $alphaMerge = ActivityLog::create([
+            'user_id' => $admin->id,
+            'action' => 'duplicate_event_clients_merged',
+            'subject_type' => 'Client',
+            'subject_id' => $alphaClient->id,
+            'description' => 'Completed selected duplicate client merge.',
+            'properties' => [
+                'target_client_id' => $alphaClient->client_id,
+                'source_client_ids' => ['SRC-ALPHA'],
+                'event_ids' => [101, 102],
+                'transaction_id_changes' => [['old' => 'OLD-ALPHA', 'new' => 'NEW-ALPHA']],
+            ],
+        ]);
+        $alphaMerge->forceFill([
+            'created_at' => '2026-10-05 09:00:00',
+            'updated_at' => '2026-10-05 09:00:00',
+        ])->saveQuietly();
+        $zuluMerge = ActivityLog::create([
+            'user_id' => $otherAdmin->id,
+            'action' => 'duplicate_event_clients_merged',
+            'subject_type' => 'Client',
+            'subject_id' => $zuluClient->id,
+            'description' => 'Completed selected duplicate client merge.',
+            'properties' => [
+                'target_client_id' => $zuluClient->client_id,
+                'source_client_ids' => ['SRC-ZULU'],
+                'event_ids' => [201, 202],
+                'transaction_id_changes' => [['old' => 'OLD-ZULU', 'new' => 'NEW-ZULU']],
+            ],
+        ]);
+        $zuluMerge->forceFill([
+            'created_at' => '2026-10-15 09:00:00',
+            'updated_at' => '2026-10-15 09:00:00',
+        ])->saveQuietly();
+
+        $this->get(route('transaction-events.records-duplicates.merge-clients.index'))
+            ->assertOk()
+            ->assertSee('id="completedMergeFiltersForm"', false)
+            ->assertSee('name="search"', false)
+            ->assertSee('name="merged_by"', false)
+            ->assertSee('name="date_from"', false)
+            ->assertSee('name="date_to"', false);
+
+        $filtered = $this->get(route('transaction-events.records-duplicates.merge-clients.index', [
+            'search' => 'Alpha Target',
+            'merged_by' => $admin->id,
+            'date_from' => '2026-10-01',
+            'date_to' => '2026-10-10',
+        ]))->assertOk()
+            ->assertSee('Client 2600101')
+            ->assertSee('Alpha Target')
+            ->assertDontSee('Client 2600102')
+            ->assertDontSee('Zulu Target')
+            ->assertSee('Showing 1 completed merge group(s) matching the filters.');
+        $this->assertSame(1, $filtered->viewData('completedMerges')->total());
+        $this->assertStringContainsString('search=Alpha%20Target', $filtered->viewData('completedMerges')->url(2));
+
+        $this->get(route('transaction-events.records-duplicates.merge-clients.index', [
+            'search' => 'SRC-ZULU',
+        ]))->assertOk()
+            ->assertSee('Client 2600102')
+            ->assertDontSee('Client 2600101');
+    }
+
     public function test_admin_can_merge_newer_event_client_into_oldest_without_losing_transactions_or_requirements(): void
     {
         $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
