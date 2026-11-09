@@ -95,6 +95,7 @@ class ProfileController extends Controller
 
         $distributionCategoryOptions = $this->eventDistributionOptions('transaction_category');
         $distributionTypeOptions = $this->eventDistributionOptions('transaction_type');
+        $addressDistributionTypes = $this->txMultiFilter($request, 'address_distribution_type', $distributionTypeOptions);
         $distributionCategories = $this->txMultiFilter($request, 'distribution_category', $distributionCategoryOptions);
         $distributionTypes = $this->txMultiFilter($request, 'distribution_type', $distributionTypeOptions);
         // Cascading dropdowns (same flow as Total Transactions chart):
@@ -115,6 +116,14 @@ class ProfileController extends Controller
         } else {
             $clientCategoryDistribution = $this->clientCategoryDistribution(10, $distributionCategories, $distributionTypes);
         }
+
+        $addressDistribution = $addressDistributionTypes === []
+            ? Cache::remember(
+                'dashboard.event_address_counts',
+                300,
+                fn () => $this->eventAddressDistribution(10)
+            )
+            : $this->eventAddressDistribution(10, $addressDistributionTypes);
 
 
         $clientTrend = Cache::remember(
@@ -165,7 +174,7 @@ class ProfileController extends Controller
             )
         );
 
-        return view('pages.dashboard', compact('totalClients', 'totalTransactions', 'txCategoryOptions', 'txCategories', 'txTypeOptions', 'txTypes', 'txVisibleTypes', 'txTrendSuffix', 'categoryCounts', 'categories', 'clientTrend', 'transactionTrend', 'transactionDateTrend', 'transactionDateFrom', 'transactionDateTo', 'transactionDates', 'transactionDateOptions', 'transactionDateCategories', 'transactionDateTypes', 'transactionDateTypeOptions', 'transactionDateVisibleDates', 'caravanTrend', 'recentActivities', 'clientCategoryDistribution', 'distributionCategories', 'distributionTypes', 'distVisibleTypes', 'distributionCategoryOptions', 'distributionTypeOptions'));
+        return view('pages.dashboard', compact('totalClients', 'totalTransactions', 'txCategoryOptions', 'txCategories', 'txTypeOptions', 'txTypes', 'txVisibleTypes', 'txTrendSuffix', 'categoryCounts', 'categories', 'clientTrend', 'transactionTrend', 'transactionDateTrend', 'transactionDateFrom', 'transactionDateTo', 'transactionDates', 'transactionDateOptions', 'transactionDateCategories', 'transactionDateTypes', 'transactionDateTypeOptions', 'transactionDateVisibleDates', 'caravanTrend', 'recentActivities', 'clientCategoryDistribution', 'addressDistribution', 'addressDistributionTypes', 'distributionCategories', 'distributionTypes', 'distVisibleTypes', 'distributionCategoryOptions', 'distributionTypeOptions'));
     }
 
     public function transactionDateTrend(Request $request)
@@ -348,6 +357,89 @@ class ProfileController extends Controller
         }
 
         return ['labels' => $labels, 'data' => $data];
+    }
+
+    /**
+     * Transferred event record counts per address for the dashboard.
+     * Only the top addresses are shown.
+     *
+     * @return array{labels: array, data: array, total: int}
+     */
+    public function eventAddressDistribution(int $top = PHP_INT_MAX, array $types = []): array
+    {
+        $grouped = TransactionEvent::query()->whereNotNull('transferred_at')
+            ->when($types !== [], fn ($query) => $query->whereIn('transaction_type', $types))
+            ->whereNotNull('address')->whereRaw("TRIM(address) <> ''")
+            ->selectRaw('address, count(*) as total')
+            ->groupBy('address')
+            ->get();
+
+        $counts = [];
+        foreach ($grouped as $row) {
+            $label = trim((string) $row->address);
+            $key = mb_strtolower($label);
+            if ($label !== '') {
+                $counts[$key] ??= ['label' => $label, 'total' => 0];
+                $counts[$key]['total'] += (int) $row->total;
+            }
+        }
+
+        $counts = array_values($counts);
+        usort($counts, fn ($a, $b) => $b['total'] <=> $a['total'] ?: strcasecmp($a['label'], $b['label']));
+        $topCounts = array_slice($counts, 0, $top);
+        $labels = array_column($topCounts, 'label');
+        $data = array_map('intval', array_column($topCounts, 'total'));
+
+        return ['labels' => $labels, 'data' => $data, 'total' => (int) array_sum(array_column($counts, 'total'))];
+    }
+
+    /** JSON feed for the Address Distribution chart. */
+    public function addressDistributionData(Request $request)
+    {
+        $types = $this->txMultiFilter($request, 'address_distribution_type', $this->eventDistributionOptions('transaction_type'));
+        $isExport = $request->boolean('export');
+        $distribution = $this->eventAddressDistribution($isExport ? PHP_INT_MAX : 10, $types);
+
+        if ($isExport) {
+            $exportAddresses = [
+                'Alapan I-A', 'Alapan I-B', 'Alapan I-C', 'Alapan II-A', 'Alapan II-B',
+                'Bucandala I', 'Bucandala II', 'Bucandala III', 'Bucandala IV', 'Bucandala V',
+                'Carsadang Bago I', 'Carsadang Bago II', 'Pag-Asa I', 'Pag-Asa II', 'Pag-Asa III',
+                'Medicion I-A', 'Medicion I-B', 'Medicion I-C', 'Medicion I-D',
+                'Medicion II-A', 'Medicion II-B', 'Medicion II-C', 'Medicion II-D', 'Medicion II-E', 'Medicion II-F',
+                'Anabu I-A', 'Anabu I-B', 'Anabu I-C', 'Anabu I-D', 'Anabu I-E', 'Anabu I-F', 'Anabu I-G',
+                'Anabu II-A', 'Anabu II-B', 'Anabu II-C', 'Anabu II-D', 'Anabu II-E', 'Anabu II-F',
+                'Bayan Luma I', 'Bayan Luma II', 'Bayan Luma III', 'Bayan Luma IV', 'Bayan Luma V',
+                'Bayan Luma VI', 'Bayan Luma VII', 'Bayan Luma VIII', 'Bayan Luma IX',
+                'Bagong Silang', 'Magdalo', 'Maharlika', 'Mariano Espeleta I', 'Mariano Espeleta II',
+                'Mariano Espeleta III', 'Pinagbuklod', 'Pasong Buaya I', 'Pasong Buaya II', 'Buhay Na Tubig',
+                'Palico I', 'Palico II', 'Palico III', 'Palico Iv',
+                'Tanzang Luma I', 'Tanzang Luma II', 'Tanzang Luma III', 'Tanzang Luma Iv', 'Tanzang Luma V', 'Tanzang Luma VI',
+                'Poblacion I-A', 'Poblacion I-B', 'Poblacion I-C', 'Poblacion II-A', 'Poblacion II-B',
+                'Poblacion III-A', 'Poblacion III-B', 'Poblacion IV-A', 'Poblacion IV-B', 'Poblacion IV-C', 'Poblacion IV-D',
+                'Toclong I-A', 'Toclong I-B', 'Toclong I-C', 'Toclong II-A', 'Toclong II-B',
+                'Malagasang I-A', 'Malagasang I-B', 'Malagasang I-C', 'Malagasang I-D', 'Malagasang I-E', 'Malagasang I-F', 'Malagasang I-G',
+                'Malagasang II-A', 'Malagasang II-B', 'Malagasang II-C', 'Malagasang II-D', 'Malagasang II-E', 'Malagasang II-F', 'Malagasang II-G',
+            ];
+            $countsByAddress = array_combine(
+                array_map('mb_strtolower', $distribution['labels']),
+                $distribution['data']
+            ) ?: [];
+
+            $distribution['labels'] = $exportAddresses;
+            $distribution['data'] = array_map(
+                fn ($address) => $countsByAddress[mb_strtolower($address)] ?? 0,
+                $exportAddresses
+            );
+        }
+
+        return response()->json([
+            'success' => true,
+            'types' => $types,
+            'labels' => $distribution['labels'],
+            'data' => $distribution['data'],
+            'total' => $distribution['total'],
+        ]);
     }
 
     /**

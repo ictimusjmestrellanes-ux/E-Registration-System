@@ -1,7 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     const chartIds = [
         'clientTrendChart', 'transactionTrendChart', 'transactionDateChart',
-        'caravanTrendChart', 'clientCategoryChart', 'serviceCategoryChart',
+        'caravanTrendChart', 'clientCategoryChart', 'addressDistributionChart', 'serviceCategoryChart',
     ];
 
     chartIds.forEach((id) => {
@@ -45,11 +45,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 let chart = canvas && window.Chart?.getChart(canvas);
                 let sourceCanvas = canvas;
                 let hasData = canvas && !canvas.classList.contains('d-none');
-                if (id === 'clientCategoryChart' && chart) {
+                if (['clientCategoryChart', 'addressDistributionChart'].includes(id) && chart) {
                     const url = new URL(canvas.dataset.exportUrl, window.location.origin);
                     const filters = new URL(window.location.href).searchParams;
                     filters.forEach((value, key) => {
-                        if (/^distribution_(category|type)(\[\d*\])?$/.test(key)) {
+                        const matchesFilter = id === 'clientCategoryChart'
+                            ? /^distribution_(category|type)(\[\d*\])?$/.test(key)
+                            : /^address_distribution_type(\[\d*\])?$/.test(key);
+                        if (matchesFilter) {
                             url.searchParams.append(key, value);
                         }
                     });
@@ -124,7 +127,7 @@ document.addEventListener('DOMContentLoaded', () => {
             doc.title = `${title} — Export preview`;
             doc.querySelector('h1').textContent = title;
             doc.getElementById('description').textContent = header.querySelector('p')?.textContent.trim() || '';
-            doc.getElementById('generated').textContent = `Captured ${new Date().toLocaleString()} • ${id === 'clientCategoryChart' ? 'All client categories for the selected filters' : 'Current dashboard view'}`;
+            doc.getElementById('generated').textContent = `Captured ${new Date().toLocaleString()} • ${id === 'clientCategoryChart' ? 'All client categories for the selected filters' : (id === 'addressDistributionChart' ? 'Listed barangays for the selected transaction types' : 'Current dashboard view')}`;
             const nav = doc.querySelector('nav');
             const print = doc.createElement('button');
             print.textContent = 'Print / Save as PDF';

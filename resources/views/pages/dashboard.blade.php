@@ -495,6 +495,63 @@
                                 </div>
                             </div>
                         </div>
+                        <!-- Address Distribution Chart -->
+                        <div class="col-12">
+                            <div class="card material-shadow distribution-card">
+                                <div class="card-header d-flex flex-wrap gap-2 align-items-center justify-content-between">
+                                    <div>
+                                        <h5 class="mb-0">Address Distribution</h5>
+                                        <p class="text-muted mb-0">Share of transferred Event Records per address</p>
+                                    </div>
+                                    <div class="dropdown" id="addressDistributionTypeDropdown">
+                                        <button class="btn btn-light border form-select form-select-sm text-start d-flex align-items-center justify-content-between"
+                                            style="width: 230px; min-width: 200px;" type="button"
+                                            id="addressDistributionTypeBtn" data-bs-toggle="dropdown"
+                                            data-bs-auto-close="outside" aria-expanded="false"
+                                            aria-label="Filter address chart by transaction type"
+                                            title="Filter by transaction type">
+                                            <span id="addressDistributionTypeLabel">{{ count($addressDistributionTypes) === 0 || count($addressDistributionTypes) === count($distributionTypeOptions) ? 'All types' : (count($addressDistributionTypes) === 1 ? $addressDistributionTypes[0] : count($addressDistributionTypes) . ' selected') }}</span>
+                                        </button>
+                                        <div class="dropdown-menu dropdown-menu-end p-2"
+                                            style="min-width: 230px; max-height: 260px; overflow-y: auto;">
+                                            <div class="form-check mb-2">
+                                                <input class="form-check-input" type="checkbox"
+                                                    id="addressDistributionTypeAll" value="">
+                                                <label class="form-check-label fw-semibold"
+                                                    for="addressDistributionTypeAll">All types</label>
+                                            </div>
+                                            <hr class="my-2">
+                                            @foreach ($distributionTypeOptions as $option)
+                                                <div class="form-check">
+                                                    <input class="form-check-input address-distribution-type-check"
+                                                        type="checkbox" id="addressDistributionTypeCheck_{{ $loop->index }}"
+                                                        value="{{ $option }}"
+                                                        {{ in_array($option, $addressDistributionTypes, true) ? 'checked' : '' }}>
+                                                    <label class="form-check-label"
+                                                        for="addressDistributionTypeCheck_{{ $loop->index }}">{{ $option }}</label>
+                                                </div>
+                                            @endforeach
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="card-body">
+                                    <div class="overflow-auto">
+                                        <div id="addressDistributionPlot"
+                                            style="position: relative; min-width: 420px; height: {{ max(200, count($addressDistribution['data']) * 25 + 40) }}px;">
+                                            <canvas id="addressDistributionChart" role="img"
+                                                data-export-url="{{ route('dashboard.address-distribution') }}"
+                                                aria-label="Transferred Event Records by address, sorted from highest to lowest"
+                                                class="{{ array_sum($addressDistribution['data']) > 0 ? '' : 'd-none' }}"></canvas>
+                                        </div>
+                                        <div id="addressDistributionEmpty"
+                                            class="{{ array_sum($addressDistribution['data']) > 0 ? 'd-none' : '' }} d-flex align-items-center justify-content-center text-center text-muted"
+                                            role="status" style="min-height: 200px;">
+                                            No transferred Event Records with an address are available.
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                         <!-- Service Category Chart -->
                         <div class="col-12">
                             <div class="card material-shadow distribution-card" id="serviceCategoryCard">
@@ -1523,6 +1580,175 @@
                         }
                     }
                 });
+            });
+        </script>
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                const canvas = document.getElementById('addressDistributionChart');
+                const plot = document.getElementById('addressDistributionPlot');
+                const empty = document.getElementById('addressDistributionEmpty');
+                if (!canvas) return;
+
+                const palette = @json($chartColors);
+                const rows = (@json($addressDistribution['labels'])).map((label, i) => ({
+                    label,
+                    count: Number((@json($addressDistribution['data']))[i]) || 0
+                })).sort((a, b) => b.count - a.count);
+                const labels = rows.map(row => row.label);
+                const data = rows.map(row => row.count);
+                const visibleTotal = data.reduce((sum, count) => sum + count, 0);
+                let addressTotal = Number(@json($addressDistribution['total'] ?? 0)) || visibleTotal;
+                const valueLabel = count => Number(count).toLocaleString() + ' (' +
+                    (addressTotal ? Number(count) / addressTotal * 100 : 0).toFixed(1) + '%)';
+                const values = {
+                    id: 'addressDistributionValues',
+                    afterDatasetsDraw(chart) {
+                        const ctx = chart.ctx;
+                        const liveData = chart.data.datasets[0]?.data || [];
+                        ctx.save();
+                        ctx.font = '12px sans-serif';
+                        ctx.fillStyle = getComputedStyle(canvas).color;
+                        ctx.textAlign = 'left';
+                        ctx.textBaseline = 'middle';
+                        chart.getDatasetMeta(0).data.forEach((bar, i) => {
+                            const count = Number(liveData[i]) || 0;
+                            ctx.fillText(count.toLocaleString() + ' (' +
+                                (addressTotal ? count / addressTotal * 100 : 0).toFixed(1) + '%)', bar.x + 8, bar.y);
+                        });
+                        ctx.restore();
+                    }
+                };
+                const context = canvas.getContext('2d');
+                context.font = '12px sans-serif';
+                const valueWidth = Math.max(80, ...data.map(count => context.measureText(
+                    Number(count).toLocaleString() + ' (' +
+                    (addressTotal ? count / addressTotal * 100 : 0).toFixed(1) + '%)').width));
+
+                if (visibleTotal === 0) {
+                    canvas.classList.add('d-none');
+                    if (empty) empty.classList.remove('d-none');
+                }
+
+                const addressChart = new Chart(canvas, {
+                    type: 'bar',
+                    plugins: [values],
+                    data: {
+                        labels,
+                        datasets: [{
+                            label: 'Event Records',
+                            data,
+                            backgroundColor: labels.map((_, i) => palette[i % palette.length]),
+                            borderRadius: 4,
+                            maxBarThickness: 26
+                        }]
+                    },
+                    options: {
+                        indexAxis: 'y',
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        layout: { padding: { right: valueWidth + 16 } },
+                        scales: {
+                            x: {
+                                beginAtZero: true,
+                                ticks: { precision: 0 },
+                                title: { display: true, text: 'Event Records' }
+                            },
+                            y: {
+                                grid: { display: false },
+                                ticks: {
+                                    autoSkip: false,
+                                    callback(value) {
+                                        const label = this.getLabelForValue(value);
+                                        return label.match(/.{1,22}(?:\s|$)|.{1,22}/g) || label;
+                                    }
+                                }
+                            }
+                        },
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: context => ' Event Records: ' + valueLabel(context.parsed.x)
+                                }
+                            }
+                        }
+                    }
+                });
+                if (plot) plot.style.height = Math.max(200, data.length * 25 + 40) + 'px';
+
+                const typeBoxes = [...document.querySelectorAll('.address-distribution-type-check')];
+                const allTypes = document.getElementById('addressDistributionTypeAll');
+                const typeLabel = document.getElementById('addressDistributionTypeLabel');
+                const state = () => {
+                    const selected = typeBoxes.filter(box => box.checked).map(box => box.value);
+                    return selected.length === 0 || selected.length === typeBoxes.length ? [] : selected;
+                };
+                const syncLabel = () => {
+                    const selectedCount = typeBoxes.filter(box => box.checked).length;
+                    if (typeLabel) {
+                        typeLabel.textContent = selectedCount === 0 || selectedCount === typeBoxes.length
+                            ? 'All types'
+                            : (selectedCount === 1 ? typeBoxes.find(box => box.checked).value : selectedCount + ' selected');
+                    }
+                    if (allTypes) {
+                        allTypes.checked = selectedCount === 0 || selectedCount === typeBoxes.length;
+                        allTypes.indeterminate = selectedCount > 0 && selectedCount < typeBoxes.length;
+                    }
+                };
+                const updateAddressUrl = selected => {
+                    const url = new URL(window.location.href);
+                    [...url.searchParams.keys()].filter(key => key === 'address_distribution_type' ||
+                        key.startsWith('address_distribution_type['))
+                        .forEach(key => url.searchParams.delete(key));
+                    selected.forEach(type => url.searchParams.append('address_distribution_type[]', type));
+                    return url.toString();
+                };
+                let requestId = 0;
+                const reloadAddressChart = async () => {
+                    const selected = state();
+                    const currentRequest = ++requestId;
+                    canvas.setAttribute('aria-busy', 'true');
+                    const url = new URL('{{ route('dashboard.address-distribution') }}', window.location.origin);
+                    selected.forEach(type => url.searchParams.append('address_distribution_type[]', type));
+                    try {
+                        const response = await fetch(url.toString(), { headers: { 'Accept': 'application/json' } });
+                        const payload = await response.json();
+                        if (currentRequest !== requestId) return;
+                        if (!response.ok || !payload.success) throw new Error('Unable to load address chart');
+
+                        const updatedRows = (payload.labels || []).map((label, i) => ({
+                            label,
+                            count: Number((payload.data || [])[i]) || 0
+                        })).sort((a, b) => b.count - a.count);
+                        const updatedLabels = updatedRows.map(row => row.label);
+                        const updatedData = updatedRows.map(row => row.count);
+                        addressTotal = Number(payload.total) || updatedData.reduce((sum, count) => sum + count, 0);
+                        const hasData = updatedData.length > 0;
+                        canvas.classList.toggle('d-none', !hasData);
+                        if (empty) empty.classList.toggle('d-none', hasData);
+                        if (plot) plot.style.height = Math.max(200, updatedData.length * 25 + 40) + 'px';
+                        addressChart.data.labels = updatedLabels;
+                        addressChart.data.datasets[0].data = updatedData;
+                        addressChart.data.datasets[0].backgroundColor = updatedLabels.map((_, i) => palette[i % palette.length]);
+                        addressChart.update();
+                        canvas.removeAttribute('aria-busy');
+                        window.history.replaceState(null, '', updateAddressUrl(selected));
+                    } catch (error) {
+                        if (currentRequest === requestId) window.location.href = updateAddressUrl(selected);
+                    }
+                };
+                typeBoxes.forEach(box => box.addEventListener('change', () => {
+                    syncLabel();
+                    reloadAddressChart();
+                }));
+                if (allTypes) {
+                    allTypes.addEventListener('change', function() {
+                        typeBoxes.forEach(box => { box.checked = this.checked; });
+                        syncLabel();
+                        reloadAddressChart();
+                    });
+                }
+                syncLabel();
             });
         </script>
         <script>
