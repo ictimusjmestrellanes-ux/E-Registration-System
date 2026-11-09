@@ -15,6 +15,7 @@
             'event_date_from',
             'event_date_to',
             'client_category',
+            'payroll_category',
             'transaction_category',
             'transaction_type',
         ]);
@@ -144,15 +145,15 @@
                                 <input type="hidden" name="sort" value="{{ request('sort', 'client_asc') }}">
                                 <input type="hidden" name="per_page" value="{{ request('per_page', 10) }}">
                                 <div class="row g-3 mt-1 align-items-end">
-                                    <div class="col-12 col-xl-4">
+                                    <div class="col-12 col-xl-4" style="width: 417px">
                                         <div class="d-flex align-items-center justify-content-between gap-2">
                                             <label for="recordKeywordInput"
-                                                class="form-label fw-semibold text-uppercase small mb-0">Keyword
+                                                class="form-label fw-semibold text-uppercase small mb-2">Keyword
                                                 Search</label>
-                                            <div class="form-check form-switch mb-1">
+                                            <div class="form-check form-switch mb-2">
                                                 <input class="form-check-input" type="checkbox"
                                                     id="recordAutoSearchToggle" checked>
-                                                <label class="form-check-label small" for="recordAutoSearchToggle">
+                                                <label class="form-check-label fw-semibold text-uppercase small" for="recordAutoSearchToggle">
                                                     Auto search
                                                 </label>
                                             </div>
@@ -191,7 +192,7 @@
                                             'addressId' => 'recordAddressFilter',
                                         ])
                                     </div>
-                                    <div class="col-12 col-md-6 col-xl-2">
+                                    <div class="col-12 col-md-6 col-xl-2" style="width: 220px">
                                         <label class="form-label fw-semibold text-uppercase small">Client Category</label>
                                         <div class="dropdown w-100">
                                             <button
@@ -244,7 +245,23 @@
                                         </div>
                                     </div>
 
-                                    <div class="col-12 col-md-6 col-xl-2">
+                                    @if (feature_allowed('View Payroll Category'))
+                                        <div class="col-12 col-md-6 col-xl-2" style="width: 220px">
+                                            <label class="form-label fw-semibold text-uppercase small">Payroll Category</label>
+                                            @include(
+                                                'pages.transaction_events.partials.multiSelectSearchDropdown',
+                                                [
+                                                    'dropdownId' => 'recordPayrollCategory',
+                                                    'fieldName' => 'payroll_category',
+                                                    'options' => $payrollCategories,
+                                                    'allLabel' => 'All payroll categories',
+                                                    'searchPlaceholder' => 'Search payroll categories...',
+                                                ]
+                                            )
+                                        </div>
+                                    @endif
+
+                                    <div class="col-12 col-md-6 col-xl-2" style="width: 220px">
                                         <label for="recordCategoryFilter"
                                             class="form-label fw-semibold text-uppercase small">Transaction
                                             Category</label>
@@ -253,7 +270,7 @@
                                             'filterCategories' => $categories,
                                         ])
                                     </div>
-                                    <div class="col-12 col-md-6 col-xl-2">
+                                    <div class="col-12 col-md-6 col-xl-2" style="width: 220px">
                                         <label class="form-label fw-semibold text-uppercase small">Transaction Type</label>
                                         <div class="dropdown w-100">
                                             <button
@@ -302,31 +319,31 @@
                                         </div>
                                     </div>
 
-                                    <div class="col-12 col-md-6 col-xl-2">
+                                    <div class="col-12 col-md-6 col-xl-2" style="width: 220px">
                                         <label for="recordEventDateFrom"
                                             class="form-label fw-semibold text-uppercase small">Event Date From</label>
                                         <input type="date" class="form-control" id="recordEventDateFrom"
                                             name="event_date_from" value="{{ request('event_date_from') }}">
                                     </div>
-                                    <div class="col-12 col-md-6 col-xl-2">
+                                    <div class="col-12 col-md-6 col-xl-2" style="width: 220px">
                                         <label for="recordEventDateTo"
                                             class="form-label fw-semibold text-uppercase small">Event Date To</label>
                                         <input type="date" class="form-control" id="recordEventDateTo"
                                             name="event_date_to" value="{{ request('event_date_to') }}">
                                     </div>
-                                    <div class="col-12 col-md-6 col-xl-2">
+                                    <div class="col-12 col-md-6 col-xl-2" style="width: 220px">
                                         <label for="recordDateFrom"
                                             class="form-label fw-semibold text-uppercase small">Transferred From</label>
                                         <input type="date" class="form-control" id="recordDateFrom" name="date_from"
                                             value="{{ request('date_from') }}">
                                     </div>
-                                    <div class="col-12 col-md-6 col-xl-2">
+                                    <div class="col-12 col-md-6 col-xl-2" style="width: 220px">
                                         <label for="recordDateTo"
                                             class="form-label fw-semibold text-uppercase small">Transferred To</label>
                                         <input type="date" class="form-control" id="recordDateTo" name="date_to"
                                             value="{{ request('date_to') }}">
                                     </div>
-                                    <div class="col-12 col-md-6 col-xl-2">
+                                    <div class="col-12 col-md-6 col-xl-2" style="width: 220px">
                                         <label class="form-label fw-semibold text-uppercase small">Status</label>
                                         @include(
                                             'pages.transaction_events.partials.multiSelectSearchDropdown',
@@ -339,7 +356,7 @@
                                             ]
                                         )
                                     </div>
-                                    <div class="col-6 col-xl-2 d-flex gap-2 justify-content-end">
+                                    <div class="col-12 col-md-6 col-xl-2 d-flex gap-2 justify-content-end ms-auto">
                                         <button type="submit" class="btn btn-sm btn-primary px-4">
                                             <i class="ri-filter-3-fill me-1"></i> Apply Filters
                                         </button>
@@ -411,7 +428,8 @@
                         @endif
 
                         <div class="table-responsive">
-                            <table class="table table-bordered table-hover align-middle mb-0" id="eventRecordsTable">
+                            <table class="table table-bordered table-hover align-middle mb-0" id="eventRecordsTable"
+                                data-total="{{ $events->total() }}" data-last-page="{{ $events->lastPage() }}">
                                 <thead class="table-light">
                                     <tr>
                                         @if (auth()->user()?->role_name !== 'Viewer')
@@ -773,13 +791,13 @@
                             maxlength="100" placeholder="ALEX L. ADVINCULA">
                     </div>
                     <div class="alert alert-info mt-3 mb-0 small">
-                        The payroll automatically places <strong>CLAIMED</strong> in the matching signature tranche
-                        column based on each record's transaction type.
+                        The payroll places <strong>CLAIMED</strong> in the matching signature tranche column only
+                        for records whose status is Claimed. Pending records remain available for numbering.
                     </div>
                     <fieldset class="mt-3">
                         <legend class="fs-6">Number signature columns</legend>
                         <p class="text-muted small">Select the tranches that should also display each beneficiary's row
-                            number. The automatic CLAIMED tag remains visible in its matching tranche.</p>
+                            number. Claimed records keep their CLAIMED tag in the matching tranche.</p>
                         <div class="d-flex flex-nowrap justify-content-between gap-2 overflow-auto pb-1">
                             @foreach ([1 => '1st', 2 => '2nd', 3 => '3rd', 4 => '4th'] as $tranche => $label)
                                 <div class="form-check mb-0 text-nowrap flex-shrink-0">
@@ -1161,7 +1179,7 @@
             const undoSelectedBtn = document.getElementById('undoTransferSelectedBtn');
             const undoSelectedCount = document.getElementById('undoSelectedCount');
             let totalMatchingEvents = @json($events->total());
-            const hasMorePages = @json($events->lastPage() > 1);
+            let hasMorePages = @json($events->lastPage() > 1);
             let allPagesSelected = false;
             const eventRecordsTable = document.getElementById('eventRecordsTable');
             const recordTotalBadge = document.getElementById('recordTotalBadge');
@@ -1171,6 +1189,118 @@
                 .flatMap(([, value]) => value.split(','))
                 .map((value) => value.trim())
                 .filter(Boolean);
+
+            // Sort on the server, then replace only the records UI. This keeps sorting
+            // correct across every page without performing a full browser reload.
+            let recordSortRequest = null;
+            const recordsPath = @json(route('transaction-events.records', [], false));
+
+            const syncRecordLink = (id, incomingDocument, attribute = 'href') => {
+                const current = document.getElementById(id);
+                const incoming = incomingDocument.getElementById(id);
+                if (!current || !incoming || !incoming.hasAttribute(attribute)) return;
+                current.setAttribute(attribute, incoming.getAttribute(attribute));
+            };
+
+            const loadSortedRecords = async (url, pushHistory = true) => {
+                recordSortRequest?.abort();
+                const controller = new AbortController();
+                recordSortRequest = controller;
+                eventRecordsTable?.setAttribute('aria-busy', 'true');
+
+                try {
+                    const response = await fetch(url, {
+                        method: 'GET',
+                        credentials: 'same-origin',
+                        headers: {
+                            'Accept': 'text/html',
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                        signal: controller.signal,
+                    });
+                    if (!response.ok) {
+                        throw new Error(`Unable to sort records (HTTP ${response.status}).`);
+                    }
+
+                    const incomingDocument = new DOMParser().parseFromString(await response.text(),
+                        'text/html');
+                    const incomingTable = incomingDocument.getElementById('eventRecordsTable');
+                    const incomingBody = incomingTable?.querySelector('tbody');
+                    const currentBody = eventRecordsTable?.querySelector('tbody');
+                    if (!incomingTable || !incomingBody || !currentBody) {
+                        throw new Error('The sorted records could not be read.');
+                    }
+
+                    currentBody.innerHTML = incomingBody.innerHTML;
+
+                    const incomingHeaders = Array.from(incomingTable.querySelectorAll('thead th[data-column]'));
+                    eventRecordsTable.querySelectorAll('thead th[data-column]').forEach((header) => {
+                        const incomingHeader = incomingHeaders.find((candidate) =>
+                            candidate.dataset.column === header.dataset.column);
+                        const currentLink = header.querySelector('a[href]');
+                        const incomingLink = incomingHeader?.querySelector('a[href]');
+                        if (!currentLink || !incomingLink) return;
+                        currentLink.href = incomingLink.href;
+                        currentLink.title = incomingLink.title;
+                        currentLink.innerHTML = incomingLink.innerHTML;
+                    });
+
+                    const incomingPagination = incomingDocument.getElementById('recordPagination');
+                    if (recordPagination && incomingPagination) {
+                        recordPagination.innerHTML = incomingPagination.innerHTML;
+                    }
+
+                    const incomingBadge = incomingDocument.getElementById('recordTotalBadge');
+                    if (recordTotalBadge && incomingBadge) {
+                        recordTotalBadge.dataset.total = incomingBadge.dataset.total || '0';
+                        recordTotalBadge.textContent = incomingBadge.textContent;
+                    }
+
+                    totalMatchingEvents = Number(incomingTable.dataset.total || totalMatchingEvents);
+                    hasMorePages = Number(incomingTable.dataset.lastPage || 1) > 1;
+                    eventRecordsTable.dataset.total = String(totalMatchingEvents);
+                    eventRecordsTable.dataset.lastPage = incomingTable.dataset.lastPage || '1';
+
+                    const incomingSort = incomingDocument.querySelector('#recordFiltersForm input[name="sort"]');
+                    const currentSort = filtersForm?.querySelector('input[name="sort"]');
+                    if (currentSort && incomingSort) currentSort.value = incomingSort.value;
+
+                    syncRecordLink('recordExportXlsxBtn', incomingDocument);
+                    syncRecordLink('recordExportPdfBtn', incomingDocument);
+                    syncRecordLink('recordPayrollExcelBtn', incomingDocument, 'data-url');
+
+                    if (pushHistory) {
+                        window.history.pushState({ eventRecordsSort: true }, '', url);
+                    }
+
+                    applyColumns();
+                    clearAllUndoSelection();
+                } catch (error) {
+                    if (error.name === 'AbortError') return;
+                    // Preserve the normal link as a fallback if the partial update fails.
+                    window.location.assign(url);
+                } finally {
+                    if (recordSortRequest === controller) {
+                        recordSortRequest = null;
+                        eventRecordsTable?.removeAttribute('aria-busy');
+                    }
+                }
+            };
+
+            eventRecordsTable?.addEventListener('click', function(event) {
+                const link = event.target.closest('thead a[href]');
+                if (!link || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) {
+                    return;
+                }
+                event.preventDefault();
+                loadSortedRecords(link.href);
+            });
+
+            window.addEventListener('popstate', function() {
+                if (window.location.pathname === recordsPath) {
+                    loadSortedRecords(window.location.href, false);
+                }
+            });
 
             const recordStatusColor = (status) => ({
                 Claimed: 'success',
@@ -1502,7 +1632,7 @@
                     });
 
                     // Handle filters which can have multiple values
-                    ['address', 'client_category', 'transaction_category', 'transaction_type', 'status']
+                    ['address', 'client_category', 'payroll_category', 'transaction_category', 'transaction_type', 'status']
                     .forEach((
                         name) => {
                         const values = Array.from(params.entries())
@@ -1649,7 +1779,7 @@
                             payload[name] = value;
                         }
                     });
-                    ['address', 'client_category', 'transaction_category', 'transaction_type', 'status']
+                    ['address', 'client_category', 'payroll_category', 'transaction_category', 'transaction_type', 'status']
                     .forEach((
                         name) => {
                         const values = Array.from(params.entries())

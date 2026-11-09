@@ -539,6 +539,10 @@ class TransactionEventsController extends Controller
         if ($clientCategories = $this->multiFilterValues($request, 'client_category')) {
             $query->whereIn('client_category', $clientCategories);
         }
+
+        if ($payrollCategories = $this->multiFilterValues($request, 'payroll_category')) {
+            $query->whereIn('payroll_category', $payrollCategories);
+        }
     }
 
     /**
@@ -1028,6 +1032,9 @@ class TransactionEventsController extends Controller
         $clientCategories = TransactionEvent::whereNotNull('transferred_at')
             ->select('client_category')->distinct()
             ->pluck('client_category')->filter()->sort()->values();
+        $payrollCategories = TransactionEvent::whereNotNull('transferred_at')
+            ->select('payroll_category')->distinct()
+            ->pluck('payroll_category')->filter()->sort()->values();
         $addresses = TransactionEvent::whereNotNull('transferred_at')
             ->select('address')->distinct()
             ->pluck('address')->map(fn ($address) => trim((string) $address))->filter()->unique()->sort()->values();
@@ -1045,7 +1052,7 @@ class TransactionEventsController extends Controller
             ->map(fn ($items) => $items->pluck('client_category')->filter()->unique()->sort()->values()->all())
             ->all();
 
-        return view('pages.transaction_events.eventRecords', compact('events', 'categories', 'types', 'clientCategories', 'addresses', 'addressTypes', 'typeClientCategories', 'sort'));
+        return view('pages.transaction_events.eventRecords', compact('events', 'categories', 'types', 'clientCategories', 'payrollCategories', 'addresses', 'addressTypes', 'typeClientCategories', 'sort'));
     }
 
     /**

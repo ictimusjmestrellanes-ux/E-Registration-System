@@ -73,7 +73,11 @@ class LoginController extends Controller
             return redirect('login')->with('error', ucfirst($provider) . ' login is not configured yet.');
         }
 
-        return $this->socialiteDriver($provider)->redirect();
+        // Ask Microsoft to show the account picker instead of reusing an
+        // account that may already be signed in to the browser.
+        return $this->socialiteDriver($provider)
+            ->with(['prompt' => 'select_account'])
+            ->redirect();
     }
 
     public function handleProviderCallback(Request $request, OAuthUserService $users, string $provider)

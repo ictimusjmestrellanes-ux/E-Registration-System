@@ -31,7 +31,9 @@ class EventRecordsPayrollRows
             $event->setAttribute('export_sex', $clients->get($clientId)?->gender ?? '');
             $event->setAttribute('payroll_client_id', $clientId);
 
-            $claimedTranche = PayrollClaimedTranche::fromTransactionType($event->transaction_type);
+            $claimedTranche = strcasecmp(trim((string) $event->status), 'Claimed') === 0
+                ? PayrollClaimedTranche::fromTransactionType($event->transaction_type)
+                : null;
             $event->setAttribute('payroll_claimed_tranches', $claimedTranche === null ? [] : [$claimedTranche]);
 
             if ($clientId === '') {

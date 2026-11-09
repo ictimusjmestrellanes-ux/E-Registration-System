@@ -144,7 +144,9 @@ class EventRecordsPayrollXlsxExporter
                 $category = mb_strtoupper(trim((string) $event->transaction_category));
                 $claimedTranches = $event->getAttribute('payroll_claimed_tranches');
                 if (! is_array($claimedTranches)) {
-                    $claimedTranche = PayrollClaimedTranche::fromTransactionType($event->transaction_type);
+                    $claimedTranche = strcasecmp(trim((string) $event->status), 'Claimed') === 0
+                        ? PayrollClaimedTranche::fromTransactionType($event->transaction_type)
+                        : null;
                     $claimedTranches = $claimedTranche === null ? [] : [$claimedTranche];
                 }
                 $numberOnlySignatureColumns = [];

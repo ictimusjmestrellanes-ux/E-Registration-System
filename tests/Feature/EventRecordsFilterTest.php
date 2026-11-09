@@ -29,6 +29,26 @@ class EventRecordsFilterTest extends TestCase
             ->assertDontSee('if (this.checked) scheduleKeywordSearch()', false);
     }
 
+    public function test_event_record_header_sorting_updates_the_table_without_a_page_reload(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+
+        TransactionEvent::create([
+            'full_name' => 'Sortable Record',
+            'transferred_at' => now(),
+        ]);
+
+        $this->get(route('transaction-events.records'))
+            ->assertOk()
+            ->assertSee('id="eventRecordsTable"', false)
+            ->assertSee('data-total="1"', false)
+            ->assertSee('data-last-page="1"', false)
+            ->assertSee('event.preventDefault()', false)
+            ->assertSee('loadSortedRecords(link.href)', false)
+            ->assertSee("currentBody.innerHTML = incomingBody.innerHTML", false)
+            ->assertSee("window.history.pushState({ eventRecordsSort: true }, '', url)", false);
+    }
+
     public function test_event_records_pagination_has_a_page_number_jump_input(): void
     {
         $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
@@ -228,6 +248,52 @@ class EventRecordsFilterTest extends TestCase
                 'Solo Client',
                 'Transport Client',
             ]);
+    }
+
+    public function test_records_filter_by_payroll_category_across_list_export_and_bulk_ids(): void
+    {
+        $this->actingAs(User::factory()->create(['role_name' => 'Admin']));
+
+        $transport = TransactionEvent::create([
+            'full_name' => 'Transport Filter Match',
+            'client_category' => 'TODA',
+            'transferred_at' => now(),
+        ]);
+        $indigent = TransactionEvent::create([
+            'full_name' => 'Indigent Filter Miss',
+            'client_category' => 'INDIGENT',
+            'transferred_at' => now(),
+        ]);
+        TransactionEvent::create([
+            'full_name' => 'Pending Transport Match',
+            'client_category' => 'PODA',
+        ]);
+
+        $filters = ['payroll_category' => ['TRANSPORT GROUP']];
+
+        $this->get(route('transaction-events.records', $filters))
+            ->assertOk()
+            ->assertSee('Payroll Category')
+            ->assertSee('name="payroll_category[]"', false)
+            ->assertSee('All payroll categories')
+            ->assertSee($transport->full_name)
+            ->assertDontSee($indigent->full_name)
+            ->assertViewHas('events', fn ($events) => $events->total() === 1
+                && $events->first()->is($transport));
+
+        $this->postJson(route('transaction-events.undo-transfer-selected.ids'), $filters + ['select_all' => 1])
+            ->assertOk()
+            ->assertJsonPath('total', 1)
+            ->assertJsonPath('ids.0', $transport->id);
+
+        $export = $this->get(route('transaction-events.records.export', $filters))->assertOk();
+        $zip = new \ZipArchive();
+        $this->assertTrue($zip->open($export->getFile()->getPathname()));
+        $sheet = $zip->getFromName('xl/worksheets/sheet1.xml');
+        $zip->close();
+        $this->assertStringContainsString($transport->full_name, $sheet);
+        $this->assertStringNotContainsString($indigent->full_name, $sheet);
+        $this->assertStringNotContainsString('Pending Transport Match', $sheet);
     }
 
     public function test_undo_ids_respects_client_category_filter(): void
