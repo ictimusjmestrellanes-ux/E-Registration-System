@@ -14,11 +14,11 @@ class EventRecordsXlsxProcess
 
     private const HEADERS = [
         'ID', 'Transaction ID', 'Full Name', 'Age', 'Birth Date', 'Contact No.',
-        'Address', 'Client Category', 'Transaction Category', 'Transaction Type',
+        'Address', 'Client Category', 'Payroll Category', 'Transaction Category', 'Transaction Type',
         'Event Date', 'Transferred At', 'Status',
     ];
 
-    private const WIDTHS = [8, 22, 28, 8, 14, 16, 35, 20, 24, 24, 14, 20, 12];
+    private const WIDTHS = [8, 22, 28, 8, 14, 16, 35, 20, 20, 24, 24, 14, 20, 12];
 
     private function directory(string $token): string
     {
@@ -88,7 +88,7 @@ class EventRecordsXlsxProcess
                     ->whereIn('id', $batchIds)
                     ->get([
                         'id', 'transaction_id', 'full_name', 'age', 'birth_date', 'contact_no', 'address',
-                        'client_category', 'transaction_category', 'transaction_type',
+                        'client_category', 'payroll_category', 'transaction_category', 'transaction_type',
                         'event_date', 'transferred_at', 'transferred_transaction_id', 'status',
                     ])
                     ->keyBy('id');
@@ -110,6 +110,7 @@ class EventRecordsXlsxProcess
                         $event->contact_no ?? '',
                         $event->address ?? '',
                         $event->client_category ?? '',
+                        $event->payroll_category ?? '',
                         $event->transaction_category ?? '',
                         $event->transaction_type ?? '',
                         $event->event_date?->format('Y-m-d') ?? '',
