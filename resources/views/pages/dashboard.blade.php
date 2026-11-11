@@ -533,6 +533,54 @@
                                             @endforeach
                                         </div>
                                     </div>
+                                    <div class="dropdown" id="addressDistributionCategoryDropdown">
+                                        <button class="btn btn-light border form-select form-select-sm text-start d-flex align-items-center justify-content-between"
+                                            style="width: 230px; min-width: 200px;" type="button"
+                                            id="addressDistributionCategoryBtn" data-bs-toggle="dropdown"
+                                            data-bs-auto-close="outside" aria-expanded="false"
+                                            aria-label="Filter address chart by client category" title="Filter by client category">
+                                            <span id="addressDistributionCategoryLabel">{{ count($addressDistributionCategories) === 0 || count($addressDistributionCategories) === count($addressDistributionCategoryOptions) ? 'All client categories' : (count($addressDistributionCategories) === 1 ? $addressDistributionCategories[0] : count($addressDistributionCategories) . ' selected') }}</span>
+                                        </button>
+                                        <div class="dropdown-menu dropdown-menu-end p-2" style="min-width: 230px; max-height: 260px; overflow-y: auto;">
+                                            <div class="form-check mb-2">
+                                                <input class="form-check-input" type="checkbox" id="addressDistributionCategoryAll" value="">
+                                                <label class="form-check-label fw-semibold" for="addressDistributionCategoryAll">All client categories</label>
+                                            </div>
+                                            <hr class="my-2">
+                                            @foreach ($addressDistributionCategoryOptions as $option)
+                                                <div class="form-check">
+                                                    <input class="form-check-input address-distribution-category-check" type="checkbox"
+                                                        id="addressDistributionCategoryCheck_{{ $loop->index }}" value="{{ $option }}"
+                                                        {{ in_array($option, $addressDistributionCategories, true) ? 'checked' : '' }}>
+                                                    <label class="form-check-label" for="addressDistributionCategoryCheck_{{ $loop->index }}">{{ $option }}</label>
+                                                </div>
+                                            @endforeach
+                                        </div>
+                                    </div>
+                                    <div class="dropdown" id="addressDistributionStatusDropdown">
+                                        <button class="btn btn-light border form-select form-select-sm text-start d-flex align-items-center justify-content-between"
+                                            style="width: 200px; min-width: 180px;" type="button"
+                                            id="addressDistributionStatusBtn" data-bs-toggle="dropdown"
+                                            data-bs-auto-close="outside" aria-expanded="false"
+                                            aria-label="Filter address chart by status" title="Filter by status">
+                                            <span id="addressDistributionStatusLabel">{{ count($addressDistributionStatuses) === 0 || count($addressDistributionStatuses) === count($addressDistributionStatusOptions) ? 'All statuses' : (count($addressDistributionStatuses) === 1 ? $addressDistributionStatuses[0] : count($addressDistributionStatuses) . ' selected') }}</span>
+                                        </button>
+                                        <div class="dropdown-menu dropdown-menu-end p-2" style="min-width: 200px; max-height: 260px; overflow-y: auto;">
+                                            <div class="form-check mb-2">
+                                                <input class="form-check-input" type="checkbox" id="addressDistributionStatusAll" value="">
+                                                <label class="form-check-label fw-semibold" for="addressDistributionStatusAll">All statuses</label>
+                                            </div>
+                                            <hr class="my-2">
+                                            @foreach ($addressDistributionStatusOptions as $option)
+                                                <div class="form-check">
+                                                    <input class="form-check-input address-distribution-status-check" type="checkbox"
+                                                        id="addressDistributionStatusCheck_{{ $loop->index }}" value="{{ $option }}"
+                                                        {{ in_array($option, $addressDistributionStatuses, true) ? 'checked' : '' }}>
+                                                    <label class="form-check-label" for="addressDistributionStatusCheck_{{ $loop->index }}">{{ $option }}</label>
+                                                </div>
+                                            @endforeach
+                                        </div>
+                                    </div>
                                 </div>
                                 <div class="card-body">
                                     <div class="overflow-auto">
@@ -767,7 +815,9 @@
 
     @push('scripts')
         <script src="{{ asset('assets/libs/chart.js/chart.umd.min.js') }}"></script>
-        <script src="{{ asset('assets/js/dashboard-chart-export.js') }}"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+        <script src="{{ asset('assets/js/dashboard-chart-export.js') }}?v={{ filemtime(public_path('assets/js/dashboard-chart-export.js')) }}"></script>
         <script>
             document.addEventListener('DOMContentLoaded', function() {
                 @if ($errors->has('transaction_dates') || $errors->has('transaction_dates.*'))
@@ -1676,40 +1726,43 @@
                 });
                 if (plot) plot.style.height = Math.max(200, data.length * 25 + 40) + 'px';
 
-                const typeBoxes = [...document.querySelectorAll('.address-distribution-type-check')];
-                const allTypes = document.getElementById('addressDistributionTypeAll');
-                const typeLabel = document.getElementById('addressDistributionTypeLabel');
-                const state = () => {
-                    const selected = typeBoxes.filter(box => box.checked).map(box => box.value);
-                    return selected.length === 0 || selected.length === typeBoxes.length ? [] : selected;
+                const filters = [
+                    { key: 'address_distribution_type', boxes: [...document.querySelectorAll('.address-distribution-type-check')], all: document.getElementById('addressDistributionTypeAll'), label: document.getElementById('addressDistributionTypeLabel'), allText: 'All types' },
+                    { key: 'address_distribution_category', boxes: [...document.querySelectorAll('.address-distribution-category-check')], all: document.getElementById('addressDistributionCategoryAll'), label: document.getElementById('addressDistributionCategoryLabel'), allText: 'All client categories' },
+                    { key: 'address_distribution_status', boxes: [...document.querySelectorAll('.address-distribution-status-check')], all: document.getElementById('addressDistributionStatusAll'), label: document.getElementById('addressDistributionStatusLabel'), allText: 'All statuses' }
+                ];
+                const selectedValues = filter => {
+                    const selected = filter.boxes.filter(box => box.checked).map(box => box.value);
+                    return selected.length === 0 || selected.length === filter.boxes.length ? [] : selected;
                 };
-                const syncLabel = () => {
-                    const selectedCount = typeBoxes.filter(box => box.checked).length;
-                    if (typeLabel) {
-                        typeLabel.textContent = selectedCount === 0 || selectedCount === typeBoxes.length
-                            ? 'All types'
-                            : (selectedCount === 1 ? typeBoxes.find(box => box.checked).value : selectedCount + ' selected');
+                const syncFilterLabel = filter => {
+                    const selectedBoxes = filter.boxes.filter(box => box.checked);
+                    if (filter.label) {
+                        filter.label.textContent = selectedBoxes.length === 0 || selectedBoxes.length === filter.boxes.length
+                            ? filter.allText
+                            : (selectedBoxes.length === 1 ? selectedBoxes[0].value : selectedBoxes.length + ' selected');
                     }
-                    if (allTypes) {
-                        allTypes.checked = selectedCount === 0 || selectedCount === typeBoxes.length;
-                        allTypes.indeterminate = selectedCount > 0 && selectedCount < typeBoxes.length;
+                    if (filter.all) {
+                        filter.all.checked = selectedBoxes.length === 0 || selectedBoxes.length === filter.boxes.length;
+                        filter.all.indeterminate = selectedBoxes.length > 0 && selectedBoxes.length < filter.boxes.length;
                     }
                 };
-                const updateAddressUrl = selected => {
+                const updateAddressUrl = () => {
                     const url = new URL(window.location.href);
-                    [...url.searchParams.keys()].filter(key => key === 'address_distribution_type' ||
-                        key.startsWith('address_distribution_type['))
-                        .forEach(key => url.searchParams.delete(key));
-                    selected.forEach(type => url.searchParams.append('address_distribution_type[]', type));
+                    filters.forEach(filter => {
+                        [...url.searchParams.keys()].filter(key => key === filter.key || key.startsWith(filter.key + '['))
+                            .forEach(key => url.searchParams.delete(key));
+                        selectedValues(filter).forEach(value => url.searchParams.append(filter.key + '[]', value));
+                    });
                     return url.toString();
                 };
                 let requestId = 0;
                 const reloadAddressChart = async () => {
-                    const selected = state();
+                    const selected = Object.fromEntries(filters.map(filter => [filter.key, selectedValues(filter)]));
                     const currentRequest = ++requestId;
                     canvas.setAttribute('aria-busy', 'true');
                     const url = new URL('{{ route('dashboard.address-distribution') }}', window.location.origin);
-                    selected.forEach(type => url.searchParams.append('address_distribution_type[]', type));
+                    filters.forEach(filter => selected[filter.key].forEach(value => url.searchParams.append(filter.key + '[]', value)));
                     try {
                         const response = await fetch(url.toString(), { headers: { 'Accept': 'application/json' } });
                         const payload = await response.json();
@@ -1732,23 +1785,25 @@
                         addressChart.data.datasets[0].backgroundColor = updatedLabels.map((_, i) => palette[i % palette.length]);
                         addressChart.update();
                         canvas.removeAttribute('aria-busy');
-                        window.history.replaceState(null, '', updateAddressUrl(selected));
+                        window.history.replaceState(null, '', updateAddressUrl());
                     } catch (error) {
-                        if (currentRequest === requestId) window.location.href = updateAddressUrl(selected);
+                        if (currentRequest === requestId) window.location.href = updateAddressUrl();
                     }
                 };
-                typeBoxes.forEach(box => box.addEventListener('change', () => {
-                    syncLabel();
-                    reloadAddressChart();
-                }));
-                if (allTypes) {
-                    allTypes.addEventListener('change', function() {
-                        typeBoxes.forEach(box => { box.checked = this.checked; });
-                        syncLabel();
+                filters.forEach(filter => {
+                    filter.boxes.forEach(box => box.addEventListener('change', () => {
+                        syncFilterLabel(filter);
                         reloadAddressChart();
-                    });
-                }
-                syncLabel();
+                    }));
+                    if (filter.all) {
+                        filter.all.addEventListener('change', function() {
+                            filter.boxes.forEach(box => { box.checked = this.checked; });
+                            syncFilterLabel(filter);
+                            reloadAddressChart();
+                        });
+                    }
+                    syncFilterLabel(filter);
+                });
             });
         </script>
         <script>

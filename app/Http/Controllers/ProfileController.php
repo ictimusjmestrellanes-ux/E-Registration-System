@@ -95,7 +95,11 @@ class ProfileController extends Controller
 
         $distributionCategoryOptions = $this->eventDistributionOptions('transaction_category');
         $distributionTypeOptions = $this->eventDistributionOptions('transaction_type');
+        $addressDistributionCategoryOptions = $this->eventDistributionOptions('client_category');
+        $addressDistributionStatusOptions = $this->eventDistributionOptions('status');
         $addressDistributionTypes = $this->txMultiFilter($request, 'address_distribution_type', $distributionTypeOptions);
+        $addressDistributionCategories = $this->txMultiFilter($request, 'address_distribution_category', $addressDistributionCategoryOptions);
+        $addressDistributionStatuses = $this->txMultiFilter($request, 'address_distribution_status', $addressDistributionStatusOptions);
         $distributionCategories = $this->txMultiFilter($request, 'distribution_category', $distributionCategoryOptions);
         $distributionTypes = $this->txMultiFilter($request, 'distribution_type', $distributionTypeOptions);
         // Cascading dropdowns (same flow as Total Transactions chart):
@@ -117,13 +121,13 @@ class ProfileController extends Controller
             $clientCategoryDistribution = $this->clientCategoryDistribution(10, $distributionCategories, $distributionTypes);
         }
 
-        $addressDistribution = $addressDistributionTypes === []
+        $addressDistribution = $addressDistributionTypes === [] && $addressDistributionCategories === [] && $addressDistributionStatuses === []
             ? Cache::remember(
                 'dashboard.event_address_counts',
                 300,
                 fn () => $this->eventAddressDistribution(10)
             )
-            : $this->eventAddressDistribution(10, $addressDistributionTypes);
+            : $this->eventAddressDistribution(10, $addressDistributionTypes, $addressDistributionCategories, $addressDistributionStatuses);
 
 
         $clientTrend = Cache::remember(
@@ -174,7 +178,7 @@ class ProfileController extends Controller
             )
         );
 
-        return view('pages.dashboard', compact('totalClients', 'totalTransactions', 'txCategoryOptions', 'txCategories', 'txTypeOptions', 'txTypes', 'txVisibleTypes', 'txTrendSuffix', 'categoryCounts', 'categories', 'clientTrend', 'transactionTrend', 'transactionDateTrend', 'transactionDateFrom', 'transactionDateTo', 'transactionDates', 'transactionDateOptions', 'transactionDateCategories', 'transactionDateTypes', 'transactionDateTypeOptions', 'transactionDateVisibleDates', 'caravanTrend', 'recentActivities', 'clientCategoryDistribution', 'addressDistribution', 'addressDistributionTypes', 'distributionCategories', 'distributionTypes', 'distVisibleTypes', 'distributionCategoryOptions', 'distributionTypeOptions'));
+        return view('pages.dashboard', compact('totalClients', 'totalTransactions', 'txCategoryOptions', 'txCategories', 'txTypeOptions', 'txTypes', 'txVisibleTypes', 'txTrendSuffix', 'categoryCounts', 'categories', 'clientTrend', 'transactionTrend', 'transactionDateTrend', 'transactionDateFrom', 'transactionDateTo', 'transactionDates', 'transactionDateOptions', 'transactionDateCategories', 'transactionDateTypes', 'transactionDateTypeOptions', 'transactionDateVisibleDates', 'caravanTrend', 'recentActivities', 'clientCategoryDistribution', 'addressDistribution', 'addressDistributionTypes', 'addressDistributionCategories', 'addressDistributionStatuses', 'addressDistributionCategoryOptions', 'addressDistributionStatusOptions', 'distributionCategories', 'distributionTypes', 'distVisibleTypes', 'distributionCategoryOptions', 'distributionTypeOptions'));
     }
 
     public function transactionDateTrend(Request $request)
@@ -365,10 +369,12 @@ class ProfileController extends Controller
      *
      * @return array{labels: array, data: array, total: int}
      */
-    public function eventAddressDistribution(int $top = PHP_INT_MAX, array $types = []): array
+    public function eventAddressDistribution(int $top = PHP_INT_MAX, array $types = [], array $clientCategories = [], array $statuses = []): array
     {
         $grouped = TransactionEvent::query()->whereNotNull('transferred_at')
             ->when($types !== [], fn ($query) => $query->whereIn('transaction_type', $types))
+            ->when($clientCategories !== [], fn ($query) => $query->whereIn('client_category', $clientCategories))
+            ->when($statuses !== [], fn ($query) => $query->whereIn('status', $statuses))
             ->whereNotNull('address')->whereRaw("TRIM(address) <> ''")
             ->selectRaw('address, count(*) as total')
             ->groupBy('address')
@@ -397,8 +403,10 @@ class ProfileController extends Controller
     public function addressDistributionData(Request $request)
     {
         $types = $this->txMultiFilter($request, 'address_distribution_type', $this->eventDistributionOptions('transaction_type'));
+        $clientCategories = $this->txMultiFilter($request, 'address_distribution_category', $this->eventDistributionOptions('client_category'));
+        $statuses = $this->txMultiFilter($request, 'address_distribution_status', $this->eventDistributionOptions('status'));
         $isExport = $request->boolean('export');
-        $distribution = $this->eventAddressDistribution($isExport ? PHP_INT_MAX : 10, $types);
+        $distribution = $this->eventAddressDistribution($isExport ? PHP_INT_MAX : 10, $types, $clientCategories, $statuses);
 
         if ($isExport) {
             $exportAddresses = [
@@ -431,6 +439,31 @@ class ProfileController extends Controller
                 fn ($address) => $countsByAddress[mb_strtolower($address)] ?? 0,
                 $exportAddresses
             );
+
+            $statusRows = TransactionEvent::query()->whereNotNull('transferred_at')
+                ->when($types !== [], fn ($query) => $query->whereIn('transaction_type', $types))
+                ->when($clientCategories !== [], fn ($query) => $query->whereIn('client_category', $clientCategories))
+                ->when($statuses !== [], fn ($query) => $query->whereIn('status', $statuses))
+                ->whereNotNull('address')->whereRaw("TRIM(address) <> ''")
+                ->selectRaw('address, status, count(*) as total')
+                ->groupBy('address', 'status')
+                ->get();
+            $statusCounts = ['claimed' => [], 'pending' => []];
+            foreach ($statusRows as $row) {
+                $status = mb_strtolower(trim((string) $row->status));
+                if (array_key_exists($status, $statusCounts)) {
+                    $key = mb_strtolower(trim((string) $row->address));
+                    $statusCounts[$status][$key] = ($statusCounts[$status][$key] ?? 0) + (int) $row->total;
+                }
+            }
+            $distribution['claimed_counts'] = array_map(
+                fn ($address) => $statusCounts['claimed'][mb_strtolower($address)] ?? 0,
+                $exportAddresses
+            );
+            $distribution['pending_counts'] = array_map(
+                fn ($address) => $statusCounts['pending'][mb_strtolower($address)] ?? 0,
+                $exportAddresses
+            );
         }
 
         return response()->json([
@@ -439,6 +472,8 @@ class ProfileController extends Controller
             'labels' => $distribution['labels'],
             'data' => $distribution['data'],
             'total' => $distribution['total'],
+            'claimed_counts' => $distribution['claimed_counts'] ?? [],
+            'pending_counts' => $distribution['pending_counts'] ?? [],
         ]);
     }
 
