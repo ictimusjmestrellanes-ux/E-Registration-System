@@ -16,7 +16,11 @@ use Illuminate\Support\Str;
 
 class ActivityLogsController extends Controller
 {
-    private const HIDDEN_ACTIONS = ['transaction_history_updated'];
+    private const HIDDEN_ACTIONS = [
+        'transaction_history_updated',
+        'event_status_tagged',
+        'events_status_tagged',
+    ];
 
     public function __construct()
     {
@@ -47,7 +51,7 @@ class ActivityLogsController extends Controller
             ->orderByDesc('id');
 
         $overviewActions = $this->rememberFilterOptions(
-            "activity-logs:overview-actions:{$authUserId}",
+            "activity-logs:overview-actions:v2:{$authUserId}",
             fn () => (clone $baseQuery)
                 ->reorder()
                 ->distinct()
@@ -240,7 +244,7 @@ class ActivityLogsController extends Controller
             ->whereNotIn('action', self::HIDDEN_ACTIONS, 'and');
         $filterScope = $viewOwnOnly ? "user-{$authUserId}" : 'all';
         $uniqueActions = $this->rememberFilterOptions(
-            "activity-logs:filter-actions:{$filterScope}",
+            "activity-logs:filter-actions:v2:{$filterScope}",
             fn () => (clone $filterOptionsQuery)
                 ->distinct()
                 ->pluck('action')
