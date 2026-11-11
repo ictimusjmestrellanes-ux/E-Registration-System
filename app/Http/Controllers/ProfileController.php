@@ -448,12 +448,13 @@ class ProfileController extends Controller
                 ->selectRaw('address, status, count(*) as total')
                 ->groupBy('address', 'status')
                 ->get();
-            $statusCounts = ['claimed' => [], 'pending' => []];
+            $statusCounts = ['claimed' => [], 'pending_unclaimed' => []];
             foreach ($statusRows as $row) {
                 $status = mb_strtolower(trim((string) $row->status));
-                if (array_key_exists($status, $statusCounts)) {
+                if ($status === 'claimed' || $status === 'pending' || $status === 'unclaimed') {
                     $key = mb_strtolower(trim((string) $row->address));
-                    $statusCounts[$status][$key] = ($statusCounts[$status][$key] ?? 0) + (int) $row->total;
+                    $statusKey = $status === 'claimed' ? 'claimed' : 'pending_unclaimed';
+                    $statusCounts[$statusKey][$key] = ($statusCounts[$statusKey][$key] ?? 0) + (int) $row->total;
                 }
             }
             $distribution['claimed_counts'] = array_map(
@@ -461,7 +462,7 @@ class ProfileController extends Controller
                 $exportAddresses
             );
             $distribution['pending_counts'] = array_map(
-                fn ($address) => $statusCounts['pending'][mb_strtolower($address)] ?? 0,
+                fn ($address) => $statusCounts['pending_unclaimed'][mb_strtolower($address)] ?? 0,
                 $exportAddresses
             );
         }

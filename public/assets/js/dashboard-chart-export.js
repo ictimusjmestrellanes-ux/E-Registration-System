@@ -76,7 +76,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (isDistribution) {
                 if (id === 'addressDistributionChart') {
                     return {
-                        rows: [['Address', 'Claimed Count', 'Pending Count'], ...labels.map((label, index) => [
+                        rows: [['Address', 'Claimed Count', 'Pending / Unclaimed Count'], ...labels.map((label, index) => [
                             label,
                             Number((payload.claimed_counts || [])[index]) || 0,
                             Number((payload.pending_counts || [])[index]) || 0,
