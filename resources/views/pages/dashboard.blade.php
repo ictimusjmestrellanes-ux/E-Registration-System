@@ -774,6 +774,11 @@
                                             'bg-primary-subtle text-primary',
                                             'ri-fingerprint-line',
                                         ],
+                                        str_contains($action, 'export') => [
+                                            'Export',
+                                            'bg-success-subtle text-success',
+                                            'ri-download-line',
+                                        ],
                                         default => ['Activity', 'bg-light text-dark', 'ri-history-line'],
                                     };
                                 };
@@ -817,6 +822,7 @@
         <script src="{{ asset('assets/libs/chart.js/chart.umd.min.js') }}"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+        <script>window.dashboardChartExportLogUrl = @json(route('dashboard.chart-export-log'));</script>
         <script src="{{ asset('assets/js/dashboard-chart-export.js') }}?v={{ filemtime(public_path('assets/js/dashboard-chart-export.js')) }}"></script>
         <script>
             document.addEventListener('DOMContentLoaded', function() {

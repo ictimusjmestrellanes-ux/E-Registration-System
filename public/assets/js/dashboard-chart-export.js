@@ -4,6 +4,20 @@ document.addEventListener('DOMContentLoaded', () => {
         'caravanTrendChart', 'clientCategoryChart', 'addressDistributionChart', 'serviceCategoryChart',
     ];
 
+    const logChartExport = async (chartId, format) => {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+        const response = await fetch(window.dashboardChartExportLogUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': csrfToken || '',
+            },
+            body: JSON.stringify({ chart_id: chartId, format }),
+        });
+        if (!response.ok) throw new Error('The chart export could not be added to Activity Logs. Please try again.');
+    };
+
     chartIds.forEach((id) => {
         const canvas = document.getElementById(id);
         const card = canvas?.closest('.card') ||
@@ -197,9 +211,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     XLSX.utils.book_append_sheet(workbook, sheet, 'Chart Data');
                     const xlsxBytes = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
                     const chartFile = await addExcelChart(xlsxBytes, table, header.querySelector('h5').textContent.trim());
+                    await logChartExport(id, 'xlsx');
                     downloadBlob(chartFile, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'xlsx');
                 } else {
                     const csv = table.rows.map(row => row.map(value => `"${String(value ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n');
+                    await logChartExport(id, 'csv');
                     downloadBlob('\uFEFF' + csv, 'text/csv;charset=utf-8', 'csv');
                 }
             } catch (error) {
@@ -290,6 +306,12 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (preview.closed) return;
+            try {
+                if (imageUrl) await logChartExport(id, 'preview');
+            } catch (error) {
+                preview.document.body.textContent = error.message || 'The chart export could not be logged.';
+                return;
+            }
             const doc = preview.document;
             doc.open();
             doc.write(`<!doctype html><html lang="en"><head><meta charset="utf-8">

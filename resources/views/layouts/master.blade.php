@@ -199,6 +199,7 @@
                                                         in_array($action, ['event_transfer_undone', 'events_transfer_undone'], true) => ['ri-arrow-go-back-line', 'bg-warning-subtle text-warning'],
                                                         $action === 'payroll_pdf_exported' => ['ri-printer-line', 'bg-danger-subtle text-danger'],
                                                         in_array($action, ['payroll_xlsx_exported', 'event_records_xlsx_exported'], true) => ['ri-file-excel-2-line', 'bg-success-subtle text-success'],
+                                                        $action === 'dashboard_chart_exported' => ['ri-bar-chart-box-line', 'bg-primary-subtle text-primary'],
                                                         default => ['ri-notification-2-line', 'bg-primary-subtle text-primary'],
                                                     };
                                                 };
@@ -218,6 +219,7 @@
                                                         'payroll_pdf_exported' => 'Payroll printed',
                                                         'payroll_xlsx_exported' => 'Payroll XLSX exported',
                                                         'event_records_xlsx_exported' => 'Event Records exported',
+                                                        'dashboard_chart_exported' => 'Dashboard chart exported',
                                                         default => ucfirst(str_replace('_', ' ', (string) $action)),
                                                     };
                                                 };

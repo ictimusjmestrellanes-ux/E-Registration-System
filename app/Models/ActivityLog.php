@@ -48,6 +48,7 @@ class ActivityLog extends Model
         'payroll_pdf_exported',
         'payroll_xlsx_exported',
         'event_records_xlsx_exported',
+        'dashboard_chart_exported',
     ];
 
     public function user(): BelongsTo

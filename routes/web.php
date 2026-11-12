@@ -4,6 +4,7 @@ use App\Http\Controllers\ActivityLogsController;
 use App\Http\Controllers\ArchiveController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\CameraController;
+use App\Http\Controllers\DashboardChartExportController;
 use App\Http\Controllers\ClientEditController;
 use App\Http\Controllers\ClientListController;
 use App\Http\Controllers\ClientsController;
@@ -35,6 +36,7 @@ Route::group(['namespace' => 'App\Http\Controllers\Auth'],function()
 
 Route::group(['namespace' => 'App\Http\Controllers'], function () {
     Route::middleware('auth')->group(function () {
+        Route::post('dashboard/chart-export-log', [DashboardChartExportController::class, 'store'])->name('dashboard.chart-export-log');
         Route::middleware('viewer.readonly')->group(function () {
         // --------------------- Dashboard ------------------//
         Route::get('dashboard', [ProfileController::class, 'dashboard'])->name('dashboard');
