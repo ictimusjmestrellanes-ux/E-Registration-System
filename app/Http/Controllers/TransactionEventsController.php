@@ -2005,29 +2005,15 @@ class TransactionEventsController extends Controller
     private function paginatedFullNameRecordDuplicateGroups(Request $request, int $perPage): array
     {
         $normalizedName = $this->recordDuplicateNormalizedExpression('transaction_events.full_name');
-        $unlinkedClient = "duplicate_history.client_id IS NULL OR TRIM(duplicate_history.client_id) = ''";
-        $linkedClient = "NULLIF(TRIM(duplicate_history.client_id), '')";
         $grouped = DB::table('transaction_events')
-            ->leftJoin(
-                'transaction_history as duplicate_history',
-                'duplicate_history.id',
-                '=',
-                'transaction_events.transferred_transaction_id'
-            )
             ->whereNotNull('transaction_events.transferred_at')
             ->where('transaction_events.not_duplicate', false)
             ->whereNull('transaction_events.duplicate_merged_at');
         $this->applyRecordDuplicatePrefilters($grouped, $request, 'transaction_events.');
         $grouped->selectRaw("{$normalizedName} as fullname")
             ->selectRaw('COUNT(*) as total, MIN(transaction_events.id) as group_id')
-            ->selectRaw("COUNT(DISTINCT {$linkedClient}) as linked_client_count")
-            ->selectRaw("SUM(CASE WHEN {$unlinkedClient} THEN 1 ELSE 0 END) as unlinked_count")
             ->groupBy(DB::raw($normalizedName))
-            ->havingRaw('COUNT(*) > 1')
-            ->havingRaw(
-                "(SUM(CASE WHEN {$unlinkedClient} THEN 1 ELSE 0 END) > 0 "
-                ."OR COUNT(DISTINCT {$linkedClient}) <> 1)"
-            );
+            ->havingRaw('COUNT(*) > 1');
 
         $summary = DB::query()
             ->fromSub(clone $grouped, 'duplicate_full_name_groups')
