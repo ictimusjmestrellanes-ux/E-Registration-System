@@ -20,6 +20,13 @@
             'transaction_type',
         ]);
     @endphp
+    <style>
+        #recordFiltersForm .dropdown,
+        #recordFiltersForm .dropdown * {
+            text-transform: uppercase;
+            text-decoration: none;
+        }
+    </style>
     <div class="container-fluid">
         <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
             <div>
@@ -545,7 +552,7 @@
                                 <tbody>
                                     @forelse ($events as $event)
                                         <tr data-event-id="{{ $event->id }}" data-base-status="{{ $event->status }}"
-                                            data-not-duplicate="{{ $event->not_duplicate ? '1' : '0' }}">
+                                            data-not-duplicate="{{ $event->not_duplicate ? '1' : '0' }}" style="text-transform: uppercase;">
                                             @if (auth()->user()?->role_name !== 'Viewer')
                                                 <td class="text-center">
                                                     <input class="form-check-input event-select-checkbox" type="checkbox"

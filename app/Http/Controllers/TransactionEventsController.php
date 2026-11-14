@@ -1577,8 +1577,12 @@ class TransactionEventsController extends Controller
 
         if ($search = trim((string) $request->input('search', ''))) {
             $query->where(function ($matches) use ($search, $column) {
-                $matches->where($column('full_name'), 'like', "%{$search}%")
-                    ->orWhere($column('client_category'), 'like', "%{$search}%")
+                // Keep comma-form names (for example "LAST, FIRST") searchable
+                // even when stored/imported names use a different punctuation
+                // format, just like the main Event Records filter does.
+                $this->applyEventNameSearch($matches, $search);
+
+                $matches->orWhere($column('client_category'), 'like', "%{$search}%")
                     ->orWhere($column('transaction_category'), 'like', "%{$search}%")
                     ->orWhere($column('transaction_type'), 'like', "%{$search}%");
             });
@@ -2334,7 +2338,7 @@ class TransactionEventsController extends Controller
             sort($cacheFilters['transaction_category']);
             sort($cacheFilters['transaction_type']);
             sort($cacheFilters['status']);
-            $cacheKey = 'transaction-events:duplicate-records:v9:'.hash('sha256', json_encode([
+            $cacheKey = 'transaction-events:duplicate-records:v10:'.hash('sha256', json_encode([
                 'state' => $state,
                 'filters' => $cacheFilters,
             ]));
