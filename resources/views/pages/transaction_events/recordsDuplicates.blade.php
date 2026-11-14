@@ -92,8 +92,16 @@
                                     })
                                     ->values();
                                 $first = $events->first();
-                                $groupIds = $events->pluck('id')->values();
-                                $linkedClients = $events
+                                $actionableEvents = $events
+                                    ->filter(fn($event) => !$event->not_duplicate && !$event->duplicate_merged_at)
+                                    ->values();
+                                $actionableGroupIds = $actionableEvents->pluck('id')->values();
+                                $mergeableEvents = $events
+                                    ->filter(fn($event) => !$event->duplicate_merged_at &&
+                                        (!$event->not_duplicate || in_array($tab, ['likely', 'full_name'], true)))
+                                    ->values();
+                                $mergeableGroupIds = $mergeableEvents->pluck('id')->values();
+                                $linkedClients = $mergeableEvents
                                     ->map(fn($event) => $event->transferredTransaction?->client)
                                     ->filter()
                                     ->unique('id')
@@ -153,7 +161,7 @@
                                         fn($client) => [
                                             'client_id' => (string) $client->client_id,
                                             'name' => $client->full_name,
-                                            'record_count' => $events
+                                            'record_count' => $mergeableEvents
                                                 ->filter(
                                                     fn($event) => (string) $event->transferredTransaction
                                                         ?->client_id === (string) $client->client_id,
@@ -185,17 +193,17 @@
                                 if (auth()->user()?->role_name !== 'Viewer') {
                                     $out .= '<div class="d-flex flex-wrap gap-2">';
                                     if (feature_allowed('Merge to Oldest Client')) {
-                                        if ($linkedClients->count() > 1) {
+                                        if ($linkedClients->count() > 1 && $mergeableGroupIds->count() > 1) {
                                             $out .=
                                                 '<button type="button" class="btn btn-sm btn-primary text-nowrap" data-bs-toggle="modal" data-bs-target="#mergeDuplicateClientsModal"' .
                                                 ' data-event-ids="' .
-                                                e($groupIds->implode(',')) .
+                                                e($mergeableGroupIds->implode(',')) .
                                                 '"' .
                                                 ' data-group-name="' .
                                                 e($first->full_name) .
                                                 '"' .
                                                 ' data-record-count="' .
-                                                (int) $groupIds->count() .
+                                                (int) $mergeableGroupIds->count() .
                                                 '"' .
                                                 ' data-target-profile="' .
                                                 e(json_encode($profileSummary($oldestClient))) .
@@ -207,14 +215,14 @@
                                                 '<i class="ri-git-merge-line me-1"></i> Merge to Oldest Client</button>';
                                         }
                                     }
-                                    if (feature_allowed('Not a duplicate')) {
+                                    if (feature_allowed('Not a duplicate') && $actionableGroupIds->isNotEmpty()) {
                                         $out .=
                                             '<button type="button" class="btn btn-sm btn-outline-success text-nowrap" data-bs-toggle="modal" data-bs-target="#notDuplicateGroupModal" data-event-ids="' .
-                                            e($groupIds->implode(',')) .
+                                            e($actionableGroupIds->implode(',')) .
                                             '" data-group-name="' .
                                             e($first->full_name) .
                                             '" data-record-count="' .
-                                            (int) $groupIds->count() .
+                                            (int) $actionableGroupIds->count() .
                                             '"><i class="ri-check-line me-1"></i> Not a duplicate</button>';
                                     }
                                     $out .= '</div>';
@@ -361,11 +369,17 @@
                                         '</span></td>';
                                     if (auth()->user()?->role_name !== 'Viewer') {
                                         $out .= '<td class="text-center text-nowrap">';
-                                        $out .= view('pages.transaction_events.partials.duplicateStatusAction', [
-                                            'event' => $event,
-                                            'tab' => $tab,
-                                        ])->render();
-                                        if (feature_allowed('Undo Transfer')) {
+                                        if ($event->duplicate_merged_at) {
+                                            $out .= '<span class="badge bg-primary-subtle text-primary">Already merged</span>';
+                                        } elseif ($event->not_duplicate) {
+                                            $out .= '<span class="badge bg-success-subtle text-success">Marked not a duplicate</span>';
+                                        } else {
+                                            $out .= view('pages.transaction_events.partials.duplicateStatusAction', [
+                                                'event' => $event,
+                                                'tab' => $tab,
+                                            ])->render();
+                                        }
+                                        if (! $event->duplicate_merged_at && ! $event->not_duplicate && feature_allowed('Undo Transfer')) {
                                             $undoUrl = route(
                                                 'transaction-events.undo-transfer',
                                                 array_merge(request()->query(), [
@@ -734,6 +748,8 @@
                                         <strong>full middle name</strong>, plus at least one matching
                                         <strong>Event Date</strong>, <strong>Transaction Type</strong>, or <strong>Client
                                             Category</strong>. Review before acting.
+                                        Records marked not a duplicate remain visible and can still be merged from this
+                                        tab; already merged records are excluded.
                                     </div>
                                 </div>
                                 @if ($loadedDuplicateTabs['likely'])
@@ -771,8 +787,10 @@
                                 role="tabpanel">
                                 <div class="alert alert-info-subtle d-flex align-items-center mb-3 py-2" role="alert">
                                     <i class="ri-information-line fs-4 me-2"></i>
-                                    <div class="small">Same <strong>Full Name</strong> only, ignoring letter case and
-                                        leading or trailing spaces. Birth dates and transaction details may differ.</div>
+                                    <div class="small">Shows every transferred record with the same normalized
+                                        <strong>Full Name</strong>, even when birth dates or transaction details differ.
+                                        Records already marked as merged are excluded. Records marked not a duplicate
+                                        remain visible and can still be merged from this tab.</div>
                                 </div>
                                 @if ($loadedDuplicateTabs['full_name'])
                                     @forelse ($similarGroups as $group)
@@ -854,6 +872,7 @@
                 <form class="modal-content" action="{{ route('transaction-events.records-duplicates.merge-clients') }}"
                     method="POST" id="mergeDuplicateClientsForm">
                     @csrf
+                    <input type="hidden" name="duplicate_tab" id="mergeDuplicateTab" value="{{ $activeTab }}">
                     <div class="modal-header">
                         <h5 class="modal-title" id="mergeDuplicateClientsModalLabel">
                             <i class="ri-git-merge-line text-primary me-1"></i> Merge to Oldest Client
@@ -1034,6 +1053,11 @@
             });
 
             const mergeClientsModal = document.getElementById('mergeDuplicateClientsModal');
+            const mergeDuplicateClientsForm = document.getElementById('mergeDuplicateClientsForm');
+            const mergeDuplicateTab = document.getElementById('mergeDuplicateTab');
+            mergeDuplicateClientsForm?.addEventListener('submit', () => {
+                mergeDuplicateTab.value = document.getElementById('dupActiveTab')?.value || 'exact';
+            });
             const mergeConfirmation = document.getElementById('confirmDuplicateClientMerge');
             const mergeSubmitButton = document.getElementById('confirmDuplicateClientMergeButton');
             const mergeSourceClientChoices = document.getElementById('mergeSourceClientChoices');

@@ -2005,9 +2005,10 @@ class TransactionEventsController extends Controller
     private function paginatedFullNameRecordDuplicateGroups(Request $request, int $perPage): array
     {
         $normalizedName = $this->recordDuplicateNormalizedExpression('transaction_events.full_name');
+        // This tab shows every unmerged transferred event with the same
+        // normalized full name, including records marked not-a-duplicate.
         $grouped = DB::table('transaction_events')
             ->whereNotNull('transaction_events.transferred_at')
-            ->where('transaction_events.not_duplicate', false)
             ->whereNull('transaction_events.duplicate_merged_at');
         $this->applyRecordDuplicatePrefilters($grouped, $request, 'transaction_events.');
         $grouped->selectRaw("{$normalizedName} as fullname")
@@ -2035,7 +2036,6 @@ class TransactionEventsController extends Controller
             );
             $events = TransactionEvent::query()
                 ->whereNotNull('transferred_at')
-                ->where('not_duplicate', false)
                 ->whereNull('duplicate_merged_at')
                 ->whereIn(DB::raw($this->recordDuplicateNormalizedExpression('full_name')), $groupIdsByName->keys()->all())
                 ->select('transaction_events.*')
@@ -2100,7 +2100,6 @@ class TransactionEventsController extends Controller
                 'transaction_events.transferred_transaction_id'
             )
             ->whereNotNull('transaction_events.transferred_at')
-            ->where('transaction_events.not_duplicate', false)
             ->whereNull('transaction_events.duplicate_merged_at')
             ->whereNotNull('transaction_events.duplicate_person_key');
         $this->applyRecordDuplicatePrefilters($candidates, $request, 'transaction_events.');
@@ -2186,7 +2185,6 @@ class TransactionEventsController extends Controller
                 ->whereIn('duplicate_person_key', $visible->pluck('person_key')->all());
             $this->applyRecordDuplicatePrefilters($eventQuery, $request);
             $events = $eventQuery->whereNotNull('transferred_at')
-                ->where('not_duplicate', false)
                 ->whereNull('duplicate_merged_at')
                 ->orderByDesc('id')->get()->groupBy('duplicate_person_key');
         }
@@ -2265,9 +2263,7 @@ class TransactionEventsController extends Controller
                 [$likelyGroups, $likelyRecordsTotal] = $this->likelyRecordGroups($request, $perPage);
             }
 
-            $filterBase = TransactionEvent::whereNotNull('transferred_at')
-                ->where('not_duplicate', false)
-                ->whereNull('duplicate_merged_at');
+            $filterBase = TransactionEvent::whereNotNull('transferred_at');
 
             $loadedDuplicateTabs = [
                 'exact' => $loadAllTabs || $activeTab === 'exact',
@@ -2324,7 +2320,7 @@ class TransactionEventsController extends Controller
             sort($cacheFilters['transaction_category']);
             sort($cacheFilters['transaction_type']);
             sort($cacheFilters['status']);
-            $cacheKey = 'transaction-events:duplicate-records:v10:'.hash('sha256', json_encode([
+            $cacheKey = 'transaction-events:duplicate-records:v13:'.hash('sha256', json_encode([
                 'state' => $state,
                 'filters' => $cacheFilters,
             ]));
@@ -5751,6 +5747,7 @@ class TransactionEventsController extends Controller
             'profile_field_sources.*' => ['required', 'string', 'max:255'],
         ]);
         $eventIds = collect($validated['event_ids'])->map(fn ($id) => (int) $id)->values();
+        $allowReviewedEvents = in_array($request->input('duplicate_tab'), ['likely', 'full_name'], true);
         $requestedSourceClientIds = array_key_exists('source_client_ids', $validated)
             ? collect($validated['source_client_ids'])->map(fn ($id) => (string) $id)->values()
             : null;
@@ -5759,14 +5756,15 @@ class TransactionEventsController extends Controller
             $validated['profile_field_sources'] ?? []
         );
 
-        $result = DB::transaction(function () use ($eventIds, $request, $profileFieldSources, $requestedSourceClientIds): array {
-            $events = TransactionEvent::query()
+        $result = DB::transaction(function () use ($eventIds, $request, $profileFieldSources, $requestedSourceClientIds, $allowReviewedEvents): array {
+            $eventQuery = TransactionEvent::query()
                 ->whereKey($eventIds->all())
                 ->whereNotNull('transferred_at')
-                ->where('not_duplicate', false)
-                ->whereNull('duplicate_merged_at')
-                ->lockForUpdate()
-                ->get();
+                ->whereNull('duplicate_merged_at');
+            if (! $allowReviewedEvents) {
+                $eventQuery->where('not_duplicate', false);
+            }
+            $events = $eventQuery->lockForUpdate()->get();
 
             if ($events->count() !== $eventIds->count()) {
                 return ['error' => 'One or more duplicate records changed. Refresh the page and review the group again.'];
@@ -6073,8 +6071,11 @@ class TransactionEventsController extends Controller
         }
 
         TransactionHistory::flushDashboardCache();
+        $returnTab = in_array($request->input('duplicate_tab'), ['likely', 'full_name'], true)
+            ? $request->input('duplicate_tab')
+            : 'exact';
 
-        return redirect()->route('transaction-events.records-duplicates')->with(
+        return redirect()->route('transaction-events.records-duplicates', ['duplicate_tab' => $returnTab])->with(
             'success',
             "Merged {$result['sources']} newer client profile(s) into oldest client "
                 .$result['target']->client_id.". Updated {$result['transactions']} transaction ID(s), preserved every event transaction, and "
